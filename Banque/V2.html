@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Budget Partagé</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#F3F6F3">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --paper:#F3F6F3;
+    --card:#FFFFFF;
+    --ink:#152520;
+    --ink-soft:#5A6B62;
+    --ink-faint:#93A29A;
+    --line:#DBE3DD;
+    --line-soft:#E9EEEA;
+    --sage:#3E6B57;
+    --sage-deep:#28453A;
+    --sage-pale:#E4EEE8;
+    --amber:#B8793A;
+    --amber-pale:#F7EADA;
+    --clay:#AE4B3C;
+    --clay-pale:#F7E2DE;
+    --gold:#B7912F;
+    --gold-pale:#F5EDD6;
+    --shadow: 0 1px 2px rgba(21,37,32,0.04), 0 6px 20px -8px rgba(21,37,32,0.14);
+    --radius: 16px;
+  }
+  body { margin: 0; background: var(--paper); font-family: 'Inter', sans-serif; }
+  *{box-sizing:border-box;}
+  ::selection{ background: var(--sage-pale); color: var(--sage-deep); }
+  :focus-visible{ outline: 2px solid var(--sage); outline-offset: 2px; }
+  button{ font-family: inherit; }
+  
+  /* AUTH GATE */
+  #auth-gate {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; max-width: 400px; margin: 0 auto; padding: 20px;
+  }
+  .auth-card { background: var(--card); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); width: 100%; }
+  .auth-title { font-family: 'Space Grotesk', sans-serif; font-size: 24px; color: var(--sage-deep); text-align: center; margin: 0 0 20px; }
+  .auth-msg { font-size: 13px; margin-bottom: 12px; text-align: center; font-weight: 500; display: none; padding: 8px; border-radius: 8px; }
+  .auth-msg.error { color: var(--clay); background: var(--clay-pale); display:block;}
+  .auth-msg.success { color: var(--sage-deep); background: var(--sage-pale); display:block;}
+
+  /* MAIN APP */
+  #budget-root{
+    display: none; flex-direction:column; position:relative; max-width:560px; margin:0 auto;
+    min-height:100vh; background:var(--paper); color:var(--ink);
+    border-left:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
+    transition: max-width 0.2s ease;
+  }
+
+  /* ===== DESKTOP (>= 900px) : simple colonne centrée, même barre du bas qu'en mobile ===== */
+  @media (min-width: 900px){
+    #budget-root{
+      max-width: 640px; border-left:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
+      min-height: 100vh;
+    }
+    .bh-view{ padding: 8px 24px 74px; }
+  }
+
+  .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
+  .bh-manage-row:hover{ border-color: var(--sage); }
+  .bh-btn{ cursor:pointer; }
+  .bh-btn-primary:hover{ background: var(--sage-deep); }
+  .bh-icon-btn:hover{ background: var(--sage-pale); color:var(--sage-deep); border-color:var(--sage); }
+
+  h1, h2, h3{ font-family:'Space Grotesk',sans-serif; margin:0; }
+  .num{font-family:'JetBrains Mono',monospace; font-weight:600; letter-spacing:-0.02em;}
+
+  .bh-topbar{ position:sticky; top:0; z-index:20; background:var(--paper); padding:18px 18px 12px; border-bottom:1px solid var(--line-soft); }
+  .bh-topbar-row{display:flex; align-items:center; justify-content:space-between;}
+  .bh-brand{display:flex; align-items:baseline; gap:8px;}
+  .bh-brand-mark{ width:10px;height:10px;border-radius:3px;background:var(--sage); display:inline-block; transform:rotate(45deg); margin-right:2px; }
+  .bh-title{font-size:19px; font-weight:700; color:var(--sage-deep); letter-spacing:-0.01em;}
+  .bh-sub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .bh-icon-btn{ width:34px;height:34px;border-radius:10px;border:1px solid var(--line); background:var(--card); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft); }
+  
+  .bh-view{display:none; padding:16px 16px 74px;}
+  .bh-view.active{display:block;}
+
+  .bh-input{ width:100%; border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-family:'Inter',sans-serif; font-size:14px; background:var(--paper); color:var(--ink); margin-bottom: 12px;}
+  .bh-input:focus{outline:2px solid var(--sage); outline-offset:1px;}
+  
+  .bh-btn{ border:none; border-radius:10px; font-family:'Inter'; font-weight:600; font-size:14px; padding:12px 16px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition: transform 0.1s;}
+  .bh-btn:active{transform:scale(0.98);}
+  .bh-btn-primary{background:var(--sage); color:#fff; flex:1;}
+  .bh-btn-ghost{background:var(--line-soft); color:var(--ink-soft); flex:1;}
+  .bh-btn-danger{background:var(--clay-pale); color:var(--clay);}
+  .bh-btn-outline{background:#fff; color:var(--sage-deep); border:1px solid var(--line);}
+  .bh-btn-outline.active{ background:var(--sage-deep); color:#fff; border-color:var(--sage-deep); }
+  .bh-btn-block{width:100%;}
+  .bh-link-btn{background:none;border:none;color:var(--ink-soft);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;padding:8px; width: 100%; text-align: center;}
+
+  .bh-card{ background:var(--card); border:1px solid var(--line-soft); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; margin-bottom:12px; }
+  .bh-section-label{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.07em; color:var(--ink-faint); margin:22px 2px 10px; display:flex; align-items:center; gap:8px; }
+  .bh-section-label:first-child{margin-top:2px;}
+  .bh-empty{ text-align:center; padding:34px 20px; color:var(--ink-soft); background:var(--card); border:1px dashed var(--line); border-radius:var(--radius); }
+  
+  /* STATS & METRICS */
+  .bh-stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .bh-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:13px 14px; box-shadow:var(--shadow); }
+  .bh-stat-label{font-size:11px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.04em;}
+  .bh-stat-value{font-size:20px; margin-top:4px;}
+  .bh-stat.sage .bh-stat-value{color:var(--sage-deep);}
+  .bh-stat.clay .bh-stat-value{color:var(--clay);}
+
+  /* DUE ITEMS */
+  .bh-due{ background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:13px 14px; margin-bottom:10px; box-shadow:var(--shadow); }
+  .bh-due-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px;}
+  .bh-due-desc{font-weight:600; font-size:15px; color:var(--ink);}
+  .bh-due-meta{font-size:12px; color:var(--ink-soft); margin-top:3px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;}
+  .bh-due-amount{font-size:16px; white-space:nowrap;}
+  .bh-pill{ font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  .bh-pill-late{background:var(--clay-pale); color:var(--clay);}
+  .bh-pill-today{background:var(--amber-pale); color:var(--amber);}
+  .bh-pill-soon{background:var(--sage-pale); color:var(--sage-deep);}
+  .bh-pill-account{background:var(--line-soft); color:var(--ink-soft);}
+  .bh-due-actions{display:flex; gap:7px; margin-top:11px;}
+  .bh-due-actions .bh-btn{ padding:9px 12px; font-size:13px; border-radius:9px; }
+  .bh-due-actions .bh-btn-primary{ flex:1.3; }
+  .bh-due-actions .bh-btn-ghost{ flex:1; }
+  .bh-section-count{ display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:20px; background:var(--line-soft); color:var(--ink-soft); font-size:11px; font-weight:700; }
+  
+  /* ACCOUNT CARDS */
+  .bh-acct-card{margin-bottom:14px;}
+  .bh-acct-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .bh-acct-name{font-family:'Space Grotesk'; font-weight:700; font-size:15px;}
+  .bh-acct-bal{font-size:13px;}
+  .bh-progress-track{height:7px; border-radius:20px; background:var(--line-soft); overflow:hidden; margin:8px 0 12px;}
+  .bh-progress-fill{height:100%; background:var(--sage); border-radius:20px;}
+  .bh-acct-row{display:flex; justify-content:space-between; padding:7px 0; font-size:13px; border-bottom:1px solid var(--line-soft);}
+  .bh-acct-row:last-child{border-bottom:none;}
+  .bh-mini-metrics{display:flex; gap:8px; margin-top:2px;}
+  .bh-mini{flex:1; text-align:center; background:var(--paper); border-radius:9px; padding:7px 4px;}
+  .bh-mini-label{font-size:9.5px; color:var(--ink-faint); font-weight:700; text-transform:uppercase; letter-spacing:0.03em;}
+  .bh-mini-value{font-size:13px; margin-top:2px;}
+  
+  /* MANAGE LIST */
+  .bh-manage-group{margin-bottom:18px;}
+  .bh-manage-group-title{ font-family:'Space Grotesk'; font-weight:700; font-size:14px; color:var(--sage-deep); margin:0 2px 8px; display:flex; justify-content:space-between;}
+  .bh-manage-row{ display:flex; justify-content:space-between; align-items:center; background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:11px 12px; margin-bottom:7px; cursor:pointer;}
+  
+  /* FAB & TOAST */
+  .bh-fab{ position:fixed; right:max(14px, calc((100vw - 560px)/2 + 14px)); bottom:78px; z-index:25; width:46px;height:46px;border-radius:50%; background:var(--sage-deep); color:#fff; border:none; box-shadow:0 8px 20px -4px rgba(40,69,58,0.5); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  @media (min-width: 900px){ .bh-fab{ right: max(14px, calc((100vw - 640px)/2 + 14px)); } }
+  .bh-toast{ position:fixed; left:50%; bottom:110px; transform:translateX(-50%); background:var(--sage-deep); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; font-weight:600; z-index:100; opacity:0; pointer-events:none; transition:opacity 0.25s, transform 0.25s; }
+  .bh-toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+
+  /* SHEET (MODALS) */
+  .bh-sheet-overlay{ position:fixed; inset:0; background:rgba(21,37,32,0.42); z-index:50; display:none; align-items:flex-end; justify-content:center; }
+  .bh-sheet-overlay.open{display:flex;}
+  .bh-sheet{ background:var(--paper); width:100%; max-width:560px; border-radius:20px 20px 0 0; padding:10px 20px calc(24px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto; animation:bhSheetUp 0.22s ease; }
+  @keyframes bhSheetUp{from{transform:translateY(24px); opacity:0.4;} to{transform:translateY(0); opacity:1;}}
+  .bh-sheet-handle{width:36px;height:4px;background:var(--line); border-radius:4px; margin:8px auto 14px;}
+  .bh-field-label{font-size:12px; font-weight:600; color:var(--ink-soft); margin:12px 2px 5px;}
+  .bh-sheet input, .bh-sheet select{ width:100%; border:1px solid var(--line); border-radius:11px; padding:11px 12px; font-family:'Inter'; font-size:14.5px; background:#fff; color:var(--ink); margin-bottom:8px;}
+  .bh-two-col{display:flex; gap:10px;} .bh-two-col > div{flex:1;}
+  
+  /* TABBAR */
+  /* TABBAR — barre flottante compacte, identique mobile et PC */
+  .bh-tabbar{
+    position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
+    width:calc(100% - 20px); max-width:340px; z-index:30;
+    display:flex; justify-content:space-between;
+    background:var(--card); border:1px solid var(--line-soft); border-radius:16px;
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 4px 14px -4px rgba(21,37,32,0.18), 0 1px 3px rgba(21,37,32,0.06);
+  }
+  .bh-tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    background:none; border:none; padding:5px 2px; cursor:pointer; color:var(--ink-faint);
+    font-family:'Inter',sans-serif; font-size:8.5px; font-weight:600; border-radius:10px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .bh-tab svg{ width:16px; height:16px; }
+  .bh-tab.active{ color:var(--sage-deep); background:var(--sage-pale); }
+  .bh-tab:hover:not(.active){ color:var(--sage-deep); }
+
+
+  /* MISC */
+  .stat-bar-bg { width:100%; height:8px; background:var(--line-soft); border-radius:4px; overflow:hidden; margin-top:6px;}
+  .stat-bar-fg { height:100%; background:var(--sage); border-radius:4px;}
+  .contrib-input-wrap { display:flex; gap:10px; align-items:center; background:var(--paper); padding:8px 12px; border-radius:12px; margin-top:8px;}
+  .contrib-input-wrap input[type=number] { width:80px; margin:0; padding:6px; border:1px solid var(--line); border-radius:6px; text-align:right;}
+
+  /* CHARTS */
+  .chart-title{ font-family:'Space Grotesk'; font-weight:700; font-size:14px; color:var(--sage-deep); margin:0 0 12px; }
+  .chart-wrap{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .chart-wrap svg{ flex-shrink:0; }
+  .chart-legend{ flex:1; min-width:140px; display:flex; flex-direction:column; gap:7px; }
+  .chart-legend-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; }
+  .chart-legend-swatch{ width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+  .chart-legend-label{ flex:1; color:var(--ink); font-weight:500; }
+  .chart-legend-value{ color:var(--ink-soft); font-family:'JetBrains Mono',monospace; font-size:11.5px; }
+  .chart-empty{ font-size:13px; color:var(--ink-faint); padding:8px 2px; }
+  .chart-center-label{ font-family:'Space Grotesk'; font-weight:700; fill:var(--sage-deep); }
+  .chart-center-sub{ fill:var(--ink-faint); font-family:'Inter'; }
+</style>
+</head>
+<body>
+
+<div id="auth-gate">
+  <div class="auth-card">
+    <h2 class="auth-title">Budget Partagé</h2>
+    <div id="auth-msg" class="auth-msg"></div>
+    
+    <input type="email" id="auth-email" class="bh-input" placeholder="Adresse email">
+    <input type="password" id="auth-pwd" class="bh-input" placeholder="Mot de passe (min 6 car.)">
+    
+    <button onclick="AppAuth.login()" class="bh-btn bh-btn-primary bh-btn-block">Se connecter</button>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button onclick="AppAuth.signup()" class="bh-btn bh-btn-ghost bh-btn-block">Créer un compte</button>
+    </div>
+    <button onclick="AppAuth.resetPwd()" class="bh-link-btn" style="margin-top:10px;">Mot de passe oublié ?</button>
+  </div>
+</div>
+
+<div id="budget-root">
+  <div class="bh-topbar">
+    <div class="bh-topbar-row">
+      <div class="bh-brand">
+        <span class="bh-brand-mark"></span>
+        <div><div class="bh-title">Budget</div></div>
+      </div>
+      <button class="bh-icon-btn" onclick="BH.openSettings()" aria-label="Réglages">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+    <div class="bh-sub" id="bh-header-sub">Chargement...</div>
+  </div>
+
+  <!-- VUE 1 : AUJOURD'HUI -->
+  <div class="bh-view active" id="view-today">
+    <div class="bh-stat-grid" style="margin-bottom:6px;">
+      <div class="bh-stat clay">
+        <div class="bh-stat-label">Reste à valider</div>
+        <div class="bh-stat-value num" id="bh-stat-remaining">—</div>
+      </div>
+      <div class="bh-stat sage">
+        <div class="bh-stat-label">Déjà réglé</div>
+        <div class="bh-stat-value num" id="bh-stat-paid">—</div>
+      </div>
+    </div>
+    <div id="bh-due-section"></div>
+    <div class="bh-section-label">Validé ce mois-ci</div>
+    <div class="bh-card" id="bh-paid-list-wrap">
+      <div id="bh-paid-list"></div>
+    </div>
+  </div>
+
+  <!-- VUE 2 : COMPTES -->
+  <div class="bh-view" id="view-comptes">
+    <div class="bh-month-nav" style="display:flex; justify-content:space-between; margin-bottom:16px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
+      <button onclick="BH.shiftMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&larr;</button>
+      <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; text-transform:capitalize;" id="bh-comptes-month-label">Mois</div>
+      <button onclick="BH.shiftMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&rarr;</button>
+    </div>
+    <div id="bh-accounts-list"></div>
+  </div>
+
+  <!-- VUE 3 : SAISIES (Dépenses & Revenus fusionnés) -->
+  <div class="bh-view" id="view-saisies">
+    <div class="bh-card" style="padding:10px 12px; margin-bottom:14px;">
+      <input type="text" id="bh-search" class="bh-input" style="margin-bottom:8px;" placeholder="Rechercher (description, montant...)" oninput="BH.renderSaisies()">
+      <select id="bh-filter-cat" class="bh-input" style="margin-bottom:0;" onchange="BH.renderSaisies()">
+        <option value="">Toutes les catégories</option>
+      </select>
+    </div>
+    <div class="bh-section-label">Dépenses</div>
+    <div id="bh-expenses-groups"></div>
+    <div class="bh-section-label">Revenus / Remboursements</div>
+    <div id="bh-incomes-groups"></div>
+  </div>
+
+  <!-- VUE 4 : STATISTIQUES -->
+  <div class="bh-view" id="view-stats">
+    <div class="bh-card" style="text-align:center; padding:24px 16px;">
+      <div style="font-size:12px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Capacité d'épargne (Mensuelle)</div>
+      <div class="num" id="stat-epargne" style="font-size:32px; color:var(--sage-deep); margin:8px 0;">—</div>
+      <div style="font-size:13px; color:var(--ink-faint);" id="stat-epargne-detail">Revenus perso - Dépenses réelles</div>
+    </div>
+
+    <div class="bh-section-label">Répartition de mon salaire</div>
+    <div class="bh-card">
+      <div class="chart-title">Vers mes comptes partagés</div>
+      <div id="chart-salary-split"></div>
+    </div>
+
+    <div class="bh-section-label">Dépenses par catégorie (tous comptes)</div>
+    <div class="bh-card">
+      <div id="chart-categories"></div>
+    </div>
+
+    <div class="bh-section-label">Évolution (dépenses réglées, 12 derniers mois)</div>
+    <div class="bh-card" id="stat-evolution"></div>
+
+    <div class="bh-section-label">Ce mois vs mois précédent</div>
+    <div class="bh-card" id="stat-comparison"></div>
+
+    <div class="bh-section-label">Détail par catégorie</div>
+    <div class="bh-card" id="stat-categories"></div>
+
+    <div class="bh-section-label">Export</div>
+    <div class="bh-card" style="display:flex; gap:8px; padding:12px;">
+      <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('month')">Export mois (CSV)</button>
+      <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('year')">Export année (CSV)</button>
+    </div>
+    <div class="bh-card" style="padding:12px;">
+      <button class="bh-btn bh-btn-ghost bh-btn-block" onclick="BH.exportPDF()">🖨️ Générer un rapport PDF (impression)</button>
+    </div>
+  </div>
+
+  <button class="bh-fab" id="bh-fab" onclick="BH.openAddSheet()" style="display:none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+
+  <div class="bh-tabbar">
+    <button class="bh-tab active" data-tab="today" onclick="BH.switchTab('today')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M8 15l2 2 4-4"/></svg>
+      Aujourd'hui
+    </button>
+    <button class="bh-tab" data-tab="comptes" onclick="BH.switchTab('comptes')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="3"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
+      Comptes
+    </button>
+    <button class="bh-tab" data-tab="saisies" onclick="BH.switchTab('saisies')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/><path d="M8 13h8M8 17h5"/></svg>
+      Saisies
+    </button>
+    <button class="bh-tab" data-tab="stats" onclick="BH.switchTab('stats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      Stats
+    </button>
+  </div>
+</div>
+
+<!-- MONTANT DIFFÉRENT SHEET -->
+<div class="bh-sheet-overlay" id="bh-diffamount-overlay" onclick="if(event.target===this) BH.closeDifferentAmount()">
+  <div class="bh-sheet">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Montant différent</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="da-desc"></p>
+
+    <div class="bh-field-label">Montant réellement prélevé (€)</div>
+    <input type="number" step="0.01" id="da-amount" placeholder="0.00">
+
+    <div class="bh-field-label" style="margin-top:14px;">Ce changement est</div>
+    <div style="display:flex; gap:8px; margin-bottom:6px;">
+      <button type="button" class="bh-btn bh-btn-outline" id="da-mode-temp" style="flex:1;" onclick="BH.setDiffAmountMode('temp')">Ponctuel (ce mois-ci)</button>
+      <button type="button" class="bh-btn bh-btn-outline" id="da-mode-perm" style="flex:1;" onclick="BH.setDiffAmountMode('perm')">Durable (à partir de maintenant)</button>
+    </div>
+    <p style="font-size:11.5px; color:var(--ink-faint); margin:6px 2px 0;" id="da-mode-explain">
+      Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci.
+    </p>
+
+    <div class="bh-sheet-actions" style="margin-top:16px;">
+      <button class="bh-btn bh-btn-ghost" onclick="BH.closeDifferentAmount()">Annuler</button>
+      <button class="bh-btn bh-btn-primary" onclick="BH.confirmDifferentAmount()">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD/EDIT SHEET -->
+<div class="bh-sheet-overlay" id="bh-sheet-overlay" onclick="if(event.target===this) BH.closeSheet()">
+  <div class="bh-sheet">
+    <div class="bh-sheet-handle"></div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:14px;">
+      <h3 class="bh-sheet-title" id="bh-sheet-title">Ajouter</h3>
+      <select id="f-type" style="width:auto; padding:6px; margin:0;" onchange="BH.updateSheetForm()">
+        <option value="expense">Dépense</option>
+        <option value="income">Revenu / Remboursement</option>
+      </select>
+    </div>
+
+    <div class="bh-field-label">Description</div>
+    <input type="text" id="f-desc" placeholder="Ex. Loyer">
+
+    <div class="bh-two-col">
+      <div>
+        <div class="bh-field-label">Montant (€)</div>
+        <input type="number" step="0.01" id="f-amount" placeholder="0.00">
+      </div>
+      <div>
+        <div class="bh-field-label">Jour du mois</div>
+        <input type="number" min="1" max="31" id="f-day" placeholder="1–31">
+      </div>
+    </div>
+
+    <div class="bh-two-col">
+      <div>
+        <div class="bh-field-label">Compte</div>
+        <input type="text" id="f-compte" list="bh-comptes-list" placeholder="Ex. Joint" oninput="BH.checkPayerField()">
+        <datalist id="bh-comptes-list"></datalist>
+      </div>
+      <div id="f-cat-wrap">
+        <div class="bh-field-label">Catégorie</div>
+        <input type="text" id="f-cat" list="bh-cat-list" placeholder="Ex. Habitation">
+        <datalist id="bh-cat-list"></datalist>
+      </div>
+    </div>
+
+    <!-- Le fameux bouton Avancé par -->
+    <div id="f-payer-wrap" style="display:none; background:var(--gold-pale); padding:10px; border-radius:10px; margin-top:4px; margin-bottom:8px;">
+       <div class="bh-field-label" style="color:var(--gold); margin-top:0;">Avancé par (Compte partagé)</div>
+       <select id="f-payer" style="margin-bottom:0; border-color:var(--gold);"></select>
+    </div>
+
+    <button class="bh-btn bh-btn-outline bh-btn-block" id="bh-duplicate-btn" style="display:none; margin-bottom:10px;" onclick="BH.duplicateEntry()">📋 Dupliquer cette entrée</button>
+    <div class="bh-sheet-actions">
+      <button class="bh-btn bh-btn-danger" id="bh-delete-btn" style="display:none;" onclick="BH.deleteEntry()">Supprimer</button>
+      <button class="bh-btn bh-btn-ghost" onclick="BH.closeSheet()">Annuler</button>
+      <button class="bh-btn bh-btn-primary" onclick="BH.saveEntry()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS SHEET (Réglages & Partage) -->
+<div class="bh-sheet-overlay" id="bh-settings-overlay" onclick="if(event.target===this) BH.closeSettings()">
+  <div class="bh-sheet">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title">⚙️ Réglages & Partage</h3>
+    
+    <div class="bh-section-label">Mon Profil</div>
+    <div class="bh-card" style="padding:12px;">
+       <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Compte Principal (Reçoit le salaire)</div>
+       <select id="setting-main-account" class="bh-input" onchange="BH.setMainAccount(this.value)" style="margin-bottom:0;">
+          <option value="">-- Aucun --</option>
+       </select>
+       <p style="font-size:11px; color:var(--ink-faint); margin:6px 0 0;">Utilisé pour calculer le reste à vivre après apports aux comptes partagés.</p>
+    </div>
+
+    <div class="bh-section-label">Comptes & Partage</div>
+    <div class="bh-card" style="padding:12px;" id="settings-accounts-list">
+       <!-- Rempli par JS avec les codes de partage -->
+    </div>
+    
+    <div class="bh-card" style="padding:12px;">
+       <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Rejoindre un compte</div>
+       <div style="display:flex; gap:8px;">
+          <input type="text" id="join-code" class="bh-input" style="margin:0;" placeholder="Coller le code ici">
+          <button class="bh-btn bh-btn-primary" onclick="BH.joinAccount()">Rejoindre</button>
+       </div>
+    </div>
+    
+    <div class="bh-card" style="padding:12px;">
+       <div style="font-size:13px; font-weight:600; margin-bottom:8px;">Créer un nouveau compte</div>
+       <div style="display:flex; gap:8px;">
+          <input type="text" id="create-account-name" class="bh-input" style="margin:0;" placeholder="Nom du compte">
+          <button class="bh-btn bh-btn-ghost" onclick="BH.createAccount()">Créer</button>
+       </div>
+    </div>
+
+    <div class="bh-section-label">Notifications</div>
+    <div class="bh-card" style="padding:12px;">
+       <div style="font-size:13px; color:var(--ink-soft); margin-bottom:8px;">Recevez un rappel local quand une facture arrive à échéance (2 jours avant).</div>
+       <button class="bh-btn bh-btn-outline bh-btn-block" id="bh-notif-btn" onclick="BH.enableNotifications()">🔔 Activer les rappels</button>
+    </div>
+
+    <button class="bh-btn bh-btn-outline bh-btn-block" style="margin-top:20px; color:var(--clay);" onclick="AppAuth.logout()">Se déconnecter</button>
+  </div>
+</div>
+
+<div class="bh-toast" id="bh-toast"></div>
+
+<script>
+  // VOS CLÉS SUPABASE (Inchangées)
+  const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
+
+  // Affiche une erreur bloquante visible à l'écran (pas seulement en console)
+  function fatalError(title, detail) {
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('auth-gate').innerHTML =
+        '<div class="auth-card"><h2 class="auth-title">' + title + '</h2>' +
+        '<div class="auth-msg error" style="display:block; text-align:left; white-space:pre-wrap;">' + detail + '</div></div>';
+    });
+  }
+
+  // Le SDK Supabase (CDN) expose son objet global sous le nom "supabase", pas "supabaseApp"
+  if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+    fatalError('Erreur de chargement',
+      'Impossible de charger la librairie Supabase (CDN). ' +
+      'Vérifiez votre connexion, désactivez un éventuel bloqueur de scripts, ou videz le cache / désinstallez le service worker (F12 → Application), puis rechargez la page.');
+    throw new Error('Supabase SDK non chargé — arrêt du script.');
+  }
+
+  let supabaseApp;
+  try {
+    supabaseApp = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch (e) {
+    fatalError('Erreur d\'initialisation Supabase', String(e && e.message ? e.message : e));
+    throw e;
+  }
+
+  function toast(msg, opts) {
+    // opts: { retry: fn, duration: ms }
+    const t = document.getElementById('bh-toast');
+    t.innerHTML = '';
+    const span = document.createElement('span');
+    span.textContent = msg;
+    t.appendChild(span);
+    if (opts && opts.retry) {
+      const btn = document.createElement('button');
+      btn.textContent = 'Réessayer';
+      btn.style.cssText = 'margin-left:10px;background:#fff;color:var(--sage-deep);border:none;border-radius:20px;padding:4px 10px;font-weight:700;font-size:12px;cursor:pointer;';
+      btn.onclick = () => { t.classList.remove('show'); opts.retry(); };
+      t.appendChild(btn);
+    }
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), opts && opts.retry ? 6000 : 3000);
+  }
+
+  // Wrapper générique pour appels réseau : affiche une erreur claire + bouton Réessayer
+  async function withRetry(fn, label) {
+    try {
+      return await fn();
+    } catch (e) {
+      console.error(label, e);
+      const detail = (e && (e.message || e.error_description)) ? (e.message || e.error_description) : String(e);
+      const code = e && (e.code || e.status) ? ' [' + (e.code || e.status) + ']' : '';
+      toast('Erreur (' + (label || 'action') + ')' + code + ' : ' + detail, { retry: () => withRetry(fn, label) });
+      return null;
+    }
+  }
+
+  const AppAuth = {
+    msg(text, type='error') {
+      const el = document.getElementById('auth-msg');
+      el.textContent = text;
+      el.className = 'auth-msg ' + type;
+    },
+    getCreds() {
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-pwd').value;
+      if (!email || !password) { this.msg("Remplissez tous les champs."); return null; }
+      return { email, password };
+    },
+    async login() {
+      const creds = this.getCreds(); if(!creds) return;
+      this.msg("Connexion...", "success");
+      const { error } = await supabaseApp.auth.signInWithPassword(creds);
+      if (error) this.msg("Erreur (" + (error.status || '?') + ") : " + error.message);
+      else checkSession();
+    },
+    async signup() {
+      const creds = this.getCreds(); if(!creds) return;
+      this.msg("Création...", "success");
+      const { error } = await supabaseApp.auth.signUp(creds);
+      if (error) this.msg("Erreur : " + error.message);
+      else { this.msg("Créé ! Connexion...", "success"); setTimeout(checkSession, 1000); }
+    },
+    async logout() {
+      await supabaseApp.auth.signOut();
+      window.location.reload();
+    },
+    async resetPwd() {
+      const email = document.getElementById('auth-email').value.trim();
+      if (!email) { this.msg("Entrez votre email d'abord."); return; }
+      const { error } = await supabaseApp.auth.resetPasswordForEmail(email);
+      if (error) this.msg("Erreur : " + error.message);
+      else this.msg("Email de réinitialisation envoyé !", "success");
+    }
+  };
+  window.AppAuth = AppAuth;
+
+  async function checkSession() {
+    const { data, error } = await supabaseApp.auth.getSession();
+    if (error) {
+      AppAuth.msg("Erreur de session (" + (error.status || '?') + ") : " + error.message);
+      return;
+    }
+    const session = data && data.session;
+    if (session) {
+      document.getElementById('auth-gate').style.display = 'none';
+      document.getElementById('budget-root').style.display = 'flex';
+      BH.user = session.user;
+      BH.init();
+    } else {
+      document.getElementById('auth-gate').style.display = 'flex';
+      document.getElementById('budget-root').style.display = 'none';
+    }
+  }
+  document.addEventListener('DOMContentLoaded', () => {
+    checkSession();
+  });
+
+  const BH = {
+    user: null,
+    state: { accounts:[], members:[], expenses:[], incomes:[], months:{}, profile:{} },
+    activeTab: 'today',
+    comptesMonth: new Date(),
+    sheetMode: 'expense',
+    sheetEditId: null,
+
+    async init() {
+      await this.fetchData();
+      
+      // Realtime try/catch (Empêche l'erreur de bloquer le Canvas)
+      try {
+        supabaseApp.channel('public-db')
+          .on('postgres_changes', { event:'*', schema:'public' }, () => this.fetchData())
+          .subscribe();
+      } catch (e) {
+        console.log("Realtime désactivé dans cet environnement.");
+      }
+    },
+
+    async fetchData() {
+      const result = await withRetry(async () => {
+        const [accs, mems, exps, incs, recs, prof] = await Promise.all([
+          supabaseApp.from('accounts').select('*'),
+          supabaseApp.from('account_members').select('*, profiles(display_name, main_account_id)'),
+          supabaseApp.from('expenses').select('*'),
+          supabaseApp.from('incomes').select('*'),
+          supabaseApp.from('month_records').select('*'),
+          supabaseApp.from('profiles').select('*').eq('id', this.user.id).maybeSingle()
+        ]);
+        [accs, mems, exps, incs, recs, prof].forEach(r => { if (r.error) throw r.error; });
+        return { accs, mems, exps, incs, recs, prof };
+      }, 'chargement des données');
+
+      if (!result) return; // erreur déjà affichée avec bouton Réessayer
+
+      const { accs, mems, exps, incs, recs, prof } = result;
+
+      this.state = {
+        accounts: accs.data || [],
+        members: mems.data || [],
+        expenses: exps.data || [],
+        incomes: incs.data || [],
+        profile: prof.data || {},
+        monthRecords: recs.data || [],
+        months: (recs.data || []).reduce((acc, m) => {
+          acc[m.account_id + '_' + m.month_key] = m.paid_expenses || {};
+          return acc;
+        }, {})
+      };
+      
+      this.render();
+      this.checkDueNotifications();
+    },
+
+    monthKey(date) { return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0'); },
+    fmt(n) { return (Math.round((n||0)*100)/100).toLocaleString('fr-FR', {minimumFractionDigits:2}) + ' €'; },
+    esc(s) { return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
+
+    // Palette cyclique pour les camemberts
+    chartPalette: ['#3E6B57','#B8793A','#AE4B3C','#B7912F','#5A8A73','#D3A15C','#C97564','#8FA396','#28453A','#E0B96B'],
+
+    // Génère un camembert (donut) SVG + légende à partir d'items [{label, value}]
+    // centerLabel / centerSub : texte optionnel affiché au centre
+    pieChart(items, opts) {
+      opts = opts || {};
+      const size = opts.size || 150;
+      const filtered = (items||[]).filter(it => Number(it.value) > 0);
+      if (!filtered.length) return `<div class="chart-empty">Pas encore de données.</div>`;
+
+      const total = filtered.reduce((s,it)=>s+Number(it.value),0);
+      const r = size/2, cx = size/2, cy = size/2, rInner = r*0.6;
+      let angle = -Math.PI/2;
+      let paths = '';
+      const legendRows = [];
+
+      filtered.sort((a,b)=>b.value-a.value).forEach((it, idx) => {
+        const color = it.color || this.chartPalette[idx % this.chartPalette.length];
+        const frac = it.value / total;
+        const a0 = angle;
+        const a1 = angle + frac * Math.PI * 2;
+        angle = a1;
+        const x0 = cx + r*Math.cos(a0), y0 = cy + r*Math.sin(a0);
+        const x1 = cx + r*Math.cos(a1), y1 = cy + r*Math.sin(a1);
+        const xi0 = cx + rInner*Math.cos(a0), yi0 = cy + rInner*Math.sin(a0);
+        const xi1 = cx + rInner*Math.cos(a1), yi1 = cy + rInner*Math.sin(a1);
+        const largeArc = (a1 - a0) > Math.PI ? 1 : 0;
+        // Slice complet (évite un arc invalide quand frac ~ 1)
+        if (frac > 0.9999) {
+          paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"></circle>
+                     <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="var(--card)"></circle>`;
+        } else {
+          paths += `<path d="M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1} L ${xi1} ${yi1} A ${rInner} ${rInner} 0 ${largeArc} 0 ${xi0} ${yi0} Z" fill="${color}"></path>`;
+        }
+        const pct = Math.round(frac*100);
+        legendRows.push(`<div class="chart-legend-row">
+          <span class="chart-legend-swatch" style="background:${color};"></span>
+          <span class="chart-legend-label">${this.esc(it.label)}</span>
+          <span class="chart-legend-value">${this.fmt(it.value)} · ${pct}%</span>
+        </div>`);
+      });
+
+      const centerLabel = opts.centerLabel != null ? opts.centerLabel : this.fmt(total);
+      const centerSub = opts.centerSub || '';
+
+      return `<div class="chart-wrap">
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          ${paths}
+          <text x="${cx}" y="${cy - (centerSub?4:0)}" text-anchor="middle" font-size="${size*0.1}" class="chart-center-label">${this.esc(centerLabel)}</text>
+          ${centerSub ? `<text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9" class="chart-center-sub">${this.esc(centerSub)}</text>` : ''}
+        </svg>
+        <div class="chart-legend">${legendRows.join('')}</div>
+      </div>`;
+    },
+
+    switchTab(tab) {
+      this.activeTab = tab;
+      document.querySelectorAll('.bh-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('.bh-view').forEach(v => v.classList.remove('active'));
+      document.getElementById('view-' + tab).classList.add('active');
+      document.getElementById('bh-fab').style.display = (tab === 'saisies') ? 'flex' : 'none';
+      this.render();
+    },
+
+    shiftMonth(delta) {
+      this.comptesMonth = new Date(this.comptesMonth.getFullYear(), this.comptesMonth.getMonth() + delta, 1);
+      this.render();
+    },
+
+    render() {
+      document.getElementById('bh-header-sub').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+      if(this.activeTab === 'today') this.renderToday();
+      if(this.activeTab === 'comptes') this.renderComptes();
+      if(this.activeTab === 'saisies') this.renderSaisies();
+      if(this.activeTab === 'stats') this.renderStats();
+    },
+
+    // --- AUJOURD'HUI ---
+    renderToday() {
+      const now = new Date();
+      const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      const mKey = this.monthKey(now);
+
+      let totalDue = 0, totalPaid = 0;
+      let paidHtml = '';
+      const late = [], today = [], soon = [];
+
+      this.state.expenses.forEach(exp => {
+        const acc = this.state.accounts.find(a => a.id === exp.account_id);
+        if(!acc) return;
+        const paidRec = this.state.months[acc.id + '_' + mKey]?.[exp.id];
+
+        if (paidRec) {
+          totalPaid += Number(paidRec.amount);
+          paidHtml += `
+            <div class="bh-due" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <div style="min-width:0;">
+                 <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(exp.description)}</div>
+                 <div class="bh-due-meta">${this.esc(acc.name)}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler la validation" onclick="BH.unmarkPaid('${exp.id}', '${acc.id}')">Annuler</button>
+              </div>
+            </div>`;
+        } else {
+          totalDue += Number(exp.amount);
+          const diff = Math.min(exp.day, dim) - now.getDate();
+          const item = { exp, acc, diff };
+          if (diff < 0) late.push(item);
+          else if (diff === 0) today.push(item);
+          else soon.push(item);
+        }
+      });
+
+      late.sort((a,b)=>a.diff-b.diff);
+      soon.sort((a,b)=>a.diff-b.diff);
+
+      const dueItemHtml = ({exp, acc, diff}) => {
+        const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
+        const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
+        return `
+          <div class="bh-due">
+            <div class="bh-due-top">
+              <div>
+                <div class="bh-due-desc">${this.esc(exp.description)}</div>
+                <div class="bh-due-meta">
+                  <span class="bh-pill ${cls}">${lbl}</span>
+                  <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
+                </div>
+              </div>
+              <div class="bh-due-amount num">${this.fmt(exp.amount)}</div>
+            </div>
+            <div class="bh-due-actions">
+              <button class="bh-btn bh-btn-primary" onclick="BH.markPaid('${exp.id}', ${exp.amount}, '${acc.id}')">Valider ${this.fmt(exp.amount)}</button>
+              <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${exp.id}', '${acc.id}')">Montant différent</button>
+            </div>
+          </div>`;
+      };
+
+      const section = (label, items) => {
+        if (!items.length) return '';
+        return `<div class="bh-section-label"><span>${label}</span><span class="bh-section-count">${items.length}</span></div>`
+          + items.map(dueItemHtml).join('');
+      };
+
+      let dueHtml = section('En retard', late) + section("Aujourd'hui", today) + section('À venir', soon);
+
+      document.getElementById('bh-stat-remaining').textContent = this.fmt(totalDue);
+      document.getElementById('bh-stat-paid').textContent = this.fmt(totalPaid);
+      document.getElementById('bh-due-section').innerHTML = dueHtml || '<div class="bh-empty">Tout est à jour !</div>';
+      document.getElementById('bh-paid-list').innerHTML = paidHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
+    },
+
+    // Revenu "personnel" estimé d'un membre = somme des revenus enregistrés sur SON compte principal
+    memberRevenue(userId, mainAccountId) {
+      if (!mainAccountId) return 0;
+      return this.state.incomes.filter(i => i.account_id === mainAccountId)
+        .reduce((s, i) => s + Number(i.amount), 0);
+    },
+
+    // Calcule la part "juste" (fair share) de chaque membre d'un compte partagé selon son mode de répartition
+    computeFairShares(acc, mems, tExp) {
+      const shares = {};
+      const anyProrata = mems.some(m => (m.contribution_mode || 'fixed') === 'prorata');
+
+      if (anyProrata) {
+        let revenues = mems.map(m => this.memberRevenue(m.user_id, m.profiles?.main_account_id));
+        let totalRev = revenues.reduce((a,b)=>a+b, 0);
+        mems.forEach((m, idx) => {
+          shares[m.user_id] = totalRev > 0 ? tExp * (revenues[idx] / totalRev) : tExp / mems.length;
+        });
+      } else {
+        mems.forEach(m => {
+          const mode = m.contribution_mode || 'fixed';
+          shares[m.user_id] = mode === 'percent' ? tExp * (Number(m.contribution_target)||0)/100 : (Number(m.contribution_target)||0);
+        });
+      }
+      return shares;
+    },
+
+    // Algorithme simple de règlement de dettes (qui doit quoi à qui)
+    computeSettlements(acc, mems, tExp, exps) {
+      const shares = this.computeFairShares(acc, mems, tExp);
+      const balances = mems.map(m => {
+        const avances = exps.filter(e => e.payer_id === m.user_id).reduce((s,e)=>s+Number(e.amount),0);
+        const name = m.profiles?.display_name || 'Membre';
+        return { user_id: m.user_id, name, balance: avances - (shares[m.user_id]||0) };
+      });
+
+      const creditors = balances.filter(b => b.balance > 0.5).sort((a,b)=>b.balance-a.balance).map(b=>({...b}));
+      const debtors = balances.filter(b => b.balance < -0.5).sort((a,b)=>a.balance-b.balance).map(b=>({...b}));
+      const txs = [];
+      let i=0, j=0;
+      while (i < debtors.length && j < creditors.length) {
+        const amt = Math.min(-debtors[i].balance, creditors[j].balance);
+        if (amt > 0.5) txs.push({ from: debtors[i].name, to: creditors[j].name, amount: amt });
+        debtors[i].balance += amt; creditors[j].balance -= amt;
+        if (Math.abs(debtors[i].balance) < 0.5) i++;
+        if (Math.abs(creditors[j].balance) < 0.5) j++;
+      }
+      return txs;
+    },
+
+    renderComptes() {
+      const d = this.comptesMonth;
+      document.getElementById('bh-comptes-month-label').textContent = d.toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
+      const mKey = this.monthKey(d);
+
+      let html = '';
+      
+      // 1. Identifier le compte principal et calculer le total des apports sortants
+      const mainAccId = this.state.profile?.main_account_id;
+      let totalOutboundContributions = 0;
+      
+      this.state.accounts.forEach(acc => {
+         const mems = this.state.members.filter(m => m.account_id === acc.id);
+         const myMem = mems.find(m => m.user_id === this.user.id);
+         
+         if (acc.id !== mainAccId && myMem && Number(myMem.contribution_target) > 0) {
+             totalOutboundContributions += Number(myMem.contribution_target);
+         }
+      });
+
+      // 2. Rendre chaque compte
+      this.state.accounts.forEach(acc => {
+        const exps = this.state.expenses.filter(e => e.account_id === acc.id);
+        const incs = this.state.incomes.filter(i => i.account_id === acc.id);
+        const mems = this.state.members.filter(m => m.account_id === acc.id);
+        const paidMap = this.state.months[acc.id + '_' + mKey] || {};
+
+        let tExp = 0, tInc = 0, paidSum = 0;
+        exps.forEach(e => { tExp += Number(e.amount); if(paidMap[e.id]) paidSum += Number(paidMap[e.id].amount); });
+        incs.forEach(i => { tInc += Number(i.amount); });
+
+        const isMain = acc.id === mainAccId;
+        
+        let headerExtras = '';
+        let contribHtml = '';
+        let alertHtml = '';
+        let settleHtml = '';
+        let chartsHtml = '';
+
+        // Camembert : catégories de dépenses de ce compte
+        const catTotals = {};
+        exps.forEach(e => { const c = e.category || 'Autre'; catTotals[c] = (catTotals[c]||0) + Number(e.amount); });
+        const catItemsAcc = Object.entries(catTotals).map(([label,value])=>({label,value}));
+        if (catItemsAcc.length) {
+          chartsHtml += `<div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
+            <div class="chart-title" style="margin-bottom:8px;">Dépenses par catégorie</div>
+            ${this.pieChart(catItemsAcc, { size:120, centerSub:'Dépenses' })}
+          </div>`;
+        }
+        
+        if (isMain) {
+            // Affichage Spécial Compte Principal
+            const resteTheorique = tInc - tExp - totalOutboundContributions;
+            const color = resteTheorique >= 0 ? 'var(--sage-deep)' : 'var(--clay)';
+            headerExtras = `<div style="text-align:right;">
+                <div style="font-size:11px; color:var(--ink-faint); font-weight:600; text-transform:uppercase;">Reste Théorique</div>
+                <div class="num" style="font-size:16px; color:${color};">${this.fmt(resteTheorique)}</div>
+            </div>`;
+        } else {
+            if (mems.length > 0) {
+              const shares = this.computeFairShares(acc, mems, tExp);
+              const totalAllocated = Object.values(shares).reduce((a,b)=>a+b,0);
+              if (tExp > 0 && totalAllocated < tExp - 0.5) {
+                const manque = tExp - totalAllocated;
+                alertHtml = `<div style="background:var(--clay-pale); color:var(--clay); border-radius:10px; padding:10px 12px; font-size:12.5px; font-weight:600; margin-bottom:10px; display:flex; gap:8px; align-items:flex-start;">
+                  <span>⚠️</span><span>Financement insuffisant : il manque ${this.fmt(manque)}/mois par rapport aux dépenses de ce compte.</span>
+                </div>`;
+              }
+              if (mems.length > 1) {
+                const txs = this.computeSettlements(acc, mems, tExp, exps);
+                if (txs.length) {
+                  settleHtml = `<div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
+                    <div style="font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Qui doit quoi</div>
+                    ${txs.map(t => `<div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;">
+                        <span>${this.esc(t.from)} → ${this.esc(t.to)}</span><span class="num" style="color:var(--amber);">${this.fmt(t.amount)}</span>
+                      </div>`).join('')}
+                  </div>`;
+                }
+                // Camembert : part de chaque membre dans ce compte partagé
+                const shareItems = mems.map(m => ({
+                  label: m.profiles?.display_name || 'Membre',
+                  value: shares[m.user_id] || 0
+                }));
+                chartsHtml += `<div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
+                  <div class="chart-title" style="margin-bottom:8px;">Part de chacun</div>
+                  ${this.pieChart(shareItems, { size:120, centerSub:'Part / mois' })}
+                </div>`;
+              }
+            }
+
+            // Affichage Compte Partagé avec Apport
+            const myMem = mems.find(m => m.user_id === this.user.id);
+            if (myMem) {
+                const myMode = myMem.contribution_mode || 'fixed';
+                const myContrib = Number(myMem.contribution_target) || 0;
+                
+                // Calcul des avances par le membre courant
+                const mesAvances = exps.filter(e => e.payer_id === this.user.id).reduce((s,e)=> s+Number(e.amount), 0);
+                const myShares = this.computeFairShares(acc, mems, tExp);
+                const myFairShare = myShares[this.user.id] || 0;
+                const resteAVirer = Math.max(0, myFairShare - mesAvances);
+                
+                contribHtml = `
+                <div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:12px; font-weight:600;">Mon mode de répartition</span>
+                        <select style="width:auto; margin:0; padding:5px 8px; font-size:12px;" onchange="BH.saveContributionMode('${acc.id}', this.value)">
+                          <option value="fixed" ${myMode==='fixed'?'selected':''}>Montant fixe (€)</option>
+                          <option value="percent" ${myMode==='percent'?'selected':''}>Pourcentage (%)</option>
+                          <option value="prorata" ${myMode==='prorata'?'selected':''}>Prorata des revenus</option>
+                        </select>
+                    </div>
+                    ${myMode === 'prorata' ? `
+                      <div style="font-size:12px; color:var(--ink-soft);">Part calculée automatiquement selon les revenus déclarés sur chaque compte principal.</div>
+                      <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600; margin-top:6px;"><span>Ma part ce mois-ci</span><span class="num">${this.fmt(myFairShare)}</span></div>
+                    ` : `
+                    <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600;">
+                        <span>Mon apport mensuel (Cible)</span>
+                        <span class="num">${myMode==='percent' ? myContrib + ' %' : this.fmt(myContrib)}</span>
+                    </div>
+                    <div class="contrib-input-wrap">
+                        <input type="range" min="0" max="${myMode==='percent' ? 100 : Math.round(tExp*1.1)||100}" step="${myMode==='percent'?1:5}" value="${myContrib}" style="flex:1;" 
+                               onchange="BH.saveContribution('${acc.id}', this.value)">
+                        <input type="number" value="${myContrib}" onchange="BH.saveContribution('${acc.id}', this.value)">
+                    </div>`}
+                    ${mesAvances > 0 ? `<div style="font-size:11px; color:var(--gold); margin-top:6px; font-weight:600;">J'ai avancé avec ma carte : ${this.fmt(mesAvances)} (Reste à virer : ${this.fmt(resteAVirer)})</div>` : ''}
+                </div>`;
+            }
+        }
+
+        html += `<div class="bh-card bh-acct-card">
+          <div class="bh-acct-head">
+            <div class="bh-acct-name">${this.esc(acc.name)} ${isMain ? '⭐' : ''}</div>
+            ${headerExtras || `<div class="bh-acct-bal num">${this.fmt(tExp)}</div>`}
+          </div>
+          ${alertHtml}
+          <div class="bh-progress-track"><div class="bh-progress-fill" style="width:${Math.min(100, (paidSum/tExp)*100 || 0)}%"></div></div>
+          <div class="bh-mini-metrics">
+            <div class="bh-mini"><div class="bh-mini-label">Dépenses</div><div class="bh-mini-value num">${this.fmt(tExp)}</div></div>
+            <div class="bh-mini"><div class="bh-mini-label">Revenus/Remb.</div><div class="bh-mini-value num">${this.fmt(tInc)}</div></div>
+          </div>
+          ${contribHtml}
+          ${settleHtml}
+          ${chartsHtml}
+        </div>`;
+      });
+      document.getElementById('bh-accounts-list').innerHTML = html || `<div class="bh-empty">Aucun compte</div>`;
+    },
+
+    async saveContribution(accId, val) {
+       const numVal = Number(val) || 0;
+       await withRetry(async () => {
+         const { error } = await supabaseApp.from('account_members')
+           .update({ contribution_target: numVal })
+           .eq('account_id', accId).eq('user_id', this.user.id);
+         if (error) throw error;
+         toast("Apport mis à jour");
+         this.fetchData();
+       }, 'sauvegarde apport');
+    },
+
+    async saveContributionMode(accId, mode) {
+       await withRetry(async () => {
+         const { error } = await supabaseApp.from('account_members')
+           .update({ contribution_mode: mode })
+           .eq('account_id', accId).eq('user_id', this.user.id);
+         if (error) throw error;
+         toast("Mode de répartition mis à jour");
+         this.fetchData();
+       }, 'sauvegarde mode');
+    },
+
+    async markPaid(expId, amount, accId) {
+      const mKey = this.monthKey(new Date());
+      let recs = this.state.months[accId + '_' + mKey] || {};
+      recs[expId] = { amount, on: new Date().toISOString() };
+
+      const { error } = await supabaseApp.from('month_records').upsert({
+        account_id: accId, month_key: mKey, paid_expenses: recs
+      }, { onConflict: 'account_id, month_key' });
+
+      if (error) toast("Erreur réseau");
+      else { toast("Validé"); this.fetchData(); }
+    },
+
+    async unmarkPaid(expId, accId) {
+      const mKey = this.monthKey(new Date());
+      let recs = this.state.months[accId + '_' + mKey] || {};
+      if (!recs[expId]) return;
+      delete recs[expId];
+
+      await withRetry(async () => {
+        const { error } = await supabaseApp.from('month_records').upsert({
+          account_id: accId, month_key: mKey, paid_expenses: recs
+        }, { onConflict: 'account_id, month_key' });
+        if (error) throw error;
+        toast("Validation annulée");
+        this.fetchData();
+      }, 'annulation');
+    },
+
+    // --- MONTANT DIFFÉRENT (validation avec un montant divergent) ---
+    diffAmount: { expId: null, accId: null, baseAmount: 0, mode: 'temp' },
+
+    openDifferentAmount(expId, accId) {
+      const exp = this.state.expenses.find(e => e.id === expId);
+      if (!exp) return;
+      const acc = this.state.accounts.find(a => a.id === accId);
+      this.diffAmount = { expId, accId, baseAmount: Number(exp.amount), mode: 'temp' };
+      document.getElementById('da-desc').textContent = `${exp.description} — ${acc ? acc.name : ''} · montant habituel ${this.fmt(exp.amount)}`;
+      document.getElementById('da-amount').value = exp.amount;
+      this.setDiffAmountMode('temp');
+      document.getElementById('bh-diffamount-overlay').classList.add('open');
+    },
+
+    closeDifferentAmount() {
+      document.getElementById('bh-diffamount-overlay').classList.remove('open');
+    },
+
+    setDiffAmountMode(mode) {
+      this.diffAmount.mode = mode;
+      document.getElementById('da-mode-temp').classList.toggle('active', mode === 'temp');
+      document.getElementById('da-mode-perm').classList.toggle('active', mode === 'perm');
+      document.getElementById('da-mode-explain').textContent = mode === 'temp'
+        ? "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci."
+        : "Durable : le montant habituel de cette dépense est mis à jour définitivement (tous les mois suivants).";
+    },
+
+    async confirmDifferentAmount() {
+      const { expId, accId, mode } = this.diffAmount;
+      const newAmount = Number(document.getElementById('da-amount').value);
+      if (!newAmount || isNaN(newAmount) || newAmount <= 0) { toast("Le montant doit être un nombre positif."); return; }
+
+      await withRetry(async () => {
+        if (mode === 'perm') {
+          // Durable : on met à jour le montant de référence de la dépense
+          const { error: e1 } = await supabaseApp.from('expenses').update({ amount: newAmount }).eq('id', expId);
+          if (e1) throw e1;
+        }
+        // Dans tous les cas, on valide le mois en cours avec le montant réellement prélevé
+        // (pour le mode "ponctuel", la base de la dépense n'est pas touchée, seul l'enregistrement du mois change)
+        const mKey = this.monthKey(new Date());
+        let recs = this.state.months[accId + '_' + mKey] || {};
+        recs[expId] = { amount: newAmount, on: new Date().toISOString() };
+        const { error: e2 } = await supabaseApp.from('month_records').upsert({
+          account_id: accId, month_key: mKey, paid_expenses: recs
+        }, { onConflict: 'account_id, month_key' });
+        if (e2) throw e2;
+
+        toast(mode === 'perm' ? "Montant mis à jour durablement et validé" : "Validé avec le montant ponctuel");
+        this.closeDifferentAmount();
+        this.fetchData();
+      }, 'montant différent');
+    },
+
+    renderSaisies() {
+      // Remplir le filtre catégorie (une seule fois par rendu, à partir des catégories existantes)
+      const catSel = document.getElementById('bh-filter-cat');
+      const cats = [...new Set(this.state.expenses.map(e => e.category).filter(Boolean))].sort();
+      const prevVal = catSel.value;
+      catSel.innerHTML = '<option value="">Toutes les catégories</option>' + cats.map(c => `<option value="${this.esc(c)}">${this.esc(c)}</option>`).join('');
+      catSel.value = cats.includes(prevVal) ? prevVal : '';
+
+      const q = (document.getElementById('bh-search').value || '').trim().toLowerCase();
+      const catFilter = catSel.value;
+
+      const matches = (item, acc) => {
+        if (catFilter && item.category !== catFilter) return false;
+        if (!q) return true;
+        const hay = [item.description, item.category, acc?.name, String(item.amount)].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(q);
+      };
+
+      let eHtml = '', iHtml = '';
+      this.state.expenses.forEach(i => {
+        const acc = this.state.accounts.find(a=>a.id===i.account_id);
+        if (!matches(i, acc)) return;
+        eHtml += `<div class="bh-manage-row" onclick="BH.openEditSheet('expense','${i.id}')">
+          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${acc?.name} · Le ${i.day} ${i.category ? '· '+this.esc(i.category) : ''}</div></div>
+          <div class="num">${this.fmt(i.amount)}</div>
+        </div>`;
+      });
+      this.state.incomes.forEach(i => {
+        const acc = this.state.accounts.find(a=>a.id===i.account_id);
+        if (!matches(i, acc)) return;
+        iHtml += `<div class="bh-manage-row" onclick="BH.openEditSheet('income','${i.id}')">
+          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${acc?.name}</div></div>
+          <div class="num" style="color:var(--sage-deep);">${this.fmt(i.amount)}</div>
+        </div>`;
+      });
+      document.getElementById('bh-expenses-groups').innerHTML = eHtml || '<div class="bh-empty">Rien (ou aucun résultat)</div>';
+      document.getElementById('bh-incomes-groups').innerHTML = iHtml || '<div class="bh-empty">Rien (ou aucun résultat)</div>';
+    },
+
+    renderStats() {
+       let totalInc = 0, totalExpReal = 0;
+       let cats = {};
+       
+       this.state.incomes.forEach(i => totalInc += Number(i.amount));
+       this.state.expenses.forEach(e => {
+          totalExpReal += Number(e.amount);
+          if(!cats[e.category]) cats[e.category] = 0;
+          cats[e.category] += Number(e.amount);
+       });
+       
+       document.getElementById('stat-epargne').textContent = this.fmt(totalInc - totalExpReal);
+       
+       let catHtml = '';
+       Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([name, amt]) => {
+          const pct = Math.round((amt / totalExpReal) * 100);
+          catHtml += `<div style="margin-bottom:12px;">
+             <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600;">
+                <span>${this.esc(name)}</span><span class="num">${this.fmt(amt)}</span>
+             </div>
+             <div class="stat-bar-bg"><div class="stat-bar-fg" style="width:${pct}%"></div></div>
+          </div>`;
+       });
+       document.getElementById('stat-categories').innerHTML = catHtml || 'Pas assez de données.';
+
+       // Camembert : répartition par catégorie (toutes dépenses)
+       const catItems = Object.entries(cats).map(([label, value]) => ({ label, value }));
+       document.getElementById('chart-categories').innerHTML = this.pieChart(catItems, { centerSub: 'Dépenses' });
+
+       // Camembert : répartition de mon salaire vers mes comptes partagés
+       const mainAccId = this.state.profile?.main_account_id;
+       const salaryItems = [];
+       this.state.accounts.forEach(acc => {
+          if (acc.id === mainAccId) return;
+          const mems = this.state.members.filter(m => m.account_id === acc.id);
+          const myMem = mems.find(m => m.user_id === this.user.id);
+          if (!myMem) return;
+          const exps = this.state.expenses.filter(e => e.account_id === acc.id);
+          const tExp = exps.reduce((s,e)=>s+Number(e.amount),0);
+          const mode = myMem.contribution_mode || 'fixed';
+          let amt = 0;
+          if (mode === 'prorata') {
+             amt = (this.computeFairShares(acc, mems, tExp))[this.user.id] || 0;
+          } else if (mode === 'percent') {
+             amt = tExp * (Number(myMem.contribution_target)||0) / 100;
+          } else {
+             amt = Number(myMem.contribution_target) || 0;
+          }
+          if (amt > 0) salaryItems.push({ label: acc.name, value: amt });
+       });
+       document.getElementById('chart-salary-split').innerHTML = salaryItems.length
+          ? this.pieChart(salaryItems, { centerSub: 'Apports / mois' })
+          : `<div class="chart-empty">Aucun apport configuré vers un compte partagé. Réglez vos apports dans l'onglet Comptes.</div>`;
+
+       this.renderEvolution();
+       this.renderComparison();
+    },
+
+    // Regroupe les month_records par mois (tous comptes confondus) : { monthKey: totalPayé }
+    monthlyTotals() {
+       const byMonth = {};
+       (this.state.monthRecords || []).forEach(rec => {
+          const paid = rec.paid_expenses || {};
+          const sum = Object.values(paid).reduce((s, p) => s + Number(p.amount || 0), 0);
+          byMonth[rec.month_key] = (byMonth[rec.month_key] || 0) + sum;
+       });
+       return byMonth;
+    },
+
+    renderEvolution() {
+       const byMonth = this.monthlyTotals();
+       const keys = Object.keys(byMonth).sort().slice(-12); // 12 derniers mois disponibles
+       const el = document.getElementById('stat-evolution');
+       if (keys.length === 0) { el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas encore d\'historique — validez des dépenses chaque mois pour voir l\'évolution.</div>'; return; }
+
+       const max = Math.max(...keys.map(k => byMonth[k]), 1);
+       const w = 300, h = 120, barW = w / keys.length;
+       let bars = '';
+       keys.forEach((k, idx) => {
+          const val = byMonth[k];
+          const barH = Math.max(2, (val / max) * (h - 24));
+          const x = idx * barW + barW*0.15;
+          const label = k.slice(5) + '/' + k.slice(2,4);
+          bars += `<rect x="${x}" y="${h-20-barH}" width="${barW*0.7}" height="${barH}" rx="3" fill="var(--sage)"></rect>
+                   <text x="${x+barW*0.35}" y="${h-6}" font-size="7" text-anchor="middle" fill="var(--ink-faint)">${label}</text>`;
+       });
+       el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; --sage:#3E6B57;" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
+         <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Basé sur les dépenses réellement validées mois par mois.</div>`;
+    },
+
+    renderComparison() {
+       const now = new Date();
+       const curKey = this.monthKey(now);
+       const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
+       const prevKey = this.monthKey(prevDate);
+
+       const catTotalsForMonth = (mKey) => {
+          const totals = {};
+          (this.state.monthRecords || []).filter(r => r.month_key === mKey).forEach(rec => {
+             const paid = rec.paid_expenses || {};
+             Object.entries(paid).forEach(([expId, p]) => {
+                const exp = this.state.expenses.find(e => e.id === expId);
+                const cat = exp?.category || 'Autre';
+                totals[cat] = (totals[cat]||0) + Number(p.amount || 0);
+             });
+          });
+          return totals;
+       };
+
+       const cur = catTotalsForMonth(curKey);
+       const prev = catTotalsForMonth(prevKey);
+       const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])];
+
+       const el = document.getElementById('stat-comparison');
+       if (allCats.length === 0) { el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données validées pour comparer.</div>'; return; }
+
+       let html = '';
+       allCats.sort((a,b) => (cur[b]||0) - (cur[a]||0)).forEach(cat => {
+          const c = cur[cat] || 0, p = prev[cat] || 0;
+          let deltaLabel, color;
+          if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
+          else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
+          else {
+             const delta = Math.round(((c - p) / p) * 100);
+             deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
+             color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+          }
+          html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line-soft); font-size:13px;">
+             <span>${this.esc(cat)}</span>
+             <span style="display:flex; gap:10px; align-items:center;">
+               <span class="num" style="color:var(--ink-soft);">${this.fmt(c)}</span>
+               <span style="font-weight:700; color:${color}; font-size:12px;">${deltaLabel}</span>
+             </span>
+          </div>`;
+       });
+       el.innerHTML = html;
+    },
+
+    // --- EXPORT ---
+    csvEscape(v) { const s = String(v==null?'':v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; },
+
+    downloadFile(filename, content, mime) {
+       const blob = new Blob([content], { type: mime });
+       const url = URL.createObjectURL(blob);
+       const a = document.createElement('a');
+       a.href = url; a.download = filename;
+       document.body.appendChild(a); a.click(); document.body.removeChild(a);
+       URL.revokeObjectURL(url);
+    },
+
+    exportCSV(scope) {
+       const rows = [['Type','Description','Catégorie','Compte','Montant (€)','Jour','Mois']];
+       const now = new Date();
+
+       if (scope === 'month') {
+          const mKey = this.monthKey(now);
+          this.state.expenses.forEach(e => {
+             const acc = this.state.accounts.find(a=>a.id===e.account_id);
+             rows.push(['Dépense', e.description, e.category||'', acc?.name||'', e.amount, e.day, mKey]);
+          });
+          this.state.incomes.forEach(i => {
+             const acc = this.state.accounts.find(a=>a.id===i.account_id);
+             rows.push(['Revenu', i.description, '', acc?.name||'', i.amount, i.day||'', mKey]);
+          });
+       } else {
+          // Année : utilise l'historique réellement validé (month_records) sur les 12 derniers mois
+          (this.state.monthRecords || []).forEach(rec => {
+             const acc = this.state.accounts.find(a=>a.id===rec.account_id);
+             Object.entries(rec.paid_expenses || {}).forEach(([expId, p]) => {
+                const exp = this.state.expenses.find(e=>e.id===expId);
+                rows.push(['Dépense validée', exp?.description||expId, exp?.category||'', acc?.name||'', p.amount, '', rec.month_key]);
+             });
+          });
+       }
+
+       const csv = rows.map(r => r.map(this.csvEscape).join(';')).join('\n');
+       this.downloadFile(`budget_export_${scope}_${this.monthKey(now)}.csv`, '\ufeff' + csv, 'text/csv;charset=utf-8;');
+       toast('Export CSV téléchargé');
+    },
+
+    exportPDF() {
+       const now = new Date();
+       const mKey = this.monthKey(now);
+       let rowsHtml = '';
+       this.state.expenses.forEach(e => {
+          const acc = this.state.accounts.find(a=>a.id===e.account_id);
+          rowsHtml += `<tr><td>${this.esc(e.description)}</td><td>${this.esc(e.category||'')}</td><td>${this.esc(acc?.name||'')}</td><td style="text-align:right;">${this.fmt(e.amount)}</td></tr>`;
+       });
+       const win = window.open('', '_blank');
+       win.document.write(`<html><head><title>Rapport Budget ${mKey}</title>
+         <style>body{font-family:Arial,sans-serif;padding:24px;} h1{font-size:18px;} table{width:100%; border-collapse:collapse; margin-top:16px;} td,th{border-bottom:1px solid #ddd; padding:6px 8px; font-size:12px; text-align:left;}</style>
+         </head><body>
+         <h1>Rapport Budget — ${mKey}</h1>
+         <table><thead><tr><th>Description</th><th>Catégorie</th><th>Compte</th><th style="text-align:right;">Montant</th></tr></thead>
+         <tbody>${rowsHtml}</tbody></table>
+         </body></html>`);
+       win.document.close();
+       setTimeout(() => win.print(), 400);
+    },
+
+    openAddSheet() {
+      this.sheetEditId = null;
+      document.getElementById('bh-sheet-title').textContent = "Ajouter";
+      document.getElementById('f-desc').value = '';
+      document.getElementById('f-amount').value = '';
+      document.getElementById('bh-delete-btn').style.display = 'none';
+      document.getElementById('bh-duplicate-btn').style.display = 'none';
+      this.updateSheetForm();
+      
+      const accs = this.state.accounts;
+      document.getElementById('bh-comptes-list').innerHTML = accs.map(a=>`<option value="${this.esc(a.name)}">`).join('');
+      document.getElementById('bh-sheet-overlay').classList.add('open');
+    },
+
+    openEditSheet(type, id) {
+      this.sheetEditId = id;
+      document.getElementById('f-type').value = type;
+      const item = (type === 'expense' ? this.state.expenses : this.state.incomes).find(i=>i.id===id);
+      if(!item) return;
+      
+      const acc = this.state.accounts.find(a=>a.id === item.account_id);
+      document.getElementById('bh-sheet-title').textContent = "Modifier";
+      document.getElementById('f-desc').value = item.description;
+      document.getElementById('f-amount').value = item.amount;
+      document.getElementById('f-day').value = item.day;
+      document.getElementById('f-compte').value = acc ? acc.name : '';
+      if(type==='expense') document.getElementById('f-cat').value = item.category || '';
+      document.getElementById('bh-delete-btn').style.display = 'flex';
+      
+      this.updateSheetForm();
+      if(type==='expense' && item.payer_id) {
+         // Délai pour laisser le checkPayerField s'exécuter
+         setTimeout(() => document.getElementById('f-payer').value = item.payer_id, 50);
+      }
+      document.getElementById('bh-duplicate-btn').style.display = 'flex';
+      document.getElementById('bh-sheet-overlay').classList.add('open');
+    },
+
+    async duplicateEntry() {
+      if (!this.sheetEditId) return;
+      const type = this.sheetMode;
+      const table = type === 'expense' ? 'expenses' : 'incomes';
+      const source = (type === 'expense' ? this.state.expenses : this.state.incomes).find(i=>i.id===this.sheetEditId);
+      if (!source) return;
+      const { id, created_at, ...rest } = source;
+      rest.description = rest.description + ' (copie)';
+      await withRetry(async () => {
+        const { error } = await supabaseApp.from(table).insert([rest]);
+        if (error) throw error;
+        toast("Entrée dupliquée");
+        this.closeSheet();
+        this.fetchData();
+      }, 'duplication');
+    },
+
+    updateSheetForm() {
+       const type = document.getElementById('f-type').value;
+       this.sheetMode = type;
+       document.getElementById('f-cat-wrap').style.display = (type === 'expense') ? 'block' : 'none';
+       this.checkPayerField();
+    },
+
+    checkPayerField() {
+      const wrap = document.getElementById('f-payer-wrap');
+      if (this.sheetMode !== 'expense') { wrap.style.display = 'none'; return; }
+      
+      const accName = document.getElementById('f-compte').value;
+      const acc = this.state.accounts.find(a => a.name === accName);
+      
+      wrap.style.display = 'block'; // Toujours afficher la case dorée pour rassurer l'utilisateur
+      const sel = document.getElementById('f-payer');
+
+      if (acc) {
+         const mems = this.state.members.filter(m => m.account_id === acc.id);
+         if (mems.length > 1) {
+            sel.disabled = false;
+            sel.innerHTML = `<option value="">Prélevé sur le compte commun (Défaut)</option>` + 
+                            mems.map(m => `<option value="${m.user_id}">Avancé par : ${m.profiles?.display_name || 'Membre'}</option>`).join('');
+         } else {
+            sel.disabled = true;
+            sel.innerHTML = `<option value="">Seul sur ce compte (Invitez un membre pour l'avance)</option>`;
+         }
+      } else {
+         sel.disabled = true;
+         sel.innerHTML = `<option value="">Sélectionnez un compte valide d'abord</option>`;
+      }
+    },
+
+    closeSheet() { document.getElementById('bh-sheet-overlay').classList.remove('open'); },
+
+    async saveEntry() {
+      const type = this.sheetMode;
+      const desc = document.getElementById('f-desc').value.trim();
+      const amount = Number(document.getElementById('f-amount').value);
+      const day = Number(document.getElementById('f-day').value) || 1;
+      const accName = document.getElementById('f-compte').value;
+      const acc = this.state.accounts.find(a=>a.name === accName);
+      const payerId = document.getElementById('f-payer').value;
+
+      // --- Validation des entrées ---
+      if (!desc) { toast("Merci d'indiquer une description."); return; }
+      if (!acc) { toast("Compte invalide : choisissez un compte existant."); return; }
+      if (!amount || isNaN(amount) || amount <= 0) { toast("Le montant doit être un nombre positif."); return; }
+      if (day < 1 || day > 31) { toast("Le jour doit être compris entre 1 et 31."); return; }
+
+      const payload = {
+         account_id: acc.id, description: desc, amount: amount, day: day
+      };
+      if(type === 'expense') {
+         payload.category = document.getElementById('f-cat').value || 'Autre';
+         payload.payer_id = payerId || null;
+      }
+
+      const table = type === 'expense' ? 'expenses' : 'incomes';
+      
+      await withRetry(async () => {
+        let error;
+        if(this.sheetEditId) {
+           ({ error } = await supabaseApp.from(table).update(payload).eq('id', this.sheetEditId));
+        } else {
+           ({ error } = await supabaseApp.from(table).insert([payload]));
+        }
+        if (error) throw error;
+        toast("Enregistré");
+        this.closeSheet();
+        this.fetchData();
+      }, 'enregistrement');
+    },
+
+    async deleteEntry() {
+       const table = this.sheetMode === 'expense' ? 'expenses' : 'incomes';
+       await withRetry(async () => {
+         const { error } = await supabaseApp.from(table).delete().eq('id', this.sheetEditId);
+         if (error) throw error;
+         toast("Supprimé");
+         this.closeSheet();
+         this.fetchData();
+       }, 'suppression');
+    },
+
+    async enableNotifications() {
+       if (!('Notification' in window)) { toast("Notifications non supportées sur ce navigateur."); return; }
+       const perm = await Notification.requestPermission();
+       const btn = document.getElementById('bh-notif-btn');
+       if (perm === 'granted') {
+          btn.textContent = '✅ Rappels activés';
+          localStorage.setItem('bh-notif-enabled', '1');
+          this.checkDueNotifications();
+       } else {
+          toast("Permission refusée dans le navigateur.");
+       }
+    },
+
+    // Vérifie les dépenses proches de l'échéance et déclenche une notification locale (une seule fois par jour/entrée)
+    checkDueNotifications() {
+       if (!('Notification' in window) || Notification.permission !== 'granted') return;
+       const now = new Date();
+       const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+       const mKey = this.monthKey(now);
+       const sentKey = 'bh-notif-sent-' + mKey + '-' + now.getDate();
+       const alreadySent = JSON.parse(localStorage.getItem(sentKey) || '[]');
+       const newlySent = [...alreadySent];
+
+       this.state.expenses.forEach(exp => {
+          const acc = this.state.accounts.find(a => a.id === exp.account_id);
+          if (!acc) return;
+          const paidRec = this.state.months[acc.id + '_' + mKey]?.[exp.id];
+          if (paidRec) return; // déjà réglé
+          const diff = Math.min(exp.day, dim) - now.getDate();
+          if (diff >= 0 && diff <= 2 && !alreadySent.includes(exp.id)) {
+             const lbl = diff === 0 ? "aujourd'hui" : `dans ${diff} j`;
+             try {
+               new Notification('Facture à venir', { body: `${exp.description} (${this.fmt(exp.amount)}) — échéance ${lbl}.`, tag: exp.id });
+             } catch(e) { console.log(e); }
+             newlySent.push(exp.id);
+          }
+       });
+       localStorage.setItem(sentKey, JSON.stringify(newlySent));
+    },
+
+    openSettings() {
+      // Refléter l'état des notifications
+      if ('Notification' in window && Notification.permission === 'granted') {
+         document.getElementById('bh-notif-btn').textContent = '✅ Rappels activés';
+      }
+      // Remplir liste compte principal
+      const sel = document.getElementById('setting-main-account');
+      sel.innerHTML = `<option value="">-- Aucun --</option>` + 
+         this.state.accounts.map(a => `<option value="${a.id}" ${this.state.profile.main_account_id === a.id ? 'selected':''}>${this.esc(a.name)}</option>`).join('');
+
+      // Remplir liste codes de partage
+      document.getElementById('settings-accounts-list').innerHTML = this.state.accounts.map(a => `
+         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line-soft); padding:8px 0;">
+            <div style="font-weight:600; font-size:14px;">${this.esc(a.name)}</div>
+            <div style="font-size:11px; background:var(--line-soft); padding:4px 8px; border-radius:6px; font-family:monospace; user-select:all;">${a.id}</div>
+         </div>
+      `).join('') + `<p style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Copiez l'ID d'un compte ci-dessus et envoyez-le à un proche pour qu'il le rejoigne.</p>`;
+
+      document.getElementById('bh-settings-overlay').classList.add('open');
+    },
+
+    closeSettings() { document.getElementById('bh-settings-overlay').classList.remove('open'); },
+
+    async setMainAccount(id) {
+       const { error } = await supabaseApp.from('profiles').update({ main_account_id: id || null }).eq('id', this.user.id);
+       if(!error) { toast("Compte principal enregistré"); this.fetchData(); }
+    },
+
+    async createAccount() {
+      const name = document.getElementById('create-account-name').value.trim();
+      if(!name) { toast("Indiquez un nom de compte."); return; }
+
+      // Validation : pas de doublon de nom de compte (insensible à la casse)
+      const dup = this.state.accounts.some(a => a.name.trim().toLowerCase() === name.toLowerCase());
+      if (dup) { toast("Un compte porte déjà ce nom."); return; }
+      
+      await withRetry(async () => {
+        // Générer UUID localement pour éviter le blocage de sécurité
+        const newId = crypto.randomUUID();
+        const { error: e1 } = await supabaseApp.from('accounts').insert([{ id: newId, name: name }]);
+        if (e1) throw e1;
+        const { error: e2 } = await supabaseApp.from('account_members').insert([{ account_id: newId, user_id: this.user.id, role: 'owner' }]);
+        if (e2) throw e2;
+        
+        toast("Compte créé !");
+        document.getElementById('create-account-name').value = '';
+        this.fetchData();
+        this.closeSettings();
+      }, 'création du compte');
+    },
+
+    async joinAccount() {
+      const code = document.getElementById('join-code').value.trim();
+      if(!code) { toast("Collez un code de compte."); return; }
+      if (this.state.members.some(m => m.account_id === code && m.user_id === this.user.id)) {
+        toast("Vous êtes déjà membre de ce compte."); return;
+      }
+      await withRetry(async () => {
+        const { error } = await supabaseApp.from('account_members').insert([{ account_id: code, user_id: this.user.id, role: 'editor' }]);
+        if(error) throw error;
+        toast("Compte rejoint avec succès !"); this.fetchData(); this.closeSettings();
+      }, 'ajout au compte');
+    }
+  };
+
+</script>
+</body>
+</html>
