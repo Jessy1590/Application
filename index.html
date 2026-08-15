@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0D1219; --panel:#161D27; --panel-2:#1B2430; --border:#26303D;
+    --teal:#4FD1C5; --amber:#F0A868; --text:#ECEFF3; --muted:#7C8798;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(79,209,197,0.06), transparent),
+      radial-gradient(900px 500px at 100% 0%, rgba(240,168,104,0.05), transparent),
+      var(--bg);
+    color:var(--text); font-family:'Inter', sans-serif; min-height:100vh;
+  }
+  ::selection{ background:rgba(79,209,197,0.25); }
+  .screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .hidden{ display:none !important; }
+
+  /* ---- Login ---- */
+  .login-card{ width:100%; max-width:380px; background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:36px 32px 32px; position:relative; box-shadow:0 20px 60px rgba(0,0,0,0.4); }
+  .login-card::before{ content:""; position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    width:20px; height:20px; border-radius:50%; background:var(--bg); border:1px solid var(--border); }
+  .eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:2.5px;
+    text-transform:uppercase; color:var(--teal); margin:0 0 6px; }
+  .login-card h1{ font-family:'Space Grotesk', sans-serif; font-size:26px; margin:0 0 26px; font-weight:700; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px;
+    font-family:'IBM Plex Mono', monospace; letter-spacing:0.5px; }
+  .field input{ width:100%; padding:11px 13px; background:var(--panel-2); border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-size:14px; font-family:'Inter', sans-serif; outline:none;
+    transition:border-color .15s ease; }
+  .field input:focus{ border-color:var(--teal); }
+  .btn{ padding:12px; border-radius:8px; border:none; background:var(--teal); color:#0D1219;
+    font-weight:600; font-size:14px; cursor:pointer; font-family:'Space Grotesk', sans-serif;
+    transition:transform .15s ease, box-shadow .15s ease; }
+  .btn.full{ width:100%; }
+  .btn:hover{ transform:translateY(-1px); box-shadow:0 8px 20px rgba(79,209,197,0.25); }
+  .btn:focus-visible{ outline:2px solid var(--teal); outline-offset:2px; }
+  .btn.ghost{ background:transparent; border:1px solid var(--border); color:var(--muted); box-shadow:none; }
+  .btn.ghost:hover{ border-color:var(--amber); color:var(--amber); box-shadow:none; }
+  .btn.small{ padding:7px 12px; font-size:12px; }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+  .auth-error{ color:var(--amber); font-size:13px; margin-top:14px; font-family:'IBM Plex Mono', monospace; min-height:16px; }
+
+  /* ---- Dashboard shell ---- */
+  .dash{ width:100%; max-width:960px; padding:40px 8px; }
+  .dash-header{ display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:22px; flex-wrap:wrap; gap:16px; }
+  .dash-header h1{ font-family:'Space Grotesk', sans-serif; font-size:28px; margin:0 0 4px; font-weight:700; }
+  .dash-sub{ font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted); letter-spacing:1px; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:26px; }
+  .tab-btn{ background:transparent; border:1px solid var(--border); color:var(--muted);
+    padding:8px 16px; border-radius:20px; cursor:pointer; font-family:'IBM Plex Mono', monospace;
+    font-size:12px; letter-spacing:1px; text-transform:uppercase; }
+  .tab-btn.active{ border-color:var(--teal); color:var(--teal); background:rgba(79,209,197,0.08); }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:18px; }
+
+  /* ---- Access card ---- */
+  .card{ position:relative; background:var(--panel); border:1px solid var(--border); border-radius:14px;
+    padding:22px 20px 20px; overflow:hidden; text-decoration:none; color:var(--text); display:block;
+    transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+  .card.locked{ opacity:.72; }
+  .card::before{ content:""; position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    width:14px; height:14px; border-radius:50%; background:var(--bg); border:1px solid var(--border); z-index:2; }
+  .card::after{ content:""; position:absolute; top:0; left:0; right:0; height:4px; background:var(--card-color, var(--teal)); }
+  .card.available:hover{ transform:translateY(-3px); border-color:var(--card-color, var(--teal)); box-shadow:0 14px 30px rgba(0,0,0,0.35); }
+  .card.available:hover .sweep{ transform:translateX(120%); }
+  .sweep{ position:absolute; top:0; left:-60%; width:40%; height:100%;
+    background:linear-gradient(115deg, transparent, rgba(255,255,255,0.06), transparent);
+    transform:translateX(-40%); transition:transform .6s ease; pointer-events:none; }
+  .card-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-top:14px; margin-bottom:14px; }
+  .card-icon{ font-size:26px; }
+  .tag{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:1.2px; text-transform:uppercase;
+    padding:3px 8px; border-radius:20px; border:1px solid var(--border); color:var(--muted); }
+  .tag.admin{ color:var(--amber); border-color:rgba(240,168,104,0.35); background:rgba(240,168,104,0.08); }
+  .tag.granted{ color:var(--teal); border-color:rgba(79,209,197,0.35); background:rgba(79,209,197,0.08); }
+  .tag.pending{ color:var(--amber); border-color:rgba(240,168,104,0.35); background:rgba(240,168,104,0.08); }
+  .card-name{ font-family:'Space Grotesk', sans-serif; font-size:17px; font-weight:600; margin:0 0 6px; }
+  .card-desc{ font-size:13px; color:var(--muted); line-height:1.5; margin:0 0 16px; min-height:34px; }
+  .card-open{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:1px; color:var(--card-color, var(--teal)); display:flex; align-items:center; gap:6px; }
+  .card-locked-label{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.5px; color:var(--muted); margin-bottom:10px; }
+
+  .empty{ text-align:center; padding:60px 20px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); }
+  .empty .eyebrow{ display:block; margin-bottom:10px; }
+
+  /* ---- Admin panel ---- */
+  .admin-section{ margin-bottom:36px; }
+  .admin-section h2{ font-family:'Space Grotesk', sans-serif; font-size:16px; margin:0 0 14px; font-weight:600; }
+  .row{ display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;
+    padding:14px 16px; background:var(--panel); border:1px solid var(--border); border-radius:10px; margin-bottom:10px; }
+  .row-info{ display:flex; flex-direction:column; gap:3px; }
+  .row-title{ font-family:'Space Grotesk', sans-serif; font-size:14px; font-weight:600; }
+  .row-sub{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--muted); }
+  .row-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--border);
+    border-radius:20px; padding:4px 6px 4px 10px; font-size:12px; margin:3px 6px 3px 0; }
+  .chip button{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 6px; }
+  .chip button:hover{ color:var(--amber); }
+  .grant-form{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .grant-form select{ background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:7px 10px; font-size:12px; font-family:'Inter', sans-serif; }
+
+  @media (max-width:480px){ .dash{ padding:28px 4px; } .grid{ grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion: reduce){ .card, .sweep, .btn{ transition:none; } }
+</style>
+</head>
+<body>
+
+  <!-- ===== LOGIN ===== -->
+  <div class="screen" id="loginScreen">
+    <div class="login-card">
+      <p class="eyebrow">Access Console</p>
+      <h1 id="authTitle">Portail</h1>
+      <form id="loginForm">
+        <div class="field hidden" id="nameField"><label for="displayName">Nom affiché</label><input type="text" id="displayName" autocomplete="name"></div>
+        <div class="field"><label for="email">Email</label><input type="email" id="email" required autocomplete="email"></div>
+        <div class="field"><label for="password">Mot de passe</label><input type="password" id="password" required autocomplete="current-password"></div>
+        <button type="submit" class="btn full" id="submitBtn">Se connecter</button>
+        <p class="auth-error" id="authError"></p>
+      </form>
+      <p class="auth-toggle"><span id="authToggleText">Pas encore de compte ?</span> <button type="button" id="toggleModeBtn">Créer un compte</button></p>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div class="screen hidden" id="dashScreen" style="align-items:flex-start;">
+    <div class="dash">
+      <div class="dash-header">
+        <div>
+          <h1 id="greeting">Bienvenue</h1>
+          <p class="dash-sub" id="roleLabel">MEMBER ACCESS</p>
+        </div>
+        <button class="btn ghost small" id="signoutBtn">Se déconnecter</button>
+      </div>
+
+      <div class="tabs" id="tabs">
+        <button class="tab-btn active" data-tab="mine">Mes accès</button>
+        <button class="tab-btn hidden" data-tab="admin" id="adminTabBtn">Administration</button>
+      </div>
+
+      <div id="mineView"><div id="cardsArea"></div></div>
+      <div id="adminView" class="hidden">
+        <div class="admin-section">
+          <h2>Demandes en attente</h2>
+          <div id="requestsArea"></div>
+        </div>
+        <div class="admin-section">
+          <h2>Utilisateurs</h2>
+          <div id="usersArea"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const SUPABASE_URL = "https://kpjflntnotftpzffjbud.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo";
+
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    db: { schema: 'portail' }   // toutes les requêtes .from() pointent vers le schéma "portail"
+  });
+
+  const el = id => document.getElementById(id);
+  const loginScreen = el('loginScreen'), dashScreen = el('dashScreen');
+  let CURRENT_USER = null, IS_ADMIN = false;
+
+  let authMode = 'login';
+
+  function toggleAuthMode(){
+    authMode = authMode === 'login' ? 'signup' : 'login';
+    const isSignup = authMode === 'signup';
+    el('authTitle').textContent = isSignup ? 'Créer un compte' : 'Portail';
+    el('submitBtn').textContent = isSignup ? "S'inscrire" : 'Se connecter';
+    el('nameField').classList.toggle('hidden', !isSignup);
+    el('authToggleText').textContent = isSignup ? 'Déjà un compte ?' : 'Pas encore de compte ?';
+    el('toggleModeBtn').textContent = isSignup ? 'Se connecter' : 'Créer un compte';
+    el('authError').textContent = '';
+  }
+  el('toggleModeBtn').addEventListener('click', toggleAuthMode);
+
+  el('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    el('authError').textContent = '';
+    const email = el('email').value.trim();
+    const password = el('password').value;
+    el('submitBtn').disabled = true;
+
+    if (authMode === 'signup') {
+      el('submitBtn').textContent = 'Inscription...';
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { data: { display_name: el('displayName').value.trim() || email } }
+      });
+      el('submitBtn').textContent = "S'inscrire"; el('submitBtn').disabled = false;
+      if (error) { el('authError').textContent = error.message; return; }
+      if (!data.session) {
+        el('authError').textContent = "Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.";
+        return;
+      }
+      await bootDashboard();
+      return;
+    }
+
+    el('submitBtn').textContent = 'Connexion...';
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    el('submitBtn').textContent = 'Se connecter'; el('submitBtn').disabled = false;
+    if (error) { el('authError').textContent = "Identifiants incorrects ou compte inexistant."; return; }
+    await bootDashboard();
+  });
+
+  el('signoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); showLogin(); });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      el('mineView').classList.toggle('hidden', tab !== 'mine');
+      el('adminView').classList.toggle('hidden', tab !== 'admin');
+      if (tab === 'admin') loadAdminView();
+    });
+  });
+
+  function showLogin(){ dashScreen.classList.add('hidden'); loginScreen.classList.remove('hidden'); }
+  function showDashboard(){ loginScreen.classList.add('hidden'); dashScreen.classList.remove('hidden'); }
+
+  async function bootDashboard(){
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) { showLogin(); return; }
+    CURRENT_USER = user;
+
+    const { data: profile } = await sb.from('profiles')
+      .select('display_name, role, email').eq('id', user.id).single();
+
+    IS_ADMIN = profile?.role === 'admin';
+    el('greeting').textContent = `Bonjour, ${profile?.display_name || profile?.email || 'toi'}`;
+    el('roleLabel').textContent = IS_ADMIN ? 'ADMIN ACCESS · TOUS LES SITES' : 'MEMBER ACCESS';
+    el('adminTabBtn').classList.toggle('hidden', !IS_ADMIN);
+
+    await loadMineView();
+    showDashboard();
+  }
+
+  // ---------- "Mes accès" ----------
+  async function loadMineView(){
+    const [{ data: sites, error }, { data: myAccess }, { data: myRequests }] = await Promise.all([
+      sb.from('sites').select('id, name, description, url, icon, color').order('name'),
+      sb.from('site_access').select('site_id').eq('user_id', CURRENT_USER.id),
+      sb.from('access_requests').select('id, site_id, status').eq('user_id', CURRENT_USER.id).eq('status', 'pending')
+    ]);
+
+    if (error) {
+      el('cardsArea').innerHTML = `<div class="empty"><span class="eyebrow">Erreur</span>Impossible de charger les sites. Vérifie la config Supabase.</div>`;
+      return;
+    }
+    if (!sites.length) {
+      el('cardsArea').innerHTML = `<div class="empty"><span class="eyebrow">Aucun site</span>Aucun site n'a encore été ajouté au portail.</div>`;
+      return;
+    }
+
+    const grantedIds = new Set((myAccess || []).map(a => a.site_id));
+    const pendingMap = new Map((myRequests || []).map(r => [r.site_id, r.id]));
+
+    el('cardsArea').innerHTML = `<div class="grid">${sites.map(s => {
+      if (IS_ADMIN || grantedIds.has(s.id)) return cardGranted(s);
+      if (pendingMap.has(s.id)) return cardPending(s);
+      return cardLocked(s);
+    }).join('')}</div>`;
+
+    document.querySelectorAll('[data-request]').forEach(btn => {
+      btn.addEventListener('click', () => requestAccess(btn.dataset.request));
+    });
+  }
+
+  function cardGranted(site){
+    return `
+      <a class="card available" style="--card-color:${site.color || '#4FD1C5'}" href="${site.url}" target="_blank" rel="noopener noreferrer">
+        <span class="sweep"></span>
+        <div class="card-top">
+          <span class="card-icon">${site.icon || '🔗'}</span>
+          <span class="tag ${IS_ADMIN ? 'admin' : 'granted'}">${IS_ADMIN ? 'Admin' : 'Autorisé'}</span>
+        </div>
+        <p class="card-name">${site.name}</p>
+        <p class="card-desc">${site.description || ''}</p>
+        <p class="card-open">OUVRIR →</p>
+      </a>`;
+  }
+
+  function cardPending(site){
+    return `
+      <div class="card locked" style="--card-color:${site.color || '#4FD1C5'}">
+        <div class="card-top">
+          <span class="card-icon">${site.icon || '🔗'}</span>
+          <span class="tag pending">En attente</span>
+        </div>
+        <p class="card-name">${site.name}</p>
+        <p class="card-desc">${site.description || ''}</p>
+        <p class="card-locked-label">Demande envoyée, en attente de validation.</p>
+      </div>`;
+  }
+
+  function cardLocked(site){
+    return `
+      <div class="card locked" style="--card-color:${site.color || '#4FD1C5'}">
+        <div class="card-top">
+          <span class="card-icon">${site.icon || '🔗'}</span>
+          <span class="tag">Non autorisé</span>
+        </div>
+        <p class="card-name">${site.name}</p>
+        <p class="card-desc">${site.description || ''}</p>
+        <button class="btn ghost small" data-request="${site.id}">Demander l'accès</button>
+      </div>`;
+  }
+
+  async function requestAccess(siteId){
+    const { error } = await sb.from('access_requests').insert({ user_id: CURRENT_USER.id, site_id: siteId });
+    if (!error) await loadMineView();
+  }
+
+  // ---------- "Administration" ----------
+  async function loadAdminView(){
+    const [{ data: requests }, { data: profiles }, { data: allAccess }, { data: sites }] = await Promise.all([
+      sb.from('access_requests').select('id, user_id, site_id, requested_at').eq('status', 'pending').order('requested_at'),
+      sb.from('profiles').select('id, email, display_name, role').order('email'),
+      sb.from('site_access').select('user_id, site_id'),
+      sb.from('sites').select('id, name, icon, color')
+    ]);
+
+    const profileById = new Map((profiles || []).map(p => [p.id, p]));
+    const siteById = new Map((sites || []).map(s => [s.id, s]));
+
+    // --- Demandes en attente ---
+    if (!requests || !requests.length) {
+      el('requestsArea').innerHTML = `<div class="empty">Aucune demande en attente.</div>`;
+    } else {
+      el('requestsArea').innerHTML = requests.map(r => {
+        const p = profileById.get(r.user_id), s = siteById.get(r.site_id);
+        return `
+          <div class="row">
+            <div class="row-info">
+              <span class="row-title">${p?.display_name || p?.email || 'Utilisateur'} → ${s?.icon || ''} ${s?.name || 'Site'}</span>
+              <span class="row-sub">Demandé le ${new Date(r.requested_at).toLocaleDateString('fr-FR')}</span>
+            </div>
+            <div class="row-actions">
+              <button class="btn small" data-approve="${r.id}">Approuver</button>
+              <button class="btn ghost small" data-reject="${r.id}">Refuser</button>
+            </div>
+          </div>`;
+      }).join('');
+      document.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => reviewRequest(b.dataset.approve, 'approved')));
+      document.querySelectorAll('[data-reject]').forEach(b => b.addEventListener('click', () => reviewRequest(b.dataset.reject, 'rejected')));
+    }
+
+    // --- Utilisateurs ---
+    const accessByUser = new Map();
+    (allAccess || []).forEach(a => {
+      if (!accessByUser.has(a.user_id)) accessByUser.set(a.user_id, []);
+      accessByUser.get(a.user_id).push(a.site_id);
+    });
+
+    el('usersArea').innerHTML = (profiles || []).map(p => {
+      const granted = accessByUser.get(p.id) || [];
+      const chips = granted.map(sid => {
+        const s = siteById.get(sid);
+        return `<span class="chip">${s?.icon || ''} ${s?.name || sid} <button data-revoke="${p.id}|${sid}">×</button></span>`;
+      }).join('');
+      const options = (sites || []).filter(s => !granted.includes(s.id))
+        .map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+      return `
+        <div class="row" style="flex-direction:column; align-items:stretch;">
+          <div class="row" style="border:none; padding:0; margin:0; background:transparent;">
+            <div class="row-info">
+              <span class="row-title">${p.display_name || p.email}</span>
+              <span class="row-sub">${p.email} · ${p.role === 'admin' ? 'ADMIN' : 'MEMBER'}</span>
+            </div>
+          </div>
+          <div style="margin-top:10px;">${chips || '<span class="row-sub">Aucun accès</span>'}</div>
+          ${options ? `
+          <div class="grant-form">
+            <select id="grantSelect-${p.id}">${options}</select>
+            <button class="btn small" data-grant="${p.id}">Accorder</button>
+          </div>` : ''}
+        </div>`;
+    }).join('');
+
+    document.querySelectorAll('[data-revoke]').forEach(b => b.addEventListener('click', () => {
+      const [userId, siteId] = b.dataset.revoke.split('|');
+      revokeAccess(userId, siteId);
+    }));
+    document.querySelectorAll('[data-grant]').forEach(b => b.addEventListener('click', () => {
+      const userId = b.dataset.grant;
+      const siteId = el(`grantSelect-${userId}`).value;
+      grantAccess(userId, siteId);
+    }));
+  }
+
+  async function reviewRequest(id, status){
+    const { error } = await sb.from('access_requests')
+      .update({ status, reviewed_by: CURRENT_USER.id }).eq('id', id);
+    if (!error) await loadAdminView();
+  }
+
+  async function grantAccess(userId, siteId){
+    const { error } = await sb.from('site_access').insert({ user_id: userId, site_id: siteId });
+    if (!error) await loadAdminView();
+  }
+
+  async function revokeAccess(userId, siteId){
+    const { error } = await sb.from('site_access').delete().eq('user_id', userId).eq('site_id', siteId);
+    if (!error) await loadAdminView();
+  }
+
+  // Session déjà active au chargement ?
+  (async () => {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) await bootDashboard(); else showLogin();
+  })();
+</script>
+</body>
+</html>
