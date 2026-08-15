@@ -53,7 +53,7 @@
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
 
     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { 
-      db: { schema: 'Fromage' } 
+      db: { schema: 'autres' } 
     });
 
     // ---------- Config & Seed ----------
@@ -73,29 +73,6 @@
       "Fromages Frais & Spécialités",
       "Pâtes Filées",
     ];
-
-    const RAW_SEED = [
-      ["Gorgonzola", "vache", SUBCATS[0], [10]],
-      ["Bleu de Gex AOP", "vache", SUBCATS[0], [10]],
-      ["Pavé d'Affinois Brin", "vache", SUBCATS[1], [10]],
-      ["Saint Albray", "vache", SUBCATS[2], [10]],
-      ["Tomme suisse poivre et citron", "vache", SUBCATS[4], [10]],
-      ["Emmental français", "vache", SUBCATS[5], [8]],
-      ["Stracciatella", "vache", SUBCATS[6], [3]],
-      ["Mozzarella", "vache", SUBCATS[7], [1]],
-      ["Bûche de chèvre", "chevre", null, [10]],
-      ["Ardi Gasna (Brebis des Pyrénées)", "brebis", null, [9]]
-    ];
-
-    function buildSeed() {
-      return RAW_SEED.map(([name, main, sub, notes], i) => ({
-        id: `seed-${i}-${Math.random().toString(36).slice(2, 6)}`,
-        name,
-        main,
-        sub,
-        notes: notes.map((v, j) => ({ id: `seed-${i}-${j}`, value: v })),
-      }));
-    }
 
     function avg(notes) {
       if (!notes || notes.length === 0) return null;
@@ -139,8 +116,6 @@
       Réponds avec exactement ce format JSON :
       {"main": "vache" | "chevre" | "brebis", "sub": <une valeur EXACTE de cette liste si main="vache", sinon null> ${JSON.stringify(SUBCATS)}}`;
       
-      // Ici en vrai il te faudrait la clé API Anthropic pour que ça marche
-      // Attention à ne pas exposer tes clés API secrètes dans le HTML front-end !
       try {
         const parsed = await callClaude(system, prompt);
         if (!["vache", "chevre", "brebis"].includes(parsed.main)) throw new Error("main invalide");
@@ -168,16 +143,11 @@
       useEffect(() => {
         (async () => {
           try {
-            const { data, error } = await supabaseClient.from('notes').select('*');
+            const { data, error } = await supabaseClient.from('fromage').select('*');
             if (error) throw error;
 
-            if (data && data.length > 0) {
+            if (data) {
               setCheeses(data);
-            } else {
-              const seed = buildSeed();
-              const { error: insertError } = await supabaseClient.from('notes').insert(seed);
-              if (insertError) throw insertError;
-              setCheeses(seed);
             }
           } catch (e) {
             console.error(e);
@@ -221,7 +191,7 @@
         setCheeses((prev) => [...prev, newCheese]);
         setModal(null);
 
-        const { error } = await supabaseClient.from('notes').insert([newCheese]);
+        const { error } = await supabaseClient.from('fromage').insert([newCheese]);
         if (error) setError("Échec de la sauvegarde.");
       }
 
@@ -237,7 +207,7 @@
         setCheeses((prev) => prev.map((c) => (c.id === id ? { ...c, name: newName } : c)));
         setEditingId(null);
 
-        await supabaseClient.from('notes').update({ name: newName }).eq('id', id);
+        await supabaseClient.from('fromage').update({ name: newName }).eq('id', id);
       }
 
       function startAddNote(id) { setNoteDraftFor(id); setNoteDraftValue(""); }
@@ -252,19 +222,19 @@
         setCheeses((prev) => prev.map((c) => c.id === id ? { ...c, notes: updatedNotes } : c));
         setNoteDraftFor(null);
 
-        await supabaseClient.from('notes').update({ notes: updatedNotes }).eq('id', id);
+        await supabaseClient.from('fromage').update({ notes: updatedNotes }).eq('id', id);
       }
 
       async function removeNote(cheeseId, noteId) {
         const cheeseToUpdate = cheeses.find((c) => c.id === cheeseId);
         const updatedNotes = cheeseToUpdate.notes.filter((n) => n.id !== noteId);
         setCheeses((prev) => prev.map((c) => c.id === cheeseId ? { ...c, notes: updatedNotes } : c));
-        await supabaseClient.from('notes').update({ notes: updatedNotes }).eq('id', cheeseId);
+        await supabaseClient.from('fromage').update({ notes: updatedNotes }).eq('id', cheeseId);
       }
 
       async function deleteCheese(id) {
         setCheeses((prev) => prev.filter((c) => c.id !== id));
-        await supabaseClient.from('notes').delete().eq('id', id);
+        await supabaseClient.from('fromage').delete().eq('id', id);
       }
 
       if (!loaded) {
