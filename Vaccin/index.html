@@ -259,17 +259,11 @@
   </div>
 
 <script>
-  // Configuration Supabase
   const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co/';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
 
-  // Clients
   const sbAuth = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'portail' } });
-  
-  // MODIFICATION ICI : On utilise le schéma "autres"
   const sbVaccin = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'autres' } });
-  
-  // MODIFICATION ICI : Le nom de la table est "vaccins"
   const TABLE_NAME = 'vaccins';
   
   let currentData = [];
@@ -293,41 +287,36 @@
     const { data, error } = await sbVaccin.from(TABLE_NAME).select('*').order('pathologie');
     
     if (error) {
-      if(error.code === '42P01') {
-         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--accent-color); text-align:center; padding:30px;"><b>Base de données vide ou table inexistante.</b><br>Utilisez le bouton "Importer (JSON)" dans l'espace administrateur pour initialiser la base.</td></tr>`;
-      } else {
-         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--accent-color); text-align:center;">Erreur: ${error.message}</td></tr>`;
-      }
+      el('vaccineTbody').innerHTML = '<tr><td colspan="3" style="color:var(--accent-color); text-align:center; padding:30px;"><b>Erreur de chargement des données.</b><br>' + error.message + '<br><br><i>Code d\'erreur: ' + error.code + '</i></td></tr>';
       return;
     }
     currentData = data || [];
     renderTable(currentData);
   }
 
-  // Formate les âges séparés par des virgules en "badges"
   function formatCalendrier(texte) {
     if(!texte) return '';
     const parts = texte.split(',');
-    return parts.map(p => `<span class="age-tag">${escapeHtml(p.trim())}</span>`).join(' ');
+    return parts.map(p => '<span class="age-tag">' + escapeHtml(p.trim()) + '</span>').join(' ');
   }
 
   function renderTable(dataArray) {
     const tbody = el('vaccineTbody');
     if (dataArray.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--muted-text); padding: 30px;">Aucun vaccin trouvé.</td></tr>`;
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--muted-text); padding: 30px;">Aucun vaccin trouvé.</td></tr>';
       return;
     }
 
-    tbody.innerHTML = dataArray.map(v => `
-      <tr>
-        <td class="col-patho">${escapeHtml(v.pathologie)}</td>
-        <td class="col-vaccin" onclick="openModal('${v.id}')">${escapeHtml(v.vaccins)}</td>
-        <td class="col-cal">
-          ${formatCalendrier(v.calendrier)}
-          ${isAdmin ? `<br><button class="btn outline no-print" style="padding:4px 8px; font-size:11px; margin-top:10px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>` : ''}
-        </td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = dataArray.map(v => 
+      '<tr>' +
+        '<td class="col-patho">' + escapeHtml(v.pathologie) + '</td>' +
+        '<td class="col-vaccin" onclick="openModal(\'' + v.id + '\')">' + escapeHtml(v.vaccins) + '</td>' +
+        '<td class="col-cal">' +
+          formatCalendrier(v.calendrier) +
+          (isAdmin ? '<br><button class="btn outline no-print" style="padding:4px 8px; font-size:11px; margin-top:10px;" onclick="editEntry(\'' + v.id + '\'); event.stopPropagation();">Éditer</button>' : '') +
+        '</td>' +
+      '</tr>'
+    ).join('');
   }
   
   function filterTable() {
@@ -342,18 +331,21 @@
 
   function escapeHtml(unsafe) {
     if(!unsafe) return '';
-    return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    return unsafe.toString()
+      .split('&').join('&amp;')
+      .split('<').join('&lt;')
+      .split('>').join('&gt;')
+      .split('"').join('&quot;')
+      .split("'").join('&#039;');
   }
   
   function formatTextToHtml(text) {
     if(!text) return '';
-    // Transforme les retours à la ligne en balises <br>
-    let formatted = escapeHtml(text).replace(/
-/g, "<br>");
-    return `<p>${formatted}</p>`;
+    let newlineChar = String.fromCharCode(10);
+    let formatted = escapeHtml(text).split(newlineChar).join('<br>');
+    return '<p>' + formatted + '</p>';
   }
 
-  // --- Modal Logic ---
   function openModal(id) {
     const v = currentData.find(item => item.id == id);
     if (!v) return;
@@ -371,7 +363,6 @@
     el('vaccinModal').classList.remove('active');
   }
 
-  // --- Admin Logic ---
   el('toggleAdminBtn').addEventListener('click', () => {
     el('adminPanel').classList.toggle('active');
   });
@@ -435,8 +426,6 @@
   el('exportBtn').addEventListener('click', () => {
     if (currentData.length === 0) return showMessage('Aucune donnée à exporter', true);
     
-    // Nettoyer les id avant l'export si on veut pouvoir importer facilement ailleurs (optionnel, mais utile)
-    // Ici on garde les IDs pour permettre l'upsert
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
@@ -458,13 +447,12 @@
         
         showMessage('Importation en cours...');
         
-        // Upsert les données importées
         const { error } = await sbVaccin.from(TABLE_NAME).upsert(importedData);
         
         if (error) throw error;
         
-        showMessage('Importation réussie !');
-        event.target.value = ''; // reset file input
+        showMessage("Importation réussie !");
+        event.target.value = '';
         await loadData();
       } catch (err) {
         showMessage("Erreur d'importation : " + err.message, true);
