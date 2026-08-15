@@ -467,7 +467,7 @@
         event.target.value = ''; // reset file input
         await loadData();
       } catch (err) {
-        showMessage('Erreur : ' + err.message, true);
+        showMessage("Erreur d'importation : " + err.message, true);
       }
     };
     reader.readAsText(file);
