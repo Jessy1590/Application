@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thesaurus</title>
     <link rel="stylesheet" href="script.css">
+    <!-- 1. Cacher le site pendant la vérification -->
+  <style> body { display: none; } </style>
+
+  <!-- 2. Configuration : L'ID du projet "Banque" dans votre table "sites" -->
+  <script>
+    const CONFIG_SITE_ID = "REMPLACEZ_PAR_L_ID_DU_SITE_BANQUE"; // L'ID UUID Supabase du site
+    const CONFIG_PORTAIL_URL = "../index.html"; // Renvoie vers le portail à la racine
+  </script>
+
+  <!-- 3. Charger Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- 4. Charger le script central situé à la racine du GitHub -->
+  <script src="../protect.js"></script>
 </head>
 <body>
     <div class="container">
