@@ -5,204 +5,255 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tableau des Vaccins - France</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
-    --bg: #0D1219; --panel: #161D27; --panel-2: #1B2430; --border: #26303D;
-    --teal: #4FD1C5; --amber: #F0A868; --text: #ECEFF3; --muted: #7C8798;
-    --danger: #ff6b6b;
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --accent-color: #e74c3c;
+    --background-color: #f4f7f6;
+    --card-bg: #ffffff;
+    --text-color: #333333;
+    --muted-text: #7f8c8d;
+    --border-color: #ecf0f1;
+    --hover-bg: #f8f9fa;
   }
+  
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh;
-    padding: 24px;
-  }
+  html, body { margin: 0; padding: 0; background-color: var(--background-color); color: var(--text-color); font-family: 'Roboto', sans-serif; }
   
-  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-  h1 { font-family: 'Space Grotesk', sans-serif; margin: 0; font-size: 28px; color: var(--teal); }
+  /* Layout */
+  .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
   
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; border-bottom: 3px solid var(--primary-color); padding-bottom: 15px; }
+  header h1 { font-family: 'Poppins', sans-serif; font-size: 32px; color: var(--primary-color); margin: 0; }
+  header p { margin: 5px 0 0 0; color: var(--muted-text); font-size: 14px; }
+  
+  .header-actions { display: flex; gap: 15px; }
+  
+  /* Buttons */
   .btn {
-    padding: 10px 16px; border-radius: 8px; border: none; background: var(--teal); color: #0D1219;
-    font-weight: 600; font-size: 14px; cursor: pointer; font-family: 'Space Grotesk', sans-serif;
-    transition: transform .15s ease, box-shadow .15s ease; display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 6px; border: 1px solid transparent; background: var(--secondary-color); color: white;
+    font-weight: 500; font-size: 14px; cursor: pointer; font-family: 'Poppins', sans-serif;
+    transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
   }
-  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(79,209,197,0.25); }
-  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); box-shadow: none; }
-  .btn.ghost:hover { border-color: var(--teal); color: var(--teal); }
-  .btn.admin-btn { background: rgba(240,168,104,0.1); color: var(--amber); border: 1px solid var(--amber); }
+  .btn:hover { background: #2980b9; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3); }
+  .btn.outline { background: transparent; border: 1px solid var(--secondary-color); color: var(--secondary-color); }
+  .btn.outline:hover { background: rgba(52, 152, 219, 0.1); }
+  .btn.admin-btn { background: #f39c12; color: white; }
+  .btn.admin-btn:hover { background: #d68910; box-shadow: 0 4px 10px rgba(243, 156, 18, 0.3); }
   
-  /* Table Styles */
-  .table-container {
-    width: 100%; overflow-x: auto; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  }
+  /* Search & Filter - Future proofing */
+  .toolbar { margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .search-box { flex: 1; max-width: 400px; position: relative; }
+  .search-box input { width: 100%; padding: 12px 15px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 15px; font-family: 'Roboto', sans-serif; outline: none; transition: border-color 0.2s; }
+  .search-box input:focus { border-color: var(--secondary-color); box-shadow: 0 0 0 3px rgba(52,152,219,0.1); }
+  
+  /* Table Design */
+  .table-wrapper { background: var(--card-bg); border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); overflow: hidden; }
   table { width: 100%; border-collapse: collapse; text-align: left; }
-  th, td { padding: 16px; border-bottom: 1px solid var(--border); }
-  th { 
-    background: var(--panel-2); font-family: 'IBM Plex Mono', monospace; font-size: 12px; 
-    text-transform: uppercase; letter-spacing: 1px; color: var(--muted); position: sticky; top: 0;
-  }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: rgba(255,255,255,0.02); }
+  th, td { padding: 18px 20px; border-bottom: 1px solid var(--border-color); }
+  th { background: #fdfdfd; font-family: 'Poppins', sans-serif; font-size: 14px; font-weight: 600; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.5px; }
+  tbody tr { transition: background-color 0.2s; }
+  tbody tr:hover { background-color: var(--hover-bg); }
+  tbody tr:last-child td { border-bottom: none; }
   
-  .col-pathologie { font-weight: 600; font-family: 'Space Grotesk', sans-serif; color: var(--amber); }
-  .col-vaccin { cursor: pointer; color: var(--teal); font-weight: 500; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color 0.2s; }
-  .col-vaccin:hover { text-decoration-color: var(--teal); }
+  .col-patho { font-weight: 600; color: var(--primary-color); font-size: 16px; }
+  .col-vaccin { cursor: pointer; color: var(--secondary-color); font-weight: 500; transition: color 0.2s; display: flex; align-items: center; justify-content: space-between; }
+  .col-vaccin:hover { color: #2980b9; }
+  .col-vaccin::after { content: 'Voir détails →'; font-size: 12px; opacity: 0; transition: opacity 0.2s; background: rgba(52,152,219,0.1); padding: 4px 8px; border-radius: 4px; }
+  tr:hover .col-vaccin::after { opacity: 1; }
+  .col-cal { color: #555; line-height: 1.5; font-size: 15px; }
   
-  /* Modal */
+  /* Tag styling for standard calendar text */
+  .age-tag { display: inline-block; background: #e8f4f8; color: #2980b9; padding: 3px 8px; border-radius: 12px; font-size: 13px; font-weight: 500; margin: 2px; border: 1px solid #bce0f0; }
+  
+  /* Modal Overlay */
   .modal-overlay {
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(13, 18, 25, 0.8);
-    backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
-    z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(3px);
+    display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease;
   }
-  .modal-overlay.active { opacity: 1; pointer-events: all; }
+  .modal-overlay.active { opacity: 1; visibility: visible; }
   .modal-content {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-    width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; padding: 32px;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: translateY(20px); transition: transform 0.2s;
+    background: var(--card-bg); width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: translateY(30px) scale(0.95); transition: all 0.3s ease;
   }
-  .modal-overlay.active .modal-content { transform: translateY(0); }
-  .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-  .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 24px; margin: 0; color: var(--teal); }
-  .modal-close { background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; }
-  .modal-close:hover { color: var(--text); }
+  .modal-overlay.active .modal-content { transform: translateY(0) scale(1); }
   
-  .details-section h3 { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--muted); text-transform: uppercase; margin: 24px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-  .details-section p { line-height: 1.6; font-size: 15px; margin: 0 0 16px; }
-
+  /* Modal Content Styling */
+  .modal-header { padding: 25px 30px; border-bottom: 1px solid var(--border-color); position: relative; background: #fdfdfd; border-radius: 12px 12px 0 0; }
+  .modal-patho { text-transform: uppercase; font-size: 12px; font-weight: 700; color: var(--muted-text); letter-spacing: 1px; margin-bottom: 5px; }
+  .modal-title { font-family: 'Poppins', sans-serif; font-size: 26px; color: var(--primary-color); margin: 0; }
+  .close-btn { position: absolute; top: 25px; right: 25px; background: #f1f2f6; border: none; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #555; transition: background 0.2s; }
+  .close-btn:hover { background: #dfe4ea; color: #000; }
+  
+  .modal-body { padding: 30px; }
+  .section-block { margin-bottom: 30px; }
+  .section-block:last-child { margin-bottom: 0; }
+  .section-block h3 { display: flex; align-items: center; gap: 10px; font-family: 'Poppins', sans-serif; font-size: 18px; color: var(--primary-color); margin-top: 0; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--border-color); }
+  .section-block h3 svg { color: var(--secondary-color); }
+  .section-block p, .section-block ul { margin: 0; color: #444; line-height: 1.7; font-size: 15px; }
+  .section-block ul { padding-left: 20px; }
+  .section-block li { margin-bottom: 8px; }
+  
   /* Admin Panel */
-  .admin-panel {
-    background: var(--panel); border: 1px dashed var(--amber); border-radius: 12px; padding: 24px; margin-top: 32px;
-    display: none;
-  }
+  .admin-panel { background: #fffcf5; border: 2px dashed #f39c12; border-radius: 10px; padding: 25px; margin-top: 40px; display: none; }
   .admin-panel.active { display: block; }
-  .admin-header { font-family: 'Space Grotesk', sans-serif; color: var(--amber); font-size: 20px; margin-top: 0; }
+  .admin-title { color: #d35400; font-family: 'Poppins', sans-serif; margin-top: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
   
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; }
-  .field input, .field textarea {
-    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-    padding: 10px 12px; border-radius: 6px; font-family: 'Inter', sans-serif; font-size: 14px; resize: vertical;
-  }
-  .field input:focus, .field textarea:focus { outline: none; border-color: var(--amber); }
-  .admin-actions { display: flex; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  .field { display: flex; flex-direction: column; gap: 8px; }
+  .field label { font-size: 13px; font-weight: 600; color: #555; }
+  .field input, .field textarea { padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-family: 'Roboto', sans-serif; font-size: 14px; transition: border 0.2s; }
+  .field input:focus, .field textarea:focus { outline: none; border-color: #f39c12; box-shadow: 0 0 0 2px rgba(243,156,18,0.1); }
+  
+  .admin-actions-bar { display: flex; gap: 15px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
+  .msg-box { margin-top: 15px; font-weight: 500; font-size: 14px; }
   
   .hidden { display: none !important; }
   
-  /* Print Styles - Cleans up everything for a nice PDF */
+  /* Print Styles */
   @media print {
-    body { background: white !important; color: black !important; padding: 0 !important; }
-    .no-print, header .btn, .admin-panel, .modal-overlay { display: none !important; }
-    h1 { color: black !important; text-align: center; margin-bottom: 20px; font-size: 24pt; }
-    .table-container { box-shadow: none !important; border: none !important; overflow: visible !important; }
-    table { width: 100% !important; border-collapse: collapse !important; }
-    th, td { border: 1px solid #999 !important; padding: 10px !important; background: transparent !important; color: black !important; font-size: 10pt; }
-    th { font-weight: bold !important; border-bottom: 2px solid black !important; color: black !important; }
-    .col-pathologie { color: black !important; }
-    .col-vaccin { text-decoration: none !important; color: black !important; font-weight: bold; }
-    @page { size: A4 landscape; margin: 15mm; }
+    body { background: white !important; font-size: 10pt; }
+    .container { padding: 0; max-width: none; }
+    header { border-bottom: 2px solid black; }
+    .toolbar, .header-actions, .admin-panel, .col-vaccin::after, .modal-overlay { display: none !important; }
+    .table-wrapper { box-shadow: none; border: none; }
+    table { border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; color: black !important; }
+    th { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; }
+    .col-vaccin { text-decoration: none; font-weight: bold; }
+    .age-tag { border: 1px solid #ccc; background: none !important; color: black; padding: 1px 4px; font-size: 9pt; }
+    @page { margin: 1.5cm; size: A4 landscape; }
   }
 </style>
 </head>
 <body>
 
-  <header>
-    <div>
-      <h1>Calendrier Vaccinal</h1>
-      <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted); margin-top:4px;">
-        Données basées sur les recommandations 2026
+  <div class="container">
+    <header>
+      <div>
+        <h1>Calendrier des Vaccinations</h1>
+        <p>Référentiel France – Recommandations Générales</p>
+      </div>
+      <div class="header-actions no-print">
+        <button class="btn admin-btn hidden" id="toggleAdminBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          Gérer la base
+        </button>
+        <button class="btn outline" onclick="window.print()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+          Imprimer PDF
+        </button>
+      </div>
+    </header>
+
+    <div class="toolbar no-print">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Rechercher un vaccin, une pathologie..." onkeyup="filterTable()">
+      </div>
+      <div style="font-size: 13px; color: var(--muted-text);">
+        Cliquez sur le nom d'un vaccin pour voir les modalités complètes.
       </div>
     </div>
-    <div class="header-actions no-print">
-      <button class="btn ghost" onclick="window.print()">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-        Imprimer / PDF
-      </button>
-      <button class="btn admin-btn hidden" id="toggleAdminBtn">
-        Admin Panel
-      </button>
+
+    <div class="table-wrapper">
+      <table id="vaccineTable">
+        <thead>
+          <tr>
+            <th width="25%">Pathologies ciblées</th>
+            <th width="30%">Vaccins (Dénomination)</th>
+            <th width="45%">Calendrier Standard & Schéma</th>
+          </tr>
+        </thead>
+        <tbody id="vaccineTbody">
+          <tr><td colspan="3" style="text-align:center; padding: 40px; color:var(--muted-text);">Chargement de la base de données...</td></tr>
+        </tbody>
+      </table>
     </div>
-  </header>
 
-  <div class="table-container">
-    <table id="vaccineTable">
-      <thead>
-        <tr>
-          <th>Pathologies</th>
-          <th>Vaccins (Similaires)</th>
-          <th>Calendrier Standard & Rattrapage Courant</th>
-        </tr>
-      </thead>
-      <tbody id="vaccineTbody">
-        <tr><td colspan="3" style="text-align:center; color:var(--muted);">Chargement des données...</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Admin Panel -->
-  <div class="admin-panel no-print" id="adminPanel">
-    <h2 class="admin-header">Administration de la Base (Schéma : vaccin)</h2>
-    
-    <form id="addForm" style="margin-bottom: 24px;">
-      <h3 style="font-size: 16px; margin-top: 0;">Ajouter / Modifier un vaccin</h3>
-      <input type="hidden" id="editId">
-      <div class="form-grid">
-        <div class="field">
-          <label>Pathologies</label>
-          <input type="text" id="f_pathologie" required placeholder="Ex: Diphtérie, Tétanos, Poliomyélite...">
-        </div>
-        <div class="field">
-          <label>Vaccins (nom)</label>
-          <input type="text" id="f_vaccins" required placeholder="Ex: DTP, Hexavalent...">
-        </div>
-      </div>
-      <div class="field" style="margin-bottom: 16px;">
-        <label>Calendrier Standard (Aperçu tableau)</label>
-        <input type="text" id="f_calendrier" required placeholder="Ex: 2 mois, 4 mois, 11 mois...">
-      </div>
-      <div class="field" style="margin-bottom: 16px;">
-        <label>Détails Complets d'utilisation (Modal)</label>
-        <textarea id="f_details" rows="4" required></textarea>
-      </div>
-      <div class="field" style="margin-bottom: 16px;">
-        <label>Rattrapage Spécifique (Modal)</label>
-        <textarea id="f_rattrapage" rows="3"></textarea>
-      </div>
-      <button type="submit" class="btn" id="saveBtn">Enregistrer dans la base</button>
-      <button type="button" class="btn ghost hidden" id="cancelEditBtn" onclick="resetForm()">Annuler</button>
-    </form>
-
-    <div class="admin-actions">
-      <button class="btn admin-btn" id="exportBtn">Exporter la base (JSON)</button>
+    <!-- Panneau Admin -->
+    <div class="admin-panel no-print" id="adminPanel">
+      <h2 class="admin-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        Administration des données (Schéma : autres)
+      </h2>
       
-      <label class="btn ghost" style="cursor: pointer;">
-        Mettre à jour via JSON
-        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
-      </label>
+      <form id="addForm" style="margin-bottom: 24px; background: white; padding: 20px; border-radius: 8px; border: 1px solid #eee;">
+        <h3 style="font-size: 16px; margin-top: 0; color: #333; margin-bottom: 15px;">Éditeur de fiche vaccinale</h3>
+        <input type="hidden" id="editId">
+        <div class="form-grid">
+          <div class="field">
+            <label>Pathologies</label>
+            <input type="text" id="f_pathologie" required placeholder="Ex: Diphtérie, Tétanos, Poliomyélite...">
+          </div>
+          <div class="field">
+            <label>Vaccins (nom ou type)</label>
+            <input type="text" id="f_vaccins" required placeholder="Ex: DTP, Hexavalent, ROR...">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom: 16px;">
+          <label>Calendrier Standard (Affiché dans le tableau)</label>
+          <input type="text" id="f_calendrier" required placeholder="Utilisez des virgules. Ex: 2 mois, 4 mois, 11 mois">
+          <span style="font-size: 11px; color: #888;">Note : les âges séparés par des virgules seront formatés automatiquement sous forme de badges.</span>
+        </div>
+        <div class="field" style="margin-bottom: 16px;">
+          <label>Détails Complets d'utilisation (Affiché dans la modale)</label>
+          <textarea id="f_details" rows="5" required placeholder="Schéma complet, posologie, type de vaccin (vivant atténué, inactivé)..."></textarea>
+        </div>
+        <div class="field" style="margin-bottom: 16px;">
+          <label>Rattrapage & Cas Particuliers (Affiché dans la modale)</label>
+          <textarea id="f_rattrapage" rows="4" placeholder="Schéma de rattrapage si retard, recommandations spécifiques professionnelles ou terrain..."></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+          <button type="submit" class="btn" id="saveBtn">Enregistrer la fiche</button>
+          <button type="button" class="btn outline hidden" id="cancelEditBtn" onclick="resetForm()">Annuler l'édition</button>
+        </div>
+      </form>
+
+      <div class="admin-actions-bar">
+        <button class="btn outline" id="exportBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Exporter (JSON)
+        </button>
+        <label class="btn outline" style="cursor: pointer;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Importer (JSON)
+          <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
+        </label>
+      </div>
+      <div id="adminMsg" class="msg-box"></div>
     </div>
-    <div id="adminMsg" style="margin-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px;"></div>
   </div>
 
-  <!-- Modal Détails Vaccin -->
+  <!-- Modal Détails -->
   <div class="modal-overlay" id="vaccinModal" onclick="if(event.target === this) closeModal()">
     <div class="modal-content">
       <div class="modal-header">
-        <div>
-          <div style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted); margin-bottom:4px;" id="modalPathologie">Pathologie</div>
-          <h2 class="modal-title" id="modalNom">Nom du vaccin</h2>
-        </div>
-        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <div class="modal-patho" id="modalPathologie">Pathologie</div>
+        <h2 class="modal-title" id="modalNom">Nom du vaccin</h2>
+        <button class="close-btn" onclick="closeModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
       </div>
-      <div class="details-section">
-        <h3>Détails d'utilisation (Calendrier)</h3>
-        <p id="modalDetails"></p>
+      <div class="modal-body">
+        <div class="section-block">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Utilisation & Schéma
+          </h3>
+          <div id="modalDetails"></div>
+        </div>
         
-        <h3>Rattrapage & Cas particuliers</h3>
-        <p id="modalRattrapage"></p>
+        <div class="section-block">
+          <h3>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Rattrapage & Remarques
+          </h3>
+          <div id="modalRattrapage"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -212,14 +263,14 @@
   const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co/';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
 
-  // Client pour la vérification du profil admin (schéma portail)
+  // Clients
   const sbAuth = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'portail' } });
   
-  // Client pour les données de vaccins (schéma vaccin)
-  const sbVaccin = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'vaccin' } });
+  // MODIFICATION ICI : On utilise le schéma "autres"
+  const sbVaccin = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'autres' } });
   
-  // Nom de la table dans le schéma 'vaccin' (à adapter si nécessaire dans la BDD)
-  const TABLE_NAME = 'liste_vaccins';
+  // MODIFICATION ICI : Le nom de la table est "vaccins"
+  const TABLE_NAME = 'vaccins';
   
   let currentData = [];
   let isAdmin = false;
@@ -227,7 +278,6 @@
   const el = id => document.getElementById(id);
 
   async function init() {
-    // 1. Vérifier si l'utilisateur est connecté via le portail et s'il est admin
     const { data: { session } } = await sbAuth.auth.getSession();
     if (session) {
       const { data: profile } = await sbAuth.from('profiles').select('role').eq('id', session.user.id).single();
@@ -236,8 +286,6 @@
         el('toggleAdminBtn').classList.remove('hidden');
       }
     }
-
-    // 2. Charger les données
     await loadData();
   }
 
@@ -245,41 +293,64 @@
     const { data, error } = await sbVaccin.from(TABLE_NAME).select('*').order('pathologie');
     
     if (error) {
-      console.error(error);
       if(error.code === '42P01') {
-         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--danger); text-align:center;">Erreur: La table "${TABLE_NAME}" n'existe pas dans le schéma "vaccin". Veuillez la créer (colonnes: id, pathologie, vaccins, calendrier, details, rattrapage).</td></tr>`;
+         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--accent-color); text-align:center; padding:30px;"><b>Base de données vide ou table inexistante.</b><br>Utilisez le bouton "Importer (JSON)" dans l'espace administrateur pour initialiser la base.</td></tr>`;
       } else {
-         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--danger); text-align:center;">Erreur de chargement: ${error.message}</td></tr>`;
+         el('vaccineTbody').innerHTML = `<tr><td colspan="3" style="color:var(--accent-color); text-align:center;">Erreur: ${error.message}</td></tr>`;
       }
       return;
     }
-
     currentData = data || [];
-    renderTable();
+    renderTable(currentData);
   }
 
-  function renderTable() {
+  // Formate les âges séparés par des virgules en "badges"
+  function formatCalendrier(texte) {
+    if(!texte) return '';
+    const parts = texte.split(',');
+    return parts.map(p => `<span class="age-tag">${escapeHtml(p.trim())}</span>`).join(' ');
+  }
+
+  function renderTable(dataArray) {
     const tbody = el('vaccineTbody');
-    if (currentData.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--muted);">Aucune donnée disponible. Utilisez l'interface Admin pour en ajouter.</td></tr>`;
+    if (dataArray.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--muted-text); padding: 30px;">Aucun vaccin trouvé.</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = currentData.map(v => `
+    tbody.innerHTML = dataArray.map(v => `
       <tr>
-        <td class="col-pathologie">${escapeHtml(v.pathologie)}</td>
+        <td class="col-patho">${escapeHtml(v.pathologie)}</td>
         <td class="col-vaccin" onclick="openModal('${v.id}')">${escapeHtml(v.vaccins)}</td>
-        <td>
-          ${escapeHtml(v.calendrier)}
-          ${isAdmin ? `<br><button class="btn ghost no-print" style="padding:4px 8px; font-size:10px; margin-top:8px;" onclick="editEntry('${v.id}')">Éditer</button>` : ''}
+        <td class="col-cal">
+          ${formatCalendrier(v.calendrier)}
+          ${isAdmin ? `<br><button class="btn outline no-print" style="padding:4px 8px; font-size:11px; margin-top:10px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>` : ''}
         </td>
       </tr>
     `).join('');
   }
+  
+  function filterTable() {
+    const query = el('searchInput').value.toLowerCase();
+    const filtered = currentData.filter(v => 
+      (v.pathologie && v.pathologie.toLowerCase().includes(query)) ||
+      (v.vaccins && v.vaccins.toLowerCase().includes(query)) ||
+      (v.calendrier && v.calendrier.toLowerCase().includes(query))
+    );
+    renderTable(filtered);
+  }
 
   function escapeHtml(unsafe) {
     if(!unsafe) return '';
-    return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;").replace(/\n/g, "<br>");
+    return unsafe.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  }
+  
+  function formatTextToHtml(text) {
+    if(!text) return '';
+    // Transforme les retours à la ligne en balises <br>
+    let formatted = escapeHtml(text).replace(/
+/g, "<br>");
+    return `<p>${formatted}</p>`;
   }
 
   // --- Modal Logic ---
@@ -289,8 +360,9 @@
     
     el('modalPathologie').textContent = v.pathologie;
     el('modalNom').textContent = v.vaccins;
-    el('modalDetails').innerHTML = escapeHtml(v.details || 'Aucun détail supplémentaire.');
-    el('modalRattrapage').innerHTML = escapeHtml(v.rattrapage || 'Non spécifié.');
+    
+    el('modalDetails').innerHTML = formatTextToHtml(v.details || 'Aucune information détaillée renseignée.');
+    el('modalRattrapage').innerHTML = formatTextToHtml(v.rattrapage || 'Aucun schéma de rattrapage spécifique renseigné.');
     
     el('vaccinModal').classList.add('active');
   }
@@ -326,7 +398,7 @@
       error = res.error;
     }
 
-    el('saveBtn').textContent = 'Enregistrer dans la base';
+    el('saveBtn').textContent = 'Enregistrer la fiche';
 
     if (error) {
       showMessage(error.message, true);
@@ -348,25 +420,28 @@
     el('f_details').value = v.details || '';
     el('f_rattrapage').value = v.rattrapage || '';
     
-    el('saveBtn').textContent = 'Mettre à jour';
+    el('saveBtn').textContent = 'Mettre à jour la fiche';
     el('cancelEditBtn').classList.remove('hidden');
-    el('f_pathologie').scrollIntoView({behavior: "smooth"});
+    el('adminPanel').scrollIntoView({behavior: "smooth"});
   }
 
   function resetForm() {
     el('addForm').reset();
     el('editId').value = '';
-    el('saveBtn').textContent = 'Enregistrer dans la base';
+    el('saveBtn').textContent = 'Enregistrer la fiche';
     el('cancelEditBtn').classList.add('hidden');
   }
 
   el('exportBtn').addEventListener('click', () => {
     if (currentData.length === 0) return showMessage('Aucune donnée à exporter', true);
+    
+    // Nettoyer les id avant l'export si on veut pouvoir importer facilement ailleurs (optionnel, mais utile)
+    // Ici on garde les IDs pour permettre l'upsert
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", "vaccins_export.json");
-    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.setAttribute("download", "vaccins_recommandations.json");
+    document.body.appendChild(downloadAnchorNode); 
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
   });
@@ -383,7 +458,7 @@
         
         showMessage('Importation en cours...');
         
-        // Upsert les données importées (se base sur l'ID s'il est présent, sinon insère)
+        // Upsert les données importées
         const { error } = await sbVaccin.from(TABLE_NAME).upsert(importedData);
         
         if (error) throw error;
@@ -392,7 +467,7 @@
         event.target.value = ''; // reset file input
         await loadData();
       } catch (err) {
-        showMessage('Erreur d'importation : ' + err.message, true);
+        showMessage('Erreur : ' + err.message, true);
       }
     };
     reader.readAsText(file);
@@ -401,11 +476,10 @@
   function showMessage(msg, isError = false) {
     const msgEl = el('adminMsg');
     msgEl.textContent = msg;
-    msgEl.style.color = isError ? 'var(--danger)' : 'var(--teal)';
+    msgEl.style.color = isError ? 'var(--accent-color)' : '#27ae60';
     setTimeout(() => msgEl.textContent = '', 5000);
   }
 
-  // Démarrer l'application
   init();
 
 </script>
