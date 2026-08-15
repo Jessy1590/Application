@@ -1,0 +1,547 @@
+body {
+    background: #f6f8fa;
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 1200px;
+    margin: 40px auto;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    padding: 32px 24px 24px 24px;
+}
+h1 {
+    text-align: center;
+    color: #2d3a4a;
+    margin-bottom: 32px;
+    font-size: 2.4rem;
+    letter-spacing: 1px;
+}
+#table-container {
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(44,62,80,0.06);
+}
+thead {
+    background: #e3eafc;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+th, td {
+    padding: 14px 18px;
+    text-align: left;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 1.05rem;
+}
+th {
+    color: #1a2330;
+    font-weight: 600;
+    background: #e3eafc;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+th:hover {
+    background: #d1e7ff;
+}
+
+th.sortable::after {
+    content: ' ↕';
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+th.sortable.asc::after {
+    content: ' ↑';
+    opacity: 1;
+}
+
+th.sortable.desc::after {
+    content: ' ↓';
+    opacity: 1;
+}
+tr:last-child td {
+    border-bottom: none;
+}
+tr:hover {
+    background: #f5f7fa;
+}
+.loader {
+    text-align: center;
+    color: #888;
+    font-size: 1.2rem;
+    margin: 40px 0;
+}
+@media (max-width: 700px) {
+    .container {
+        padding: 10px 2px;
+    }
+    th, td {
+        padding: 8px 6px;
+        font-size: 0.98rem;
+    }
+    h1 {
+        font-size: 1.3rem;
+    }
+}
+
+#info-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+#info-modal.hidden {
+    display: none;
+}
+.modal-content {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(44,62,80,0.18);
+    padding: 32px 28px 24px 28px;
+    min-width: 320px;
+    margin-top: 12px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+#close-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 1.5rem;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+#close-modal:hover {
+    color: #e53935;
+}
+#modal-body {
+    margin-top: 12px;
+    font-size: 1.08em;
+    color: #222;
+}
+
+
+#search-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+#search-modal.hidden {
+    display: none;
+}
+#close-search-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 1.5rem;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+#close-search-modal:hover {
+    color: #e53935;
+}
+#search-body {
+    margin-top: 12px;
+    font-size: 1.08em;
+    color: #222;
+}
+
+.product-btn {
+    background: #5c6bc0;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    display: inline-block;
+    transition: background-color 0.2s;
+}
+.product-btn:hover {
+    background: #3f51b5;
+}
+.fiche-btn {
+    background: #00897b;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    display: inline-block;
+    transition: background-color 0.2s;
+}
+.fiche-btn:hover {
+    background: #00695c;
+}
+.btn-container {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+#product-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+#product-modal.hidden {
+    display: none;
+}
+#close-product-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 1.5rem;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+#close-product-modal:hover {
+    color: #e53935;
+}
+#product-body {
+    margin-top: 12px;
+    font-size: 1.08em;
+    color: #222;
+}
+#fiche-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+#fiche-modal.hidden {
+    display: none;
+}
+#close-fiche-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 1.5rem;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+#close-fiche-modal:hover {
+    color: #e53935;
+}
+#fiche-body {
+    margin-top: 12px;
+    font-size: 1.08em;
+    color: #222;
+}
+#posologie-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+#posologie-modal.hidden {
+    display: none;
+}
+#close-posologie-modal {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    font-size: 1.5rem;
+    color: #888;
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+#close-posologie-modal:hover {
+    color: #e53935;
+}
+#posologie-body {
+    margin-top: 12px;
+    font-size: 1.08em;
+    color: #222;
+}
+.posologie-btn {
+    background: #ff9800;
+    color: white;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-left: 8px;
+    transition: background-color 0.2s;
+    display: inline-block;
+}
+.posologie-btn:hover {
+    background: #f57c00;
+}
+/* Anciens styles de boutons supprimés - remplacés par le menu déroulant */
+/* Pastilles légende indications */
+.indication-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 1em;
+    margin-right: 4px;
+    margin-bottom: 2px;
+}
+.indication-badge.amm {
+    background: #43b581;
+    color: #fff;
+}
+.indication-badge.horsamm {
+    background: #e74c3c;
+    color: #fff;
+}
+.indication-badge.groupe3 {
+    background: #5c6bc0;
+    color: #fff;
+}
+.indication-badge.listeens {
+    background: #fbc02d;
+    color: #222;
+}
+.indication-badge.antiinf {
+    background: #00bcd4;
+    color: #fff;
+}
+.indication-badge.horstaa {
+    background: #8d6e63;
+    color: #fff;
+}
+.indication-badge.ammnr {
+    background: #a259d9;
+    color: #fff;
+}
+.indication-badge.rtu {
+    background: #ff7043;
+    color: #fff;
+}
+.action-btn {
+    background: #fff;
+    color: #111;
+    border: 1.5px solid #222;
+    border-radius: 6px;
+    margin-right: 10px;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    padding: 0 14px;
+    font-size: 15px;
+    cursor: pointer;
+    height: 32px;
+    min-height: 32px;
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.action-btn:hover {
+    background: #f5f5f5;
+}
+/* Styles obsolètes supprimés - remplacés par le menu déroulant */
+@media print {
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    #print-btn, .legend, .maj, .action-btn, .menu-container, .btn-container, .modal-content, .hidden, .search-bar, .filtre-bar {
+        display: none !important;
+    }
+    body {
+        background: #fff !important;
+    }
+    table {
+        page-break-inside: avoid;
+        width: 100% !important;
+        font-size: 12px;
+    }
+    h1, h2, h3 {
+        color: #222 !important;
+        margin-top: 0;
+    }
+    .container {
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+    }
+} 
+/* Système de notifications */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 10000;
+    transform: translateX(400px);
+    transition: transform 0.3s ease;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.notification.show {
+    transform: translateX(0);
+}
+
+.notification.success {
+    background: #4caf50;
+}
+
+.notification.info {
+    background: #2196f3;
+}
+
+.notification.warning {
+    background: #ff9800;
+}
+
+.notification.error {
+    background: #f44336;
+}
+
+.notification .close {
+    float: right;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 10px;
+}
+
+.notification .close:hover {
+    opacity: 0.7;
+} 
+/* Menu déroulant principal */
+.menu-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.menu-btn {
+    background: #1976d2;
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.menu-btn:hover {
+    background: #1565c0;
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(25, 118, 210, 0.4);
+}
+
+.menu-dropdown {
+    position: absolute;
+    top: 60px;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    min-width: 200px;
+    overflow: hidden;
+    transform-origin: top right;
+    animation: menuSlideIn 0.3s ease;
+}
+
+.menu-dropdown.hidden {
+    display: none;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    color: #333;
+    font-size: 0.95em;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.menu-item:last-child {
+    border-bottom: none;
+}
+
+.menu-item:hover {
+    background: #f5f7fa;
+    color: #1976d2;
+}
+
+.menu-item svg {
+    margin-right: 12px;
+    opacity: 0.7;
+}
+
+.menu-item:hover svg {
+    opacity: 1;
+}
+
+@keyframes menuSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* Suppression des anciens styles de boutons fixes */
+.admin-btn, .info-btn, .search-btn, .stats-btn, .export-btn, .advanced-print-btn {
+    display: none;
+} 
+/* Styles supprimés - bouton BDM retiré */ 

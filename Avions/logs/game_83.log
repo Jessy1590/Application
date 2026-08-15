@@ -1,0 +1,16 @@
+2025-06-01 07:46:56,974 [INFO] === Démarrage de la partie 83 ===
+2025-06-01 07:46:57,025 [INFO] Fichier de log: logs/game_83.log
+2025-06-01 07:46:57,043 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 07:46:57,460 [INFO] Initialisation de l'application principale
+2025-06-01 07:46:57,476 [DEBUG] Interface principale créée
+2025-06-01 07:46:57,499 [DEBUG] Menu principal créé avec succès
+2025-06-01 07:46:57,508 [INFO] Application démarrée avec succès
+2025-06-01 07:46:59,561 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 07:47:10,597 [INFO] Démarrage du round 1
+2025-06-01 07:47:10,646 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:47:10,661 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:47:10,676 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:47:10,693 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:47:10,709 [INFO] [INITIATIVE] F4U (J2-A1) : Dé explosif! 1 explosion(s), résultat final: 11
+2025-06-01 07:47:19,927 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de 0
+2025-06-01 07:47:25,194 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de 0

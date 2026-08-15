@@ -1,0 +1,18 @@
+2025-06-01 07:25:18,171 [INFO] === Démarrage de la partie 80 ===
+2025-06-01 07:25:18,192 [INFO] Fichier de log: logs/game_80.log
+2025-06-01 07:25:18,209 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 07:25:18,484 [INFO] Initialisation de l'application principale
+2025-06-01 07:25:18,543 [DEBUG] Interface principale créée
+2025-06-01 07:25:18,560 [DEBUG] Menu principal créé avec succès
+2025-06-01 07:25:18,575 [INFO] Application démarrée avec succès
+2025-06-01 07:25:20,126 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 07:25:26,332 [INFO] Démarrage du round 1
+2025-06-01 07:25:26,412 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:25:26,427 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:25:26,442 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:25:26,458 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:25:30,493 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de 0
+2025-06-01 07:25:51,277 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de 0
+2025-06-01 07:25:52,510 [INFO] [PHASE] Fin de la phase d'énergie - Round 1
+2025-06-01 07:25:52,560 [INFO] [ENERGIE] F4U (J2-A1) : énergie finale = 1
+2025-06-01 07:25:52,576 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 1

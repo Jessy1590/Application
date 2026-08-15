@@ -1,0 +1,351 @@
+{
+    "Critique_chasseur": {
+        "2": [
+            "Pilote Tu&eacute;",
+            "Pilote Tu&eacute;"
+        ],
+        "3": [
+            "Pilote Hit",
+            "Pilote Tu&eacute;"
+        ],
+        "4": [
+            [
+                "Arme Enray&eacute;e",
+                "Blackout"
+            ],
+            [
+                "Viseur D&eacute;truit",
+                "Blackout"
+            ]
+        ],
+        "5": [
+            "Controls Hit",
+            [
+                "Controls Hit",
+                "Out Of Control"
+            ]
+        ],
+        "6": [
+            "Radiator Hit",
+            "Controls Destroyed"
+        ],
+        "7": [
+            "Fire",
+            [
+                "Fire",
+                "Panic"
+            ]
+        ],
+        "8": [
+            "Engine Damage",
+            "Engine Damage"
+        ],
+        "9": [
+            "Wing Problems",
+            [
+                "Oil On Windscreen",
+                "Panic"
+            ]
+        ],
+        "10": [
+            [
+                "Oil On Windscreen",
+                "Panic"
+            ],
+            [
+                "Engine Critical Hit",
+                "Fire",
+                "Panic"
+            ]
+        ],
+        "11": [
+            [
+                "Fuel Leak",
+                "Panic"
+            ],
+            [
+                "Wing Problems",
+                "Out Of Control"
+            ]
+        ],
+        "12": [
+            "Explosion",
+            "Explosion"
+        ]
+    },
+    "Critique_bombeur": {
+        "2": [
+            "Pilote Tu&eacute;, Copilote Relais",
+            "Cockpit Pulv&eacute;ris&eacute;"
+        ],
+        "3": [
+            "Pilote Hit",
+            [
+                "Mitrailleur Tu&eacute;",
+                "Panic"
+            ]
+        ],
+        "4": [
+            [
+                "Mitrailleur Tu&eacute;",
+                "Panic"
+            ],
+            "Mitrailleur Tu&eacute;"
+        ],
+        "5": [
+            [
+                "Mitrailleur Tu&eacute;",
+                "1D Explosion"
+            ],
+            [
+                "Controls Hit",
+                "Out Of Control"
+            ]
+        ],
+        "6": [
+            "Mitrailleur Tu&eacute;",
+            "Controls Destroyed"
+        ],
+        "7": [
+            "Fire",
+            [
+                "Fire",
+                "Panic"
+            ]
+        ],
+        "8": [
+            "Controls Hit",
+            "Engine Damage"
+        ],
+        "9": [
+            "Wing Problems",
+            [
+                "Oil On Windscreen",
+                "Panic"
+            ]
+        ],
+        "10": [
+            "Engine Damage",
+            "Engine Critical Hit"
+        ],
+        "11": [
+            [
+                "Fuel Leak",
+                "Panic"
+            ],
+            [
+                "Fuel Leak",
+                "Panic"
+            ]
+        ],
+        "12": [
+            "Explosion",
+            "Explosion"
+        ]
+    },
+    "Critique": {
+        "Pilote Tu&eacute;": {
+            "D&eacute;gat": "Mort"
+        },
+        "Pilote Hit": {
+            "Init": "-4"
+        },
+        "Arme Enray&eacute;e": "",
+        "Viseur D&eacute;truit": "",
+        "Blackout": {
+            "Init": "Premier"
+        },
+        "Controls Hit": "",
+        "Out Of Control": {
+            "Init": "Premier"
+        },
+        "Radiator Hit": "",
+        "Controls Destroyed": {
+            "Init": "-4"
+        },
+        "Fire": {
+            "Init": "Premier"
+        },
+        "Panic": "",
+        "Engine Damage": "",
+        "Wing Problems": "",
+        "Oil On Windscreen": "",
+        "Engine Critical Hit": "",
+        "Fuel Leak": "",
+        "Explosion": {
+            "D&eacute;gat": "Mort"
+        },
+        "Copilote Relais": "",
+        "Cockpit Pulv&eacute;ris&eacute;": {
+            "D&eacute;gat": "Mort"
+        },
+        "Mitrailleur Tu&eacute;": "",
+        "1D Explosion": ""
+    },
+    "avion_chasseur": {
+        "F4U": {
+            "Equipe": "US",
+            "PV": "27",
+            "Armes": {
+                "Mitrailleuse": "6",
+                "Bombe": "0"
+            },
+            "Mitrailleuse": "12.7mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/2/2f/F4U-1_Corsair_in_flight_c1942.jpg"
+        },
+        "A6M5": {
+            "Equipe": "Japon",
+            "PV": "12",
+            "Armes": {
+                "Canon": "2",
+                "Mitrailleuse": "2"
+            },
+            "Canon": "20mm",
+            "Mitrailleuse": "7.7mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/a/a7/A6M3_Zero_N712Z_1.jpg"
+        },
+        "F6F Hellcat": {
+            "Equipe": "US",
+            "PV": "27",
+            "Armes": {
+                "Mitrailleuse": "6"
+            },
+            "Mitrailleuse": "12.7mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/4/4c/Grumman_F6F-3_Hellcat_in_flight%2C_in_1943.jpg"
+        },
+        "I16 type10": {
+            "Equipe": "Espagne républicaine",
+            "PV": "8",
+            "Armes": {
+                "Mitrailleuse": "4"
+            },
+            "Mitrailleuse": "7.92mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/8/8c/Polikarpov_I-16.jpg"
+        },
+        "P38 Lightning": {
+            "Equipe": "US",
+            "PV": "38",
+            "Armes": {
+                "Mitrailleuse": "4",
+                "Canon": "1"
+            },
+            "Canon": "20mm",
+            "Mitrailleuse": "12.7mm",
+            "Photo": ""
+        },
+        "I15": {
+            "Equipe": "Espagne républicaine",
+            "PV": "6",
+            "Armes": {
+                "Mitrailleuse": "4"
+            },
+            "Mitrailleuse": "7.92mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/c/c9/Polikarpov_I-15.jpg"
+        },
+        "CR 32": {
+            "Equipe": "Espagne nationaliste",
+            "PV": "10",
+            "Armes": {
+                "Mitrailleuse": "2"
+            },
+            "Mitrailleuse": "12.7mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/3/39/Fiat_CR.32.jpg"
+        },
+        "HE51": {
+            "Equipe": "Espagne nationaliste",
+            "PV": "10",
+            "Armes": {
+                "Mitrailleuse": "2"
+            },
+            "Mitrailleuse": "7.92mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/8/88/Heinkel_He_51_1.jpg"
+        },
+        "F4F Wildcat": {
+            "Equipe": "US",
+            "PV": "17",
+            "Armes": {
+                "Mitrailleuse": "6"
+            },
+            "Mitrailleuse": "12.7mm",
+            "Photo": ""
+        },
+        "Ki43 Oscar": {
+            "Equipe": "Japon",
+            "PV": "12",
+            "Armes": {
+                "Canon": "2"
+            },
+            "Canon": "20mm",
+            "Photo": ""
+        },
+        "BF109C": {
+            "Equipe": "Espagne nationaliste",
+            "PV": "12",
+            "Armes": {
+                "Mitrailleuse": "4"
+            },
+            "Mitrailleuse": "7.92mm",
+            "Photo": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Bf109E-3_%28%27Black_6%27%29_%28G-ADPR%29_%284%29.jpg"
+        },
+        "BF109e": {
+            "Equipe": "Espagne nationaliste",
+            "PV": "12",
+            "Armes": {
+                "Mitrailleuse": "4"
+            },
+            "Mitrailleuse": "7.92mm",
+            "Photo": ""
+        }
+    },
+    "In_game": {
+        "nombre_joueurs": 2,
+        "joueurs": {
+            "1": {
+                "pays": "Japon",
+                "avions": {
+                    "1": {
+                        "nom": "A6M5",
+                        "PV_actuel": "12",
+                        "role": "Leader",
+                        "de_initial": 8,
+                        "pilot_skill": 16,
+                        "energie": 1,
+                        "initiative": 20,
+                        "equipe": "Japon",
+                        "armes": {
+                            "Canon": "2",
+                            "Mitrailleuse": "2"
+                        },
+                        "critiques_subis": [],
+                        "statut": "actif",
+                        "menace": ""
+                    }
+                }
+            },
+            "2": {
+                "pays": "US",
+                "avions": {
+                    "1": {
+                        "nom": "F4U",
+                        "PV_actuel": "27",
+                        "role": "Leader",
+                        "de_initial": 8,
+                        "pilot_skill": 16,
+                        "energie": 1,
+                        "initiative": 24,
+                        "equipe": "US",
+                        "armes": {
+                            "Mitrailleuse": "6",
+                            "Bombe": "0"
+                        },
+                        "critiques_subis": [],
+                        "statut": "actif",
+                        "menace": ""
+                    }
+                }
+            }
+        },
+        "current_phase": "movement",
+        "current_round": 1
+    }
+}

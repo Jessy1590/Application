@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Impression Thésaurus</title>
+    <script src="data.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #fff; margin: 0; padding: 0; }
+        h1 { text-align: center; margin-top: 24px; }
+        table { width: 98%; margin: 24px auto; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        th, td { border: 1px solid #bbb; padding: 6px 8px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
+        th { background: #1976d2; color: #fff; font-size: 1.1em; }
+        /* Largeurs des colonnes */
+        th:nth-child(1), td:nth-child(1) { width: 12%; } /* DCI - plus petite */
+        th:nth-child(2), td:nth-child(2) { width: 22%; } /* Informations produit */
+        th:nth-child(3), td:nth-child(3) { width: 22%; } /* Surveillance */
+        th:nth-child(4), td:nth-child(4) { width: 22%; } /* Indications */
+        th:nth-child(5), td:nth-child(5) { width: 22%; } /* Posologies */
+        .indication-cell > div { margin-bottom: 2px; border-radius: 6px; padding: 2px 8px; color: #fff; }
+        .remb-amm { background: #43b581; }
+        .remb-horsamm { background: #e74c3c; }
+        .remb-ammnr { background: #a259d9; }
+        .remb-rtu { background: #ff7043; }
+        .remb-groupe3 { background: #5c6bc0; }
+        .remb-listeens { background: #fbc02d; color: #222; }
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            body { background: #fff; }
+            .page-break { page-break-before: always; }
+            table { page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
+            td { page-break-inside: avoid; }
+        }
+        
+        /* Optimisations pour l'impression */
+        @media print {
+            #print-legend {
+                page-break-inside: avoid;
+                margin-top: 20px;
+            }
+            
+            .indication-cell > div {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Thésaurus - Impression</h1>
+    <div id="maj-date" style="text-align:center;font-size:1.08em;color:#444;margin-bottom:10px;"></div>
+
+    <table id="print-table">
+        <thead>
+            <tr>
+                <th>DCI</th>
+                <th>Informations produit</th>
+                <th>Surveillance</th>
+                <th>Indications</th>
+                <th>Posologies</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div id="print-legend" style="width:98%;margin:24px auto 0 auto;font-size:1.05em;">
+        <b>Légende couleurs indications :</b><br>
+        <span style="color:#fff; background:#43b581; padding:2px 8px; border-radius:6px;">AMM</span> : Autorisation de Mise sur le Marché<br>
+        <span style="color:#fff; background:#e74c3c; padding:2px 8px; border-radius:6px;">Hors AMM</span> : Hors Autorisation de Mise sur le Marché<br>
+        <span style="color:#fff; background:#a259d9; padding:2px 8px; border-radius:6px;">AMM non remboursé</span> : AMM non remboursé<br>
+        <span style="color:#fff; background:#ff7043; padding:2px 8px; border-radius:6px;">RTU</span> : Recommandation Temporaire d'Utilisation<br>
+        <span style="color:#fff; background:#5c6bc0; padding:2px 8px; border-radius:6px;">Groupe 3</span> : Groupe 3<br>
+        <span style="color:#222; background:#fbc02d; padding:2px 8px; border-radius:6px;">Liste en sus</span> : Liste en sus<br>
+    </div>
+    <div style="height:40px;"></div>
+    <script>
+    function getRembClass(remb) {
+        if (!remb) return '';
+        remb = remb.toLowerCase();
+        if (remb === 'amm') return 'remb-amm';
+        if (remb === 'hors amm') return 'remb-horsamm';
+        if (remb === 'amm non remboursé') return 'remb-ammnr';
+        if (remb === 'rtu') return 'remb-rtu';
+        if (remb === 'groupe 3') return 'remb-groupe3';
+        if (remb === 'liste en sus') return 'remb-listeens';
+        return '';
+    }
+    function escapeHtml(text) {
+        return text.replace(/[&<>"']/g, function(m) {
+            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+        });
+    }
+    function buildTable() {
+        if (!window.dataFromPython || !Array.isArray(window.dataFromPython.tableData)) return;
+        const data = window.dataFromPython.tableData;
+        const tbody = document.querySelector('#print-table tbody');
+        tbody.innerHTML = '';
+        data.forEach(row => {
+            const indications = Array.isArray(row.Indications_Data) ? row.Indications_Data : [];
+            const n = indications.length || 1;
+            // Fusion des cellules DCI, Infos produit et Surveillance
+            const trFirst = document.createElement('tr');
+            // DCI
+            const tdDci = document.createElement('td');
+            tdDci.textContent = row.DCI || '';
+            tdDci.rowSpan = n;
+            trFirst.appendChild(tdDci);
+            // Infos produit
+            const tdInfos = document.createElement('td');
+            tdInfos.innerHTML = (row['Détails produit']||'').replace(/\n/g,'<br>');
+            tdInfos.rowSpan = n;
+            trFirst.appendChild(tdInfos);
+            // Surveillance avec pastilles colorées
+            const tdSurv = document.createElement('td');
+            const surveillance = row['Surveillance'] || '';
+            if (surveillance.trim() !== '') {
+                // Affichage multi-lignes façon pastilles, découpe sur les puces ou retours à la ligne, sans doublons
+                let surveillances = surveillance.includes('•') ? surveillance.split(/\n|\r|•/).map(x => x.trim()).filter(Boolean) : surveillance.split(/\n|\r/).map(x => x.trim()).filter(Boolean);
+                surveillances = Array.from(new Set(surveillances)); // suppression des doublons
+                surveillances.forEach(surv => {
+                    const survDiv = document.createElement('div');
+                    survDiv.style.background = '#90caf9'; // bleu pastel
+                    survDiv.style.borderRadius = '6px';
+                    survDiv.style.padding = '2px 8px';
+                    survDiv.style.marginBottom = '2px';
+                    survDiv.style.color = '#1a2330';
+                    survDiv.style.width = '100%';
+                    survDiv.style.boxSizing = 'border-box';
+                    survDiv.textContent = surv;
+                    tdSurv.appendChild(survDiv);
+                });
+            }
+            tdSurv.rowSpan = n;
+            trFirst.appendChild(tdSurv);
+            // Indication
+            const tdInd = document.createElement('td');
+            tdInd.className = 'indication-cell';
+            if (indications[0]) {
+                const div = document.createElement('div');
+                div.className = getRembClass(indications[0].remboursement);
+                div.textContent = indications[0].indication + (indications[0].remboursement ? ' ('+indications[0].remboursement+')' : '');
+                tdInd.appendChild(div);
+            } else {
+                tdInd.textContent = '';
+            }
+            trFirst.appendChild(tdInd);
+            // Posologie
+            const tdPoso = document.createElement('td');
+            tdPoso.innerHTML = indications[0] && indications[0].posologie ? escapeHtml(indications[0].posologie).replace(/\n/g,'<br>') : '';
+            trFirst.appendChild(tdPoso);
+            tbody.appendChild(trFirst);
+            // Lignes suivantes si plusieurs indications
+            for (let i=1; i<indications.length; i++) {
+                const tr = document.createElement('tr');
+                const tdInd2 = document.createElement('td');
+                tdInd2.className = 'indication-cell';
+                const div = document.createElement('div');
+                div.className = getRembClass(indications[i].remboursement);
+                div.textContent = indications[i].indication + (indications[i].remboursement ? ' ('+indications[i].remboursement+')' : '');
+                tdInd2.appendChild(div);
+                tr.appendChild(tdInd2);
+                const tdPoso2 = document.createElement('td');
+                tdPoso2.innerHTML = indications[i].posologie ? escapeHtml(indications[i].posologie).replace(/\n/g,'<br>') : '';
+                tr.appendChild(tdPoso2);
+                tbody.appendChild(tr);
+            }
+        });
+        // Affichage de la date de mise à jour
+        if(window.dataFromPython && window.dataFromPython.lastUpdate) {
+            document.getElementById('maj-date').textContent = 'Dernière mise à jour : ' + window.dataFromPython.lastUpdate;
+        }
+    }
+    // Fonction pour afficher une notification
+    function showNotification(message, type = 'info', duration = 3000) {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            max-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+        
+        if (type === 'success') notification.style.background = '#4caf50';
+        else if (type === 'error') notification.style.background = '#f44336';
+        else if (type === 'warning') notification.style.background = '#ff9800';
+        else notification.style.background = '#2196f3';
+        
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.style.transform = 'translateX(0)', 100);
+        setTimeout(() => {
+            notification.style.transform = 'translateX(400px)';
+            setTimeout(() => document.body.removeChild(notification), 300);
+        }, duration);
+    }
+
+    // Fonction pour exporter en Excel (format CSV avec extension .xlsx)
+    function exportToExcel() {
+        if (!window.dataFromPython || !Array.isArray(window.dataFromPython.tableData)) {
+            showNotification('Aucune donnée disponible', 'error');
+            return;
+        }
+        
+        const data = window.dataFromPython.tableData;
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        
+        try {
+            // Préparer les données pour l'export Excel (comme dans l'impression)
+            const excelData = data.map(row => {
+                const cleanRow = {};
+                
+                // Copier les données de base
+                Object.keys(row).forEach(key => {
+                    if (key !== 'Détails produit' && key !== 'Famille de molécule' && key !== 'Fiche' && key !== 'Indications_Data') {
+                        let value = row[key];
+                        
+                        // Traiter les indications spécialement
+                        if (key === 'Indications' && Array.isArray(row['Indications_Data']) && row['Indications_Data'].length > 0) {
+                            value = row['Indications_Data'].map(indication => {
+                                let indicationText = indication.indication ? indication.indication.trim() : '';
+                                if (indication.remboursement) {
+                                    indicationText += ` (${indication.remboursement})`;
+                                }
+                                if (indication.posologie && indication.posologie.trim() !== '') {
+                                    indicationText += ` - Posologie: ${indication.posologie}`;
+                                }
+                                return indicationText;
+                            }).join('\n');
+                        }
+                        
+                        // Traiter la surveillance
+                        if (key === 'Surveillance' && value && value.trim() !== '') {
+                            let surveillances = value.includes('•') ? value.split(/\n|\r|•/).map(x => x.trim()).filter(Boolean) : value.split(/\n|\r/).map(x => x.trim()).filter(Boolean);
+                            surveillances = Array.from(new Set(surveillances));
+                            value = surveillances.join('\n');
+                        }
+                        
+                        cleanRow[key] = value;
+                    }
+                });
+                
+                return cleanRow;
+            });
+            
+            // Créer le contenu CSV (format compatible Excel)
+            const headers = Object.keys(excelData[0]);
+            const csvContent = [
+                headers.join(','),
+                ...excelData.map(row => 
+                    headers.map(header => {
+                        let value = row[header] || '';
+                        // Échapper les virgules et guillemets
+                        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+                            value = `"${value.replace(/"/g, '""')}"`;
+                        }
+                        return value;
+                    }).join(',')
+                )
+            ].join('\n');
+            
+            // Créer le fichier CSV avec l'extension .xlsx pour Excel
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `thesaurus_${timestamp}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification(`Export Excel réussi : ${data.length} molécules (fichier CSV avec extension .xlsx)`, 'success');
+        } catch (error) {
+            console.error('Erreur lors de l\'export Excel:', error);
+            showNotification('Erreur lors de l\'export Excel', 'error');
+        }
+    }
+
+    // Fonction pour exporter en CSV
+    function exportToCSV() {
+        if (!window.dataFromPython || !Array.isArray(window.dataFromPython.tableData)) {
+            showNotification('Aucune donnée disponible', 'error');
+            return;
+        }
+        
+        const data = window.dataFromPython.tableData;
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        
+        try {
+            // Préparer les données pour l'export CSV (comme dans l'impression)
+            const csvData = data.map(row => {
+                const cleanRow = {};
+                
+                // Copier les données de base
+                Object.keys(row).forEach(key => {
+                    if (key !== 'Détails produit' && key !== 'Famille de molécule' && key !== 'Fiche' && key !== 'Indications_Data') {
+                        let value = row[key];
+                        
+                        // Traiter les indications spécialement
+                        if (key === 'Indications' && Array.isArray(row['Indications_Data']) && row['Indications_Data'].length > 0) {
+                            value = row['Indications_Data'].map(indication => {
+                                let indicationText = indication.indication ? indication.indication.trim() : '';
+                                if (indication.remboursement) {
+                                    indicationText += ` (${indication.remboursement})`;
+                                }
+                                if (indication.posologie && indication.posologie.trim() !== '') {
+                                    indicationText += ` - Posologie: ${indication.posologie}`;
+                                }
+                                return indicationText;
+                            }).join('\n');
+                        }
+                        
+                        // Traiter la surveillance
+                        if (key === 'Surveillance' && value && value.trim() !== '') {
+                            let surveillances = value.includes('•') ? value.split(/\n|\r|•/).map(x => x.trim()).filter(Boolean) : value.split(/\n|\r/).map(x => x.trim()).filter(Boolean);
+                            surveillances = Array.from(new Set(surveillances));
+                            value = surveillances.join('\n');
+                        }
+                        
+                        cleanRow[key] = value;
+                    }
+                });
+                
+                return cleanRow;
+            });
+            
+            // Créer le contenu CSV
+            const headers = Object.keys(csvData[0]);
+            const csvContent = [
+                headers.join(','),
+                ...csvData.map(row => 
+                    headers.map(header => {
+                        let value = row[header] || '';
+                        // Échapper les virgules et guillemets
+                        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
+                            value = `"${value.replace(/"/g, '""')}"`;
+                        }
+                        return value;
+                    }).join(',')
+                )
+            ].join('\n');
+            
+            // Créer le fichier CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `thesaurus_${timestamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification(`Export CSV réussi : ${data.length} molécules`, 'success');
+        } catch (error) {
+            console.error('Erreur lors de l\'export CSV:', error);
+            showNotification('Erreur lors de l\'export CSV', 'error');
+        }
+    }
+
+    window.onload = function() {
+        buildTable();
+        setTimeout(()=>window.print(), 500);
+    };
+    </script>
+</body>
+</html> 

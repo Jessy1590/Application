@@ -1,0 +1,35 @@
+2025-06-01 08:23:34,709 [INFO] === Démarrage de la partie 92 ===
+2025-06-01 08:23:34,721 [INFO] Fichier de log: logs/game_92.log
+2025-06-01 08:23:34,739 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 08:23:35,026 [INFO] Initialisation de l'application principale
+2025-06-01 08:23:35,072 [DEBUG] Interface principale créée
+2025-06-01 08:23:35,089 [DEBUG] Menu principal créé avec succès
+2025-06-01 08:23:35,104 [INFO] Application démarrée avec succès
+2025-06-01 08:23:36,701 [INFO] Configuration de la campagne test sauvegardée
+2025-06-01 08:23:36,772 [INFO] Démarrage du round 1
+2025-06-01 08:23:36,788 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:23:36,808 [INFO] Données du jeu rechargées avec succès
+2025-06-01 08:23:36,821 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:23:36,838 [INFO] Données du jeu rechargées avec succès
+2025-06-01 08:23:41,208 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 08:23:42,542 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de +1
+2025-06-01 08:23:52,942 [INFO] [PHASE] Fin de la phase d'énergie - Round 1
+2025-06-01 08:23:52,973 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 2
+2025-06-01 08:23:52,989 [INFO] [ENERGIE] F4U (J2-A1) : énergie finale = 2
+2025-06-01 08:24:06,877 [INFO] Phase d'attaque terminée et sauvegardée
+2025-06-01 08:24:06,910 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 08:24:06,922 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif
+2025-06-01 08:24:06,938 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 08:24:06,954 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif
+2025-06-01 08:24:06,971 [INFO] [MENACE RÉINITIALISÉE] A6M5 (J1-A1) :  -> supprimée
+2025-06-01 08:24:06,988 [INFO] [MENACE RÉINITIALISÉE] F4U (J2-A1) :  -> supprimée
+2025-06-01 08:24:08,458 [INFO] [ROUND] Fin du round 1
+2025-06-01 08:24:08,489 [INFO] [ETAT] A6M5 (J1-A1) : PV=12, Energie=2, Critiques=aucun
+2025-06-01 08:24:08,505 [INFO] [ETAT] F4U (J2-A1) : PV=27, Energie=2, Critiques=aucun
+2025-06-01 08:24:08,522 [INFO] [SAUVEGARDE] Round 1 terminé et sauvegardé
+2025-06-01 08:24:08,538 [INFO] [ROUND] Début du round 2
+2025-06-01 08:24:08,557 [INFO] Démarrage du round 2
+2025-06-01 08:24:08,571 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:24:08,588 [INFO] Données du jeu rechargées avec succès
+2025-06-01 08:24:08,604 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:24:08,621 [INFO] Données du jeu rechargées avec succès

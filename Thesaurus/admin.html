@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration Thesaurus</title>
+    <link rel="stylesheet" href="script.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .upload-section {
+            border: 3px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-section:hover {
+            border-color: #4caf50;
+            background: #f9f9f9;
+        }
+        
+        .upload-section.dragover {
+            border-color: #4caf50;
+            background: #e8f5e8;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .upload-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .file-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .file-name {
+            font-weight: bold;
+            color: #4caf50;
+        }
+        
+        .file-size {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .process-btn {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .process-btn:hover {
+            background: #1976d2;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+        }
+        
+        .process-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .progress {
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #45a049);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result.success {
+            background: #e8f5e8;
+            border: 2px solid #4caf50;
+            color: #2e7d32;
+        }
+        
+        .result.error {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            color: #c62828;
+        }
+        
+        .result h3 {
+            margin-top: 0;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-indicator.online {
+            background: #4caf50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+        }
+        
+        .status-indicator.offline {
+            background: #f44336;
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.5);
+        }
+        
+        .file-stats {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .file-stats h4 {
+            margin: 0 0 10px 0;
+            color: #2e7d32;
+        }
+        
+        .file-stats p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .download-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 20px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+        
+        .download-btn:hover {
+            background: #f57c00;
+            transform: translateY(-2px);
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #1976d2;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        .error-details {
+            background: #fff3e0;
+            border: 1px solid #ffb74d;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Modale de mot de passe -->
+    <div id="password-modal" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:3000;">
+        <div style="background:#fff;padding:32px 28px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:320px;position:relative;">
+            <h2>Accès administrateur</h2>
+            <input type="password" id="admin-password" placeholder="Mot de passe" style="width:100%;padding:10px 8px;margin:18px 0 8px 0;font-size:1.1em;border-radius:6px;border:1px solid #ccc;">
+            <div id="admin-error" style="color:#e53935;font-size:0.98em;min-height:22px;"></div>
+            <button id="admin-login-btn" style="width:100%;background:#1976d2;color:#fff;padding:10px 0;border:none;border-radius:6px;font-size:1.1em;cursor:pointer;">Se connecter</button>
+        </div>
+    </div>
+    <div class="container" id="admin-content" style="filter:blur(4px);pointer-events:none;user-select:none;">
+        <div class="header">
+            <h1>🔄 Administration Thesaurus</h1>
+            <p>Générez et mettez à jour le fichier <b>data.js</b> du site Thesaurus</p>
+        </div>
+        <div class="content">
+            <div class="instructions">
+                <h3>📋 Instructions :</h3>
+                <ul>
+                    <li>Votre fichier Excel doit contenir les feuilles : "Molécule", "Surveillance", "Indications"</li>
+                    <li>Chaque feuille doit avoir une colonne "DCI"</li>
+                    <li>Le bouton ci-dessous mettra à jour <b>data.js</b> dans ce dossier</li>
+                </ul>
+            </div>
+            <div class="upload-section" id="uploadSection">
+                <h3>📁 Sélectionnez votre fichier Excel</h3>
+                <p>Glissez-déposez votre fichier Excel ici ou cliquez pour le sélectionner</p>
+                <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    📂 Choisir un fichier Excel
+                </button>
+                <div class="file-info" id="fileInfo">
+                    <div class="file-name" id="fileName"></div>
+                    <div class="file-size" id="fileSize"></div>
+                </div>
+                <button class="process-btn" id="processBtn" onclick="processFile()">
+                    ⚙️ Traiter le fichier Excel
+                </button>
+                <div class="progress" id="progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Traitement en cours...</div>
+                </div>
+            </div>
+            <div class="result" id="result"></div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+    <script>
+    let selectedFile = null;
+    let generatedDataContent = null;
+    const result = document.getElementById('result');
+
+    // Gestion du drag & drop
+    const uploadSection = document.getElementById('uploadSection');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const processBtn = document.getElementById('processBtn');
+    const progress = document.getElementById('progress');
+    
+    // Drag & drop events
+    uploadSection.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadSection.classList.add('dragover');
+    });
+    
+    uploadSection.addEventListener('dragleave', () => {
+        uploadSection.classList.remove('dragover');
+    });
+    
+    uploadSection.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadSection.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+    
+    function handleFile(file) {
+        // Vérifier le type de fichier
+        if (!file.name.match(/\.(xlsx|xls)$/i)) {
+            showError('Veuillez sélectionner un fichier Excel (.xlsx ou .xls)');
+            return;
+        }
+        
+        selectedFile = file;
+        
+        // Afficher les informations du fichier
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+        fileInfo.classList.add('show');
+        processBtn.style.display = 'inline-block';
+        
+        // Masquer les résultats précédents
+        result.style.display = 'none';
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    function updateProgress(percent, text) {
+        document.getElementById('progressFill').style.width = percent + '%';
+        document.getElementById('progressText').textContent = text;
+    }
+    
+    function showSuccess(message) {
+        result.className = 'result success';
+        result.innerHTML = `
+            <h3>✅ Succès !</h3>
+            <p>${message}</p>
+            <p style="margin-top:10px;color:#1976d2;font-weight:bold;">Après téléchargement, placez le fichier <b>data.js</b> dans le dossier <b>Programme</b> du dossier <b>Thesaurus</b>.</p>
+            <button class="download-btn" onclick="downloadDataJs()">
+                📝 Modifier data.js
+            </button>
+        `;
+        result.style.display = 'block';
+    }
+    
+    function showError(message, details = '') {
+        result.className = 'result error';
+        let content = `
+            <h3>❌ Erreur</h3>
+            <p>${message}</p>
+        `;
+        if (details) {
+            content += `<div class="error-details">${details}</div>`;
+        }
+        result.innerHTML = content;
+        result.style.display = 'block';
+    }
+    
+    function downloadDataJs() {
+        // Tentative d'utilisation de l'API File System Access (Chrome/Edge)
+        if ('showSaveFilePicker' in window) {
+            (async () => {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: 'data.js',
+                        types: [{
+                            description: 'Fichier JavaScript',
+                            accept: {'application/javascript': ['.js']}
+                        }]
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(generatedDataContent);
+                    await writable.close();
+                    // Redirection automatique après écriture
+                    window.location.href = 'Thesaurus.html';
+                } catch (e) {
+                    showError('Erreur lors de l\'écriture du fichier : ' + e.message);
+                }
+            })();
+        } else {
+            // Fallback : téléchargement classique, mais nom et chemin imposés
+            const blob = new Blob([generatedDataContent], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'data.js';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            // Redirection automatique après téléchargement
+            setTimeout(() => { window.location.href = 'Thesaurus.html'; }, 1000);
+        }
+    }
+    
+    async function processFile() {
+        if (!selectedFile) {
+            showError('Aucun fichier sélectionné');
+            return;
+        }
+        
+        // Afficher la progression
+        progress.style.display = 'block';
+        processBtn.disabled = true;
+        updateProgress(10, 'Lecture du fichier Excel...');
+        
+        try {
+            const workbook = await readExcelFile(selectedFile);
+            updateProgress(30, 'Traitement des données...');
+            
+            const processedData = processExcelData(workbook);
+            updateProgress(70, 'Génération du fichier data.js...');
+            
+            generatedDataContent = generateDataJs(processedData);
+            updateProgress(100, 'Terminé !');
+            
+            showSuccess('Le fichier data.js a été généré avec succès !');
+            
+        } catch (error) {
+            console.error('Erreur lors du traitement:', error);
+            showError('Erreur lors du traitement du fichier', error.message);
+        } finally {
+            processBtn.disabled = false;
+        }
+    }
+    
+    function readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    resolve(workbook);
+                } catch (error) {
+                    reject(new Error('Impossible de lire le fichier Excel: ' + error.message));
+                }
+            };
+            reader.onerror = () => reject(new Error('Erreur lors de la lecture du fichier'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+    
+    function processExcelData(workbook) {
+        // Vérifier les feuilles requises
+        const requiredSheets = ['Molécule', 'Surveillance', 'Indications'];
+        const missingSheets = requiredSheets.filter(sheet => !workbook.SheetNames.includes(sheet));
+        
+        if (missingSheets.length > 0) {
+            throw new Error(`Feuilles manquantes: ${missingSheets.join(', ')}. Les feuilles requises sont: ${requiredSheets.join(', ')}`);
+        }
+        
+        // Validation des colonnes requises
+        const moleculeSheet = XLSX.utils.sheet_to_json(workbook.Sheets['Molécule']);
+        const surveillanceSheet = XLSX.utils.sheet_to_json(workbook.Sheets['Surveillance']);
+        const indicationsSheet = XLSX.utils.sheet_to_json(workbook.Sheets['Indications']);
+        
+        // Vérifier que les feuilles ne sont pas vides
+        if (moleculeSheet.length === 0) {
+            throw new Error('La feuille "Molécule" est vide');
+        }
+        
+        // Vérifier la présence de la colonne DCI dans chaque feuille
+        if (!moleculeSheet[0].hasOwnProperty('DCI')) {
+            throw new Error('Colonne "DCI" manquante dans la feuille "Molécule"');
+        }
+        if (!surveillanceSheet[0].hasOwnProperty('DCI')) {
+            throw new Error('Colonne "DCI" manquante dans la feuille "Surveillance"');
+        }
+        if (!indicationsSheet[0].hasOwnProperty('DCI')) {
+            throw new Error('Colonne "DCI" manquante dans la feuille "Indications"');
+        }
+        
+        // Validation des données
+        const validationErrors = [];
+        
+        // Vérifier les DCIs vides
+        moleculeSheet.forEach((row, index) => {
+            if (!row.DCI || row.DCI.toString().trim() === '') {
+                validationErrors.push(`Ligne ${index + 2} dans "Molécule" : DCI vide`);
+            }
+        });
+        
+        if (validationErrors.length > 0) {
+            throw new Error('Erreurs de validation :\n' + validationErrors.join('\n'));
+        }
+        
+        // Lire les feuilles
+        const df_molecule = moleculeSheet;
+        const df_surveillance = surveillanceSheet;
+        const df_indications = indicationsSheet;
+        
+        // Normalisation des clés pour la fusion
+        df_molecule.forEach(row => {
+            row.DCI_KEY = (row.DCI || '').toString().toLowerCase().trim();
+        });
+        df_indications.forEach(row => {
+            row.DCI_KEY = (row.DCI || '').toString().toLowerCase().trim();
+        });
+        df_surveillance.forEach(row => {
+            row.DCI_KEY = (row.DCI || '').toString().toLowerCase().trim();
+        });
+        
+        // Grouper les molécules par DCI_KEY (comme dans le Python)
+        const moleculeGroups = {};
+        df_molecule.forEach(row => {
+            const dci_key = row.DCI_KEY;
+            if (!moleculeGroups[dci_key]) {
+                moleculeGroups[dci_key] = [];
+            }
+            moleculeGroups[dci_key].push(row);
+        });
+        
+        // Traitement des données (comme dans le Python)
+        const rows = [];
+        
+        Object.keys(moleculeGroups).forEach(dci_key => {
+            const group = moleculeGroups[dci_key];
+            const dci_display = group[0].DCI;
+            
+            // Rassembler tous les produits de la DCI (comme dans le Python)
+            const details = [];
+            const nb_produits = group.length;
+            
+            group.forEach((prod, i) => {
+                const produit_points = [];
+                Object.keys(prod).forEach(col => {
+                    if (col !== 'DCI_KEY' && col !== 'DCI') {
+                        const val = prod[col];
+                        if (val !== null && val !== undefined && val !== '' && 
+                            !(typeof val === 'number' && isNaN(val))) {
+                            produit_points.push(`${col.trim()} : ${val}`);
+                        }
+                    }
+                });
+                
+                if (produit_points.length > 0) {
+                    if (nb_produits > 1) {
+                        details.push(`\tProduit ${i + 1} :\n` + produit_points.map(pt => `• ${pt}`).join('\n'));
+                    } else {
+                        details.push(produit_points.map(pt => `• ${pt}`).join('\n'));
+                    }
+                }
+            });
+            
+            const details_str = details.join('\n\n');
+            
+            // Surveillances (comme dans le Python)
+            const surveillances = df_surveillance
+                .filter(row => row.DCI_KEY === dci_key)
+                .map(row => row.Surveillance)
+                .filter(s => s && s.toString().trim() !== '');
+            
+            const surveillances_str = surveillances.length > 0 ? 
+                surveillances.map(s => `${s}`).join('\n') : '';
+
+            // Indications + remboursement + posologie (comme dans le Python)
+            const indications_df = df_indications.filter(row => row.DCI_KEY === dci_key);
+            const indications_with_posologie = [];
+            
+            if (indications_df.length > 0) {
+                const hasRemboursement = 'Remboursement' in indications_df[0];
+                const hasPosologie = 'Posologie' in indications_df[0];
+                
+                if (hasRemboursement && hasPosologie) {
+                    indications_df.forEach(record => {
+                        const indication = record.Indications || '';
+                        const remboursement = record.Remboursement || '';
+                        const posologie_val = record.Posologie;
+                        const posologie = posologie_val && posologie_val.toString().trim() !== '' && 
+                                        posologie_val.toString().toLowerCase() !== 'nan' ? posologie_val.toString() : '';
+                        
+                        indications_with_posologie.push({
+                            indication: indication,
+                            remboursement: remboursement,
+                            posologie: posologie
+                        });
+                    });
+                } else if (hasRemboursement) {
+                    indications_df.forEach(record => {
+                        const indication = record.Indications || '';
+                        const remboursement = record.Remboursement || '';
+                        indications_with_posologie.push({
+                            indication: indication,
+                            remboursement: remboursement,
+                            posologie: ''
+                        });
+                    });
+                } else {
+                    indications_df.forEach(record => {
+                        const indication = record.Indications || '';
+                        indications_with_posologie.push({
+                            indication: indication,
+                            remboursement: '',
+                            posologie: ''
+                        });
+                    });
+                }
+            }
+            
+            // Créer la chaîne d'indications avec les données de posologie
+            const indications_str = indications_with_posologie
+                .map(item => `${item.indication} (${item.remboursement})`)
+                .join('\n');
+            
+            // Récupérer la fiche (comme dans le Python)
+            let fiche_str = '';
+            if ('Fiche' in group[0]) {
+                const fiches = group
+                    .map(row => row.Fiche)
+                    .filter(f => f && f.toString().trim() !== '');
+                if (fiches.length > 0) {
+                    fiche_str = fiches[0].toString();
+                }
+            }
+            
+            // Ligne finale (comme dans le Python)
+            const row = {
+                'DCI': dci_display,
+                'Famille de molécule': group[0]['Famille médicament'] || '',
+                'Détails produit': details_str,
+                'Surveillance': surveillances_str,
+                'Indications': indications_str,
+                'Indications_Data': indications_with_posologie,
+                'Fiche': fiche_str
+            };
+            
+            rows.push(row);
+        });
+        
+        // Tri alphabétique par DCI
+        rows.sort((a, b) => {
+            const dciA = (a.DCI || '').toLowerCase();
+            const dciB = (b.DCI || '').toLowerCase();
+            return dciA.localeCompare(dciB, 'fr', {sensitivity: 'base'});
+        });
+        
+        return rows;
+    }
+    
+    function generateDataJs(data) {
+        // Format de date identique au script Python
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const year = now.getFullYear();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const lastUpdate = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+        
+        // Ajouter des métadonnées pour la traçabilité
+        const dataObject = {
+            tableData: data,
+            lastUpdate: lastUpdate,
+            metadata: {
+                generatedAt: new Date().toISOString(),
+                totalMolecules: data.length,
+                version: '1.0',
+                sourceFile: selectedFile ? selectedFile.name : 'Unknown'
+            }
+        };
+        
+        return `window.dataFromPython = ${JSON.stringify(dataObject)};`;
+    }
+
+    // Protection par mot de passe dès l'ouverture
+    let essaisRestants = 3;
+    const modal = document.getElementById('password-modal');
+    const adminContent = document.getElementById('admin-content');
+    const adminPassword = document.getElementById('admin-password');
+    const adminError = document.getElementById('admin-error');
+    const adminLoginBtn = document.getElementById('admin-login-btn');
+    function checkPassword() {
+        if (adminPassword.value === 'thesaurus2025') {
+            modal.style.display = 'none';
+            adminContent.style.filter = 'none';
+            adminContent.style.pointerEvents = 'auto';
+            adminContent.style.userSelect = 'auto';
+        } else {
+            essaisRestants--;
+            if (essaisRestants <= 0) {
+                window.location.href = 'Thesaurus.html';
+            } else {
+                adminError.textContent = 'Mot de passe incorrect. Il vous reste ' + essaisRestants + ' essai(s).';
+                adminPassword.value = '';
+                adminPassword.focus();
+            }
+        }
+    }
+    adminLoginBtn.onclick = checkPassword;
+    adminPassword.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') checkPassword();
+    });
+    window.onload = function() { adminPassword.focus(); };
+    </script>
+</body>
+</html> 

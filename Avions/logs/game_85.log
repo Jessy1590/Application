@@ -1,0 +1,46 @@
+2025-06-01 07:51:28,852 [INFO] === Démarrage de la partie 85 ===
+2025-06-01 07:51:28,872 [INFO] Fichier de log: logs/game_85.log
+2025-06-01 07:51:28,890 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 07:51:29,118 [INFO] Initialisation de l'application principale
+2025-06-01 07:51:29,123 [DEBUG] Interface principale créée
+2025-06-01 07:51:29,141 [DEBUG] Menu principal créé avec succès
+2025-06-01 07:51:29,156 [INFO] Application démarrée avec succès
+2025-06-01 07:51:30,594 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 07:51:36,233 [INFO] Démarrage du round 1
+2025-06-01 07:51:36,258 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:51:36,275 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:51:36,290 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:51:36,307 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:51:39,511 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 07:51:48,844 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de -1
+2025-06-01 07:51:51,827 [INFO] [PHASE] Fin de la phase d'énergie - Round 1
+2025-06-01 07:51:51,842 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 2
+2025-06-01 07:51:51,858 [INFO] [ENERGIE] F4U (J2-A1) : énergie finale = 0
+2025-06-01 07:52:05,428 [INFO] [DEGATS] A6M5 (J1-A1) : subit 2 dégâts (PV: 12 -> 10)
+2025-06-01 07:52:11,412 [INFO] [CRITIQUE] A6M5 (J1-A1) : critique(s) sélectionné(s) Pilote Hit (dé: 3, arme: mitraillette)
+2025-06-01 07:53:50,144 [INFO] [CRITIQUE] A6M5 (J1-A1) : application des critiques Pilote Hit
+2025-06-01 07:53:50,179 [INFO] Phase d'attaque terminée et sauvegardée
+2025-06-01 07:53:50,195 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 07:53:50,212 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif
+2025-06-01 07:53:50,224 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 07:53:50,240 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif
+2025-06-01 07:54:06,911 [INFO] [ROUND] Fin du round 1
+2025-06-01 07:54:06,959 [INFO] [ETAT] A6M5 (J1-A1) : PV=10, Energie=2, Critiques=Pilote Hit
+2025-06-01 07:54:06,975 [INFO] [ETAT] F4U (J2-A1) : PV=27, Energie=0, Critiques=aucun
+2025-06-01 07:54:06,992 [INFO] [SAUVEGARDE] Round 1 terminé et sauvegardé
+2025-06-01 07:54:07,007 [INFO] [ROUND] Début du round 2
+2025-06-01 07:54:07,026 [INFO] Démarrage du round 2
+2025-06-01 07:54:07,040 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:54:07,056 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:54:07,073 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:54:07,090 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:54:12,327 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de 0
+2025-06-01 07:54:14,526 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de 0
+2025-06-01 07:54:15,727 [INFO] [PHASE] Fin de la phase d'énergie - Round 2
+2025-06-01 07:54:15,792 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 2
+2025-06-01 07:54:15,807 [INFO] [ENERGIE] F4U (J2-A1) : énergie finale = 0
+2025-06-01 07:54:20,680 [INFO] Phase d'attaque terminée et sauvegardée
+2025-06-01 07:54:20,713 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 07:54:20,725 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif
+2025-06-01 07:54:20,740 [INFO] [ETAT] A6M5 (J1-A1) de l'équipe Japon est toujours actif
+2025-06-01 07:54:20,757 [INFO] [ETAT] F4U (J2-A1) de l'équipe US est toujours actif

@@ -1,0 +1,19 @@
+2025-06-01 08:03:58,644 [INFO] === Démarrage de la partie 88 ===
+2025-06-01 08:03:58,656 [INFO] Fichier de log: logs/game_88.log
+2025-06-01 08:03:58,673 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 08:03:58,942 [INFO] Initialisation de l'application principale
+2025-06-01 08:03:58,956 [DEBUG] Interface principale créée
+2025-06-01 08:03:58,974 [DEBUG] Menu principal créé avec succès
+2025-06-01 08:03:58,989 [INFO] Application démarrée avec succès
+2025-06-01 08:04:01,179 [INFO] Configuration de la campagne test sauvegardée
+2025-06-01 08:04:01,210 [INFO] Démarrage du round 1
+2025-06-01 08:04:01,224 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:04:01,240 [INFO] Données du jeu rechargées avec succès
+2025-06-01 08:04:01,256 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 08:04:01,272 [INFO] Données du jeu rechargées avec succès
+2025-06-01 08:04:01,289 [INFO] [INITIATIVE] A6M5 (J1-A1) : Dé explosif! 1 explosion(s), résultat final: 18
+2025-06-01 08:04:06,576 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de +1
+2025-06-01 08:04:08,410 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 08:04:11,376 [INFO] [PHASE] Fin de la phase d'énergie - Round 1
+2025-06-01 08:04:11,441 [INFO] [ENERGIE] F4U (J2-A1) : énergie finale = 2
+2025-06-01 08:04:11,457 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 2

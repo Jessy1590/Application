@@ -1,0 +1,17 @@
+2025-06-01 07:00:40,858 [INFO] === Démarrage de la partie 74 ===
+2025-06-01 07:00:40,881 [INFO] Fichier de log: logs/game_74.log
+2025-06-01 07:00:40,898 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 07:00:41,169 [INFO] Initialisation de l'application principale
+2025-06-01 07:00:41,182 [DEBUG] Interface principale créée
+2025-06-01 07:00:41,199 [DEBUG] Menu principal créé avec succès
+2025-06-01 07:00:41,215 [INFO] Application démarrée avec succès
+2025-06-01 07:00:42,767 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 07:00:48,539 [INFO] Démarrage du round 1
+2025-06-01 07:00:48,568 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:00:48,584 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:00:48,604 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:00:48,615 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:00:53,633 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 07:00:56,218 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 07:05:37,530 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de +1
+2025-06-01 07:05:39,130 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1

@@ -1,0 +1,16 @@
+2025-06-01 07:06:44,329 [INFO] === Démarrage de la partie 75 ===
+2025-06-01 07:06:44,342 [INFO] Fichier de log: logs/game_75.log
+2025-06-01 07:06:44,361 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 07:06:44,651 [INFO] Initialisation de l'application principale
+2025-06-01 07:06:44,693 [DEBUG] Interface principale créée
+2025-06-01 07:06:44,710 [DEBUG] Menu principal créé avec succès
+2025-06-01 07:06:44,725 [INFO] Application démarrée avec succès
+2025-06-01 07:06:46,412 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 07:06:56,801 [INFO] Démarrage du round 1
+2025-06-01 07:06:56,829 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:06:56,844 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:06:56,868 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 07:06:56,877 [INFO] Données du jeu rechargées avec succès
+2025-06-01 07:06:56,893 [INFO] [INITIATIVE] F4U (J2-A1) : Dé explosif! 1 explosion(s), résultat final: 17
+2025-06-01 07:07:03,478 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-06-01 07:07:05,612 [INFO] [ENERGIE] F4U (J2-A1) : changement d'énergie de +1

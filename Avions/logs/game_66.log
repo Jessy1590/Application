@@ -1,0 +1,19 @@
+2025-05-31 10:50:05,528 [INFO] === Démarrage de la partie 66 ===
+2025-05-31 10:50:05,544 [INFO] Fichier de log: logs/game_66.log
+2025-05-31 10:50:05,562 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-05-31 10:50:05,831 [INFO] Initialisation de l'application principale
+2025-05-31 10:50:05,845 [DEBUG] Interface principale créée
+2025-05-31 10:50:05,863 [DEBUG] Menu principal créé avec succès
+2025-05-31 10:50:05,878 [INFO] Application démarrée avec succès
+2025-05-31 10:50:07,482 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-05-31 10:50:13,385 [INFO] Démarrage du round 1
+2025-05-31 10:50:13,445 [INFO] Rechargement des données du jeu depuis config.json
+2025-05-31 10:50:13,463 [INFO] Données du jeu rechargées avec succès
+2025-05-31 10:50:13,479 [INFO] Rechargement des données du jeu depuis config.json
+2025-05-31 10:50:13,495 [INFO] Données du jeu rechargées avec succès
+2025-05-31 10:50:16,099 [INFO] [ENERGIE] A6M5 (J1-A1) : changement d'énergie de +1
+2025-05-31 10:50:17,416 [INFO] [ENERGIE] F6F Hellcat (J2-A1) : changement d'énergie de +1
+2025-05-31 10:50:18,099 [INFO] [PHASE] Fin de la phase d'énergie - Round 1
+2025-05-31 10:50:18,130 [INFO] [ENERGIE] A6M5 (J1-A1) : énergie finale = 2
+2025-05-31 10:50:18,146 [INFO] [ENERGIE] F6F Hellcat (J2-A1) : énergie finale = 2
+2025-05-31 10:50:20,399 [INFO] [CRITIQUE] F6F Hellcat (J2-A1) : subit critique(s) Pilote Tué (dé: 2, arme: mitraillette)

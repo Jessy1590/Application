@@ -1,0 +1,13 @@
+2025-06-01 06:58:23,316 [INFO] === Démarrage de la partie 72 ===
+2025-06-01 06:58:23,334 [INFO] Fichier de log: logs/game_72.log
+2025-06-01 06:58:23,351 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-06-01 06:58:23,637 [INFO] Initialisation de l'application principale
+2025-06-01 06:58:23,651 [DEBUG] Interface principale créée
+2025-06-01 06:58:23,668 [DEBUG] Menu principal créé avec succès
+2025-06-01 06:58:23,684 [INFO] Application démarrée avec succès
+2025-06-01 06:58:25,537 [INFO] Ouverture de la fenêtre de choix des joueurs
+2025-06-01 06:58:33,058 [INFO] Démarrage du round 1
+2025-06-01 06:58:33,087 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 06:58:33,102 [INFO] Données du jeu rechargées avec succès
+2025-06-01 06:58:33,118 [INFO] Rechargement des données du jeu depuis config.json
+2025-06-01 06:58:33,134 [INFO] Données du jeu rechargées avec succès

@@ -1,0 +1,8 @@
+2025-05-31 10:52:33,363 [INFO] === Démarrage de la partie 67 ===
+2025-05-31 10:52:33,376 [INFO] Fichier de log: logs/game_67.log
+2025-05-31 10:52:33,393 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2025-05-31 10:52:33,678 [INFO] Initialisation de l'application principale
+2025-05-31 10:52:33,727 [DEBUG] Interface principale créée
+2025-05-31 10:52:33,745 [DEBUG] Menu principal créé avec succès
+2025-05-31 10:52:33,759 [INFO] Application démarrée avec succès
+2025-05-31 10:52:37,529 [INFO] Ouverture de la fenêtre de choix des joueurs
