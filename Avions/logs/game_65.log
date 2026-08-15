@@ -1,7 +1,0 @@
-2025-05-31 10:48:08,191 [INFO] === Démarrage de la partie 65 ===
-2025-05-31 10:48:08,213 [INFO] Fichier de log: logs/game_65.log
-2025-05-31 10:48:08,230 [INFO] Configuration JSON chargée et réinitialisée avec succès
-2025-05-31 10:48:08,475 [INFO] Initialisation de l'application principale
-2025-05-31 10:48:08,480 [DEBUG] Interface principale créée
-2025-05-31 10:48:08,498 [DEBUG] Menu principal créé avec succès
-2025-05-31 10:48:08,513 [INFO] Application démarrée avec succès

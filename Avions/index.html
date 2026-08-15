@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu d'Avion - Téléchargement</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #eef2f5;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .credits {
+            color: #7f8c8d;
+            font-size: 0.95em;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        .credits strong {
+            color: #34495e;
+        }
+        .btn {
+            display: block;
+            width: 80%;
+            margin: 15px auto;
+            padding: 12px 20px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .btn-json {
+            background-color: #2ecc71;
+        }
+        .btn-json:hover {
+            background-color: #27ae60;
+        }
+        p.instruction {
+            margin-bottom: 25px;
+            font-size: 1.05em;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Jeu d'Avion ✈️</h1>
+        
+        <div class="credits">
+            <p>Jeu créé par <strong>Gonzalez Romain</strong></p>
+            <p>Application développée par <strong>Jessy Sengulen</strong></p>
+        </div>
+
+        <p class="instruction">Téléchargez les fichiers requis pour lancer le jeu :</p>
+
+        <!-- Assurez-vous que les attributs href correspondent EXACTEMENT aux noms de vos fichiers dans le dossier -->
+        <a href="main.py" download="main.py" class="btn">🐍 Télécharger le script Python</a>
+        
+        <a href="data.json" download="config.json" class="btn btn-json">📄 Télécharger le fichier JSON</a>
+    </div>
+
+</body>
+</html>
