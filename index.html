@@ -152,6 +152,35 @@
       <div id="mineView"><div id="cardsArea"></div></div>
       <div id="adminView" class="hidden">
         <div class="admin-section">
+          <h2>Ajouter un nouveau site</h2>
+          <form id="addSiteForm" style="background:var(--panel); padding:16px; border:1px solid var(--border); border-radius:10px;">
+            <div class="field">
+              <label for="siteName">Nom du site</label>
+              <input type="text" id="siteName" required>
+            </div>
+            <div class="field">
+              <label for="siteUrl">URL</label>
+              <input type="url" id="siteUrl" placeholder="https://..." required>
+            </div>
+            <div class="field">
+              <label for="siteDesc">Description</label>
+              <input type="text" id="siteDesc">
+            </div>
+            <div style="display:flex; gap:16px;">
+              <div class="field" style="flex:1;">
+                <label for="siteIcon">Icône (ex: 🚀, 🔗)</label>
+                <input type="text" id="siteIcon" placeholder="🔗">
+              </div>
+              <div class="field" style="flex:1;">
+                <label for="siteColor">Couleur</label>
+                <input type="color" id="siteColor" value="#4FD1C5" style="height:42px; padding:4px; cursor:pointer;">
+              </div>
+            </div>
+            <button type="submit" class="btn small" id="addSiteBtn">Ajouter le site</button>
+            <p id="addSiteMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+        <div class="admin-section">
           <h2>Demandes en attente</h2>
           <div id="requestsArea"></div>
         </div>
@@ -235,7 +264,48 @@
 
   function showLogin(){ dashScreen.classList.add('hidden'); loginScreen.classList.remove('hidden'); }
   function showDashboard(){ loginScreen.classList.add('hidden'); dashScreen.classList.remove('hidden'); }
+  el('addSiteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = el('addSiteBtn');
+    const msg = el('addSiteMsg');
 
+    // Récupération des valeurs
+    const name = el('siteName').value.trim();
+    const url = el('siteUrl').value.trim();
+    const description = el('siteDesc').value.trim();
+    const icon = el('siteIcon').value.trim() || '🔗';
+    const color = el('siteColor').value;
+
+    btn.textContent = 'Ajout en cours...';
+    btn.disabled = true;
+    msg.textContent = '';
+
+    // Envoi à Supabase
+    const { error } = await sb.from('sites').insert({ 
+      name, url, description, icon, color 
+    });
+
+    btn.textContent = 'Ajouter le site';
+    btn.disabled = false;
+
+    if (error) {
+      msg.textContent = "Erreur: " + error.message;
+      msg.style.color = "var(--amber)";
+    } else {
+      msg.textContent = "Site ajouté avec succès !";
+      msg.style.color = "var(--teal)";
+      
+      // Réinitialiser le formulaire
+      el('addSiteForm').reset();
+      el('siteColor').value = "#4FD1C5"; // Remettre la couleur par défaut
+      setTimeout(() => msg.textContent = '', 3000);
+      
+      // Recharger l'affichage de l'interface pour voir le nouveau site
+      await loadAdminView(); 
+      await loadMineView();
+    }
+  });
+  
   async function bootDashboard(){
     const { data: { user } } = await sb.auth.getUser();
     if (!user) { showLogin(); return; }
