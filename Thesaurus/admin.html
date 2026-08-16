@@ -295,19 +295,20 @@
             }
         }
     </style>
+<!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
-  
-<!-- 2. Configuration : L'ID du projet "Banque" dans votre table "sites" -->
-<script>
-  const CONFIG_SITE_ID = "REMPLACEZ_PAR_L_ID_DU_SITE_BANQUE"; // L'ID UUID Supabase du site
-  const CONFIG_PORTAIL_URL = "../index.html"; // Renvoie vers le portail à la racine
-</script>
 
-<!-- 3. Charger Supabase -->
+<!-- 2. Charger Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- 4. Charger le script central situé à la racine du GitHub -->
+<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
 <script src="../protect.js"></script>
+
+<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
+<script>
+  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
+  initialiserSite("73b04cdc-6fa7-4c5d-8bd7-a718792996c6"); 
+</script>
 </head>
 <body>
     <!-- Modale de mot de passe -->

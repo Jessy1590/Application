@@ -72,19 +72,20 @@
     .modal-overlay { position: fixed; inset: 0; background: rgba(43, 33, 24, 0.6); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; backdrop-filter: blur(2px); }
     .modal-content { background: var(--surface); border-radius: 16px; padding: 24px; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
   </style>
-  <style> body { display: none; } </style>
-    
-  <!-- 2. Configuration : L'ID du projet "Banque" dans votre table "sites" -->
-  <script>
-    const CONFIG_SITE_ID = "REMPLACEZ_PAR_L_ID_DU_SITE_BANQUE"; // L'ID UUID Supabase du site
-    const CONFIG_PORTAIL_URL = "../index.html"; // Renvoie vers le portail à la racine
-  </script>
+  <!-- 1. Cacher la page pour la sécurité -->
+<style> body { display: none; } </style>
 
-  <!-- 3. Charger Supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- 2. Charger Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- 4. Charger le script central situé à la racine du GitHub -->
-  <script src="../protect.js"></script>
+<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
+<script src="../protect.js"></script>
+
+<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
+<script>
+  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
+  initialiserSite("01fae4ee-2c95-4caf-b600-43980b7e22b3"); 
+</script>
 </head>
 <body>
   <div id="root"></div>
