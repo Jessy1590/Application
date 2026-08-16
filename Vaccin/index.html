@@ -137,10 +137,7 @@
       <div class="filter-box">
         <select id="filterParticularity" onchange="filterTable()">
           <option value="">-- Toutes les situations --</option>
-          <option value="VIH">Patients sous VIH</option>
-          <option value="Immunodéprimé">Immunodéprimé</option>
-          <option value="Grossesse">Grossesse / Femmes enceintes</option>
-          <option value="Voyage">Voyageurs</option>
+          <!-- Les options seront générées par JavaScript via les paramètres -->
         </select>
       </div>
     </div>
@@ -194,6 +191,10 @@
           <label>Texte de la légende</label>
           <textarea id="adminLegendInput" rows="2"></textarea>
         </div>
+        <div class="field" style="grid-column: span 2;">
+          <label>Filtres de situations (Format -> <i>Mot-clé : Texte affiché</i>, un par ligne)</label>
+          <textarea id="adminSituationsInput" rows="4" placeholder="VIH : Patients sous VIH&#10;Grossesse : Femmes enceintes&#10;Voyage : Voyageurs"></textarea>
+        </div>
       </div>
       <button type="button" class="btn admin-btn" onclick="saveSettings()">Enregistrer les paramètres</button>
 
@@ -236,7 +237,7 @@
   const TABLE_NAME = 'vaccins';
   
   let currentData = [];
-  let settingsId = null; // ID de la ligne spéciale "__PARAMETRES__"
+  let settingsId = null; 
   let isAdmin = false;
 
   const el = id => document.getElementById(id);
@@ -269,6 +270,25 @@
     await loadData();
   }
 
+  function updateFilterSelect(situationsText) {
+    const select = el('filterParticularity');
+    select.innerHTML = '<option value="">-- Toutes les situations --</option>';
+    if (!situationsText) return;
+    
+    const lines = situationsText.split('\n');
+    lines.forEach(line => {
+      if(!line.trim()) return;
+      const parts = line.split(':');
+      const val = parts[0].trim();
+      const label = parts.length > 1 ? parts.slice(1).join(':').trim() : val;
+      
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+  }
+
   async function loadData() {
     const { data, error } = await sbVaccin.from(TABLE_NAME).select('*').order('pathologie');
     if (error) {
@@ -277,11 +297,13 @@
     }
     
     const settingsEntry = data.find(item => item.pathologie === '__PARAMETRES__');
+    const defaultSituations = "VIH : Patients sous VIH\nImmunodéprimé : Immunodéprimé\nGrossesse : Grossesse / Femmes enceintes\nVoyage : Voyageurs";
     
     if (settingsEntry) {
       settingsId = settingsEntry.id;
       el('adminDateInput').value = settingsEntry.calendrier || '';
       el('adminLegendInput').value = settingsEntry.rattrapage || '';
+      el('adminSituationsInput').value = settingsEntry.details || defaultSituations;
       
       if (settingsEntry.rattrapage) {
         el('legendText').textContent = settingsEntry.rattrapage;
@@ -293,9 +315,13 @@
       } else {
         autoCalculateDate(data);
       }
+      
+      updateFilterSelect(settingsEntry.details || defaultSituations);
     } else {
       settingsId = null;
       el('adminLegendInput').value = el('legendText').textContent; 
+      el('adminSituationsInput').value = defaultSituations;
+      updateFilterSelect(defaultSituations);
       autoCalculateDate(data);
     }
 
@@ -320,7 +346,7 @@
       vaccins: 'Ligne système - Ne pas supprimer',
       calendrier: el('adminDateInput').value,
       rattrapage: el('adminLegendInput').value,
-      details: ''
+      details: el('adminSituationsInput').value // Les situations sont sauvegardées dans "details"
     };
 
     let res;
@@ -418,7 +444,6 @@
 
   function closeModal() { el('vaccinModal').classList.remove('active'); }
 
-  // Modification : Ajout de la classe "admin-active" sur le body pour afficher les boutons inline
   el('toggleAdminBtn').addEventListener('click', () => { 
     el('adminPanel').classList.toggle('active'); 
     document.body.classList.toggle('admin-active');
@@ -448,7 +473,6 @@
     const v = currentData.find(item => item.id == id);
     if (!v) return;
     
-    // Si le panneau d'admin n'est pas déjà ouvert, on l'ouvre
     if (!el('adminPanel').classList.contains('active')) {
       el('adminPanel').classList.add('active');
       document.body.classList.add('admin-active');
