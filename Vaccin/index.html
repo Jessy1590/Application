@@ -93,6 +93,11 @@
   .field input, .field textarea { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
   
   .hidden { display: none !important; }
+
+  /* Masquer les boutons inline par défaut */
+  .inline-admin-btns { display: none; }
+  /* Les afficher uniquement quand le mode admin est actif */
+  .admin-active .inline-admin-btns { display: inline-block; }
   
   @media print {
     body { background: white !important; }
@@ -271,13 +276,12 @@
       return;
     }
     
-    // Extraction de la ligne de paramètres cachée
     const settingsEntry = data.find(item => item.pathologie === '__PARAMETRES__');
     
     if (settingsEntry) {
       settingsId = settingsEntry.id;
-      el('adminDateInput').value = settingsEntry.calendrier || ''; // On utilise "calendrier" pour stocker la date
-      el('adminLegendInput').value = settingsEntry.rattrapage || ''; // On utilise "rattrapage" pour stocker la légende
+      el('adminDateInput').value = settingsEntry.calendrier || '';
+      el('adminLegendInput').value = settingsEntry.rattrapage || '';
       
       if (settingsEntry.rattrapage) {
         el('legendText').textContent = settingsEntry.rattrapage;
@@ -291,11 +295,10 @@
       }
     } else {
       settingsId = null;
-      el('adminLegendInput').value = el('legendText').textContent; // Valeur par défaut
+      el('adminLegendInput').value = el('legendText').textContent; 
       autoCalculateDate(data);
     }
 
-    // On exclut la ligne de paramètres du tableau final affiché
     currentData = data.filter(item => item.pathologie !== '__PARAMETRES__') || [];
     renderTable(currentData);
   }
@@ -354,8 +357,10 @@
             ${v.lien ? `<a href="${escapeHtml(v.lien)}" target="_blank" class="btn link-btn" style="padding:4px 8px; font-size:11px; display:inline-flex; text-decoration:none;" onclick="event.stopPropagation();">📚 Fiche Pathologie</a>` : ''}
             
             ${isAdmin ? `
-              <button class="btn admin-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>
-              <button class="btn danger-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="deleteEntry('${v.id}'); event.stopPropagation();">Supprimer</button>
+              <span class="inline-admin-btns">
+                <button class="btn admin-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>
+                <button class="btn danger-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="deleteEntry('${v.id}'); event.stopPropagation();">Supprimer</button>
+              </span>
             ` : ''}
           </div>
         </td>
@@ -413,7 +418,11 @@
 
   function closeModal() { el('vaccinModal').classList.remove('active'); }
 
-  el('toggleAdminBtn').addEventListener('click', () => { el('adminPanel').classList.toggle('active'); });
+  // Modification : Ajout de la classe "admin-active" sur le body pour afficher les boutons inline
+  el('toggleAdminBtn').addEventListener('click', () => { 
+    el('adminPanel').classList.toggle('active'); 
+    document.body.classList.toggle('admin-active');
+  });
 
   el('addForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -422,7 +431,7 @@
       pathologie: el('f_pathologie').value,
       vaccins: el('f_vaccins').value,
       calendrier: el('f_calendrier').value,
-      lien: el('f_lien').value, // Nouveau champ envoyé à la DB
+      lien: el('f_lien').value, 
       details: el('f_details').value,
       rattrapage: el('f_rattrapage').value
     };
@@ -438,12 +447,18 @@
   function editEntry(id) {
     const v = currentData.find(item => item.id == id);
     if (!v) return;
-    el('adminPanel').classList.add('active');
+    
+    // Si le panneau d'admin n'est pas déjà ouvert, on l'ouvre
+    if (!el('adminPanel').classList.contains('active')) {
+      el('adminPanel').classList.add('active');
+      document.body.classList.add('admin-active');
+    }
+
     el('editId').value = v.id;
     el('f_pathologie').value = v.pathologie || '';
     el('f_vaccins').value = v.vaccins || '';
     el('f_calendrier').value = v.calendrier || '';
-    el('f_lien').value = v.lien || ''; // Affichage de l'URL dans le formulaire
+    el('f_lien').value = v.lien || ''; 
     el('f_details').value = v.details || '';
     el('f_rattrapage').value = v.rattrapage || '';
     el('cancelEditBtn').classList.remove('hidden');
