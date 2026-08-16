@@ -13,7 +13,7 @@
     --text-color: #333333;
     --header-bg: #5a5c5f;
     --cell-light-bg: #e6f0f9;
-    --commercial-name-color: #009688; /* Teal / Cyan for vaccine names */
+    --commercial-name-color: #009688;
   }
   
   * { box-sizing: border-box; }
@@ -25,18 +25,25 @@
   header h1 { font-size: 28px; color: #333; margin: 0 0 5px 0; font-weight: 700; }
   .update-date { font-size: 13px; color: #666; font-style: italic; }
   
-  .header-actions { display: flex; gap: 10px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
   .btn {
     padding: 8px 16px; border-radius: 4px; border: none; background: #5a5c5f; color: white;
-    font-weight: 500; font-size: 13px; cursor: pointer; transition: all 0.2s ease;
+    font-weight: 500; font-size: 13px; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
   }
   .btn:hover { background: #333; }
   .btn.admin-btn { background: #e67e22; }
+  .btn.danger-btn { background: #e74c3c; }
+  .btn.danger-btn:hover { background: #c0392b; }
+  .btn.link-btn { background: #2980B9; display: flex; align-items: center;}
+  .btn.link-btn:hover { background: #1c5982; }
   
-  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-  .search-box input { width: 350px; padding: 10px 15px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; outline: none; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 15px; }
+  .search-box input { width: 350px; padding: 10px 15px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; outline: none; flex-grow: 1; }
+  .filter-box select { padding: 10px 15px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px; outline: none; background: white; cursor: pointer; }
+
+  .legend-box { margin-bottom: 15px; font-size: 13px; color: #555; background: #f9f9f9; padding: 10px 15px; border-left: 4px solid #3498DB; border-radius: 4px; }
   
-  /* TABLE DESIGN (Like the image) */
+  /* TABLE DESIGN */
   .table-wrapper { width: 100%; overflow-x: auto; }
   table { width: 100%; border-collapse: separate; border-spacing: 0 3px; text-align: left; }
   
@@ -47,19 +54,14 @@
   
   td { padding: 12px 15px; font-size: 14px; vertical-align: middle; }
   
-  /* Colonne 1: Valences / Pathologies */
   .col-patho {
     font-weight: 700; color: white; width: 28%;
     border-top-left-radius: 4px; border-bottom-left-radius: 4px;
   }
-  
-  /* Colonne 2: Noms commerciaux */
   .col-vaccin { 
     background: var(--cell-light-bg); width: 30%; font-weight: 700; 
     color: var(--commercial-name-color);
   }
-  
-  /* Colonne 3: Calendrier (Optionnelle sur l'image, mais demandée) */
   .col-cal { 
     background: var(--cell-light-bg); width: 42%; color: #444; line-height: 1.4;
     border-top-right-radius: 4px; border-bottom-right-radius: 4px;
@@ -101,18 +103,10 @@
     @page { margin: 1cm; size: A4 landscape; }
   }
 </style>
-<!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
-
-<!-- 2. Charger Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
 <script src="../protect.js"></script>
-
-<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
 <script>
-  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
   initialiserSite("6b25908c-9354-48f0-9c7d-68c1fbf6673a"); 
 </script>
 </head>
@@ -125,15 +119,29 @@
         <div class="update-date" id="lastUpdated">Recherche des données...</div>
       </div>
       <div class="header-actions no-print">
+        <a href="https://professionnels.vaccination-info-service.fr/" target="_blank" class="btn link-btn">Dernière recommandation</a>
         <button class="btn admin-btn hidden" id="toggleAdminBtn">Administration</button>
         <button class="btn" onclick="window.print()">Imprimer PDF</button>
       </div>
     </header>
 
     <div class="toolbar no-print">
-      <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Rechercher par pathologie ou nom commercial..." onkeyup="filterTable()">
+      <div class="search-box" style="flex: 1;">
+        <input type="text" id="searchInput" placeholder="Rechercher par pathologie ou nom commercial..." style="width: 100%;" onkeyup="filterTable()">
       </div>
+      <div class="filter-box">
+        <select id="filterParticularity" onchange="filterTable()">
+          <option value="">-- Toutes les situations --</option>
+          <option value="VIH">Patients sous VIH</option>
+          <option value="Immunodéprimé">Immunodéprimé</option>
+          <option value="Grossesse">Grossesse / Femmes enceintes</option>
+          <option value="Voyage">Voyageurs</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="legend-box no-print" id="legendDisplay">
+      <strong>Légende :</strong> <span id="legendText">années révolus = années terminées ex: 24 ans révolus = jusqu'à la veille du 25ème anniversaire</span>
     </div>
 
     <div class="table-wrapper">
@@ -160,13 +168,31 @@
           <div class="field"><label>Pathologies</label><input type="text" id="f_pathologie" required></div>
           <div class="field"><label>Noms commerciaux</label><input type="text" id="f_vaccins" required></div>
         </div>
-        <div class="field" style="margin-bottom: 15px;"><label>Calendrier (Affiché dans tableau)</label><input type="text" id="f_calendrier"></div>
+        <div class="form-grid">
+          <div class="field"><label>Calendrier (Affiché dans tableau)</label><input type="text" id="f_calendrier"></div>
+          <div class="field"><label>Lien d'information spécifique (URL complète)</label><input type="url" id="f_lien" placeholder="https://professionnels.vaccination-info-service.fr/..."></div>
+        </div>
         <div class="field" style="margin-bottom: 15px;"><label>Détails Complets</label><textarea id="f_details" rows="3"></textarea></div>
         <div class="field" style="margin-bottom: 15px;"><label>Rattrapage / Cas particuliers</label><textarea id="f_rattrapage" rows="3"></textarea></div>
         <button type="submit" class="btn admin-btn" id="saveBtn">Enregistrer</button>
         <button type="button" class="btn hidden" id="cancelEditBtn" onclick="resetForm()">Annuler</button>
       </form>
-      <div style="margin-top: 15px; border-top: 1px solid #ccc; padding-top: 15px;">
+      
+      <!-- Section de paramétrage général -->
+      <h3 style="margin-top:25px; color:#d35400; border-top: 1px solid #e1b173; padding-top: 15px;">Paramètres généraux</h3>
+      <div class="form-grid">
+        <div class="field">
+          <label>Forcer la date de dernière mise à jour</label>
+          <input type="date" id="adminDateInput">
+        </div>
+        <div class="field">
+          <label>Texte de la légende</label>
+          <textarea id="adminLegendInput" rows="2"></textarea>
+        </div>
+      </div>
+      <button type="button" class="btn admin-btn" onclick="saveSettings()">Enregistrer les paramètres</button>
+
+      <div style="margin-top: 25px; border-top: 1px solid #ccc; padding-top: 15px;">
         <label class="btn" style="cursor: pointer; display: inline-block;">
           Importer JSON <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)">
         </label>
@@ -205,24 +231,25 @@
   const TABLE_NAME = 'vaccins';
   
   let currentData = [];
+  let settingsId = null; // ID de la ligne spéciale "__PARAMETRES__"
   let isAdmin = false;
 
   const el = id => document.getElementById(id);
 
-  // Fonction pour attribuer les couleurs selon le nom du vaccin/pathologie (comme sur l'image)
   function getColorForPathology(patho) {
+    if (!patho) return '#7F8C8D';
     const p = patho.toLowerCase();
-    if (p.includes('bcg') || p.includes('tuberculose')) return '#8E44AD'; // Violet
-    if (p.includes('diphtérie') || p.includes('tétanos') || p.includes('coqueluche') || p.includes('haemophilus') || p.includes('poliomyélite')) return '#16A085'; // Vert eau (Teal)
-    if (p.includes('hépatite')) return '#F39C12'; // Jaune orangé
-    if (p.includes('méningocoque') || p.includes('rougeole') || p.includes('pneumocoque')) return '#E83A5D'; // Rose vif / Magenta
-    if (p.includes('papillomavirus') || p.includes('hpv')) return '#E67E22'; // Orange
-    if (p.includes('grippe') || p.includes('leptospirose')) return '#3498DB'; // Bleu clair
-    if (p.includes('rage')) return '#F1C40F'; // Jaune vif
-    if (p.includes('varicelle') || p.includes('zona')) return '#A0522D'; // Marron clair / Vert kaki
-    if (p.includes('choléra') || p.includes('typhoïde') || p.includes('tique') || p.includes('fièvre jaune') || p.includes('dengue')) return '#2980B9'; // Bleu foncé
-    if (p.includes('rotavirus') || p.includes('vrs') || p.includes('covid') || p.includes('mpox')) return '#607D8B'; // Gris-bleu (nouveaux vaccins)
-    return '#7F8C8D'; // Gris par défaut
+    if (p.includes('bcg') || p.includes('tuberculose')) return '#8E44AD'; 
+    if (p.includes('diphtérie') || p.includes('tétanos') || p.includes('coqueluche') || p.includes('haemophilus') || p.includes('poliomyélite')) return '#16A085';
+    if (p.includes('hépatite')) return '#F39C12'; 
+    if (p.includes('méningocoque') || p.includes('rougeole') || p.includes('pneumocoque')) return '#E83A5D'; 
+    if (p.includes('papillomavirus') || p.includes('hpv')) return '#E67E22'; 
+    if (p.includes('grippe') || p.includes('leptospirose')) return '#3498DB'; 
+    if (p.includes('rage')) return '#F1C40F'; 
+    if (p.includes('varicelle') || p.includes('zona')) return '#A0522D'; 
+    if (p.includes('choléra') || p.includes('typhoïde') || p.includes('tique') || p.includes('fièvre jaune') || p.includes('dengue')) return '#2980B9'; 
+    if (p.includes('rotavirus') || p.includes('vrs') || p.includes('covid') || p.includes('mpox')) return '#607D8B'; 
+    return '#7F8C8D'; 
   }
 
   async function init() {
@@ -243,16 +270,67 @@
       el('vaccineTbody').innerHTML = '<tr><td colspan="3" style="text-align:center;">Erreur: ' + error.message + '</td></tr>';
       return;
     }
-    currentData = data || [];
-    renderTable(currentData);
     
-    // MAJ de la date
-    if(currentData.length > 0) {
-      const dates = currentData.map(v => new Date(v.created_at || Date.now()));
+    // Extraction de la ligne de paramètres cachée
+    const settingsEntry = data.find(item => item.pathologie === '__PARAMETRES__');
+    
+    if (settingsEntry) {
+      settingsId = settingsEntry.id;
+      el('adminDateInput').value = settingsEntry.calendrier || ''; // On utilise "calendrier" pour stocker la date
+      el('adminLegendInput').value = settingsEntry.rattrapage || ''; // On utilise "rattrapage" pour stocker la légende
+      
+      if (settingsEntry.rattrapage) {
+        el('legendText').textContent = settingsEntry.rattrapage;
+      }
+      
+      if (settingsEntry.calendrier) {
+        const dateObj = new Date(settingsEntry.calendrier);
+        el('lastUpdated').textContent = "Dernière mise à jour : " + dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      } else {
+        autoCalculateDate(data);
+      }
+    } else {
+      settingsId = null;
+      el('adminLegendInput').value = el('legendText').textContent; // Valeur par défaut
+      autoCalculateDate(data);
+    }
+
+    // On exclut la ligne de paramètres du tableau final affiché
+    currentData = data.filter(item => item.pathologie !== '__PARAMETRES__') || [];
+    renderTable(currentData);
+  }
+
+  function autoCalculateDate(dataArr) {
+    const regularData = dataArr.filter(item => item.pathologie !== '__PARAMETRES__');
+    if(regularData.length > 0) {
+      const dates = regularData.map(v => new Date(v.created_at || Date.now()));
       const maxDate = new Date(Math.max.apply(null, dates));
       el('lastUpdated').textContent = "Dernière mise à jour : " + maxDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
     } else {
       el('lastUpdated').textContent = "Aucune donnée";
+    }
+  }
+
+  async function saveSettings() {
+    const payload = {
+      pathologie: '__PARAMETRES__',
+      vaccins: 'Ligne système - Ne pas supprimer',
+      calendrier: el('adminDateInput').value,
+      rattrapage: el('adminLegendInput').value,
+      details: ''
+    };
+
+    let res;
+    if (settingsId) {
+      res = await sbVaccin.from(TABLE_NAME).update(payload).eq('id', settingsId);
+    } else {
+      res = await sbVaccin.from(TABLE_NAME).insert([payload]);
+    }
+
+    if (res && res.error) showMessage(res.error.message, true);
+    else { 
+      showMessage('Paramètres enregistrés !'); 
+      await loadData(); 
     }
   }
 
@@ -265,12 +343,21 @@
 
     tbody.innerHTML = dataArray.map(v => {
       const color = getColorForPathology(v.pathologie);
+      
       return `<tr onclick="openModal('${v.id}')">
         <td class="col-patho" style="background-color: ${color};">${escapeHtml(v.pathologie)}</td>
         <td class="col-vaccin">${escapeHtml(v.vaccins)}</td>
         <td class="col-cal">
           ${escapeHtml(v.calendrier || '')}
-          ${isAdmin ? `<br><button class="btn admin-btn no-print" style="padding:2px 6px; font-size:10px; margin-top:5px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>` : ''}
+          
+          <div class="no-print" style="margin-top: 8px;">
+            ${v.lien ? `<a href="${escapeHtml(v.lien)}" target="_blank" class="btn link-btn" style="padding:4px 8px; font-size:11px; display:inline-flex; text-decoration:none;" onclick="event.stopPropagation();">📚 Fiche Pathologie</a>` : ''}
+            
+            ${isAdmin ? `
+              <button class="btn admin-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="editEntry('${v.id}'); event.stopPropagation();">Éditer</button>
+              <button class="btn danger-btn" style="padding:4px 8px; font-size:11px; margin-left:5px;" onclick="deleteEntry('${v.id}'); event.stopPropagation();">Supprimer</button>
+            ` : ''}
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -278,11 +365,22 @@
   
   function filterTable() {
     const query = el('searchInput').value.toLowerCase();
-    const filtered = currentData.filter(v => 
-      (v.pathologie && v.pathologie.toLowerCase().includes(query)) ||
-      (v.vaccins && v.vaccins.toLowerCase().includes(query)) ||
-      (v.calendrier && v.calendrier.toLowerCase().includes(query))
-    );
+    const particularity = el('filterParticularity').value.toLowerCase();
+
+    const filtered = currentData.filter(v => {
+      const matchSearch = (v.pathologie && v.pathologie.toLowerCase().includes(query)) ||
+                          (v.vaccins && v.vaccins.toLowerCase().includes(query)) ||
+                          (v.calendrier && v.calendrier.toLowerCase().includes(query));
+      
+      let matchFilter = true;
+      if (particularity !== "") {
+        const allText = `${v.pathologie || ''} ${v.vaccins || ''} ${v.calendrier || ''} ${v.details || ''} ${v.rattrapage || ''}`.toLowerCase();
+        matchFilter = allText.includes(particularity);
+      }
+
+      return matchSearch && matchFilter;
+    });
+    
     renderTable(filtered);
   }
 
@@ -324,6 +422,7 @@
       pathologie: el('f_pathologie').value,
       vaccins: el('f_vaccins').value,
       calendrier: el('f_calendrier').value,
+      lien: el('f_lien').value, // Nouveau champ envoyé à la DB
       details: el('f_details').value,
       rattrapage: el('f_rattrapage').value
     };
@@ -344,13 +443,29 @@
     el('f_pathologie').value = v.pathologie || '';
     el('f_vaccins').value = v.vaccins || '';
     el('f_calendrier').value = v.calendrier || '';
+    el('f_lien').value = v.lien || ''; // Affichage de l'URL dans le formulaire
     el('f_details').value = v.details || '';
     el('f_rattrapage').value = v.rattrapage || '';
     el('cancelEditBtn').classList.remove('hidden');
     el('adminPanel').scrollIntoView({behavior: "smooth"});
   }
 
-  function resetForm() { el('addForm').reset(); el('editId').value = ''; el('cancelEditBtn').classList.add('hidden'); }
+  async function deleteEntry(id) {
+    if(!confirm("Êtes-vous sûr de vouloir supprimer définitivement cette ligne ?")) return;
+    const { error } = await sbVaccin.from(TABLE_NAME).delete().eq('id', id);
+    if (error) {
+      showMessage(error.message, true);
+    } else {
+      showMessage("Ligne supprimée !");
+      await loadData();
+    }
+  }
+
+  function resetForm() { 
+    el('addForm').reset(); 
+    el('editId').value = ''; 
+    el('cancelEditBtn').classList.add('hidden'); 
+  }
 
   el('exportBtn').addEventListener('click', () => {
     if (currentData.length === 0) return;
@@ -374,7 +489,7 @@
   }
 
   function showMessage(msg, isError = false) {
-    const m = el('adminMsg'); m.textContent = msg; m.style.color = isError ? 'red' : 'green';
+    const m = el('adminMsg'); m.textContent = msg; m.style.color = isError ? '#e74c3c' : '#27ae60';
     setTimeout(() => m.textContent = '', 4000);
   }
 
