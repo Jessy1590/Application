@@ -15,7 +15,7 @@
 </script>
 <style>
 /* ============================================================
-   DESIGN — Repensé pour clarté, aération et lisibilité
+   DESIGN — Professionnel & Aéré
    ============================================================ */
 :root{
   --ink:#1c2321; --paper:#f7f6f2; --panel:#ffffff; --line:#e2ded4;
@@ -90,14 +90,25 @@ button.danger{color:var(--danger); border-color:var(--danger);}
 .leg-edit i{background:var(--edit-bg);}
 .leg-lock i{background:var(--lock-bg);}
 
-/* Grid responsive STRICTE 3 colonnes pour éviter le chevauchement */
+/* Grid Bilans (3 colonnes) */
 .field-grid { display: grid; grid-template-columns: 1fr 140px 90px; gap: 8px 12px; align-items: center; }
 .col-header { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: bold; border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 4px; }
 
+/* Grid Paramètres (2 colonnes aérées) */
+.field-grid-params { display: grid; grid-template-columns: 1fr 180px; gap: 12px 20px; align-items: center; padding: 4px 0; border-bottom: 1px solid #f9f9f9; }
+.field-grid-params:last-child { border-bottom: none; }
+
+/* Grid Avancée Financement */
+.funding-grid { display: grid; grid-template-columns: 160px 110px 80px 80px 90px 90px; gap: 8px; align-items: center; margin-bottom: 16px; background:#fdfdfc; padding:12px; border-radius:6px; border:1px solid var(--line); overflow-x:auto;}
+.funding-header { font-size: 11px; text-transform: uppercase; color: var(--muted); font-weight: bold; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+
 @media(max-width: 650px) {
-  .field-grid { grid-template-columns: 1fr; gap: 8px; }
-  .field-grid > .field-label { margin-top: 12px; font-weight:bold; color:var(--accent-dark); }
+  .field-grid, .field-grid-params { grid-template-columns: 1fr; gap: 6px; border-bottom: none; padding:8px 0; }
+  .field-grid > .field-label, .field-grid-params > .field-label { margin-top: 12px; font-weight:bold; color:var(--accent-dark); }
   .col-header { display:none; }
+  .funding-grid { display:block; }
+  .funding-grid > div { margin-bottom: 8px; }
+  .funding-header { display:none; }
 }
 
 .field-label{font-size:13.5px; font-weight:500;}
@@ -127,7 +138,7 @@ table.calc td.neg{color:var(--danger); font-weight:bold;}
 .kpi .l{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; display:flex; justify-content:space-between; align-items:center; font-weight:600;}
 .kpi.good .v{color:var(--accent-dark);} .kpi.bad .v{color:var(--danger);}
 
-/* Infobulles Cliquables (Design) */
+/* Infobulles Cliquables */
 .info-icon {
   cursor: pointer; background: #e2ded4; color: #5a574f; width: 20px; height: 20px;
   border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
@@ -171,12 +182,16 @@ input[type=text].f-input, input[type=text].f-edit{text-align:left;}
 
 /* --- PDF Export specific styles --- */
 .pdf-container { padding: 40px; font-family: Arial, sans-serif; color: #000; background: #fff; }
-.pdf-container h1 { color: #1c2321; font-size: 24px; border-bottom: 2px solid #2f6f5e; padding-bottom: 10px; }
+.pdf-container h1 { color: #1c2321; font-size: 24px; border-bottom: 2px solid #2f6f5e; padding-bottom: 10px; margin-top:0; }
 .pdf-container h2 { color: #2f6f5e; font-size: 18px; margin-top: 30px; }
-.pdf-container table.calc { border: 1px solid #ccc; margin-bottom: 20px; }
-.pdf-container table.calc th { background: #f0f0f0; color: #000; }
-.pdf-container table.calc td, .pdf-container table.calc th { border: 1px solid #ccc; padding: 6px; font-size: 12px; }
+.pdf-container table.calc { border: 1px solid #ccc; margin-bottom: 20px; width:100%; border-collapse:collapse; }
+.pdf-container table.calc th { background: #f0f0f0; color: #000; padding:8px; text-align:right; font-size:12px; border:1px solid #ccc;}
+.pdf-container table.calc th:first-child { text-align:left; }
+.pdf-container table.calc td { border: 1px solid #ccc; padding: 8px; font-size: 12px; text-align:right; }
+.pdf-container table.calc td:first-child { text-align:left; font-weight:500; }
 .pdf-container .conclusion-box { background: #f7f6f2; border-left: 5px solid #2f6f5e; padding: 20px; margin-top: 40px; font-size: 14px; line-height: 1.6; }
+.toc-list { list-style:none; padding:0; font-size:16px; line-height:2; }
+.toc-list li { border-bottom:1px dotted #ccc; display:flex; justify-content:space-between; margin-bottom:10px; padding-bottom:5px; }
 </style>
 </head>
 <body>
@@ -216,7 +231,7 @@ input[type=text].f-input, input[type=text].f-edit{text-align:left;}
         <h1 id="ws-title" style="margin-top:8px; color:var(--ink);"></h1>
       </div>
       <div>
-        <button class="ghost small" id="btn-export-pdf" style="margin-right:10px;">📄 Télécharger le rapport (PDF)</button>
+        <button class="ghost small" id="btn-export-pdf" style="margin-right:10px; border-color:var(--accent-dark); color:var(--accent-dark); font-weight:bold;">📄 Télécharger le rapport (PDF)</button>
         <button class="ghost danger small" id="btn-del-project">Supprimer</button>
       </div>
     </div>
@@ -346,7 +361,7 @@ const ACHATS_KEYS = ["achats_0","achats_21","achats_55","achats_10","achats_20",
 function allFieldDefs(){ return BILAN_SECTIONS.flatMap(s=>s.fields); }
 
 /* ==========================================================================================
-   2. PARAMÈTRES HYPOTHÈSES (Vides par défaut pour démarrer vierge)
+   2. PARAMÈTRES HYPOTHÈSES
    ========================================================================================== */
 const EMPTY_PARAMS = {
   valorisation_finale: null, 
@@ -361,25 +376,32 @@ const EMPTY_PARAMS = {
   charges_sociales_exploitant: null, remuneration_exploitant_souhaitee: null,
   impots_theorique: null, duree_amortissement_travaux: null,
   honoraire_transaction_pct: null, honoraire_comptable: null, honoraire_juridique: null,
-  frais_acquisition_pct: null, travaux: null, taux_bancaire: null, duree_pret_ans: null,
-  taux_booster: null, duree_booster_ans: null, in_fine: true,
-  stock_financement: "Prêt vendeur", duree_credit_vendeur_mois: 12, annee_debut_credit_vendeur: 1,
+  frais_acquisition_pct: null, travaux: null, 
+  
+  // Prêt principal (Banque)
+  taux_bancaire: null, duree_pret_ans: null, emprunt_banque_montant: null,
+  
+  // Options de financement Multi-Couches
+  aide_financiere: null,
+  booster_mult: null, booster_taux: null, booster_duree: null, booster_infine: true,
+  honneur_montant: null, honneur_taux: null, honneur_duree: null, honneur_infine: false,
+  vendeur_montant: null, vendeur_taux: null, vendeur_duree: null, vendeur_infine: false, vendeur_capital: null,
+  invest_montant: null, invest_taux: null, invest_duree: null, invest_infine: false, invest_capital: null,
+  
+  // Stock & Travaux
+  stock_financement: "Intégré au prêt global", duree_credit_vendeur_mois: 12, annee_debut_credit_vendeur: 1,
+  taux_pret_stock: null, duree_pret_stock_ans: null,
+  financement_travaux_mode: "Intégré au prêt global", taux_pret_travaux: null, duree_pret_travaux_ans: null,
+  
   besoin_bfr: true,
-  apports_capital_personnel: null, apports_cc_personnel: null, apports_associe_exec: null,
-  apports_associe_investisseur: null, apports_booster: null,
-  emprunt_banque_montant: null, financement_travaux_mode: "Apports",
+  apports_capital_personnel: null, apports_cc_personnel: null, 
+  
   is_seuil_bas: null, is_taux_p1: null, is_taux_p2: null,
   
-  // Nouveau state complet du prévisionnel
-  previ_state: {
-     chargesExt: {},
-     salaries: null,
-     customCharges: [],
-     growth: {} // { 1: {ca: 1.5, marge: 28.5}, 2: {...} }
-  }
+  previ_state: { chargesExt: {}, salaries: null, customCharges: [], growth: {} }
 };
 
-const PARAM_GROUPS = [
+const PARAM_GROUPS_SIMPLE = [
   { title:"Multiples de Valorisation", fields:[
     ["marge_valorisation_seuil_k","Seuil de marge pour valorisation (k€)"],
     ["coef_ca_sup","Coef. CA (si marge ≥ seuil)"], ["coef_ca_inf","Coef. CA (si marge < seuil)"],
@@ -396,28 +418,17 @@ const PARAM_GROUPS = [
     ["disponibilite_bfr_initial","Disponibilité BFR initial (%)"],
     ["taux_ebe_ca","Taux EBE / CA (%)"], ["taux_ebe_marge","Taux EBE / Marge (%)"],
   ]},
-  { title:"Les Frais (Acquisition & Travaux)", fields:[
+  { title:"Frais Divers & BFR", fields:[
     ["honoraire_transaction_pct","Honoraire transaction (% HT)"], ["honoraire_comptable","Honoraire comptable (€)"],
     ["honoraire_juridique","Honoraire juridique TTC + débours (€)"], ["frais_acquisition_pct","Frais d'acquisition (%)"],
-    ["travaux","Travaux prévus (€)"], ["financement_travaux_mode_select","Financement des travaux"],
-  ]},
-  { title:"Le Prêt & Les Apports", fields:[
-    ["taux_bancaire","Taux bancaire hors assurance (%, ex 0.04)"], ["duree_pret_ans","Durée prêt banque (ans)"],
-    ["emprunt_banque_montant","Montant de l'emprunt bancaire (€)"],
-    ["taux_booster","Taux prêt booster (%, ex 0.08)"], ["duree_booster_ans","Durée prêt booster (ans)"],
-    ["apports_capital_personnel","Apport personnel (€)"], ["apports_cc_personnel","Apport en compte courant (€)"],
-    ["apports_associe_exec","Apport associé exécutant (€)"], ["apports_associe_investisseur","Apport associé investisseur (€)"],
-    ["apports_booster","Montant Prêt Booster (€)"],
-    ["in_fine_select","Remboursement in fine ?"], ["besoin_bfr_select","Financer le BFR ?"], 
-    ["stock_financement_select","Mode de financement du stock"],
-    ["duree_credit_vendeur_mois", "Durée du paiement du stock (mois)"], ["annee_debut_credit_vendeur", "Année de début de paiement (1, 2...)"]
+    ["besoin_bfr_select","Financer le BFR initial ?"], 
   ]},
   { title:"Hypothèses Transverses du Prévisionnel", fields:[
     ["charges_sociales_exploitant","Charges sociales TNS (%)"],
     ["impots_theorique","Impôts théoriques autres (€/an)"],
     ["duree_amortissement_travaux","Durée amortissement travaux (années)"],
   ]},
-  { title:"Barème Fiscal", fields:[
+  { title:"Barème Fiscal (IS)", fields:[
     ["is_seuil_bas","Seuil palier 1 → palier 2 IS (€)"], ["is_taux_p1","Taux IS palier 1 (%, ex 0.15)"], ["is_taux_p2","Taux IS palier 2 (%, ex 0.25)"],
   ]},
 ];
@@ -619,7 +630,6 @@ function renderInfosTab(root){
       <div class="modal-actions"><button class="primary" id="save-infos">Enregistrer les informations</button></div>
     </div>`;
   const grid = document.getElementById('infos-grid');
-  // Ajout des Headers de colonnes pour la grille
   grid.innerHTML = `<div class="col-header">Informations</div><div class="col-header" style="text-align:right;">Saisie</div><div class="col-header">État</div>`;
 
   INFO_FIELDS.forEach(([key,label])=>{
@@ -737,7 +747,6 @@ function renderBilansTab(root){
       const grid = document.createElement('div');
       grid.className = 'field-grid' + (sec.fields.some(f=>f.kind==='ht') ? ' wide' : '');
       
-      // En-têtes pour aérer la vue
       if(sec.fields.some(f=>f.kind==='ht')){
           grid.innerHTML = `<div class="col-header">Libellé du compte</div><div class="col-header" style="text-align:right;">Montant HT</div><div class="col-header" style="text-align:right;">Taux TVA</div>`;
       } else {
@@ -802,7 +811,7 @@ function applyBilansFilter() {
         const grid = title.nextElementSibling;
         let hasVisible = false;
         Array.from(grid.children).forEach(row => {
-            if(row.classList && row.classList.contains('col-header')) return; // Ignore headers
+            if(row.classList && row.classList.contains('col-header')) return; 
             const inp = row.querySelector('input[data-key]');
             const naCb = row.querySelector('input[data-na]');
             if(!inp) return;
@@ -820,7 +829,6 @@ function applyBilansFilter() {
         title.style.display = (showOnlyEmptyBilans && !hasVisible) ? 'none' : 'block';
         grid.style.display = (showOnlyEmptyBilans && !hasVisible) ? 'none' : 'grid';
         
-        // Cacher les headers si tout est caché
         const headers = grid.querySelectorAll('.col-header');
         headers.forEach(h => h.style.display = (showOnlyEmptyBilans && !hasVisible) ? 'none' : 'block');
     });
@@ -829,11 +837,12 @@ function applyBilansFilter() {
 function yearLabel(y){ return y===0 ? "Année N" : y===-1 ? "Année N-1" : "Année N-2"; }
 
 /* ==========================================================================================
-   ONGLET 3 : PARAMÈTRES ET HYPOTHÈSES
+   ONGLET 3 : PARAMÈTRES ET HYPOTHÈSES (Refonte de la grille Financement)
    ========================================================================================== */
 function renderParametresTab(root){
   const p = STATE.current.params;
-  root.innerHTML = `
+  
+  let html = `
     <div class="card">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <h2 style="margin:0;">Hypothèses et Paramètres</h2>
@@ -844,30 +853,74 @@ function renderParametresTab(root){
         <label class="chk"><input type="checkbox" id="filter-empty-params"> 🔍 N'afficher que les champs vides</label>
       </div>
       <div id="params-groups"></div>
-      <div class="modal-actions"><button class="primary" id="save-params">Enregistrer les hypothèses</button></div>
+      
+      <!-- Bloc Financement Avancé (Custom) -->
+      <h4 class="section-title">Plan de Financement Global (Prêts & Apports)</h4>
+      <p style="font-size:13px; color:var(--muted); margin-bottom:12px;">Combinez vos différentes sources de financement. Le prêt bancaire principal se calcule automatiquement si vous le laissez vide et utilisez la baguette magique dans l'onglet Financement.</p>
+      
+      <div class="funding-grid">
+         <div class="funding-header">Source / Type</div> <div class="funding-header">Montant (€)</div> <div class="funding-header">Taux (%)</div> <div class="funding-header">Durée (ans)</div> <div class="funding-header">In fine ?</div> <div class="funding-header">% Cédé</div>
+         
+         <div class="field-label" style="font-weight:bold; color:var(--accent-dark);">1. Apports & Aides</div> <div></div><div></div><div></div><div></div><div></div>
+         <div class="field-label">Apport personnel</div> <input type="number" step="any" class="f-edit" data-pkey="apports_capital_personnel" value="${p.apports_capital_personnel||''}"> <div></div><div></div><div></div><div></div>
+         <div class="field-label">Compte Courant (CC)</div> <input type="number" step="any" class="f-edit" data-pkey="apports_cc_personnel" value="${p.apports_cc_personnel||''}"> <div></div><div></div><div></div><div></div>
+         <div class="field-label">Aide financière (sans rmb.)</div> <input type="number" step="any" class="f-edit" data-pkey="aide_financiere" value="${p.aide_financiere||''}"> <div></div><div></div><div></div><div></div>
+         
+         <div class="field-label" style="font-weight:bold; color:var(--accent-dark); margin-top:10px;">2. Prêts & Levées</div> <div></div><div></div><div></div><div></div><div></div>
+         
+         <div class="field-label">Booster d'apport<br><small style="color:var(--muted)">(Multiplie l'apport perso)</small></div>
+         <div style="display:flex; align-items:center; gap:4px;"><input type="number" step="any" class="f-edit" data-pkey="booster_mult" value="${p.booster_mult||''}" placeholder="Ex: 2"> <span style="font-size:12px; color:var(--muted)">x</span></div>
+         <input type="number" step="any" class="f-edit" data-pkey="booster_taux" value="${p.booster_taux||''}" placeholder="0.08">
+         <input type="number" step="any" class="f-edit" data-pkey="booster_duree" value="${p.booster_duree||''}" placeholder="7">
+         <select class="f-edit" data-pkey="booster_infine"><option value="true" ${p.booster_infine!==false?'selected':''}>Oui</option><option value="false" ${p.booster_infine===false?'selected':''}>Non</option></select>
+         <div></div>
+
+         <div class="field-label">Prêt d'Honneur</div>
+         <input type="number" step="any" class="f-edit" data-pkey="honneur_montant" value="${p.honneur_montant||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="honneur_taux" value="${p.honneur_taux||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="honneur_duree" value="${p.honneur_duree||''}">
+         <select class="f-edit" data-pkey="honneur_infine"><option value="false" ${p.honneur_infine===false?'selected':''}>Non</option><option value="true" ${p.honneur_infine===true?'selected':''}>Oui</option></select>
+         <div></div>
+
+         <div class="field-label">Crédit Vendeur (Fonds)</div>
+         <input type="number" step="any" class="f-edit" data-pkey="vendeur_montant" value="${p.vendeur_montant||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="vendeur_taux" value="${p.vendeur_taux||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="vendeur_duree" value="${p.vendeur_duree||''}">
+         <select class="f-edit" data-pkey="vendeur_infine"><option value="false" ${p.vendeur_infine===false?'selected':''}>Non</option><option value="true" ${p.vendeur_infine===true?'selected':''}>Oui</option></select>
+         <input type="number" step="any" class="f-edit" data-pkey="vendeur_capital" value="${p.vendeur_capital||''}" placeholder="%">
+
+         <div class="field-label">Investisseur Privé</div>
+         <input type="number" step="any" class="f-edit" data-pkey="invest_montant" value="${p.invest_montant||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="invest_taux" value="${p.invest_taux||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="invest_duree" value="${p.invest_duree||''}">
+         <select class="f-edit" data-pkey="invest_infine"><option value="false" ${p.invest_infine===false?'selected':''}>Non</option><option value="true" ${p.invest_infine===true?'selected':''}>Oui</option></select>
+         <input type="number" step="any" class="f-edit" data-pkey="invest_capital" value="${p.invest_capital||''}" placeholder="%">
+
+         <div class="field-label" style="font-weight:bold; color:var(--ink); margin-top:10px;">Prêt Bancaire Principal</div>
+         <input type="number" step="any" class="f-edit" data-pkey="emprunt_banque_montant" value="${p.emprunt_banque_montant||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="taux_bancaire" value="${p.taux_bancaire||''}">
+         <input type="number" step="any" class="f-edit" data-pkey="duree_pret_ans" value="${p.duree_pret_ans||''}">
+         <div style="font-size:11px; color:var(--muted); text-align:center;">Amortissable</div>
+         <div></div>
+      </div>
+
+      <div class="modal-actions" style="margin-top:30px;"><button class="primary" id="save-params">Enregistrer les hypothèses</button></div>
     </div>`;
   
+  root.innerHTML = html;
+
   const groupsEl = document.getElementById('params-groups');
-  PARAM_GROUPS.forEach(g=>{
+  PARAM_GROUPS_SIMPLE.forEach(g=>{
     const sec = document.createElement('div');
-    sec.innerHTML = `<h4 class="section-title">${g.title}</h4><div class="field-grid" data-group></div>`;
+    sec.innerHTML = `<h4 class="section-title">${g.title}</h4><div class="field-grid-params" data-group></div>`;
     groupsEl.appendChild(sec);
     const grid = sec.querySelector('[data-group]');
-    grid.innerHTML = `<div class="col-header">Paramètre</div><div class="col-header" style="text-align:right;">Valeur</div>`;
 
     g.fields.forEach(([key,label])=>{
       const row = document.createElement('div'); row.style.display='contents';
       const val = (p[key] !== null && p[key] !== undefined) ? p[key] : '';
-      if(key==="in_fine_select"){
-        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="in_fine"><option value="true" ${p.in_fine?'selected':''}>Oui</option><option value="false" ${!p.in_fine?'selected':''}>Non</option></select>`;
-      } else if(key==="stock_financement_select"){
-        const opts = ["Prêt vendeur", "Apports directe", "Emprunts bancaire"];
-        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="stock_financement">${opts.map(o=>`<option ${p.stock_financement===o?'selected':''}>${o}</option>`).join('')}</select>`;
-      } else if(key==="besoin_bfr_select"){
-        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="besoin_bfr"><option value="true" ${p.besoin_bfr?'selected':''}>Oui</option><option value="false" ${!p.besoin_bfr?'selected':''}>Non</option></select>`;
-      } else if(key==="financement_travaux_mode_select"){
-        const opts = ["Apports","Prêt"];
-        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="financement_travaux_mode">${opts.map(o=>`<option ${p.financement_travaux_mode===o?'selected':''}>${o}</option>`).join('')}</select>`;
+      if(key==="besoin_bfr_select"){
+        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="besoin_bfr"><option value="true" ${p.besoin_bfr!==false?'selected':''}>Oui</option><option value="false" ${p.besoin_bfr===false?'selected':''}>Non</option></select>`;
       } else {
         row.innerHTML = `<div class="field-label">${label}</div><input type="number" step="any" class="f-edit" data-pkey="${key}" value="${val}">`;
       }
@@ -877,7 +930,8 @@ function renderParametresTab(root){
 
   document.getElementById('save-params').addEventListener('click', async ()=>{
     const newParams = {...p};
-    groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
+    // Fetch from basic groups and advanced funding grid
+    root.querySelectorAll('[data-pkey]').forEach(inp=>{
       const k = inp.dataset.pkey; let v = inp.value;
       if(inp.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true';
       else if(inp.tagName==='INPUT') v = v === '' ? null : parseFloat(v);
@@ -889,7 +943,6 @@ function renderParametresTab(root){
     toast("Hypothèses enregistrées.");
   });
 
-  // Filtre
   const filterChk = document.getElementById('filter-empty-params');
   const applyParamsFilter = () => {
     const isChecked = filterChk.checked;
@@ -910,24 +963,21 @@ function renderParametresTab(root){
       });
       title.style.display = (isChecked && !hasVisible) ? 'none' : 'block';
       grid.style.display = (isChecked && !hasVisible) ? 'none' : 'grid';
-      const headers = grid.querySelectorAll('.col-header');
-      headers.forEach(h => h.style.display = (isChecked && !hasVisible) ? 'none' : 'block');
     });
   };
   filterChk.addEventListener('change', applyParamsFilter);
 
-  // Copie
   document.getElementById('btn-copy-missing-params').addEventListener('click', () => {
     let missing = [];
-    groupsEl.querySelectorAll('.section-title').forEach(title => {
-      const grid = title.nextElementSibling;
-      Array.from(grid.children).forEach(row => {
-        const inp = row.querySelector('[data-pkey]');
-        if(inp && (inp.value === "" || inp.value === null)) {
-          let label = row.querySelector('.field-label').textContent.trim();
-          missing.push("- " + label);
+    root.querySelectorAll('[data-pkey]').forEach(inp=>{
+        if(inp.tagName === 'INPUT' && (inp.value === "" || inp.value === null)) {
+            // Find preceding label
+            let el = inp.previousElementSibling;
+            while(el && !el.classList.contains('field-label') && !el.classList.contains('funding-header')) {
+                el = el.previousElementSibling;
+            }
+            if(el) missing.push("- " + el.textContent.trim());
         }
-      });
     });
     if(missing.length === 0) {
       toast("Tous les paramètres sont renseignés !"); return;
@@ -975,7 +1025,6 @@ function computeEvaluation(dataN, dataN1){
 
   const evolutionCA = N1.caTotalHT ? (N.caTotalHT - N1.caTotalHT)/N1.caTotalHT*100 : null;
   const ratioChargesExterne = N.caTotalHT ? (N.chargesExternes*100)/N.caTotalHT : null;
-  const margeBruteSans0 = (N.caTotalHT - num(dataN.ventes_0)) - (N.achatsConsoHT - num(dataN.achats_0));
   
   const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;
   const tauxMarge = N.caTotalHT ? margeBruteCommerciale*100/N.caTotalHT : null; 
@@ -984,18 +1033,48 @@ function computeEvaluation(dataN, dataN1){
 
   const remunerationDirigeant = num(dataN.remuneration_gerance)+num(dataN.charges_gerance);
   
-  // EBE Retraité correct:
   const retraitementsDivers = num(dataN.csg_deductible) + num(dataN.autres_retraitements) + num(dataN.tiers_payant) + num(dataN.avantage_nature);
   const EBE = N.ventes.ht + N.presta.ht - N.achatsConsoHT - N.chargesExternes - num(dataN.impots_taxes_hors_is)
             - (num(dataN.salaires_personnel)+num(dataN.charges_personnel)+remunerationDirigeant);
-  const EBE_retraite = EBE + remunerationDirigeant + retraitementsDivers;
+  const EBE_retraite = EBE + remunerationDirigeant + retraitementsDivers + num(dataN.activite_exceptionnelle);
   
   const tauxEBE_CA = N.caTotalHT ? EBE_retraite*100/N.caTotalHT : null;
   const tauxEBE_Marge = margeBruteCommerciale ? EBE_retraite*100/margeBruteCommerciale : null;
 
   return { N, N1, ratioClients, ratioFournisseurs, ratioTresorerie, ratioStock, evolutionCA, ratioChargesExterne,
-    margeBruteSans0, ratioChargesPersonnel, margeBruteCommerciale, tauxMarge, productionTheoriqueRatio,
+    ratioChargesPersonnel, margeBruteCommerciale, tauxMarge, productionTheoriqueRatio,
     EBE, EBE_retraite, retraitementsDivers, remunerationDirigeant, tauxEBE_CA, tauxEBE_Marge };
+}
+
+// Moteur de Prêt Générique
+function calcGenericLoan(name, amount, rate, years, inFine) {
+    let schedule = [];
+    let outstanding = amount;
+    let pmt = 0;
+    if(amount <= 0 || years <= 0) return { name, amount, inFine, schedule };
+
+    if (inFine) {
+        for(let a=1; a<=years; a++) {
+            let interest = outstanding * rate;
+            let principal = (a === years) ? outstanding : 0;
+            outstanding -= principal;
+            schedule.push({ annee: a, interets: interest, capital: principal, annuite: interest + principal, reste: outstanding });
+        }
+    } else {
+        pmt = pmtAnnuite(rate, years, amount);
+        for(let a=1; a<=years; a++) {
+            let interest = outstanding * rate;
+            let principal = pmt - interest;
+            outstanding -= principal;
+            schedule.push({ annee: a, interets: interest, capital: principal, annuite: pmt, reste: Math.max(0, outstanding) });
+        }
+    }
+    return { name, amount, inFine, schedule };
+}
+
+function pmtAnnuite(taux, nper, pv){
+  if(taux===0 || !nper) return pv/(nper||1);
+  return pv*taux/(1-Math.pow(1+taux,-nper));
 }
 
 function computeValorisation(dataRef, params, evalResult){
@@ -1013,13 +1092,14 @@ function computeValorisation(dataRef, params, evalResult){
 
   const valorisationCA = (num(dataRef.ca_ht_bilan) + num(dataRef.retrocessions) + num(dataRef.honoraires_coop)
     - num(dataRef.maison_retraite) - differenceProduitsChers) * coefCA;
+    
   const valorisationEBE = evalResult.EBE_retraite * coefEBE;
   const valorisationMarge = (margeGlobale + num(dataRef.vaccination)) * coefMarge;
 
   const valorisationTheorique = (valorisationCA + valorisationEBE + valorisationMarge)/3;
   const valoRetenue = num(params.valorisation_finale) || valorisationTheorique;
 
-  const honoraireTransaction = num(params.honoraire_transaction_pct) * valoRetenue;
+  const honoraireTransaction = num(params.honoraire_transaction_pct) * valoRetenue; // HT
   const honoraireComptable = num(params.honoraire_comptable);
   const honoraireJuridique = num(params.honoraire_juridique);
   const fraisAcquisition = num(params.frais_acquisition_pct) * valoRetenue;
@@ -1030,38 +1110,49 @@ function computeValorisation(dataRef, params, evalResult){
   const bfrCreances = num(params.ratio_clients) * agg.ventes.ttc / 360;
   const bfrFournisseur = num(params.ratio_fournisseurs) * agg.achats.ttc / 360;
   const bfrTotal = bfrStock + bfrCreances - bfrFournisseur;
-  const bfrRetenu = params.besoin_bfr ? bfrTotal : 0;
+  const bfrRetenu = params.besoin_bfr!==false ? bfrTotal : 0;
 
   const stockFinalLigne = num(dataRef.stock_final);
-  const totalBesoinsFinanciers = stockFinalLigne + honoraireTransaction + honoraireComptable + honoraireJuridique
-    + fraisAcquisition + travaux + valoRetenue + bfrRetenu;
+  
+  // Total Besoins Financements (Fonds + Frais + Stock + BFR + Travaux)
+  const totalBesoinsFinanciers = valoRetenue + honoraireTransaction + honoraireComptable + honoraireJuridique
+    + fraisAcquisition + travaux + stockFinalLigne + bfrRetenu;
 
-  const emprunt = num(params.emprunt_banque_montant);
+  // Calcul des montants Apports & Prêts
+  const apportPerso = num(params.apports_capital_personnel);
+  const apportCC = num(params.apports_cc_personnel);
+  const aide = num(params.aide_financiere);
+  const boosterMontant = apportPerso * num(params.booster_mult);
+  
+  const apportsTotauxSimples = apportPerso + apportCC + aide + boosterMontant;
+  
+  const empruntBanque = num(params.emprunt_banque_montant);
+  const honneur = num(params.honneur_montant);
+  const vendeur = num(params.vendeur_montant);
+  const investisseur = num(params.invest_montant);
 
-  const apportsTotal = num(params.apports_capital_personnel)+num(params.apports_cc_personnel)
-    +num(params.apports_associe_exec)+num(params.apports_associe_investisseur)+num(params.apports_booster);
+  const ressourcesTotales = apportsTotauxSimples + empruntBanque + honneur + vendeur + investisseur;
+  const resteAFinancer = totalBesoinsFinanciers - ressourcesTotales;
+  const besoinAvantEmprunt = totalBesoinsFinanciers - apportsTotauxSimples - honneur - vendeur - investisseur;
 
-  const aFinancerStock = params.stock_financement==="Prêt vendeur" ? 0 : params.stock_financement==="Apports directe" ? 0 : stockFinalLigne;
-  const aFinancerTravaux = num(params.travaux);
+  // Génération de tous les tableaux d'amortissement
+  let allLoans = [];
+  allLoans.push(calcGenericLoan('Banque Principal', empruntBanque, num(params.taux_bancaire), Math.round(num(params.duree_pret_ans)), false));
+  allLoans.push(calcGenericLoan('Booster', boosterMontant, num(params.booster_taux), Math.round(num(params.booster_duree)), params.booster_infine));
+  allLoans.push(calcGenericLoan('Honneur', honneur, num(params.honneur_taux), Math.round(num(params.honneur_duree)), params.honneur_infine));
+  allLoans.push(calcGenericLoan('Crédit Vendeur', vendeur, num(params.vendeur_taux), Math.round(num(params.vendeur_duree)), params.vendeur_infine));
+  allLoans.push(calcGenericLoan('Investisseur', investisseur, num(params.invest_taux), Math.round(num(params.invest_duree)), params.invest_infine));
 
-  const besoinAvantEmprunt = totalBesoinsFinanciers + aFinancerStock + (params.financement_travaux_mode==="Apports" ? aFinancerTravaux : 0) - apportsTotal;
-  const resteAFinancer = besoinAvantEmprunt - emprunt;
-
-  const dureeAns = Math.round(num(params.duree_pret_ans));
-  const tauxAn = num(params.taux_bancaire);
-  const pmt = pmtAnnuite(tauxAn, dureeAns, emprunt);
-  const tableauPret = [];
-  let reste = emprunt;
-  for(let a=1; a<=dureeAns; a++){
-    const interets = tauxAn * reste;
-    const capital = pmt - interets;
-    reste = reste - capital;
-    tableauPret.push({ annee:a, annuite:pmt, interets, capital, reste: Math.max(reste,0) });
+  // Options : Si prêt "Dédié" pour stock ou travaux
+  if (params.stock_financement === "Prêt Bancaire Dédié") {
+      allLoans.push(calcGenericLoan('Banque (Stock)', stockFinalLigne, num(params.taux_pret_stock), Math.round(num(params.duree_pret_stock_ans)), false));
+  }
+  if (params.financement_travaux_mode === "Prêt Bancaire Dédié") {
+      allLoans.push(calcGenericLoan('Banque (Travaux)', travaux, num(params.taux_pret_travaux), Math.round(num(params.duree_pret_travaux_ans)), false));
   }
 
-  const boosterMontant = num(params.apports_booster);
-  const boosterTaux = num(params.taux_booster);
-  const boosterInteretsAn = boosterMontant * boosterTaux;
+  // Filtrer les prêts vides
+  allLoans = allLoans.filter(l => l.amount > 0 && l.schedule.length > 0);
 
   return {
     seuil, auDessus, coefCA, coefEBE, coefMarge, differenceProduitsChers,
@@ -1069,14 +1160,10 @@ function computeValorisation(dataRef, params, evalResult){
     honoraireTransaction, honoraireComptable, honoraireJuridique, fraisAcquisition, travaux,
     bfrStock, bfrCreances, bfrFournisseur, bfrTotal, bfrRetenu, stockFinalLigne,
     totalBesoinsFinanciers, besoinAvantEmprunt,
-    apportsTotal, aFinancerStock, aFinancerTravaux, resteAFinancer,
-    emprunt, dureeAns, tauxAn, pmt, tableauPret, boosterMontant, boosterTaux, boosterInteretsAn,
+    apportsTotauxSimples, resteAFinancer,
+    empruntBanque, honneur, vendeur, investisseur, boosterMontant,
+    allLoans
   };
-}
-
-function pmtAnnuite(taux, nper, pv){
-  if(taux===0) return pv/nper;
-  return pv*taux/(1-Math.pow(1+taux,-nper));
 }
 
 function calcIS(resultatAnnee, resultatAnneePrecedente, params){
@@ -1101,7 +1188,6 @@ function computePrevisionnel(dataRef, params, valo, pState){
     totalChargesExtInit += val;
   });
 
-  // Ajout des charges custom
   pState.customCharges.forEach(c => { totalChargesExtInit += num(c.montant); });
 
   const totalSalairesInit = pState.salaries.reduce((s,row)=> s + (row.garde ? num(row.montant) : 0), 0);
@@ -1109,9 +1195,6 @@ function computePrevisionnel(dataRef, params, valo, pState){
   const agg = computeBilanAggregate(dataRef);
   const caN0 = agg.ventes.ht + agg.presta.ht; 
   const tauxMargeBruteN0 = agg.caTotalHT ? (num(dataRef.marge_brute_globale_bilan)/agg.caTotalHT)*100 : 0; 
-
-  const evolCharges = num(params.evolution_charges_estime)/100;
-  const evolSalaires = num(params.evolution_salaires_estime)/100;
 
   const dureeAmortTravaux = num(params.duree_amortissement_travaux)||1;
   const dotationAmort = num(params.travaux)/dureeAmortTravaux;
@@ -1124,13 +1207,14 @@ function computePrevisionnel(dataRef, params, valo, pState){
   let prevResultatCourant = 0;
 
   for(let a=0; a<=12; a++){
-    // Récupération des taux personnalisés ou par défaut
     let tauxEvolCaAnnee = num(params.evolution_ca_estime)/100;
     let tauxMargeAnnee = tauxMargeBruteN0;
+    let evolCharges = num(params.evolution_charges_estime)/100;
+    let evolSalaires = num(params.evolution_salaires_estime)/100;
     
     if(a > 0 && pState.growth[a]){
-        if(pState.growth[a].ca !== null && pState.growth[a].ca !== '') tauxEvolCaAnnee = num(pState.growth[a].ca)/100;
-        if(pState.growth[a].marge !== null && pState.growth[a].marge !== '') tauxMargeAnnee = num(pState.growth[a].marge);
+        if(pState.growth[a].ca !== null && pState.growth[a].ca !== undefined) tauxEvolCaAnnee = num(pState.growth[a].ca)/100;
+        if(pState.growth[a].marge !== null && pState.growth[a].marge !== undefined) tauxMargeAnnee = num(pState.growth[a].marge);
     }
 
     if(a>0){ 
@@ -1142,27 +1226,35 @@ function computePrevisionnel(dataRef, params, valo, pState){
     const margeCommerciale = CA * (a===0 ? tauxMargeBruteN0 : tauxMargeAnnee) / 100;
     const impotsTaxes = num(dataRef.impots_taxes_hors_is) ? (num(dataRef.impots_taxes_hors_is)) : 0; 
     let ebeRetraite=null, remunerationAn=null, cotisSociales=null, ebeComptable=null, resultatExploit=null,
-        chargesFiBooster=null, chargesFiBanque=null, resultatCourant=null, IS=null, resultatNet=null,
-        paiementCapital=null, paiementStock=null, resultatAvantRedistrib=null;
+        chargesFi=null, resultatCourant=null, IS=null, resultatNet=null,
+        paiementCapital=null, paiementStockVendeur=null, resultatAvantRedistrib=null;
     
     if(a>=1){
       ebeRetraite = margeCommerciale - chargesExt - impotsTaxes - salaires;
       remunerationAn = remuneration;
       cotisSociales = remunerationAn*num(params.charges_sociales_exploitant)/100;
       ebeComptable = ebeRetraite - remunerationAn - cotisSociales;
-      const amort = a===1 ? dotationAmort : dotationAmort;
+      const amort = a<=dureeAmortTravaux ? dotationAmort : 0;
       const install = a===1 ? droitsFraisInstall : 0;
       resultatExploit = ebeComptable - amort - install;
-      chargesFiBooster = valo.boosterInteretsAn;
-      const ligne = valo.tableauPret[a-1];
-      chargesFiBanque = ligne ? ligne.interets : 0;
-      resultatCourant = resultatExploit - chargesFiBooster - chargesFiBanque;
+      
+      // Agrégation des prêts
+      chargesFi = 0; paiementCapital = 0;
+      valo.allLoans.forEach(loan => {
+         const line = loan.schedule.find(s => s.annee === a);
+         if(line) {
+            chargesFi += line.interets;
+            paiementCapital += line.capital;
+         }
+      });
+      
+      resultatCourant = resultatExploit - chargesFi;
       IS = calcIS(resultatCourant, prevResultatCourant, params);
       resultatNet = resultatCourant - IS;
-      paiementCapital = ligne ? ligne.capital : 0;
       
-      paiementStock = 0;
-      if (params.stock_financement === "Prêt vendeur") {
+      // Crédit Vendeur Stock (Lissé)
+      paiementStockVendeur = 0;
+      if (params.stock_financement === "Crédit Vendeur") {
         const dureeMois = num(params.duree_credit_vendeur_mois) || 12;
         const anneeDebut = num(params.annee_debut_credit_vendeur) || 1;
         const stockMontant = num(dataRef.stock_final);
@@ -1175,17 +1267,17 @@ function computePrevisionnel(dataRef, params, valo, pState){
           const overlapStart = Math.max(moisDebutAbsolu, moisAnneeDebut);
           const overlapEnd = Math.min(moisFinAbsolu, moisAnneeFin);
           const moisPayes = Math.max(0, overlapEnd - overlapStart);
-          paiementStock = moisPayes * paiementMensuel;
+          paiementStockVendeur = moisPayes * paiementMensuel;
         }
       }
 
-      resultatAvantRedistrib = resultatNet - paiementCapital - paiementStock; 
+      resultatAvantRedistrib = resultatNet - paiementCapital - paiementStockVendeur; 
       prevResultatCourant = resultatCourant;
     }
     years.push({ annee:a, CA, tauxMargeAnnee: a===0?tauxMargeBruteN0:tauxMargeAnnee, margeCommerciale, chargesExt, impotsTaxes, salaires,
-      ebeRetraite, remunerationAn, cotisSociales, ebeComptable, dotationAmort: a===1?dotationAmort:(a>=1?dotationAmort:null),
-      droitsFraisInstall: a===1?droitsFraisInstall:(a>=1?0:null), paiementStock: a>=1?paiementStock:null,
-      resultatExploit, chargesFiBooster, chargesFiBanque, resultatCourant, IS, resultatNet, paiementCapital, resultatAvantRedistrib });
+      ebeRetraite, remunerationAn, cotisSociales, ebeComptable, dotationAmort: a<=dureeAmortTravaux?dotationAmort:(a>=1?0:null),
+      droitsFraisInstall: a===1?droitsFraisInstall:(a>=1?0:null), paiementStockVendeur: a>=1?paiementStockVendeur:null,
+      resultatExploit, chargesFi, resultatCourant, IS, resultatNet, paiementCapital, resultatAvantRedistrib });
   }
   return { years, totalChargesExtInit, totalSalairesInit, caN0 };
 }
@@ -1229,8 +1321,10 @@ function renderEvaluationTab(root){
           <tr><td>Salaires et charges (hors gérance)</td><td>${fmtEUR(-(num(dataN.salaires_personnel)+num(dataN.charges_personnel)))}</td></tr>
           <tr class="total"><td>EBE comptable</td><td>${fmtEUR(r.EBE)}</td></tr>
           <tr><td>+ Rémunération et charges gérance</td><td>${fmtEUR(r.remunerationDirigeant)}</td></tr>
-          <tr><td>+ CSG déductible & Autres retraitements</td><td>${fmtEUR(r.retraitementsDivers)}</td></tr>
-          <tr><td>+ Activité exceptionnelle (retraitement)</td><td>${fmtEUR(num(dataN.activite_exceptionnelle))}</td></tr>
+          <tr><td>+ Avantages en nature</td><td>${fmtEUR(num(dataN.avantage_nature))}</td></tr>
+          <tr><td>+ CSG déductible</td><td>${fmtEUR(num(dataN.csg_deductible))}</td></tr>
+          <tr><td>+ Autres retraitements & Tiers payant</td><td>${fmtEUR(num(dataN.autres_retraitements) + num(dataN.tiers_payant))}</td></tr>
+          <tr><td>+ Activité exceptionnelle</td><td>${fmtEUR(num(dataN.activite_exceptionnelle))}</td></tr>
           <tr class="total"><td>EBE retraité</td><td class="pos" style="font-size:16px;">${fmtEUR(r.EBE_retraite)}</td></tr>
         </table>
         <div class="kpi-row" style="grid-template-columns:1fr;">
@@ -1240,30 +1334,7 @@ function renderEvaluationTab(root){
         </div>
       </div>
     </div>
-
-    <div class="card">
-      <h2>Comparaison aux moyennes nationales</h2>
-      ${benchBar('Ratio clients (j)', r.ratioClients, params.ratio_clients, 0, 60)}
-      ${benchBar('Ratio trésorerie (j)', r.ratioTresorerie, params.ratio_tresorerie, 0, 80)}
-      ${benchBar('Ratio fournisseurs (j)', r.ratioFournisseurs, params.ratio_fournisseurs, 0, 80)}
-      ${benchBar('Ratio stock (j)', r.ratioStock, params.ratio_stock, 0, 80)}
-      ${benchBar('Évolution CA (%)', r.evolutionCA, params.evolution_ca_nationale, -10, 20)}
-      ${benchBar('Charges externes (%)', r.ratioChargesExterne, params.ratio_charges_externe, 0, 15)}
-      ${benchBar('Charges personnel (%)', r.ratioChargesPersonnel, params.ratio_charges_personnel, 0, 25)}
-      ${benchBar('Taux marge (%)', r.tauxMarge, params.marge_brute_commerciale_nationale, 0, 40)}
-      ${benchBar('Taux EBE / CA (%)', r.tauxEBE_CA, params.taux_ebe_ca, 0, 20)}
-      ${benchBar('Taux EBE / Marge (%)', r.tauxEBE_Marge, params.taux_ebe_marge, 0, 50)}
-    </div>`;
-}
-
-function benchBar(label, value, ref, min, max){
-  const clamp = v => Math.max(min, Math.min(max, v ?? min));
-  const pctPos = v => ((clamp(v)-min)/(max-min))*100;
-  return `<div class="bench-bar">
-    <div class="lbl">${label}</div>
-    <div class="track"><div class="fillme" style="width:${pctPos(value)}%"></div><div class="marker" style="left:${pctPos(ref)}%"></div></div>
-    <div class="val">${fmtNum(value)} <span style="opacity:.5">/ ${fmtNum(ref)} nat.</span></div>
-  </div>`;
+  `;
 }
 
 /* ==========================================================================================
@@ -1311,51 +1382,44 @@ function renderValorisationTab(root){
           <tr><td>Frais d'acquisition (Droits...)</td><td>${fmtEUR(v.fraisAcquisition)}</td></tr>
           <tr><td>Travaux prévus</td><td>${fmtEUR(v.travaux)}</td></tr>
           <tr><td>Stock (valeur bilan)</td><td>${fmtEUR(v.stockFinalLigne)}</td></tr>
-          <tr><td>BFR ${params.besoin_bfr?'':'(non financé)'}</td><td>${fmtEUR(v.bfrRetenu)}</td></tr>
+          <tr><td>BFR Initial ${params.besoin_bfr!==false?'':'(Non financé)'}</td><td>${fmtEUR(v.bfrRetenu)}</td></tr>
           <tr class="total"><td>Total des Besoins</td><td>${fmtEUR(v.totalBesoinsFinanciers)}</td></tr>
         </table>
         
         <div>
           <table class="calc">
-            <tr><th colspan="2" style="font-size:14px; text-align:left; color:var(--ink);">Ressources financières</th></tr>
-            <tr><td>Total de vos Apports personnels</td><td class="pos">${fmtEUR(v.apportsTotal)}</td></tr>
-            <tr><td>Montant de l'emprunt bancaire</td><td class="pos">${fmtEUR(v.emprunt)}</td></tr>
-            <tr class="sub"><td><em>Financement du stock (${params.stock_financement})</em></td><td><em>${fmtEUR(v.aFinancerStock)}</em></td></tr>
-            <tr class="sub"><td><em>Financement des travaux (${params.financement_travaux_mode})</em></td><td><em>${fmtEUR(params.financement_travaux_mode==='Apports'?v.aFinancerTravaux:0)}</em></td></tr>
+            <tr><th colspan="2" style="font-size:14px; text-align:left; color:var(--ink);">Ressources & Emprunts</th></tr>
+            <tr><td><b>Apports & Aides</b> (Perso, CC, Booster...)</td><td class="pos">${fmtEUR(v.apportsTotauxSimples)}</td></tr>
+            <tr><td><b>Prêt Bancaire Principal</b></td><td class="pos">${fmtEUR(v.empruntBanque)}</td></tr>
+            <tr><td>Prêt d'Honneur</td><td>${fmtEUR(v.honneur)}</td></tr>
+            <tr><td>Crédit Vendeur (Fonds)</td><td>${fmtEUR(v.vendeur)}</td></tr>
+            <tr><td>Investisseur Privé</td><td>${fmtEUR(v.investisseur)}</td></tr>
             <tr class="total ${Math.abs(v.resteAFinancer)>1000?'neg':''}"><td>Reste à financer (Écart)</td><td class="${Math.abs(v.resteAFinancer)>1000?'neg':'pos'}">${fmtEUR(v.resteAFinancer)}</td></tr>
           </table>
 
           <div style="background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; margin-top:20px;">
-             <label style="font-weight:600; display:block; margin-bottom:8px;">Ajuster le prêt bancaire :</label>
+             <label style="font-weight:600; display:block; margin-bottom:8px;">Ajuster le prêt bancaire principal :</label>
              <div class="row" style="align-items:center;">
                <input type="number" id="input-emprunt" class="f-edit" style="width:140px; font-weight:bold;" value="${params.emprunt_banque_montant || ''}">
                <button class="primary small" id="btn-save-emprunt">Calculer</button>
-               <button class="ghost small" id="btn-suggest-emprunt" data-target="${v.besoinAvantEmprunt > 0 ? v.besoinAvantEmprunt : 0}">✨ Reste à financer à 0</button>
+               <button class="ghost small" id="btn-suggest-emprunt" data-target="${v.besoinAvantEmprunt > 0 ? v.besoinAvantEmprunt : 0}">✨ Ajuster à 0</button>
              </div>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="two-col">
+    ${v.allLoans.map(loan => `
       <div class="card">
-        <h2>Amortissement du prêt bancaire</h2>
-        <p class="note" style="margin-top:0;">${fmtEUR(v.emprunt)} sur ${v.dureeAns} ans à ${fmtPct(v.tauxAn*100)} — annuité constante de <b>${fmtEUR(v.pmt)}/an</b>.</p>
+        <h2>Amortissement : ${loan.name} ${loan.inFine ? '<span style="font-size:11px; color:#a3402f; border:1px solid currentColor; padding:2px 6px; border-radius:4px; vertical-align:middle;">IN FINE</span>' : ''}</h2>
+        <p class="note" style="margin-top:0;">${fmtEUR(loan.amount)} — ${loan.schedule.length} annuités.</p>
         <div class="scrollx"><table class="calc">
-          <tr><th>Année</th><th>Annuité</th><th>Intérêts</th><th>Capital remboursé</th><th>Reste dû</th></tr>
-          ${v.tableauPret.map(l=>`<tr><td>${l.annee}</td><td>${fmtEUR(l.annuite)}</td><td>${fmtEUR(l.interets)}</td><td>${fmtEUR(l.capital)}</td><td>${fmtEUR(l.reste)}</td></tr>`).join('')}
+          <tr><th>Année</th><th>Annuité (Total)</th><th>Intérêts</th><th>Capital remboursé</th><th>Reste dû</th></tr>
+          ${loan.schedule.map(l=>`<tr><td>${l.annee}</td><td>${fmtEUR(l.annuite)}</td><td>${fmtEUR(l.interets)}</td><td style="font-weight:bold;">${fmtEUR(l.capital)}</td><td>${fmtEUR(l.reste)}</td></tr>`).join('')}
         </table></div>
       </div>
-
-      <div class="card" style="align-self:start;">
-        <h2>Apport Booster (si présent)</h2>
-        <div class="kpi-row" style="grid-template-columns:1fr 1fr;">
-          <div class="kpi"><div class="v">${fmtEUR(v.boosterMontant)}</div><div class="l">Montant in-fine</div></div>
-          <div class="kpi"><div class="v">${fmtPct(v.boosterTaux*100)}</div><div class="l">Taux</div></div>
-        </div>
-        <div class="kpi" style="margin-top:-6px;"><div class="v">${fmtEUR(v.boosterInteretsAn)}</div><div class="l">Intérêts payés / an</div></div>
-      </div>
-    </div>`;
+    `).join('')}
+  `;
 
   document.getElementById('btn-save-valo-finale').addEventListener('click', async ()=>{
       let val = document.getElementById('input-valo-finale').value;
@@ -1385,7 +1449,7 @@ function renderValorisationTab(root){
 }
 
 /* ==========================================================================================
-   ONGLET 6 : PRÉVISIONNEL (Totalement refondu et aéré)
+   ONGLET 6 : PRÉVISIONNEL
    ========================================================================================== */
 function renderPrevisionnelTab(root){
   const dataRef = STATE.current.bilans[0]||{};
@@ -1412,10 +1476,10 @@ function renderPrevisionnelTab(root){
         <div class="row">
            <button class="ghost small" onclick="openChargesModal()">⚙️ Ajuster Charges Ext.</button>
            <button class="ghost small" onclick="openSalariesModal()">👥 Ajuster Salaires</button>
-           <button class="ghost small" onclick="openCroissanceModal()">📈 Hypothèses Croissance</button>
+           <button class="primary small" onclick="openCroissanceModal()">📈 Piloter Croissance (CA/Marge)</button>
         </div>
       </div>
-      <p style="margin-top:0; color:var(--muted); font-size:13px;">La ligne <b style="color:var(--ink)">"Résultat avant redistribution"</b> représente votre création de trésorerie nette après paiement de toutes les charges, du crédit vendeur (stock), du crédit bancaire et de votre rémunération de dirigeant.</p>
+      <p style="margin-top:0; color:var(--muted); font-size:13px;">La ligne <b style="color:var(--ink)">"Résultat avant redistribution"</b> représente votre création de trésorerie nette après paiement de toutes les charges, crédits (stock & banques), et de votre rémunération de dirigeant.</p>
       <div class="scrollx" id="previ-table"></div>
     </div>`;
 
@@ -1424,26 +1488,25 @@ function renderPrevisionnelTab(root){
     const cols = p.years;
     const rows = [
       ['CA HT', y=>fmtEUR(y.CA)],
-      ['Taux de Marge Brute', y=>fmtPct(y.tauxMargeAnnee)],
+      ['Taux de Marge Brute', y=>fmtPct(y.tauxMargeAnnee, 2)],
       ['Marge Commerciale', y=>fmtEUR(y.margeCommerciale)],
       ['Charges externes', y=>fmtEUR(y.chargesExt)],
       ['Impôts et taxes', y=>fmtEUR(y.impotsTaxes)],
       ['Salaires et charges', y=>fmtEUR(y.salaires)],
       ['EBE retraité', y=>y.ebeRetraite==null?'—':fmtEUR(y.ebeRetraite)],
-      ['Rémunération exploitant(s)', y=>y.remunerationAn==null?'—':fmtEUR(y.remunerationAn)],
-      ['Cotisations sociales TNS', y=>y.cotisSociales==null?'—':fmtEUR(y.cotisSociales)],
+      ['Rémunération dirigeant(s)', y=>y.remunerationAn==null?'—':fmtEUR(-y.remunerationAn)],
+      ['Cotisations sociales TNS', y=>y.cotisSociales==null?'—':fmtEUR(-y.cotisSociales)],
       ['EBE comptable', y=>y.ebeComptable==null?'—':fmtEUR(y.ebeComptable)],
-      ['Dotation amortissements', y=>y.dotationAmort==null?'—':fmtEUR(y.dotationAmort)],
-      ["Frais d'installation (Droit, Hono..)", y=>y.droitsFraisInstall==null?'—':fmtEUR(y.droitsFraisInstall)],
+      ['Dotation amortissements', y=>y.dotationAmort==null?'—':fmtEUR(-y.dotationAmort)],
+      ["Frais d'installation (1ère année)", y=>y.droitsFraisInstall==null?'—':fmtEUR(-y.droitsFraisInstall)],
       ["Résultat d'exploitation", y=>y.resultatExploit==null?'—':fmtEUR(y.resultatExploit)],
-      ['Charges fin. (Emprunt Banque)', y=>y.chargesFiBanque==null?'—':fmtEUR(y.chargesFiBanque)],
-      ['Charges fin. (Prêt Booster)', y=>y.chargesFiBooster==null?'—':fmtEUR(y.chargesFiBooster)],
+      ['Intérêts d\'emprunts (Tous prêts)', y=>y.chargesFi==null?'—':fmtEUR(-y.chargesFi)],
       ['Résultat courant', y=>y.resultatCourant==null?'—':fmtEUR(y.resultatCourant)],
-      ['Impôt sur les sociétés (IS)', y=>y.IS==null?'—':fmtEUR(y.IS)],
+      ['Impôt sur les sociétés (IS)', y=>y.IS==null?'—':fmtEUR(-y.IS)],
       ['Résultat net après IS', y=>y.resultatNet==null?'—':fmtEUR(y.resultatNet)],
-      ['Paiement du capital (Banque)', y=>y.paiementCapital==null?'—':fmtEUR(y.paiementCapital)],
-      ['Paiement crédit vendeur (Stock)', y=>y.paiementStock==null?'—':fmtEUR(y.paiementStock)],
-      ['Résultat avant redistribution', y=>y.resultatAvantRedistrib==null?'—':`<span style="color:${y.resultatAvantRedistrib<0?'var(--danger)':'var(--accent-dark)'}; font-weight:bold;">${fmtEUR(y.resultatAvantRedistrib)}</span>`],
+      ['Remboursement Capital (Tous prêts)', y=>y.paiementCapital==null?'—':fmtEUR(-y.paiementCapital)],
+      ['Paiement crédit vendeur (Stock direct)', y=>y.paiementStockVendeur==null?'—':fmtEUR(-y.paiementStockVendeur)],
+      ['Résultat avant redistribution', y=>y.resultatAvantRedistrib==null?'—':`<span style="color:${y.resultatAvantRedistrib<0?'var(--danger)':'var(--accent-dark)'}; font-weight:bold; font-size:15px;">${fmtEUR(y.resultatAvantRedistrib)}</span>`],
     ];
     const table = document.getElementById('previ-table');
     table.innerHTML = `<table class="calc">
@@ -1464,39 +1527,27 @@ window.openCroissanceModal = function() {
   
   let rows = '';
   for(let a=1; a<=12; a++){
-     const caVal = pState.growth[a] && pState.growth[a].ca !== undefined ? pState.growth[a].ca : (p.evolution_ca_estime||'');
-     const margeVal = pState.growth[a] && pState.growth[a].marge !== undefined ? pState.growth[a].marge : fmtNum(tauxMargeN0,2);
+     const caVal = pState.growth[a] && pState.growth[a].ca !== undefined && pState.growth[a].ca !== null ? pState.growth[a].ca : (p.evolution_ca_estime||0);
+     const margeVal = pState.growth[a] && pState.growth[a].marge !== undefined && pState.growth[a].marge !== null ? pState.growth[a].marge : fmtNum(tauxMargeN0 + (a*(num(p.evolution_marge_estime)||0)),2);
      rows += `
-       <div style="font-weight:bold;">Année ${a}</div>
-       <input type="number" step="any" id="mod-evo-ca-${a}" class="f-edit" value="${caVal}">
-       <input type="number" step="any" id="mod-evo-mg-${a}" class="f-edit" value="${margeVal}">
+       <div style="font-weight:bold; border-bottom:1px solid var(--line); padding:6px 0;">Année ${a}</div>
+       <div style="border-bottom:1px solid var(--line); padding:6px 0;"><input type="number" step="any" id="mod-evo-ca-${a}" class="f-edit" style="width:80px;" value="${caVal}"> %</div>
+       <div style="border-bottom:1px solid var(--line); padding:6px 0;"><input type="number" step="any" id="mod-evo-mg-${a}" class="f-edit" style="width:80px;" value="${margeVal}"> %</div>
      `;
   }
 
   const html = `
     <div class="modal-bg" onclick="if(event.target===this) document.getElementById('modal-root').innerHTML=''">
-      <div class="modal small-modal" style="text-align:left;">
+      <div class="modal" style="max-width:500px;">
         <button class="close-x" onclick="document.getElementById('modal-root').innerHTML=''">×</button>
-        <h3 style="color:var(--accent-dark); margin-bottom:8px; font-size:18px;">Hypothèses de croissance</h3>
-        <p class="note" style="margin-top:0;">Saisissez vos prévisions année par année. Piloter la croissance du CA et l'amélioration de la marge définit automatiquement l'EBE.</p>
+        <h3 style="color:var(--accent-dark); margin-bottom:8px; font-size:18px;">Hypothèses de croissance (Sur-mesure)</h3>
+        <p class="note" style="margin-top:0;">Saisissez vos prévisions pour chaque année. Piloter l'évolution du CA et le Taux de Marge définit mécaniquement votre rentabilité brute.</p>
         
-        <div style="display:grid; grid-template-columns:60px 1fr 1fr; gap:12px; align-items:center; text-align:center; font-weight:bold; font-size:12px; color:var(--muted); margin-bottom:8px;">
-           <div>Année</div><div>Évol CA (%)</div><div>Taux Marge (%)</div>
-        </div>
-        <div style="display:grid; grid-template-columns:60px 1fr 1fr; gap:8px 12px; align-items:center; max-height:45vh; overflow-y:auto; padding-right:10px;">
+        <div style="display:grid; grid-template-columns:80px 1fr 1fr; gap:0 12px; align-items:center; text-align:center; font-weight:bold; font-size:12px; color:var(--muted); margin-bottom:8px; padding-right:10px;">
+           <div style="text-align:left;">Année</div><div>Évol. du CA (%)</div><div>Taux Marge (%)</div>
            ${rows}
         </div>
         
-        <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--line);">
-           <div class="field-grid wide" style="grid-template-columns:1fr 120px;">
-             <div class="field-label">Évolution annuelle charges (%)</div>
-             <input type="number" step="any" id="mod-evo-ch" class="f-edit" value="${p.evolution_charges_estime||''}">
-             <div class="field-label">Évolution annuelle salaires (%)</div>
-             <input type="number" step="any" id="mod-evo-sal" class="f-edit" value="${p.evolution_salaires_estime||''}">
-             <div class="field-label">Rémunération dirigeant (€/an)</div>
-             <input type="number" step="any" id="mod-rem-dir" class="f-edit" value="${p.remuneration_exploitant_souhaitee||''}">
-           </div>
-        </div>
         <div class="modal-actions" style="margin-top:24px;">
            <button class="primary" onclick="saveCroissanceModal()">Appliquer les hypothèses</button>
         </div>
@@ -1518,12 +1569,7 @@ window.saveCroissanceModal = async function() {
       pState.growth[a].marge = mgInp === '' ? null : parseFloat(mgInp);
    }
 
-   const newParams = { ...p,
-      evolution_charges_estime: num(document.getElementById('mod-evo-ch').value),
-      evolution_salaires_estime: num(document.getElementById('mod-evo-sal').value),
-      remuneration_exploitant_souhaitee: num(document.getElementById('mod-rem-dir').value),
-      previ_state: pState
-   };
+   const newParams = { ...p, previ_state: pState };
    await sb.from('parametres').update({ params:newParams }).eq('project_id', STATE.current.project.id);
    STATE.current.params = newParams;
    document.getElementById('modal-root').innerHTML='';
@@ -1563,9 +1609,9 @@ window.renderChargesModalContent = function() {
       <div class="modal">
         <button class="close-x" onclick="document.getElementById('modal-root').innerHTML=''">×</button>
         <h3 style="color:var(--accent-dark); margin-bottom:8px; font-size:18px;">Ajustement des charges externes</h3>
-        <p class="note" style="margin-top:0;">Décochez les charges du cédant que vous n'aurez pas (ex: certaines assurances), ou forcez un nouveau montant annuel. Vous pouvez aussi ajouter des frais spécifiques à votre projet.</p>
+        <p class="note" style="margin-top:0;">Décochez les charges du cédant que vous n'aurez pas, ou forcez un nouveau montant annuel. Ajoutez aussi des frais spécifiques (redevance groupement, nouveau loyer...).</p>
         
-        <h4 style="margin-top:16px;">Charges issues du bilan</h4>
+        <h4 style="margin-top:16px;">Charges issues du bilan de référence</h4>
         <div class="field-grid wide" style="max-height:35vh; overflow-y:auto; padding-right:10px; margin-bottom:20px;">
            ${rows}
         </div>
@@ -1677,116 +1723,194 @@ window.saveSalariesModal = async function() {
 }
 
 /* ==========================================================================================
-   EXPORT PDF PROFESSIONNEL
+   EXPORT PDF PROFESSIONNEL (7 PAGES)
    ========================================================================================== */
 document.getElementById('btn-export-pdf').addEventListener('click', async () => {
-    toast("Génération du PDF en cours...");
+    toast("Génération du PDF d'Expertise en cours...");
     
     const dataRef = STATE.current.bilans[0]||{};
+    const dataN1 = STATE.current.bilans[-1]||{};
+    const dataN2 = STATE.current.bilans[-2]||{};
     const params = STATE.current.params;
-    if(Object.keys(dataRef).length===0) { toast("Bilan N manquant pour l'export."); return; }
+    
+    if(Object.keys(dataRef).length===0) { toast("Erreur: Bilan de l'année N manquant."); return; }
 
-    const rEval = computeEvaluation(dataRef, STATE.current.bilans[-1]||{});
+    const rEval = computeEvaluation(dataRef, dataN1);
     const v = computeValorisation(dataRef, params, rEval);
     const p = computePrevisionnel(dataRef, params, v, params.previ_state);
 
     const projName = escapeHtml(STATE.current.project.nom);
     const dateToday = new Date().toLocaleDateString('fr-FR');
     
-    // Conclusion de l'Expert
-    const cashFlow5Years = p.years.slice(1,6).reduce((sum, y) => sum + y.resultatAvantRedistrib, 0);
-    const cashFlowYear5 = p.years[5]?.resultatAvantRedistrib || 0;
+    // Engine Conclusion
+    let cashFlow5Years = 0;
+    for(let a=1; a<=5; a++){ cashFlow5Years += p.years[a].resultatAvantRedistrib; }
+    
+    let inFineDueAt5 = 0;
+    let inFineDueAfter5 = 0;
+    v.allLoans.forEach(loan => {
+       if(loan.inFine) {
+          const maturityYear = loan.schedule.length;
+          if (maturityYear === 5) inFineDueAt5 += loan.amount;
+          else if (maturityYear > 5) inFineDueAfter5 += loan.amount;
+       }
+    });
+
     let conclusionText = "";
-    if (cashFlow5Years > 0 && cashFlowYear5 > 0) {
-        conclusionText = `Le projet présente une excellente viabilité financière. La pharmacie génère une trésorerie nette positive au bout de 5 ans (Cumul : <b>${fmtEUR(cashFlow5Years)}</b>), permettant de couvrir sereinement le service de la dette et les rémunérations prévues.`;
-    } else if (cashFlow5Years < 0 && cashFlowYear5 > 0) {
-        conclusionText = `Le projet est viable à terme, mais nécessite un besoin en fonds de roulement ou un apport complémentaire au démarrage pour combler le déficit de trésorerie initial (Cumul à 5 ans : <b style="color:#a3402f;">${fmtEUR(cashFlow5Years)}</b>). La capacité d'autofinancement annuelle redevient cependant positive.`;
+    if (inFineDueAt5 > 0) {
+        if (cashFlow5Years >= inFineDueAt5) {
+            conclusionText = `Le projet démontre une excellente solidité. La trésorerie nette générée sur 5 ans (<span style="color:#204f42; font-weight:bold;">${fmtEUR(cashFlow5Years)}</span>) permet de couvrir confortablement le remboursement *in fine* prévu à cette date (${fmtEUR(inFineDueAt5)}). Le plan de financement est parfaitement équilibré.`;
+        } else {
+            conclusionText = `Le modèle d'exploitation est sain, mais présente un mur de dette. La trésorerie accumulée à 5 ans (<span style="color:#a3402f; font-weight:bold;">${fmtEUR(cashFlow5Years)}</span>) sera insuffisante pour rembourser le capital *in fine* prévu de ${fmtEUR(inFineDueAt5)}. Il faudra impérativement anticiper un refinancement bancaire de la différence.`;
+        }
     } else {
-        conclusionText = `Le projet présente un risque financier élevé. La trésorerie nette cumulée à 5 ans est déficitaire (<b style="color:#a3402f;">${fmtEUR(cashFlow5Years)}</b>), et le modèle ne permet pas de couvrir le remboursement de la dette bancaire dans les conditions actuelles.`;
+        if (cashFlow5Years > 0) {
+            conclusionText = `Le projet présente une excellente viabilité financière. La pharmacie génère une trésorerie nette positive au bout de 5 ans (Cumul : <span style="color:#204f42; font-weight:bold;">${fmtEUR(cashFlow5Years)}</span>), permettant de couvrir sereinement le service de la dette et de consolider le fonds de roulement.`;
+        } else {
+            conclusionText = `Le projet présente un profil de risque élevé en l'état. La trésorerie nette cumulée à 5 ans est déficitaire (<span style="color:#a3402f; font-weight:bold;">${fmtEUR(cashFlow5Years)}</span>). L'exploitation ne permet pas d'absorber l'intégralité de la charge de la dette et de la rémunération souhaitée. Une révision du plan de financement (baisse de la valorisation, augmentation de l'apport ou de la durée du prêt) est recommandée.`;
+        }
     }
+
+    if (inFineDueAfter5 > 0) {
+        conclusionText += ` <br><br><i>Note de vigilance : Un capital emprunté *in fine* de ${fmtEUR(inFineDueAfter5)} arrivera à échéance après la 5ème année. La capacité d'autofinancement devra être maintenue pour honorer cette dette.</i>`;
+    }
+
+    // Historique Helper
+    const hist = (k) => [num(dataRef[k]), num(dataN1[k]), num(dataN2[k])];
 
     const htmlContent = `
       <div class="pdf-container">
          <!-- PAGE 1 : COUVERTURE -->
          <div style="height:1000px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;">
-            <h4 style="color:#726f66; letter-spacing:0.1em;">DOSSIER EXPERT</h4>
-            <h1 style="font-size:36px; border:none; margin-bottom:10px;">Étude de Faisabilité & Valorisation</h1>
-            <h2 style="font-size:24px; color:#2f6f5e; margin-top:0;">${projName}</h2>
-            <div style="margin-top:60px; color:#726f66;">Édité le ${dateToday}</div>
+            <h4 style="color:#726f66; letter-spacing:0.1em; margin-bottom:30px;">RAPPORT D'EXPERTISE</h4>
+            <h1 style="font-size:38px; border:none; margin-bottom:10px;">Étude de Faisabilité & Valorisation</h1>
+            <h2 style="font-size:26px; color:#2f6f5e; margin-top:0;">${projName}</h2>
+            
+            <div style="margin-top:100px; border:1px solid #e2ded4; padding:20px; border-radius:8px; text-align:left; width:350px;">
+                <div style="font-weight:bold; margin-bottom:10px;">Cible :</div>
+                <div style="font-size:12px; margin-bottom:4px;">CA HT Bilan : ${fmtEUR(num(dataRef.ca_ht_bilan))}</div>
+                <div style="font-size:12px; margin-bottom:4px;">EBE Retraité : ${fmtEUR(rEval.EBE_retraite)}</div>
+                <div style="font-size:12px; margin-bottom:4px;">Localisation : ${escapeHtml((STATE.current.project.infos||{}).ville) || 'N/C'}</div>
+            </div>
+
+            <div style="margin-top:80px; color:#726f66; font-size:12px;">Édité le ${dateToday}</div>
          </div>
          <div class="html2pdf__page-break"></div>
 
-         <!-- PAGE 2 : VALORISATION & FINANCEMENT -->
-         <h1>Synthèse du Financement</h1>
+         <!-- PAGE 2 : SOMMAIRE -->
+         <h1>Sommaire de l'Étude</h1>
+         <div style="margin-top:40px; padding:0 30px;">
+             <ul class="toc-list">
+                <li><span>1. Historique Financier de la Pharmacie (3 ans)</span> <span>3</span></li>
+                <li><span>2. Ratios d'Exploitation vs Moyennes Nationales</span> <span>4</span></li>
+                <li><span>3. Bilan de Référence & EBE Retraité</span> <span>5</span></li>
+                <li><span>4. Synthèse du Plan de Financement</span> <span>6</span></li>
+                <li><span>5. Prévisionnel de Trésorerie (5 ans) & Conclusion</span> <span>7</span></li>
+             </ul>
+         </div>
+         <div class="html2pdf__page-break"></div>
+
+         <!-- PAGE 3 : HISTORIQUE -->
+         <h1>1. Historique Financier (3 Ans)</h1>
          <table class="calc" style="width:100%; margin-top:20px;">
-            <tr><th colspan="2" style="font-size:14px; text-align:left; color:#1c2321; background:#f0f0f0;">Besoins financiers</th></tr>
-            <tr><td>Valorisation retenue du fonds</td><td style="font-weight:bold;">${fmtEUR(v.valoRetenue)}</td></tr>
-            <tr><td>Honoraires de transaction (HT)</td><td>${fmtEUR(v.honoraireTransaction)}</td></tr>
-            <tr><td>Honoraire comptable</td><td>${fmtEUR(v.honoraireComptable)}</td></tr>
-            <tr><td>Honoraire juridique</td><td>${fmtEUR(v.honoraireJuridique)}</td></tr>
-            <tr><td>Frais d'acquisition (Droits...)</td><td>${fmtEUR(v.fraisAcquisition)}</td></tr>
-            <tr><td>Travaux prévus</td><td>${fmtEUR(v.travaux)}</td></tr>
-            <tr><td>Stock (valeur bilan)</td><td>${fmtEUR(v.stockFinalLigne)}</td></tr>
-            <tr><td>BFR</td><td>${fmtEUR(v.bfrRetenu)}</td></tr>
-            <tr style="background:#eef6f3; font-weight:bold;"><td>Total des Besoins</td><td>${fmtEUR(v.totalBesoinsFinanciers)}</td></tr>
+            <tr><th>Indicateur</th><th style="text-align:right">Année N</th><th style="text-align:right">Année N-1</th><th style="text-align:right">Année N-2</th></tr>
+            <tr><td>Chiffre d'Affaires Ventes HT</td><td>${fmtEUR(hist('ca_ht_bilan')[0])}</td><td>${fmtEUR(hist('ca_ht_bilan')[1])}</td><td>${fmtEUR(hist('ca_ht_bilan')[2])}</td></tr>
+            <tr><td>Achats Consommés HT</td><td>${fmtEUR(-computeBilanAggregate(dataRef).achatsConsoHT)}</td><td>${fmtEUR(-computeBilanAggregate(dataN1).achatsConsoHT)}</td><td>${fmtEUR(-computeBilanAggregate(dataN2).achatsConsoHT)}</td></tr>
+            <tr style="background:#fafafa; font-weight:bold;"><td>Marge Brute Globale</td><td>${fmtEUR(hist('marge_brute_globale_bilan')[0])}</td><td>${fmtEUR(hist('marge_brute_globale_bilan')[1])}</td><td>${fmtEUR(hist('marge_brute_globale_bilan')[2])}</td></tr>
+            <tr><td>Charges Externes</td><td>${fmtEUR(-computeBilanAggregate(dataRef).chargesExternes)}</td><td>${fmtEUR(-computeBilanAggregate(dataN1).chargesExternes)}</td><td>${fmtEUR(-computeBilanAggregate(dataN2).chargesExternes)}</td></tr>
+            <tr><td>Masse Salariale</td><td>${fmtEUR(-(hist('salaires_personnel')[0]+hist('charges_personnel')[0]))}</td><td>${fmtEUR(-(hist('salaires_personnel')[1]+hist('charges_personnel')[1]))}</td><td>${fmtEUR(-(hist('salaires_personnel')[2]+hist('charges_personnel')[2]))}</td></tr>
+            <tr style="background:#eef6f3; font-weight:bold;"><td>EBE Bilan Officiel</td><td>${fmtEUR(hist('ebe_bilan')[0])}</td><td>${fmtEUR(hist('ebe_bilan')[1])}</td><td>${fmtEUR(hist('ebe_bilan')[2])}</td></tr>
          </table>
+         <div class="html2pdf__page-break"></div>
+
+         <!-- PAGE 4 : RATIOS -->
+         <h1>2. Ratios & Comparaison Nationale</h1>
+         <p style="margin-bottom:20px;">Analyse de la structure financière de la cible lors de sa dernière année d'exploitation (N), comparée aux moyennes sectorielles configurées.</p>
          <table class="calc" style="width:100%;">
-            <tr><th colspan="2" style="font-size:14px; text-align:left; color:#1c2321; background:#f0f0f0;">Ressources financières</th></tr>
-            <tr><td>Total Apports personnels</td><td style="font-weight:bold;">${fmtEUR(v.apportsTotal)}</td></tr>
-            <tr><td>Montant de l'emprunt bancaire</td><td style="font-weight:bold;">${fmtEUR(v.emprunt)}</td></tr>
-            <tr><td style="color:#726f66;">Financement du stock (${params.stock_financement})</td><td style="color:#726f66;">${fmtEUR(v.aFinancerStock)}</td></tr>
-            <tr><td style="color:#726f66;">Financement des travaux (${params.financement_travaux_mode})</td><td style="color:#726f66;">${fmtEUR(params.financement_travaux_mode==='Apports'?v.aFinancerTravaux:0)}</td></tr>
-            <tr style="background:#fff3d6; font-weight:bold;"><td>Reste à financer (Écart)</td><td style="color:${v.resteAFinancer!==0?'#a3402f':'#204f42'}">${fmtEUR(v.resteAFinancer)}</td></tr>
+            <tr><th>Indicateur</th><th style="text-align:right">Cible (N)</th><th style="text-align:right">Norme Nationale</th><th style="text-align:center">Écart</th></tr>
+            <tr><td>Ratio Clients</td><td>${fmtNum(rEval.ratioClients)} jours</td><td>${fmtNum(params.ratio_clients)} jours</td><td style="text-align:center">${rEval.ratioClients > params.ratio_clients ? '⚠️' : '✅'}</td></tr>
+            <tr><td>Ratio Fournisseurs</td><td>${fmtNum(rEval.ratioFournisseurs)} jours</td><td>${fmtNum(params.ratio_fournisseurs)} jours</td><td style="text-align:center">${rEval.ratioFournisseurs < params.ratio_fournisseurs ? '⚠️' : '✅'}</td></tr>
+            <tr><td>Ratio Stock</td><td>${fmtNum(rEval.ratioStock)} jours</td><td>${fmtNum(params.ratio_stock)} jours</td><td style="text-align:center">${rEval.ratioStock > params.ratio_stock ? '⚠️' : '✅'}</td></tr>
+            <tr><td>Taux de Marge Commerciale</td><td>${fmtPct(rEval.tauxMarge)}</td><td>${fmtPct(params.marge_brute_commerciale_nationale)}</td><td style="text-align:center">${rEval.tauxMarge < params.marge_brute_commerciale_nationale ? '⚠️' : '✅'}</td></tr>
+            <tr><td>Poids des Charges Externes</td><td>${fmtPct(rEval.ratioChargesExterne)}</td><td>${fmtPct(params.ratio_charges_externe)}</td><td style="text-align:center">${rEval.ratioChargesExterne > params.ratio_charges_externe ? '⚠️' : '✅'}</td></tr>
+            <tr><td>Poids de la Masse Salariale</td><td>${fmtPct(rEval.ratioChargesPersonnel)}</td><td>${fmtPct(params.ratio_charges_personnel)}</td><td style="text-align:center">${rEval.ratioChargesPersonnel > params.ratio_charges_personnel ? '⚠️' : '✅'}</td></tr>
+            <tr style="font-weight:bold; background:#f0f0f0;"><td>Rentabilité (EBE/CA)</td><td>${fmtPct(rEval.tauxEBE_CA)}</td><td>${fmtPct(params.taux_ebe_ca)}</td><td style="text-align:center">${rEval.tauxEBE_CA < params.taux_ebe_ca ? '⚠️' : '✅'}</td></tr>
          </table>
-
          <div class="html2pdf__page-break"></div>
 
-         <!-- PAGE 3 : EBE RETRAITÉ -->
-         <h1>Bilan & Rentabilité de Référence</h1>
+         <!-- PAGE 5 : EBE RETRAITÉ -->
+         <h1>3. Bilan de Référence & EBE Retraité</h1>
+         <p style="margin-bottom:20px;">L'EBE retraité neutralise les choix d'optimisation fiscale et de rémunération du cédant pour définir la véritable capacité bénéficiaire de l'outil de travail.</p>
+         <table class="calc" style="width:100%; max-width:600px; margin:0 auto;">
+          <tr><td>Chiffre d'Affaires Total HT</td><td>${fmtEUR(rEval.N.caTotalHT)}</td></tr>
+          <tr><td>Achats Consommés HT</td><td>${fmtEUR(-rEval.N.achatsConsoHT)}</td></tr>
+          <tr><td>Charges Externes (Loyers, Frais...)</td><td>${fmtEUR(-rEval.N.chargesExternes)}</td></tr>
+          <tr><td>Impôts et taxes</td><td>${fmtEUR(-num(dataRef.impots_taxes_hors_is))}</td></tr>
+          <tr><td>Masse Salariale Nette (hors gérance)</td><td>${fmtEUR(-(num(dataRef.salaires_personnel)+num(dataRef.charges_personnel)))}</td></tr>
+          <tr style="font-weight:bold; background:#fafafa;"><td>EBE Comptable (Bilan N)</td><td>${fmtEUR(rEval.EBE)}</td></tr>
+          <tr><td style="color:#726f66;">+ Réintégration Rémunération & Charges Gérance</td><td style="color:#726f66; text-align:right;">${fmtEUR(rEval.remunerationDirigeant)}</td></tr>
+          <tr><td style="color:#726f66;">+ Réintégration CSG, Avantages & Tiers payant</td><td style="color:#726f66; text-align:right;">${fmtEUR(rEval.retraitementsDivers)}</td></tr>
+          <tr><td style="color:#726f66;">+ Retraitement de l'activité exceptionnelle</td><td style="color:#726f66; text-align:right;">${fmtEUR(num(dataRef.activite_exceptionnelle))}</td></tr>
+          <tr style="font-weight:bold; font-size:16px; background:#eef6f3; color:#204f42;"><td style="padding:15px 8px;">EBE RETRAITÉ RETENU</td><td style="padding:15px 8px; text-align:right;">${fmtEUR(rEval.EBE_retraite)}</td></tr>
+         </table>
+         <div class="html2pdf__page-break"></div>
+
+         <!-- PAGE 6 : VALORISATION & FINANCEMENT -->
+         <h1>4. Synthèse du Financement</h1>
          <table class="calc" style="width:100%; margin-top:20px;">
-          <tr><td>CA Ventes HT</td><td>${fmtEUR(rEval.N.ventes.ht)}</td></tr>
-          <tr><td>CA Prestations HT</td><td>${fmtEUR(rEval.N.presta.ht)}</td></tr>
-          <tr><td>Achats consommés HT</td><td>${fmtEUR(-rEval.N.achatsConsoHT)}</td></tr>
-          <tr><td>Charges externes</td><td>${fmtEUR(-rEval.N.chargesExternes)}</td></tr>
-          <tr><td>Impôts et taxes (hors IS)</td><td>${fmtEUR(-num(dataRef.impots_taxes_hors_is))}</td></tr>
-          <tr><td>Salaires et charges (hors gérance)</td><td>${fmtEUR(-(num(dataRef.salaires_personnel)+num(dataRef.charges_personnel)))}</td></tr>
-          <tr style="font-weight:bold; background:#f0f0f0;"><td>EBE comptable</td><td>${fmtEUR(rEval.EBE)}</td></tr>
-          <tr><td style="color:#726f66;">+ Rémunération et charges gérance</td><td style="color:#726f66;">${fmtEUR(rEval.remunerationDirigeant)}</td></tr>
-          <tr><td style="color:#726f66;">+ CSG déductible & Autres retraitements</td><td style="color:#726f66;">${fmtEUR(rEval.retraitementsDivers)}</td></tr>
-          <tr><td style="color:#726f66;">+ Activité exceptionnelle (retraitement)</td><td style="color:#726f66;">${fmtEUR(num(dataRef.activite_exceptionnelle))}</td></tr>
-          <tr style="font-weight:bold; font-size:16px; background:#eef6f3; color:#204f42;"><td>EBE retraité</td><td>${fmtEUR(rEval.EBE_retraite)}</td></tr>
+            <tr><th colspan="2" style="font-size:14px; text-align:left; color:#1c2321; background:#f0f0f0;">A. Besoins Financiers</th></tr>
+            <tr><td>Valorisation du Fonds (Prix d'achat)</td><td style="font-weight:bold;">${fmtEUR(v.valoRetenue)}</td></tr>
+            <tr><td>Honoraires de Transaction & Intermédiaires</td><td>${fmtEUR(v.honoraireTransaction + v.honoraireComptable + v.honoraireJuridique)}</td></tr>
+            <tr><td>Frais d'Acquisition (Droits d'Enregistrement)</td><td>${fmtEUR(v.fraisAcquisition)}</td></tr>
+            <tr><td>Travaux et Aménagements prévus</td><td>${fmtEUR(v.travaux)}</td></tr>
+            <tr><td>Achat du Stock</td><td>${fmtEUR(v.stockFinalLigne)}</td></tr>
+            <tr><td>Besoin en Fonds de Roulement (BFR) Initial</td><td>${fmtEUR(v.bfrRetenu)}</td></tr>
+            <tr style="background:#eef6f3; font-weight:bold;"><td>TOTAL DES BESOINS</td><td>${fmtEUR(v.totalBesoinsFinanciers)}</td></tr>
          </table>
 
+         <table class="calc" style="width:100%; margin-top:20px;">
+            <tr><th colspan="2" style="font-size:14px; text-align:left; color:#1c2321; background:#f0f0f0;">B. Structure des Ressources</th></tr>
+            <tr><td>Apport Personnel & Compte Courant</td><td style="font-weight:bold;">${fmtEUR(num(params.apports_capital_personnel)+num(params.apports_cc_personnel))}</td></tr>
+            <tr><td>Autres Apports (Booster, Aides)</td><td>${fmtEUR(v.boosterMontant + num(params.aide_financiere))}</td></tr>
+            <tr><td>Prêt Bancaire Principal</td><td style="font-weight:bold; color:#204f42;">${fmtEUR(v.empruntBanque)}</td></tr>
+            ${v.honneur>0 ? `<tr><td>Prêt d'Honneur</td><td>${fmtEUR(v.honneur)}</td></tr>` : ''}
+            ${v.vendeur>0 ? `<tr><td>Crédit Vendeur (Fonds)</td><td>${fmtEUR(v.vendeur)}</td></tr>` : ''}
+            ${v.investisseur>0 ? `<tr><td>Investisseur Privé</td><td>${fmtEUR(v.investisseur)}</td></tr>` : ''}
+            <tr><td style="color:#726f66;">Couverture Isolée Stock (${params.stock_financement})</td><td style="color:#726f66;">${fmtEUR(v.aFinancerStock)}</td></tr>
+            <tr><td style="color:#726f66;">Couverture Isolée Travaux (${params.financement_travaux_mode})</td><td style="color:#726f66;">${fmtEUR(params.financement_travaux_mode!=='Intégré au prêt global'?v.aFinancerTravaux:0)}</td></tr>
+            <tr style="background:#fff3d6; font-weight:bold;"><td>RESTE À FINANCER (Équilibre)</td><td style="color:${v.resteAFinancer!==0?'#a3402f':'#204f42'}">${fmtEUR(v.resteAFinancer)}</td></tr>
+         </table>
          <div class="html2pdf__page-break"></div>
 
-         <!-- PAGE 4 : PRÉVISIONNEL 5 ANS -->
-         <h1>Prévisionnel Financier (5 Ans)</h1>
+         <!-- PAGE 7 : PRÉVISIONNEL 5 ANS -->
+         <h1>5. Prévisionnel de Trésorerie (5 Ans)</h1>
          <table class="calc" style="width:100%; font-size:11px;">
             <tr>
                <th style="text-align:left;">Poste</th>
                ${[1,2,3,4,5].map(a=>`<th style="text-align:right;">Année ${a}</th>`).join('')}
             </tr>
             <tr><td>Chiffre d'Affaires HT</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].CA)}</td>`).join('')}</tr>
-            <tr><td>Taux de Marge Brute</td>${[1,2,3,4,5].map(a=>`<td>${fmtPct(p.years[a].tauxMargeAnnee)}</td>`).join('')}</tr>
+            <tr><td>Taux de Marge Brute</td>${[1,2,3,4,5].map(a=>`<td>${fmtPct(p.years[a].tauxMargeAnnee,2)}</td>`).join('')}</tr>
             <tr style="background:#fafafa; font-weight:bold;"><td>Marge Commerciale</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].margeCommerciale)}</td>`).join('')}</tr>
-            <tr><td>Charges externes</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].chargesExt)}</td>`).join('')}</tr>
-            <tr><td>Salaires et charges</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].salaires)}</td>`).join('')}</tr>
+            <tr><td>Charges externes</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(-p.years[a].chargesExt)}</td>`).join('')}</tr>
+            <tr><td>Salaires et charges</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(-p.years[a].salaires)}</td>`).join('')}</tr>
             <tr style="background:#eef6f3; font-weight:bold; color:#204f42;"><td>EBE Retraité</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].ebeRetraite)}</td>`).join('')}</tr>
-            <tr><td>Rémunération & Cotis. TNS</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- (p.years[a].remunerationAn + p.years[a].cotisSociales))}</td>`).join('')}</tr>
-            <tr style="font-weight:bold; background:#fafafa;"><td>Résultat d'Exploitation</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].resultatExploit)}</td>`).join('')}</tr>
-            <tr><td>Charges Financières</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- (p.years[a].chargesFiBanque + p.years[a].chargesFiBooster))}</td>`).join('')}</tr>
+            <tr><td>Rémunération & Cotis. Dirigeant</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- (p.years[a].remunerationAn + p.years[a].cotisSociales))}</td>`).join('')}</tr>
+            <tr style="font-weight:bold; background:#fafafa;"><td>Résultat d'Exploitation (Après Rém.)</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].resultatExploit)}</td>`).join('')}</tr>
+            <tr><td>Charges Financières (Intérêts)</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- (p.years[a].chargesFiBanque + p.years[a].chargesFiBooster))}</td>`).join('')}</tr>
             <tr><td>Impôt sur les sociétés (IS)</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- p.years[a].IS)}</td>`).join('')}</tr>
             <tr style="background:#f0f0f0; font-weight:bold;"><td>Résultat Net</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(p.years[a].resultatNet)}</td>`).join('')}</tr>
-            <tr><td>Remboursement Prêt Banque</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- p.years[a].paiementCapital)}</td>`).join('')}</tr>
-            <tr><td>Remboursement Crédit Vendeur</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- p.years[a].paiementStock)}</td>`).join('')}</tr>
-            <tr style="font-weight:bold; font-size:13px; color:#1c2321; border-top:2px solid #000;"><td>Trésorerie Nette de l'exercice</td>${[1,2,3,4,5].map(a=>{
+            <tr><td colspan="6" style="color:#726f66; border-top:1px dashed #ccc; padding-top:10px;">Décaissements structurels :</td></tr>
+            <tr><td>Remboursement Capital Prêts</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- p.years[a].paiementCapital)}</td>`).join('')}</tr>
+            <tr><td>Paiement Crédit Vendeur (Stock direct)</td>${[1,2,3,4,5].map(a=>`<td>${fmtEUR(- p.years[a].paiementStockVendeur)}</td>`).join('')}</tr>
+            <tr style="font-weight:bold; font-size:13px; color:#1c2321; border-top:2px solid #000;"><td style="padding:15px 8px;">Trésorerie Nette de l'exercice</td>${[1,2,3,4,5].map(a=>{
                const val = p.years[a].resultatAvantRedistrib;
-               return `<td style="color:${val<0?'#a3402f':'#204f42'};">${fmtEUR(val)}</td>`;
+               return `<td style="color:${val<0?'#a3402f':'#204f42'}; padding:15px 8px;">${fmtEUR(val)}</td>`;
             }).join('')}</tr>
          </table>
 
          <div class="conclusion-box">
-            <h3 style="margin-top:0;">Conclusion & Avis</h3>
+            <h3 style="margin-top:0; color:#204f42;">Avis de Faisabilité (IA)</h3>
             <p>${conclusionText}</p>
          </div>
       </div>
@@ -1797,7 +1921,7 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
     container.style.display = 'block';
 
     const opt = {
-      margin:       10,
+      margin:       12,
       filename:     `Etude_Valorisation_${projName.replace(/\s+/g, '_')}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
