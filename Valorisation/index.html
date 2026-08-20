@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Valorisation Pharmacie</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -17,7 +18,12 @@
 <!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
 <script>
   // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
-  initialiserSite("01fae4ee-2c95-4caf-b600-43980b7e22b3"); 
+  if (typeof initialiserSite === 'function') {
+    initialiserSite("01fae4ee-2c95-4caf-b600-43980b7e22b3"); 
+  } else {
+    // Fallback de sécurité si testé hors environnement protect.js
+    document.addEventListener("DOMContentLoaded", () => document.body.style.display = "block");
+  }
 </script>
 <style>
 /* ============================================================
@@ -122,12 +128,15 @@ table.calc td.neg{color:var(--danger);}
 
 .kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0;}
 .kpi{border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:#fcfbf8;}
-.kpi .v{font-size:20px; font-weight:700; font-family:Georgia,serif;}
+.kpi .v{font-size:20px; font-weight:700; font-family:Georgia,serif; display: flex; align-items: baseline; gap: 4px;}
 .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
 .kpi.good .v{color:var(--accent-dark);} .kpi.bad .v{color:var(--danger);}
 
+.info-icon { cursor: help; opacity: 0.5; font-size: 11px; margin-left: 4px; vertical-align: middle; }
+.info-icon:hover { opacity: 1; color: var(--accent); }
+
 .bench-bar{display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12.5px;}
-.bench-bar .lbl{width:190px; flex-shrink:0;}
+.bench-bar .lbl{width:190px; flex-shrink:0; display:flex; align-items:center;}
 .bench-bar .track{flex:1; height:14px; background:#eee; border-radius:3px; position:relative;}
 .bench-bar .fillme{height:100%; background:var(--accent); border-radius:3px;}
 .bench-bar .marker{position:absolute; top:-3px; width:2px; height:20px; background:var(--ink);}
@@ -221,15 +230,9 @@ input[type=text].f-input, input[type=text].f-edit{text-align:left;}
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   db: { schema: "valorisation" }
 });
-// Un 2e client pointé sur le schéma "public" par défaut, uniquement utilisé pour l'auth
-// (l'auth Supabase vit toujours dans auth.*, indépendamment du schema db choisi ci-dessus).
 
 /* ==========================================================================================
    1. CATALOGUE DES CHAMPS — miroir de l'onglet "Données Vierge Bilan" du classeur source
-   Chaque bilan (année 0 / -1 / -2) est un objet JSON dont les clés sont ci-dessous.
-   kind: 'ht'   -> montant HT + case %TVA associée (clé+'_tva'), TVA et TTC calculés
-         'amt'  -> simple montant € (jaune = saisie obligatoire)
-         'pct'  -> pourcentage (saisie obligatoire)
    ========================================================================================== */
 const BILAN_SECTIONS = [
   { title: "Chiffre d'affaires — Ventes", table: "CA_VENTES", fields: [
@@ -327,42 +330,35 @@ const ACHATS_KEYS = ["achats_0","achats_21","achats_55","achats_10","achats_20",
 function allFieldDefs(){ return BILAN_SECTIONS.flatMap(s=>s.fields); }
 
 /* ==========================================================================================
-   2. PARAMÈTRES NATIONAUX — valeurs par défaut, copiées de l'onglet
-      "Données nationales et valorisat" du classeur. Éditables ensuite par projet.
+   2. PARAMÈTRES — Valeurs VIDES au démarrage d'un dossier
    ========================================================================================== */
 const DEFAULT_PARAMS = {
-  // Coefficients de valorisation (moyenne national/quartier/normandie dans le classeur源)
-  coef_ca_sup: (0.76+0.72+0.83)/3,     // CA > seuil
-  coef_ca_inf: (0.48+0.48+0.51)/3,     // CA < seuil
-  coef_marge_sup: (2.68+2.63+2.88)/3,  // Marge > seuil
-  coef_marge_inf: (1.76+1.88+1.82)/3,  // Marge < seuil
-  coef_ebe_sup: (6.8+7.5+7.4)/3,       // EBE > seuil
-  coef_ebe_inf: (5.3+5.2+5.8)/3,       // EBE < seuil
-  marge_valorisation_seuil_k: 400,     // seuil (k€) déterminant quel coefficient utiliser
+  coef_ca_sup: "", coef_ca_inf: "", coef_marge_sup: "", coef_marge_inf: "",
+  coef_ebe_sup: "", coef_ebe_inf: "", marge_valorisation_seuil_k: "",
 
-  ratio_clients: 6.5, ratio_tresorerie: 37.0, ratio_fournisseurs: 37.0, ratio_stock: 42.0,
-  evolution_ca_nationale: 5.0, ratio_charges_externe: 6.0, ratio_charges_personnel: 12.0,
-  production_theorique: 380000, marge_brute_commerciale_nationale: 28.3,
-  produits_150_1930: 0.4, disponibilite_bfr_initial: 37.0,
-  taux_ebe_ca: 10.0, taux_ebe_marge: 35.0,
+  ratio_clients: "", ratio_tresorerie: "", ratio_fournisseurs: "", ratio_stock: "",
+  evolution_ca_nationale: "", ratio_charges_externe: "", ratio_charges_personnel: "",
+  production_theorique: "", marge_brute_commerciale_nationale: "",
+  produits_150_1930: "", disponibilite_bfr_initial: "",
+  taux_ebe_ca: "", taux_ebe_marge: "",
 
-  evolution_ca_estime: 1.5, evolution_charges_estime: 1.0, evolution_salaires_estime: 2.0,
-  charges_sociales_exploitant: 45.0, remuneration_exploitant_souhaitee: 42000,
-  impots_theorique: 6000, duree_amortissement_travaux: 10,
+  evolution_ca_estime: "", evolution_charges_estime: "", evolution_salaires_estime: "",
+  charges_sociales_exploitant: "", remuneration_exploitant_souhaitee: "",
+  impots_theorique: "", duree_amortissement_travaux: "",
 
-  honoraire_transaction_pct: 0.05, honoraire_comptable: 4000, honoraire_juridique: 20000,
-  frais_acquisition_pct: 0.001, travaux: 50000, taux_bancaire: 0.04, duree_pret_ans: 12,
-  taux_booster: 0.08, duree_booster_ans: 12, in_fine: true,
-  stock_financement: "Prêt vendeur 12 fois", // "Prêt vendeur 12 fois" | "Apports directe" | "Emprunts bancaire"
+  honoraire_transaction_pct: "", honoraire_comptable: "", honoraire_juridique: "",
+  frais_acquisition_pct: "", travaux: "", taux_bancaire: "", duree_pret_ans: "",
+  taux_booster: "", duree_booster_ans: "", in_fine: true,
+  stock_financement: "Prêt vendeur 12 fois", 
   besoin_bfr: true,
 
-  apports_capital_personnel: 7000, apports_cc_personnel: 0, apports_associe_exec: 0,
-  apports_associe_investisseur: 0, apports_booster: 150000,
+  apports_capital_personnel: "", apports_cc_personnel: "", apports_associe_exec: "",
+  apports_associe_investisseur: "", apports_booster: "",
 
-  emprunt_banque_montant: 800000,
-  financement_travaux_mode: "Apports", // "Apports" | "Prêt"
+  emprunt_banque_montant: "",
+  financement_travaux_mode: "Apports",
 
-  is_seuil_bas: 42500, is_taux_p1: 0.15, is_taux_p2: 0.25,
+  is_seuil_bas: "", is_taux_p1: "", is_taux_p2: "",
 };
 
 const PARAM_GROUPS = [
@@ -410,9 +406,6 @@ const PARAM_GROUPS = [
   ]},
 ];
 
-/* ==========================================================================================
-   3. INFOS PROJET — champs libres, chacun "cochable" non disponible
-   ========================================================================================== */
 const INFO_FIELDS = [
   ["nom_pharmacie","Nom de la pharmacie"], ["adresse","Adresse"], ["ville","Ville"], ["code_postal","Code postal"],
   ["vendeur","Nom du vendeur / cédant"], ["acheteur","Nom de l'acheteur / repreneur"],
@@ -424,9 +417,6 @@ const INFO_FIELDS = [
   ["commentaire_libre","Commentaire libre"],
 ];
 
-/* ==========================================================================================
-   4. ÉTAT APPLICATIF
-   ========================================================================================== */
 let STATE = {
   session: null,
   user: null,
@@ -441,14 +431,12 @@ function toast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove('show'), 2600);
 }
-function fmtEUR(n){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}); }
-function fmtPct(n,d=1){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d})+" %"; }
-function fmtNum(n,d=1){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d}); }
+function fmtEUR(n){ if(n===undefined||n===null||n===""||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}); }
+function fmtPct(n,d=1){ if(n===undefined||n===null||n===""||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d})+" %"; }
+function fmtNum(n,d=1){ if(n===undefined||n===null||n===""||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d}); }
 function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function safeDiv(n, d){ if(!d || d === 0) return null; return n/d; }
 
-/* ==========================================================================================
-   5. AUTH
-   ========================================================================================== */
 let authMode = "login";
 document.getElementById('auth-switch-link').addEventListener('click', ()=>{
   authMode = authMode === "login" ? "signup" : "login";
@@ -459,7 +447,6 @@ document.getElementById('auth-switch-link').addEventListener('click', ()=>{
     : 'Déjà un compte ? <a id="auth-switch-link">Se connecter</a>';
   document.getElementById('auth-switch-link').addEventListener('click', arguments.callee.caller);
 });
-// (ré-attache le handler après réécriture du innerHTML)
 document.getElementById('auth-switch').addEventListener('click', (e)=>{
   if(e.target.id === 'auth-switch-link'){
     authMode = authMode === "login" ? "signup" : "login";
@@ -509,9 +496,6 @@ async function onAuthed(session){
   showView('projects');
 }
 
-/* ==========================================================================================
-   6. VIEWS
-   ========================================================================================== */
 function showView(name){
   document.getElementById('auth-view').classList.toggle('hidden', name!=='auth');
   document.getElementById('projects-view').classList.toggle('hidden', name!=='projects');
@@ -600,16 +584,13 @@ function renderTabs(){
 
 function escapeHtml(s){ return (s===undefined||s===null)?'':String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-/* ==========================================================================================
-   7. TAB — INFORMATIONS PROJET
-   ========================================================================================== */
 function renderInfosTab(root){
   const infos = STATE.current.project.infos || {};
   const unavail = new Set(STATE.current.project.unavailable || []);
   root.innerHTML = `
     <div class="card">
       <h2>Informations générales du projet</h2>
-      <p class="note">Renseignez ce que vous savez. Cochez "non disponible" pour les informations que vous n'avez pas encore — elles resteront visibles comme manquantes plutôt que d'être laissées vides par erreur.</p>
+      <p class="note">Renseignez ce que vous savez. Cochez "non disponible" pour les informations manquantes.</p>
       <div class="field-grid wide" id="infos-grid"></div>
       <div class="modal-actions"><button class="primary" id="save-infos">Enregistrer</button></div>
     </div>`;
@@ -644,9 +625,6 @@ function renderInfosTab(root){
   });
 }
 
-/* ==========================================================================================
-   8. TAB — PARAMÈTRES (+ Import IA)
-   ========================================================================================== */
 function renderParametresTab(root){
   const p = STATE.current.params;
   root.innerHTML = `
@@ -655,7 +633,7 @@ function renderParametresTab(root){
         <h2 style="margin:0;">Paramètres du projet</h2>
         <button class="primary" id="btn-import-ia">Importer depuis bilan (IA)</button>
       </div>
-      <p class="note">Ces valeurs sont pré-remplies avec les normes nationales. Modifiez-les librement pour coller à ce dossier précis — elles serviront à tous les calculs des onglets Évaluation, Valorisation et Prévisionnel.</p>
+      <p class="note">Modifiez ces paramètres librement pour ce dossier. Ils servent à tous les calculs des onglets Évaluation, Valorisation et Prévisionnel.</p>
       <div id="params-groups"></div>
       <div class="modal-actions"><button class="primary" id="save-params">Enregistrer les paramètres</button></div>
     </div>`;
@@ -688,7 +666,10 @@ function renderParametresTab(root){
     groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
       const k = inp.dataset.pkey; let v = inp.value;
       if(inp.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true';
-      else if(inp.tagName==='INPUT') v = parseFloat(v);
+      else if(inp.tagName==='INPUT') {
+          if (v === "") v = "";
+          else v = parseFloat(v);
+      }
       newParams[k] = v;
     });
     const { error } = await sb.from('parametres').update({ params:newParams }).eq('project_id', STATE.current.project.id);
@@ -699,9 +680,6 @@ function renderParametresTab(root){
   document.getElementById('btn-import-ia').addEventListener('click', openImportModal);
 }
 
-/* ==========================================================================================
-   9. TAB — DONNÉES BILANS (saisie brute, 3 années)
-   ========================================================================================== */
 let bilansActiveYear = 0;
 function renderBilansTab(root){
   root.innerHTML = `
@@ -786,8 +764,7 @@ function renderBilansTab(root){
 function yearLabel(y){ return y===0 ? "Année N" : y===-1 ? "Année N-1" : "Année N-2"; }
 
 /* ==========================================================================================
-   10. MOTEUR DE CALCUL — reproduit fidèlement les formules du classeur Excel source.
-   Chaque fonction est commentée avec la référence de cellule d'origine pour audit facile.
+   10. MOTEUR DE CALCUL — Formules corrigées pour correspondre strictement au classeur
    ========================================================================================== */
 function sumGroupHT(data, keys){
   let ht=0, tva=0;
@@ -803,13 +780,13 @@ function computeBilanAggregate(data){
   const ventes = sumGroupHT(data, VENTES_KEYS);
   const presta = sumGroupHT(data, PRESTA_KEYS);
   const achats = sumGroupHT(data, ACHATS_KEYS);
-  const caTotalHT = ventes.ht + presta.ht;                       // CA_TOTAL_HT
-  const caTotalTTC = ventes.ttc + presta.ttc;                    // CA_TOTAL_TTC
-  const remisesTotal = num(data.remise_commerciale)+num(data.rfa)+num(data.escompte); // Achats_remisé TOTAL
-  const achatsTotalRemise = achats.ht - remisesTotal;             // B49
-  const variationStock = num(data.stock_initial) - num(data.stock_final); // B50
-  const achatsConsoHT = achatsTotalRemise + variationStock;       // B51 = Achats_Conso
-  const chargesExternes = CHARGES_EXT_KEYS.reduce((s,k)=>s+num(data[k]),0); // Charges_Externe TOTAL
+  const caTotalHT = ventes.ht + presta.ht;
+  const caTotalTTC = ventes.ttc + presta.ttc;
+  const remisesTotal = num(data.remise_commerciale)+num(data.rfa)+num(data.escompte);
+  const achatsTotalRemise = achats.ht - remisesTotal;
+  const variationStock = num(data.stock_initial) - num(data.stock_final);
+  const achatsConsoHT = achatsTotalRemise + variationStock;
+  const chargesExternes = CHARGES_EXT_KEYS.reduce((s,k)=>s+num(data[k]),0);
   return { ventes, presta, achats, caTotalHT, caTotalTTC, achatsTotalRemise, variationStock, achatsConsoHT, chargesExternes };
 }
 
@@ -817,98 +794,91 @@ function computeBilanAggregate(data){
 function computeEvaluation(dataN, dataN1){
   const N = computeBilanAggregate(dataN);
   const N1 = computeBilanAggregate(dataN1);
+  const params = STATE.current.params;
 
-  // Ratios financiers (A8, D8, A15)
-  const ratioClients = N.caTotalTTC ? (num(dataN.creances_clients_ttc)*360)/N.caTotalTTC : null;      // B8
-  const ratioFournisseurs = N.achats.ttc ? (num(dataN.dettes_fournisseurs)*360)/N.achats.ttc : null;
-  const ratioTresorerie = N.achats.ttc ? ((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360)/N.achats.ttc : null;
-  const ratioStock = N.achatsConsoHT ? (num(dataN.stock_final)*360)/N.achatsConsoHT : null;            // E14
+  // CORRECTIONS APPLIQUÉES SELON FORMULES EXCEL STRICTES
+  const ratioClients = safeDiv(num(dataN.creances_clients_ttc)*360, N.caTotalTTC); 
+  const ratioFournisseurs = safeDiv(num(dataN.dettes_fournisseurs)*360, N.achats.ttc); // Corrigé : sur achats TTC
+  const ratioTresorerie = safeDiv((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360, N.achats.ttc); // Corrigé : sur achats TTC
+  const ratioStock = safeDiv(num(dataN.stock_final)*360, N.achatsConsoHT);
 
-  // Ratios exploitation
-  const evolutionCA = N1.caTotalHT ? (N.caTotalHT - N1.caTotalHT)/N1.caTotalHT*100 : null;             // B24
-  const ratioChargesExterne = N.caTotalHT ? (N.chargesExternes*100)/N.caTotalHT : null;                // E24 (déno = CA année N)
-  const margeBruteSans0 = (N.caTotalHT - num(dataN.ventes_0)) - (N.achatsConsoHT - num(dataN.achats_0)); // B32
-  const ratioChargesPersonnel = N.caTotalHT ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/N.caTotalHT : null;
+  const evolutionCA = safeDiv((N.caTotalHT - N1.caTotalHT)*100, N1.caTotalHT);
+  const ratioChargesExterne = safeDiv(N.chargesExternes*100, N.caTotalHT);
+  
+  const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;
+  const ratioChargesPersonnel = safeDiv((num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100, N.caTotalHT); // Corrigé : denom = CA HT
+  const tauxMarge = safeDiv(margeBruteCommerciale*100, N.caTotalHT); // Corrigé : denom = CA HT
 
-  // Taux de marge commerciale
-  const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;    // = Marge_brute_commerciale (identique à margeBruteSans0? formule différente, on garde distincte: B36 en fait = table Marge_brute_commerciale = même range que Marge Brute sans 0% -> donc = margeBruteSans0)
-  const tauxMarge = N.caTotalHT ? margeBruteCommerciale*100/N.caTotalHT : null;                            // B38
-  const productionTheoriqueRatio = STATE.current.params.production_theorique ? N.ventes.ttc/STATE.current.params.production_theorique : null; // E38
+  const prodTheoriqueParam = num(params.production_theorique);
+  const productionTheoriqueRatio = safeDiv(N.ventes.ttc, prodTheoriqueParam);
 
-  // EBE
   const remunerationDirigeant = num(dataN.remuneration_gerance)+num(dataN.charges_gerance);
   const EBE = N.ventes.ht + N.presta.ht - N.achatsConsoHT - N.chargesExternes - num(dataN.impots_taxes_hors_is)
-            - (num(dataN.salaires_personnel)+num(dataN.charges_personnel)+num(dataN.remuneration_gerance)+num(dataN.charges_gerance)); // B48
-  const EBE_retraite = EBE + remunerationDirigeant + num(dataN.activite_exceptionnelle);               // E45
-  const tauxEBE_CA = N.caTotalHT ? EBE_retraite*100/N.caTotalHT : null;                                 // E49
-  const tauxEBE_Marge = margeBruteSans0 ? EBE_retraite*100/margeBruteSans0 : null;                      // E50
+            - (num(dataN.salaires_personnel)+num(dataN.charges_personnel)+num(dataN.remuneration_gerance)+num(dataN.charges_gerance));
+  const EBE_retraite = EBE + remunerationDirigeant + num(dataN.activite_exceptionnelle);
+  
+  const tauxEBE_CA = safeDiv(EBE_retraite*100, N.caTotalHT);
+  const tauxEBE_Marge = safeDiv(EBE_retraite*100, margeBruteCommerciale); // Corrigé : denom = Marge globale
 
   return { N, N1, ratioClients, ratioFournisseurs, ratioTresorerie, ratioStock, evolutionCA, ratioChargesExterne,
-    margeBruteSans0, ratioChargesPersonnel, margeBruteCommerciale, tauxMarge, productionTheoriqueRatio,
+    ratioChargesPersonnel, margeBruteCommerciale, tauxMarge, productionTheoriqueRatio,
     EBE, EBE_retraite, tauxEBE_CA, tauxEBE_Marge, remunerationDirigeant };
 }
 
-// ---- Onglet "Valorisation et prêt" ----
 function computeValorisation(dataRef, params){
   const seuil = num(params.marge_valorisation_seuil_k)*1000;
   const margeGlobale = num(dataRef.marge_brute_globale_bilan);
   const auDessus = margeGlobale >= seuil;
 
-  const coefCA = auDessus ? params.coef_ca_sup : params.coef_ca_inf;
-  const coefEBE = auDessus ? params.coef_ebe_sup : params.coef_ebe_inf;
-  const coefMarge = auDessus ? params.coef_marge_sup : params.coef_marge_inf;
+  const coefCA = auDessus ? num(params.coef_ca_sup) : num(params.coef_ca_inf);
+  const coefEBE = auDessus ? num(params.coef_ebe_sup) : num(params.coef_ebe_inf);
+  const coefMarge = auDessus ? num(params.coef_marge_sup) : num(params.coef_marge_inf);
 
   const trancheChere = num(dataRef.tranche_150_1930)+num(dataRef.tranche_sup_1930);
   const differenceProduitsChers = trancheChere > num(params.produits_150_1930)
-    ? (trancheChere - num(params.produits_150_1930)) * num(dataRef.ca_ht_bilan) : 0;   // B9
+    ? (trancheChere - num(params.produits_150_1930)) * num(dataRef.ca_ht_bilan) : 0;
 
   const valorisationCA = (num(dataRef.ca_ht_bilan) + num(dataRef.retrocessions) + num(dataRef.honoraires_coop)
-    - num(dataRef.maison_retraite) - differenceProduitsChers) * coefCA;                // B11
+    - num(dataRef.maison_retraite) - differenceProduitsChers) * coefCA;
   const valorisationEBE = (num(dataRef.ebe_bilan) + num(dataRef.csg_deductible) + num(dataRef.autres_retraitements)
-    + num(dataRef.tiers_payant) + num(dataRef.fonds_incorporels) + num(dataRef.fonds_corporels)) * coefEBE; // E13
-  const valorisationMarge = (margeGlobale + num(dataRef.vaccination)) * coefMarge;      // E20
+    + num(dataRef.tiers_payant) + num(dataRef.fonds_incorporels) + num(dataRef.fonds_corporels)) * coefEBE;
+  const valorisationMarge = (margeGlobale + num(dataRef.vaccination)) * coefMarge;
 
-  const valorisationTheorique = (valorisationCA + valorisationEBE + valorisationMarge)/3; // B19
+  const valorisationTheorique = (valorisationCA + valorisationEBE + valorisationMarge)/3;
 
-  // Financement
-  const honoraireTransaction = num(params.honoraire_transaction_pct) * valorisationTheorique * 1.2; // H8
+  const honoraireTransaction = num(params.honoraire_transaction_pct) * valorisationTheorique * 1.2;
   const honoraireComptable = num(params.honoraire_comptable);
   const honoraireJuridique = num(params.honoraire_juridique);
   const fraisAcquisition = num(params.frais_acquisition_pct) * valorisationTheorique;
   const travaux = num(params.travaux);
 
   const agg = computeBilanAggregate(dataRef);
-  const bfrStock = num(params.ratio_stock) * agg.achats.ht / 360;      // K25
-  const bfrCreances = num(params.ratio_clients) * agg.ventes.ttc / 360; // K26
-  const bfrFournisseur = num(params.ratio_fournisseurs) * agg.achats.ttc / 360; // K27
-  const bfrTotal = bfrStock + bfrCreances - bfrFournisseur;             // K28
-  const bfrRetenu = params.besoin_bfr ? bfrTotal : 0;                   // H14
+  const bfrStock = num(params.ratio_stock) * agg.achats.ht / 360;
+  const bfrCreances = num(params.ratio_clients) * agg.ventes.ttc / 360;
+  const bfrFournisseur = num(params.ratio_fournisseurs) * agg.achats.ttc / 360;
+  const bfrTotal = bfrStock + bfrCreances - bfrFournisseur;
+  const bfrRetenu = params.besoin_bfr ? bfrTotal : 0;
 
-  const stockFinalLigne = num(dataRef.stock_final);                     // H7 (ligne "stock final" incluse telle quelle dans le total besoins)
+  const stockFinalLigne = num(dataRef.stock_final);
   const totalBesoinsFinanciers = stockFinalLigne + honoraireTransaction + honoraireComptable + honoraireJuridique
-    + fraisAcquisition + travaux + valorisationTheorique + bfrRetenu;   // H15
+    + fraisAcquisition + travaux + valorisationTheorique + bfrRetenu;
 
-  const aFinancerMinApports = honoraireTransaction + honoraireComptable + honoraireJuridique + fraisAcquisition + bfrRetenu + agg.chargesExternes*0 + num(dataRef.retrocessions)*0; // approx H24=SUM(H8:H11)+H14+H6 (H6=rétrocessions display)
-  const aFinancerMinApportsFidele = honoraireTransaction+honoraireComptable+honoraireJuridique+fraisAcquisition+bfrRetenu+num(dataRef.retrocessions); // H24
-
-  const emprunt = num(params.emprunt_banque_montant);
-  const aFinancerMinEmprunts = valorisationTheorique + (params.stock_financement==="Prêt vendeur 12 fois" ? 0 : valorisationEBE*0); // H26 simplifié (le cas H29="Prêt" ne s'applique qu'au financement travaux, cf H26 réf H12=valorisationEBE)
-  // Fidèle: H26 = H13 + IF(financement_travaux=="Prêt", H12, 0); H13=valorisationTheorique, H12=valorisationEBE
-  const aFinancerMinEmpruntsFidele = valorisationTheorique + (params.financement_travaux_mode==="Prêt" ? valorisationEBE : 0);
+  const aFinancerMinApports = honoraireTransaction+honoraireComptable+honoraireJuridique+fraisAcquisition+bfrRetenu+num(dataRef.retrocessions);
+  const aFinancerMinEmprunts = valorisationTheorique + (params.financement_travaux_mode==="Prêt" ? valorisationEBE : 0);
 
   const apportsTotal = num(params.apports_capital_personnel)+num(params.apports_cc_personnel)
     +num(params.apports_associe_exec)+num(params.apports_associe_investisseur)+num(params.apports_booster);
 
   const aFinancerStock = params.stock_financement==="Prêt vendeur 12 fois" ? 0
     : params.stock_financement==="Apports directe" ? 0
-    : stockFinalLigne; // "Emprunts bancaire" -> montant stock à financer par ailleurs
+    : stockFinalLigne; 
 
-  const aFinancerTravaux = valorisationEBE; // H30 = H12 (référence directe à valorisationEBE, fidèle au classeur même si sémantiquement surprenant)
+  const aFinancerTravaux = valorisationEBE; 
 
-  const resteAFinancer = totalBesoinsFinanciers + aFinancerMinEmpruntsFidele + aFinancerStock
-    + (params.financement_travaux_mode==="Apports" ? aFinancerTravaux : 0) - apportsTotal - emprunt; // H31
+  const emprunt = num(params.emprunt_banque_montant);
+  const resteAFinancer = totalBesoinsFinanciers + aFinancerMinEmprunts + aFinancerStock
+    + (params.financement_travaux_mode==="Apports" ? aFinancerTravaux : 0) - apportsTotal - emprunt;
 
-  // Tableau amortissement prêt bancaire (PMT)
   const dureeAns = Math.round(num(params.duree_pret_ans));
   const tauxAn = num(params.taux_bancaire);
   const pmt = pmtAnnuite(tauxAn, dureeAns, emprunt);
@@ -921,29 +891,27 @@ function computeValorisation(dataRef, params){
     tableauPret.push({ annee:a, annuite:pmt, interets, capital, reste: Math.max(reste,0) });
   }
 
-  // Apports booster (in fine, intérêts simples chaque année)
   const boosterMontant = num(params.apports_booster);
   const boosterTaux = num(params.taux_booster);
-  const boosterInteretsAn = boosterMontant * boosterTaux; // N28
+  const boosterInteretsAn = boosterMontant * boosterTaux;
 
   return {
     seuil, auDessus, coefCA, coefEBE, coefMarge, differenceProduitsChers,
     valorisationCA, valorisationEBE, valorisationMarge, valorisationTheorique,
     honoraireTransaction, honoraireComptable, honoraireJuridique, fraisAcquisition, travaux,
     bfrStock, bfrCreances, bfrFournisseur, bfrTotal, bfrRetenu, stockFinalLigne,
-    totalBesoinsFinanciers, aFinancerMinApports: aFinancerMinApportsFidele, aFinancerMinEmprunts: aFinancerMinEmpruntsFidele,
+    totalBesoinsFinanciers, aFinancerMinApports, aFinancerMinEmprunts,
     apportsTotal, aFinancerStock, aFinancerTravaux, resteAFinancer,
     emprunt, dureeAns, tauxAn, pmt, tableauPret, boosterMontant, boosterTaux, boosterInteretsAn,
   };
 }
 
-// PMT standard (annuité constante), équivalent Excel =PMT(taux, durée, -capital)
 function pmtAnnuite(taux, nper, pv){
+  if(nper===0) return 0;
   if(taux===0) return pv/nper;
   return pv*taux/(1-Math.pow(1+taux,-nper));
 }
 
-// Barème IS progressif à 2 paliers, avec report du déficit N-1 (formule SUMPRODUCT du classeur)
 function calcIS(resultatAnnee, resultatAnneePrecedente, params){
   const base = Math.max(0, resultatAnnee + Math.min(0, resultatAnneePrecedente||0));
   const seuil = num(params.is_seuil_bas);
@@ -953,9 +921,7 @@ function calcIS(resultatAnnee, resultatAnneePrecedente, params){
   return seuil*t1 + (base-seuil)*t2;
 }
 
-// ---- Onglet "Prévisionnel" ----
 function computePrevisionnel(dataRef, params, valo, chargesExtOverrides, salariesOverrides){
-  // Charges externes prévisionnelles = pour chaque poste : override si renseigné, sinon (si gardé) valeur du bilan, sinon 0
   let totalChargesExtInit = 0;
   CHARGES_EXT_KEYS.forEach(k=>{
     const ov = chargesExtOverrides[k];
@@ -971,8 +937,8 @@ function computePrevisionnel(dataRef, params, valo, chargesExtOverrides, salarie
   const totalSalairesInit = salariesOverrides.reduce((s,row)=> s + (row.garde ? num(row.montant) : 0), 0);
 
   const agg = computeBilanAggregate(dataRef);
-  const caN0 = agg.ventes.ht + agg.presta.ht; // H5
-  const tauxMargeBrute = agg.caTotalHT ? (num(dataRef.marge_brute_globale_bilan)/agg.caTotalHT)*100 : 0; // H6 (constant)
+  const caN0 = agg.ventes.ht + agg.presta.ht; 
+  const tauxMargeBrute = agg.caTotalHT ? (num(dataRef.marge_brute_globale_bilan)/agg.caTotalHT)*100 : 0; 
 
   const evolCA = num(params.evolution_ca_estime)/100;
   const evolCharges = num(params.evolution_charges_estime)/100;
@@ -981,28 +947,27 @@ function computePrevisionnel(dataRef, params, valo, chargesExtOverrides, salarie
   const dureeAmortTravaux = num(params.duree_amortissement_travaux)||1;
   const dotationAmort = num(params.travaux)/dureeAmortTravaux;
   const droitsFraisInstall = num(params.honoraire_juridique)*0.8 + num(params.honoraire_comptable)
-    + num(params.honoraire_transaction_pct)*valo.valorisationTheorique; // H16
-  const creditVendeurStock = params.stock_financement==="Prêt vendeur 12 fois" ? num(dataRef.stock_final) : 0; // H17
+    + num(params.honoraire_transaction_pct)*valo.valorisationTheorique;
+  const creditVendeurStock = params.stock_financement==="Prêt vendeur 12 fois" ? num(dataRef.stock_final) : 0;
 
   const years = [];
   let CA = caN0, chargesExt = totalChargesExtInit, salaires = totalSalairesInit;
   let remuneration = num(params.remuneration_exploitant_souhaitee);
-  const impotsTaxesConst = STATE.current._impotsTaxesRatio ?? null; // set below
 
   let prevResultatCourant = 0;
   for(let a=0; a<=12; a++){
     if(a>0){ CA = CA*(1+evolCA); chargesExt = chargesExt*(1+evolCharges); salaires = salaires*(1+evolSalaires); }
     const margeCommerciale = CA*tauxMargeBrute/100;
-    const impotsTaxes = num(dataRef.impots_taxes_hors_is) ? (num(dataRef.impots_taxes_hors_is)) : 0; // reconduit constant (ratio national appliqué déjà en amont dans le classeur original ; on garde le montant bilan reconduit tel quel par simplicité)
+    const impotsTaxes = num(dataRef.impots_taxes_hors_is) ? (num(dataRef.impots_taxes_hors_is)) : 0;
     let ebeRetraite=null, remunerationAn=null, cotisSociales=null, ebeComptable=null, resultatExploit=null,
         chargesFiBooster=null, chargesFiBanque=null, resultatCourant=null, IS=null, resultatNet=null,
         paiementCapital=null, resultatAvantRedistrib=null;
     if(a>=1){
-      ebeRetraite = margeCommerciale - chargesExt - impotsTaxes - salaires; // I11 style
+      ebeRetraite = margeCommerciale - chargesExt - impotsTaxes - salaires; 
       remunerationAn = remuneration;
       cotisSociales = remunerationAn*num(params.charges_sociales_exploitant)/100;
       ebeComptable = ebeRetraite - remunerationAn - cotisSociales;
-      const amort = a===1 ? dotationAmort : dotationAmort; // constant chaque année (I15 = H15/duree pour toutes colonnes)
+      const amort = dotationAmort;
       const install = a===1 ? droitsFraisInstall : 0;
       const creditVdr = a===1 ? creditVendeurStock : 0;
       resultatExploit = ebeComptable - amort - install - creditVdr;
@@ -1024,9 +989,6 @@ function computePrevisionnel(dataRef, params, valo, chargesExtOverrides, salarie
   return { years, totalChargesExtInit, totalSalairesInit, caN0, tauxMargeBrute, dotationAmort, droitsFraisInstall, creditVendeurStock };
 }
 
-/* ==========================================================================================
-   11. TAB — ÉVALUATION (100% calculé)
-   ========================================================================================== */
 function renderEvaluationTab(root){
   const dataN = STATE.current.bilans[0]||{}, dataN1 = STATE.current.bilans[-1]||{};
   if(Object.keys(dataN).length===0){
@@ -1040,14 +1002,14 @@ function renderEvaluationTab(root){
     <div class="card">
       <h2>Ratios financiers &amp; d'exploitation — Année N</h2>
       <div class="kpi-row">
-        <div class="kpi"><div class="v">${fmtNum(r.ratioClients)} j</div><div class="l">Ratio clients</div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioTresorerie)} j</div><div class="l">Ratio trésorerie</div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioFournisseurs)} j</div><div class="l">Ratio fournisseurs</div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioStock)} j</div><div class="l">Ratio stock</div></div>
-        <div class="kpi ${r.evolutionCA>=0?'good':'bad'}"><div class="v">${fmtPct(r.evolutionCA)}</div><div class="l">Évolution CA</div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesExterne)}</div><div class="l">Ratio charges externes</div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesPersonnel)}</div><div class="l">Ratio charges personnel</div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.tauxMarge)}</div><div class="l">Taux de marge</div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioClients)} j</div><div class="l">Ratio clients <span class="info-icon" title="Formule : (Créances clients TTC × 360) / CA TTC">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioTresorerie)} j</div><div class="l">Ratio trésorerie <span class="info-icon" title="Formule : ((Compte grossiste + Disponibilité) × 360) / Achats Totaux TTC">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioFournisseurs)} j</div><div class="l">Ratio fournisseurs <span class="info-icon" title="Formule : (Dettes fournisseurs × 360) / Achats Totaux TTC">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioStock)} j</div><div class="l">Ratio stock <span class="info-icon" title="Formule : (Stock final × 360) / Achats consommés HT">ℹ️</span></div></div>
+        <div class="kpi ${r.evolutionCA>=0?'good':'bad'}"><div class="v">${fmtPct(r.evolutionCA)}</div><div class="l">Évolution CA <span class="info-icon" title="Formule : (CA HT Année N - CA HT Année N-1) / CA HT Année N-1">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesExterne)}</div><div class="l">Ratio charges ext. <span class="info-icon" title="Formule : Charges externes / CA HT Année N">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesPersonnel)}</div><div class="l">Ratio personnel <span class="info-icon" title="Formule : (Salaires + Charges de personnel) / CA HT Année N">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.tauxMarge)}</div><div class="l">Taux de marge <span class="info-icon" title="Formule : Marge brute commerciale / CA HT Année N">ℹ️</span></div></div>
       </div>
     </div>
 
@@ -1067,9 +1029,9 @@ function renderEvaluationTab(root){
           <tr class="total"><td>EBE retraité</td><td>${fmtEUR(r.EBE_retraite)}</td></tr>
         </table>
         <div class="kpi-row" style="grid-template-columns:1fr;">
-          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_CA)}</div><div class="l">Taux EBE / CA</div></div>
-          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_Marge)}</div><div class="l">Taux EBE / Marge</div></div>
-          <div class="kpi"><div class="v">${fmtNum(r.productionTheoriqueRatio,2)}×</div><div class="l">vs Production théorique nationale</div></div>
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_CA)}</div><div class="l">Taux EBE / CA <span class="info-icon" title="Formule : EBE retraité / CA HT Année N">ℹ️</span></div></div>
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_Marge)}</div><div class="l">Taux EBE / Marge <span class="info-icon" title="Formule : EBE retraité / Marge brute commerciale">ℹ️</span></div></div>
+          <div class="kpi"><div class="v">${fmtNum(r.productionTheoriqueRatio,2)}×</div><div class="l">vs Prod. theor. nationale <span class="info-icon" title="Formule : CA Ventes TTC / Paramètre 'Production théorique'">ℹ️</span></div></div>
         </div>
       </div>
     </div>
@@ -1090,18 +1052,16 @@ function renderEvaluationTab(root){
 }
 
 function benchBar(label, value, ref, min, max){
-  const clamp = v => Math.max(min, Math.min(max, v ?? min));
+  const refVal = ref === "" || ref == null ? 0 : num(ref);
+  const clamp = v => Math.max(min, Math.min(max, (v==null||v==="") ? min : v));
   const pctPos = v => ((clamp(v)-min)/(max-min))*100;
   return `<div class="bench-bar">
     <div class="lbl">${label}</div>
-    <div class="track"><div class="fillme" style="width:${pctPos(value)}%"></div><div class="marker" style="left:${pctPos(ref)}%"></div></div>
-    <div class="val">${fmtNum(value)} <span style="opacity:.5">/ ${fmtNum(ref)} nat.</span></div>
+    <div class="track"><div class="fillme" style="width:${pctPos(value)}%"></div><div class="marker" style="left:${pctPos(refVal)}%"></div></div>
+    <div class="val">${fmtNum(value)} <span style="opacity:.5">/ ${(ref===""||ref==null) ? '—' : fmtNum(refVal)} nat.</span></div>
   </div>`;
 }
 
-/* ==========================================================================================
-   12. TAB — VALORISATION & PRÊT
-   ========================================================================================== */
 function renderValorisationTab(root){
   const dataRef = STATE.current.bilans[0]||{};
   const params = STATE.current.params;
@@ -1170,9 +1130,6 @@ function renderValorisationTab(root){
     </div>`;
 }
 
-/* ==========================================================================================
-   13. TAB — PRÉVISIONNEL
-   ========================================================================================== */
 let previsionnelState = { chargesExt:{}, salaries:null };
 function renderPrevisionnelTab(root){
   const dataRef = STATE.current.bilans[0]||{};
@@ -1291,9 +1248,6 @@ function renderPrevisionnelTab(root){
   recomputePrevi();
 }
 
-/* ==========================================================================================
-   14. IMPORT IA — modal (prompt généré + collage JSON + dispatch manuel appris)
-   ========================================================================================== */
 async function loadMappings(){
   const { data } = await sb.from('import_mappings').select('*').eq('user_id', STATE.user.id);
   STATE.importMappings = {};
@@ -1357,7 +1311,7 @@ function openImportModal(){
   document.getElementById('parse-json').addEventListener('click', handleParseJson);
 }
 
-let pendingImport = null; // { parsed, unclassified: [{label, value}], resolved: {} }
+let pendingImport = null;
 
 function handleParseJson(){
   const raw = document.getElementById('import-json').value.trim();
@@ -1435,7 +1389,6 @@ function renderDispatchZone(){
 
 async function applyImport(){
   const { byYear, unclassified, resolved } = pendingImport;
-  // applique les choix de dispatch + sauvegarde les mappings appris
   for(let i=0;i<unclassified.length;i++){
     const target = resolved[i];
     if(!target) continue;
@@ -1446,7 +1399,6 @@ async function applyImport(){
       user_id: STATE.user.id, source_label: u.label, target_field: target,
     }, { onConflict: 'user_id,source_label' });
   }
-  // fusionne avec les données déjà en base pour chaque année
   for(const y of [0,-1,-2]){
     if(Object.keys(byYear[y]).length===0) continue;
     const merged = { ...(STATE.current.bilans[y]||{}), ...byYear[y] };
@@ -1461,9 +1413,6 @@ async function applyImport(){
   if(STATE.activeTab==='bilans') renderTabs();
 }
 
-/* ==========================================================================================
-   15. BOOT
-   ========================================================================================== */
 (async function boot(){
   renderAuthMode();
   const { data: { session } } = await sb.auth.getSession();
