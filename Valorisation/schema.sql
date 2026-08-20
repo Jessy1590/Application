@@ -19,8 +19,8 @@ create table valorisation.projects (
 );
 
 comment on table valorisation.projects is 'Un projet = un dossier de valorisation de pharmacie';
-comment on column valorisation.infos is 'Champs libres du projet: nom pharmacie, adresse, ville, vendeur, acheteur, notaire, date signature envisagée, etc.';
-comment on column valorisation.unavailable is 'Tableau des clés d''infos.* cochées "information non disponible"';
+comment on column valorisation.projects.infos is 'Champs libres du projet: nom pharmacie, adresse, ville, vendeur, acheteur, notaire, date signature envisagée, etc.';
+comment on column valorisation.projects.unavailable is 'Tableau des clés d''infos.* cochées "information non disponible"';
 
 -- ----------------------------------------------------------------------------
 -- 2. PARAMETRES — normes nationales + réglages, par projet (défauts modifiables)
