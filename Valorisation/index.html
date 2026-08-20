@@ -2268,8 +2268,7 @@ function handleParseJson(){
   const raw = document.getElementById('import-json').value.trim();
   let parsed;
   try {
-    const cleaned = raw.replace(/^
-```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    const cleaned = raw.replace(/^`{3}json/i, '').replace(/^`{3}/, '').replace(/`{3}$/, '').trim();
     parsed = JSON.parse(cleaned);
   } catch(e){
     toast("JSON invalide : Vérifiez que l'IA a bien répondu au bon format.");
