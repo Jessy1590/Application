@@ -1,0 +1,1475 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valorisation Pharmacie</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- 1. Cacher la page pour la sécurité -->
+<style> body { display: none; } </style>
+
+<!-- 2. Charger Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
+<script src="../protect.js"></script>
+
+<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
+<script>
+  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
+  initialiserSite("01fae4ee-2c95-4caf-b600-43980b7e22b3"); 
+</script>
+<style>
+/* ============================================================
+   DESIGN — sobre, dense, pensé pour un usage pro (expert-comptable)
+   Palette: encre / papier / accent vert pharma discret
+   ============================================================ */
+:root{
+  --ink:#1c2321; --paper:#f7f6f2; --panel:#ffffff; --line:#e2ded4;
+  --muted:#726f66; --accent:#2f6f5e; --accent-dark:#204f42;
+  --warn-bg:#fff3d6; --warn-line:#e8c766;
+  --edit-bg:#fdeee0; --edit-line:#e8b98a;
+  --lock-bg:#f1f0ec;
+  --danger:#a3402f; --radius:6px;
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-size:14px;line-height:1.45;}
+h1,h2,h3,h4{font-family: Georgia, "Times New Roman", serif; font-weight:600; margin:0 0 .5em;}
+h1{font-size:22px;} h2{font-size:18px;} h3{font-size:15px; color:var(--accent-dark);} h4{font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+a{color:var(--accent-dark);}
+button{font:inherit; cursor:pointer;}
+input,select{font:inherit;}
+.hidden{display:none !important;}
+
+/* --- layout --- */
+#topbar{display:flex; align-items:center; justify-content:space-between; padding:10px 20px; background:var(--ink); color:#fff;}
+#topbar .brand{font-family:Georgia,serif; font-size:17px; letter-spacing:.02em;}
+#topbar .brand small{opacity:.6; font-family:inherit; font-size:11px; margin-left:8px;}
+#topbar .who{font-size:12px; opacity:.85; display:flex; gap:12px; align-items:center;}
+#topbar button{background:transparent; border:1px solid rgba(255,255,255,.35); color:#fff; padding:5px 10px; border-radius:var(--radius); font-size:12px;}
+#topbar button:hover{background:rgba(255,255,255,.12);}
+
+#shell{max-width:1180px; margin:0 auto; padding:20px;}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px; margin-bottom:16px;}
+.card + .card{margin-top:16px;}
+.row{display:flex; gap:10px; flex-wrap:wrap;}
+.grow{flex:1; min-width:200px;}
+
+/* --- auth --- */
+#auth-view{max-width:380px; margin:80px auto;}
+#auth-view .card{padding:28px;}
+#auth-view input{width:100%; padding:9px 10px; margin-bottom:10px; border:1px solid var(--line); border-radius:var(--radius);}
+#auth-view button.primary{width:100%;}
+#auth-error{color:var(--danger); font-size:12.5px; margin-bottom:8px; min-height:1em;}
+.switch-mode{font-size:12.5px; text-align:center; margin-top:10px; color:var(--muted);}
+.switch-mode a{cursor:pointer;}
+
+button.primary{background:var(--accent); border:1px solid var(--accent-dark); color:#fff; padding:9px 16px; border-radius:var(--radius); font-weight:600;}
+button.primary:hover{background:var(--accent-dark);}
+button.ghost{background:transparent; border:1px solid var(--line); color:var(--ink); padding:8px 14px; border-radius:var(--radius);}
+button.ghost:hover{border-color:var(--accent);}
+button.small{padding:4px 9px; font-size:12px; border-radius:4px;}
+button.danger{color:var(--danger); border-color:var(--danger);}
+
+/* --- project list --- */
+.proj-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px;}
+.proj-tile{border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:14px; cursor:pointer; transition:.15s;}
+.proj-tile:hover{border-color:var(--accent); box-shadow:0 2px 10px rgba(0,0,0,.05);}
+.proj-tile h3{margin:0 0 4px;}
+.proj-tile .meta{font-size:12px; color:var(--muted);}
+.new-tile{border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:24px; min-height:80px;}
+.new-tile:hover{border-color:var(--accent); color:var(--accent);}
+
+/* --- tabs --- */
+#proj-header{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:12px;}
+#proj-header a.back{font-size:12.5px; color:var(--muted); text-decoration:none;}
+#tabs{display:flex; gap:2px; border-bottom:2px solid var(--line); margin-bottom:18px; flex-wrap:wrap;}
+#tabs button{background:none; border:none; padding:9px 16px; font-size:13.5px; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px;}
+#tabs button.active{color:var(--accent-dark); border-bottom-color:var(--accent-dark); font-weight:600;}
+#tabs button:hover{color:var(--accent-dark);}
+
+/* --- form fields (color-coded per légende Consignes) --- */
+.legend{display:flex; gap:18px; font-size:11.5px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
+.legend span{display:inline-flex; align-items:center; gap:5px;}
+.legend i{width:11px; height:11px; border-radius:2px; display:inline-block; border:1px solid rgba(0,0,0,.15);}
+.leg-input i{background:var(--warn-bg);}
+.leg-edit i{background:var(--edit-bg);}
+.leg-lock i{background:var(--lock-bg);}
+
+.field-grid{display:grid; grid-template-columns:1fr 130px; gap:8px 12px; align-items:center;}
+.field-grid.wide{grid-template-columns:1fr 130px 90px;}
+.field-label{font-size:13px;}
+.f-input, .f-edit, .f-lock{padding:6px 8px; border-radius:4px; border:1px solid var(--line); width:100%; text-align:right;}
+.f-input{background:var(--warn-bg); border-color:var(--warn-line);}
+.f-edit{background:var(--edit-bg); border-color:var(--edit-line);}
+.f-lock{background:var(--lock-bg); color:var(--muted); border-color:var(--line); text-align:right;}
+.na-toggle{font-size:11px; color:var(--muted); display:flex; align-items:center; gap:3px; white-space:nowrap;}
+.section-title{margin-top:22px; margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--line);}
+.section-title:first-child{margin-top:0;}
+
+table.calc{width:100%; border-collapse:collapse; font-size:13px;}
+table.calc th{text-align:right; font-weight:600; color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.03em; padding:6px 8px; border-bottom:1px solid var(--line);}
+table.calc th:first-child{text-align:left;}
+table.calc td{padding:5px 8px; border-bottom:1px solid #f0efe9; text-align:right; white-space:nowrap;}
+table.calc td:first-child{text-align:left; white-space:normal;}
+table.calc tr.total td{font-weight:700; border-top:1px solid var(--ink); border-bottom:2px solid var(--ink);}
+table.calc tr.sub td{color:var(--muted);}
+table.calc td.pos{color:var(--accent-dark);}
+table.calc td.neg{color:var(--danger);}
+.scrollx{overflow-x:auto;}
+
+.kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0;}
+.kpi{border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:#fcfbf8;}
+.kpi .v{font-size:20px; font-weight:700; font-family:Georgia,serif;}
+.kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em;}
+.kpi.good .v{color:var(--accent-dark);} .kpi.bad .v{color:var(--danger);}
+
+.bench-bar{display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12.5px;}
+.bench-bar .lbl{width:190px; flex-shrink:0;}
+.bench-bar .track{flex:1; height:14px; background:#eee; border-radius:3px; position:relative;}
+.bench-bar .fillme{height:100%; background:var(--accent); border-radius:3px;}
+.bench-bar .marker{position:absolute; top:-3px; width:2px; height:20px; background:var(--ink);}
+.bench-bar .val{width:100px; text-align:right; flex-shrink:0; color:var(--muted);}
+
+/* --- modal --- */
+.modal-bg{position:fixed; inset:0; background:rgba(20,20,15,.55); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; z-index:50;}
+.modal{background:#fff; border-radius:10px; max-width:760px; width:100%; padding:24px;}
+.modal h2{margin-bottom:4px;}
+.modal .step{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px;}
+textarea.promptbox{width:100%; min-height:160px; font-family:ui-monospace,Menlo,monospace; font-size:11.5px; border:1px solid var(--line); border-radius:6px; padding:10px; background:#faf9f5;}
+textarea.jsonbox{width:100%; min-height:120px; font-family:ui-monospace,Menlo,monospace; font-size:12px; border:1px solid var(--line); border-radius:6px; padding:10px;}
+.dispatch-row{display:grid; grid-template-columns:1fr 110px 1fr; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid #f0efe9; font-size:12.5px;}
+.modal-actions{display:flex; justify-content:flex-end; gap:8px; margin-top:16px;}
+.close-x{position:absolute; top:16px; right:20px; background:none; border:none; font-size:20px; color:var(--muted);}
+.modal{position:relative;}
+
+.toast{position:fixed; bottom:20px; right:20px; background:var(--ink); color:#fff; padding:10px 16px; border-radius:6px; font-size:13px; z-index:100; opacity:0; transition:.25s;}
+.toast.show{opacity:1;}
+
+.note{font-size:12px; color:var(--muted); background:#f3f2ec; border-left:3px solid var(--line); padding:8px 10px; border-radius:4px; margin:10px 0;}
+.two-col{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+@media(max-width:800px){.two-col{grid-template-columns:1fr;}}
+
+label.chk{display:flex; align-items:center; gap:6px; font-size:12.5px;}
+select.f-edit{text-align:left;}
+input[type=text].f-input, input[type=text].f-edit{text-align:left;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="brand">Valorisation Pharmacie <small>Évaluation · Valorisation · Prévisionnel</small></div>
+  <div class="who hidden" id="who-box">
+    <span id="who-email"></span>
+    <button id="btn-logout">Déconnexion</button>
+  </div>
+</div>
+
+<div id="shell">
+
+  <!-- ============ AUTH ============ -->
+  <div id="auth-view" class="hidden">
+    <div class="card">
+      <h2 id="auth-title">Connexion</h2>
+      <div id="auth-error"></div>
+      <input type="email" id="auth-email" placeholder="Adresse email" autocomplete="email">
+      <input type="password" id="auth-password" placeholder="Mot de passe" autocomplete="current-password">
+      <button class="primary" id="auth-submit">Se connecter</button>
+      <div class="switch-mode" id="auth-switch">Pas de compte ? <a id="auth-switch-link">Créer un compte</a></div>
+    </div>
+  </div>
+
+  <!-- ============ PROJECT LIST ============ -->
+  <div id="projects-view" class="hidden">
+    <h1>Vos dossiers</h1>
+    <div class="proj-list" id="proj-list"></div>
+  </div>
+
+  <!-- ============ PROJECT WORKSPACE ============ -->
+  <div id="workspace-view" class="hidden">
+    <div id="proj-header">
+      <div>
+        <a class="back" id="btn-back-list">&larr; Tous les dossiers</a>
+        <h1 id="ws-title" style="margin-top:4px;"></h1>
+      </div>
+      <button class="ghost danger small" id="btn-del-project">Supprimer ce dossier</button>
+    </div>
+
+    <div id="tabs">
+      <button data-tab="infos" class="active">Informations projet</button>
+      <button data-tab="parametres">Paramètres</button>
+      <button data-tab="bilans">Données bilans</button>
+      <button data-tab="evaluation">Évaluation</button>
+      <button data-tab="valorisation">Valorisation &amp; prêt</button>
+      <button data-tab="previsionnel">Prévisionnel</button>
+    </div>
+
+    <div id="tab-content"></div>
+  </div>
+
+</div>
+
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  db: { schema: "valorisation" }
+});
+// Un 2e client pointé sur le schéma "public" par défaut, uniquement utilisé pour l'auth
+// (l'auth Supabase vit toujours dans auth.*, indépendamment du schema db choisi ci-dessus).
+
+/* ==========================================================================================
+   1. CATALOGUE DES CHAMPS — miroir de l'onglet "Données Vierge Bilan" du classeur source
+   Chaque bilan (année 0 / -1 / -2) est un objet JSON dont les clés sont ci-dessous.
+   kind: 'ht'   -> montant HT + case %TVA associée (clé+'_tva'), TVA et TTC calculés
+         'amt'  -> simple montant € (jaune = saisie obligatoire)
+         'pct'  -> pourcentage (saisie obligatoire)
+   ========================================================================================== */
+const BILAN_SECTIONS = [
+  { title: "Chiffre d'affaires — Ventes", table: "CA_VENTES", fields: [
+    { key:"ventes_0",  label:"Ventes 0%",  kind:"ht", tva:0 },
+    { key:"ventes_21", label:"Ventes 2,1%", kind:"ht", tva:0.021 },
+    { key:"ventes_55", label:"Ventes 5,5%", kind:"ht", tva:0.055 },
+    { key:"ventes_10", label:"Ventes 10%", kind:"ht", tva:0.10 },
+    { key:"ventes_20", label:"Ventes 20%", kind:"ht", tva:0.20 },
+    { key:"hono_dispensation", label:"Honoraires de dispensation totaux", kind:"ht", tva:0.021 },
+  ]},
+  { title: "Chiffre d'affaires — Prestations", table:"CA_PRESTA", fields: [
+    { key:"activites_0", label:"Activités 0%", kind:"ht", tva:0 },
+    { key:"locations", label:"Locations", kind:"ht", tva:0.20 },
+    { key:"preparations", label:"Préparations", kind:"ht", tva:0.055 },
+    { key:"autres_presta", label:"Autres", kind:"ht", tva:0.021 },
+    { key:"rosp", label:"ROSP", kind:"ht", tva:0 },
+    { key:"gardes", label:"Gardes", kind:"ht", tva:0 },
+  ]},
+  { title: "Achats", table:"ACHATS", fields: [
+    { key:"achats_0", label:"Achats 0%", kind:"ht", tva:0, tvaLocked:true },
+    { key:"achats_21", label:"Achats 2,10%", kind:"ht", tva:0.021, tvaLocked:true },
+    { key:"achats_55", label:"Achats 5,5%", kind:"ht", tva:0.055, tvaLocked:true },
+    { key:"achats_10", label:"Achats 10%", kind:"ht", tva:0.10, tvaLocked:true },
+    { key:"achats_20", label:"Achats 20%", kind:"ht", tva:0.20, tvaLocked:true },
+    { key:"mat_location_20", label:"Matériel en location 20%", kind:"ht", tva:0.20, tvaLocked:true },
+  ]},
+  { title: "Remises, RFA, Escompte (achats)", fields: [
+    { key:"remise_commerciale", label:"Remise commerciale (négatif)", kind:"amt" },
+    { key:"rfa", label:"RFA", kind:"amt" },
+    { key:"escompte", label:"Escompte", kind:"amt" },
+  ]},
+  { title:"Stock", fields:[
+    { key:"stock_initial", label:"Stock initial", kind:"amt" },
+    { key:"stock_final", label:"Stock final", kind:"amt" },
+  ]},
+  { title:"Charges externes détaillées", fields:[
+    ["eau_energie","Eau, Énergie..."],["carburant","Carburant"],
+    ["prod_entretien","Prod. d'entretien et petit outillage"],["fournitures_bureau","Fournitures de bureau"],
+    ["emballages","Emballages"],["frais_grossiste","Frais généraux grossiste"],
+    ["loyers","Loyers"],["locations_mobilieres","Locations mobilières"],
+    ["charges_locatives","Charges locatives"],["entretien_immeuble","Entretien immeuble"],
+    ["entretien_mat_mob","Entretien mat. et mob."],["entretien_vehicules","Entretien véhicules"],
+    ["maintenance_ordinateur","Maintenance ordinateur"],["maintenance_carte_vitale","Maintenance carte vitale"],
+    ["assurances","Assurances"],["assurance_pret","Assurance prêt"],["assurance_vehicule","Assurance véhicule"],
+    ["timbres_telephone","Timbres, téléphone"],["travaux_externes_divers","Travaux externes divers"],
+    ["pourboires_dons","Pourboires, dons"],["voyages_deplacements","Voyages et déplacements"],
+    ["frais_seminaires","Frais de séminaires"],["honoraires","Honoraires"],
+    ["cadeaux_clientele","Cadeaux à la clientèle"],["missions_receptions","Missions et réceptions"],
+    ["frais_internet","Frais d'Internet"],["frais_cb","Frais CB"],["cotisations","Cotisations"],
+    ["documentation_generale","Documentation générale"],["frais_actes_contentieux","Frais d'actes et de contentieux"],
+    ["transports_achats","Transports sur achats"],["frais_bancaires_tva","Frais bancaires avec T.V.A."],
+  ].map(([key,label])=>({key,label,kind:"amt"})) },
+  { title:"Trésorerie / Personnel (bilan)", fields:[
+    { key:"creances_clients_ttc", label:"Créances clients TTC", kind:"amt" },
+    { key:"dettes_fournisseurs", label:"Dettes fournisseurs", kind:"amt" },
+    { key:"compte_grossiste", label:"Compte grossiste", kind:"amt" },
+    { key:"disponibilite", label:"Disponibilité", kind:"amt" },
+    { key:"salaires_personnel", label:"Salaires personnel", kind:"amt" },
+    { key:"charges_personnel", label:"Charges personnel", kind:"amt" },
+    { key:"remuneration_gerance", label:"Rémunération gérance", kind:"amt" },
+    { key:"charges_gerance", label:"Charges gérance", kind:"amt" },
+    { key:"avantage_nature", label:"Avantage en nature", kind:"amt" },
+    { key:"impots_taxes_hors_is", label:"Impôts et taxes (hors IS)", kind:"amt" },
+    { key:"effectif_temps_plein", label:"Effectif temps plein (ETP)", kind:"amt" },
+  ]},
+  { title:"Contrôle CA / Marge / EBE (valeurs du bilan officiel)", fields:[
+    { key:"ca_ht_bilan", label:"CA HT Bilan", kind:"amt" },
+    { key:"retrocessions", label:"Rétrocessions", kind:"amt" },
+    { key:"honoraires_coop", label:"Honoraires Coop", kind:"amt" },
+    { key:"maison_retraite", label:"Maison retraite / MAS / EHPAD", kind:"amt", editable:true },
+    { key:"vaccination", label:"Vaccination", kind:"amt", editable:true },
+    { key:"marge_brute_globale_bilan", label:"Marge Brute globale Bilan", kind:"amt" },
+    { key:"ebe_bilan", label:"EBE Bilan", kind:"amt" },
+    { key:"csg_deductible", label:"CSG déductible", kind:"amt" },
+    { key:"autres_retraitements", label:"Autres retraitements", kind:"amt", editable:true },
+    { key:"tiers_payant", label:"Tiers payant", kind:"amt" },
+    { key:"fonds_incorporels", label:"Fonds - Éléments incorporels", kind:"amt" },
+    { key:"fonds_corporels", label:"Fonds - Éléments corporels", kind:"amt" },
+    { key:"activite_exceptionnelle", label:"Activité exceptionnelle (retraitement EBE)", kind:"amt", editable:true },
+  ]},
+  { title:"Répartition du CA par tranche de prix (% du CA)", fields:[
+    { key:"tranche_0_191", label:"0 € à 1,91 €", kind:"pct" },
+    { key:"tranche_192_2290", label:"1,92 € à 22,90 €", kind:"pct" },
+    { key:"tranche_2291_150", label:"22,91 € à 150 €", kind:"pct" },
+    { key:"tranche_150_1930", label:"150 € à 1930 €", kind:"pct" },
+    { key:"tranche_sup_1930", label:"> 1930 €", kind:"pct" },
+  ]},
+];
+
+const CHARGES_EXT_KEYS = BILAN_SECTIONS.find(s=>s.title==="Charges externes détaillées").fields.map(f=>f.key);
+const VENTES_KEYS = ["ventes_0","ventes_21","ventes_55","ventes_10","ventes_20","hono_dispensation"];
+const PRESTA_KEYS = ["activites_0","locations","preparations","autres_presta","rosp","gardes"];
+const ACHATS_KEYS = ["achats_0","achats_21","achats_55","achats_10","achats_20","mat_location_20"];
+
+function allFieldDefs(){ return BILAN_SECTIONS.flatMap(s=>s.fields); }
+
+/* ==========================================================================================
+   2. PARAMÈTRES NATIONAUX — valeurs par défaut, copiées de l'onglet
+      "Données nationales et valorisat" du classeur. Éditables ensuite par projet.
+   ========================================================================================== */
+const DEFAULT_PARAMS = {
+  // Coefficients de valorisation (moyenne national/quartier/normandie dans le classeur源)
+  coef_ca_sup: (0.76+0.72+0.83)/3,     // CA > seuil
+  coef_ca_inf: (0.48+0.48+0.51)/3,     // CA < seuil
+  coef_marge_sup: (2.68+2.63+2.88)/3,  // Marge > seuil
+  coef_marge_inf: (1.76+1.88+1.82)/3,  // Marge < seuil
+  coef_ebe_sup: (6.8+7.5+7.4)/3,       // EBE > seuil
+  coef_ebe_inf: (5.3+5.2+5.8)/3,       // EBE < seuil
+  marge_valorisation_seuil_k: 400,     // seuil (k€) déterminant quel coefficient utiliser
+
+  ratio_clients: 6.5, ratio_tresorerie: 37.0, ratio_fournisseurs: 37.0, ratio_stock: 42.0,
+  evolution_ca_nationale: 5.0, ratio_charges_externe: 6.0, ratio_charges_personnel: 12.0,
+  production_theorique: 380000, marge_brute_commerciale_nationale: 28.3,
+  produits_150_1930: 0.4, disponibilite_bfr_initial: 37.0,
+  taux_ebe_ca: 10.0, taux_ebe_marge: 35.0,
+
+  evolution_ca_estime: 1.5, evolution_charges_estime: 1.0, evolution_salaires_estime: 2.0,
+  charges_sociales_exploitant: 45.0, remuneration_exploitant_souhaitee: 42000,
+  impots_theorique: 6000, duree_amortissement_travaux: 10,
+
+  honoraire_transaction_pct: 0.05, honoraire_comptable: 4000, honoraire_juridique: 20000,
+  frais_acquisition_pct: 0.001, travaux: 50000, taux_bancaire: 0.04, duree_pret_ans: 12,
+  taux_booster: 0.08, duree_booster_ans: 12, in_fine: true,
+  stock_financement: "Prêt vendeur 12 fois", // "Prêt vendeur 12 fois" | "Apports directe" | "Emprunts bancaire"
+  besoin_bfr: true,
+
+  apports_capital_personnel: 7000, apports_cc_personnel: 0, apports_associe_exec: 0,
+  apports_associe_investisseur: 0, apports_booster: 150000,
+
+  emprunt_banque_montant: 800000,
+  financement_travaux_mode: "Apports", // "Apports" | "Prêt"
+
+  is_seuil_bas: 42500, is_taux_p1: 0.15, is_taux_p2: 0.25,
+};
+
+const PARAM_GROUPS = [
+  { title:"Coefficients de valorisation (multiples)", fields:[
+    ["marge_valorisation_seuil_k","Seuil de marge pour valorisation (k€)"],
+    ["coef_ca_sup","Coef. CA (si marge ≥ seuil)"], ["coef_ca_inf","Coef. CA (si marge < seuil)"],
+    ["coef_ebe_sup","Coef. EBE (si marge ≥ seuil)"], ["coef_ebe_inf","Coef. EBE (si marge < seuil)"],
+    ["coef_marge_sup","Coef. Marge (si marge ≥ seuil)"], ["coef_marge_inf","Coef. Marge (si marge < seuil)"],
+  ]},
+  { title:"Ratios nationaux", fields:[
+    ["ratio_clients","Ratio clients (jours)"], ["ratio_tresorerie","Ratio trésorerie (jours)"],
+    ["ratio_fournisseurs","Ratio fournisseurs (jours)"], ["ratio_stock","Ratio stock (jours)"],
+    ["evolution_ca_nationale","Évolution CA nationale (%)"], ["ratio_charges_externe","Ratio charges externes (%)"],
+    ["ratio_charges_personnel","Ratio charges personnel (%)"], ["production_theorique","Production théorique (€)"],
+    ["marge_brute_commerciale_nationale","Marge brute commerciale nationale (%)"],
+    ["produits_150_1930","Seuil produits chers (part CA, ex 0.4=40%)"],
+    ["disponibilite_bfr_initial","Disponibilité BFR initial (%)"],
+    ["taux_ebe_ca","Taux EBE / CA (%)"], ["taux_ebe_marge","Taux EBE / Marge (%)"],
+  ]},
+  { title:"Hypothèses prévisionnel", fields:[
+    ["evolution_ca_estime","Évolution CA estimée (%/an)"], ["evolution_charges_estime","Évolution charges estimée (%/an)"],
+    ["evolution_salaires_estime","Évolution salaires estimée (%/an)"], ["charges_sociales_exploitant","Charges sociales exploitant (%)"],
+    ["remuneration_exploitant_souhaitee","Rémunération souhaitée exploitant (€/an)"], ["impots_theorique","Impôts théorique (€)"],
+    ["duree_amortissement_travaux","Durée amortissement travaux (années)"],
+  ]},
+  { title:"Frais de transaction", fields:[
+    ["honoraire_transaction_pct","Honoraire transaction (% + TVA)"], ["honoraire_comptable","Honoraire comptable (€)"],
+    ["honoraire_juridique","Honoraire juridique TTC + débours (€)"], ["frais_acquisition_pct","Frais d'acquisition (%)"],
+    ["travaux","Travaux (€)"],
+  ]},
+  { title:"Financement", fields:[
+    ["taux_bancaire","Taux bancaire hors assurance (%, ex 0.04)"], ["duree_pret_ans","Durée prêt banque (ans)"],
+    ["taux_booster","Taux booster (%, ex 0.08)"], ["duree_booster_ans","Durée booster (ans)"],
+    ["in_fine_select","Remboursement in fine ?"], ["stock_financement_select","Financement du stock"],
+    ["besoin_bfr_select","Financer le BFR ?"], ["emprunt_banque_montant","Montant emprunt banque (€)"],
+    ["financement_travaux_mode_select","Financement des travaux"],
+  ]},
+  { title:"Apports personnels", fields:[
+    ["apports_capital_personnel","Apports en capital personnel (€)"], ["apports_cc_personnel","Apports en compte courant (€)"],
+    ["apports_associe_exec","Apports associé exécutant (€)"], ["apports_associe_investisseur","Apports associé investisseur (€)"],
+    ["apports_booster","Apports booster (€)"],
+  ]},
+  { title:"Barème Impôt sur les Sociétés", fields:[
+    ["is_seuil_bas","Seuil palier 1 → palier 2 (€)"], ["is_taux_p1","Taux IS palier 1 (%, ex 0.15)"], ["is_taux_p2","Taux IS palier 2 (%, ex 0.25)"],
+  ]},
+];
+
+/* ==========================================================================================
+   3. INFOS PROJET — champs libres, chacun "cochable" non disponible
+   ========================================================================================== */
+const INFO_FIELDS = [
+  ["nom_pharmacie","Nom de la pharmacie"], ["adresse","Adresse"], ["ville","Ville"], ["code_postal","Code postal"],
+  ["vendeur","Nom du vendeur / cédant"], ["acheteur","Nom de l'acheteur / repreneur"],
+  ["forme_juridique_cible","Forme juridique envisagée (SEL, SPFPL...)"],
+  ["notaire","Notaire en charge"], ["avocat","Avocat en charge"], ["expert_comptable","Expert-comptable en charge"],
+  ["banque_contact","Contact banque"], ["date_signature_envisagee","Date de signature envisagée"],
+  ["groupement","Groupement d'officines"], ["surface_officine","Surface officine (m²)"],
+  ["nb_titulaires_actuels","Nombre de titulaires actuels"], ["nb_titulaires_projet","Nombre de titulaires après reprise"],
+  ["commentaire_libre","Commentaire libre"],
+];
+
+/* ==========================================================================================
+   4. ÉTAT APPLICATIF
+   ========================================================================================== */
+let STATE = {
+  session: null,
+  user: null,
+  projects: [],
+  current: null,        // { project, params, bilans: {0:{},-1:{},-2:{}}, unavailableBilan: {0:[],...} }
+  activeTab: "infos",
+  importMappings: {},   // source_label -> target_field
+};
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function fmtEUR(n){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{style:'currency',currency:'EUR',maximumFractionDigits:0}); }
+function fmtPct(n,d=1){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d})+" %"; }
+function fmtNum(n,d=1){ if(n===undefined||n===null||isNaN(n)) return "—"; return n.toLocaleString('fr-FR',{maximumFractionDigits:d}); }
+function num(v){ const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+/* ==========================================================================================
+   5. AUTH
+   ========================================================================================== */
+let authMode = "login";
+document.getElementById('auth-switch-link').addEventListener('click', ()=>{
+  authMode = authMode === "login" ? "signup" : "login";
+  document.getElementById('auth-title').textContent = authMode === "login" ? "Connexion" : "Créer un compte";
+  document.getElementById('auth-submit').textContent = authMode === "login" ? "Se connecter" : "Créer le compte";
+  document.getElementById('auth-switch').innerHTML = authMode === "login"
+    ? 'Pas de compte ? <a id="auth-switch-link">Créer un compte</a>'
+    : 'Déjà un compte ? <a id="auth-switch-link">Se connecter</a>';
+  document.getElementById('auth-switch-link').addEventListener('click', arguments.callee.caller);
+});
+// (ré-attache le handler après réécriture du innerHTML)
+document.getElementById('auth-switch').addEventListener('click', (e)=>{
+  if(e.target.id === 'auth-switch-link'){
+    authMode = authMode === "login" ? "signup" : "login";
+    renderAuthMode();
+  }
+});
+function renderAuthMode(){
+  document.getElementById('auth-title').textContent = authMode === "login" ? "Connexion" : "Créer un compte";
+  document.getElementById('auth-submit').textContent = authMode === "login" ? "Se connecter" : "Créer le compte";
+  document.getElementById('auth-switch').innerHTML = authMode === "login"
+    ? 'Pas de compte ? <a id="auth-switch-link">Créer un compte</a>'
+    : 'Déjà un compte ? <a id="auth-switch-link">Se connecter</a>';
+}
+
+document.getElementById('auth-submit').addEventListener('click', async ()=>{
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const errBox = document.getElementById('auth-error');
+  errBox.textContent = "";
+  if(!email || !password){ errBox.textContent = "Renseignez email et mot de passe."; return; }
+  let res;
+  if(authMode === "login"){
+    res = await sb.auth.signInWithPassword({ email, password });
+  } else {
+    res = await sb.auth.signUp({ email, password });
+  }
+  if(res.error){ errBox.textContent = res.error.message; return; }
+  if(authMode === "signup" && !res.data.session){
+    errBox.textContent = "Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.";
+    return;
+  }
+  await onAuthed(res.data.session);
+});
+
+document.getElementById('btn-logout').addEventListener('click', async ()=>{
+  await sb.auth.signOut();
+  STATE = { session:null, user:null, projects:[], current:null, activeTab:"infos", importMappings:{} };
+  showView('auth');
+});
+
+async function onAuthed(session){
+  STATE.session = session; STATE.user = session.user;
+  document.getElementById('who-box').classList.remove('hidden');
+  document.getElementById('who-email').textContent = session.user.email;
+  await loadMappings();
+  await loadProjects();
+  showView('projects');
+}
+
+/* ==========================================================================================
+   6. VIEWS
+   ========================================================================================== */
+function showView(name){
+  document.getElementById('auth-view').classList.toggle('hidden', name!=='auth');
+  document.getElementById('projects-view').classList.toggle('hidden', name!=='projects');
+  document.getElementById('workspace-view').classList.toggle('hidden', name!=='workspace');
+}
+
+async function loadProjects(){
+  const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending:false });
+  if(error){ toast("Erreur chargement projets: "+error.message); return; }
+  STATE.projects = data || [];
+  renderProjectList();
+}
+
+function renderProjectList(){
+  const el = document.getElementById('proj-list');
+  el.innerHTML = "";
+  STATE.projects.forEach(p=>{
+    const d = document.createElement('div');
+    d.className = 'proj-tile';
+    d.innerHTML = `<h3>${escapeHtml(p.nom)}</h3><div class="meta">${escapeHtml((p.infos&&p.infos.ville)||'')}</div><div class="meta">Créé le ${new Date(p.created_at).toLocaleDateString('fr-FR')}</div>`;
+    d.addEventListener('click', ()=>openProject(p.id));
+    el.appendChild(d);
+  });
+  const add = document.createElement('div');
+  add.className = 'proj-tile new-tile';
+  add.textContent = '+ Nouveau dossier';
+  add.addEventListener('click', createProject);
+  el.appendChild(add);
+}
+
+async function createProject(){
+  const nom = prompt("Nom du dossier (ex: Pharmacie du Centre — Sotteville) :");
+  if(!nom) return;
+  const { data, error } = await sb.from('projects').insert({ owner: STATE.user.id, nom }).select().single();
+  if(error){ toast("Erreur: "+error.message); return; }
+  const { error:pe } = await sb.from('parametres').insert({ project_id: data.id, params: DEFAULT_PARAMS });
+  if(pe){ toast("Erreur paramètres: "+pe.message); }
+  await loadProjects();
+  openProject(data.id);
+}
+
+document.getElementById('btn-back-list').addEventListener('click', async ()=>{ await loadProjects(); showView('projects'); });
+
+document.getElementById('btn-del-project').addEventListener('click', async ()=>{
+  if(!STATE.current) return;
+  if(!confirm(`Supprimer définitivement le dossier "${STATE.current.project.nom}" et toutes ses données ?`)) return;
+  const { error } = await sb.from('projects').delete().eq('id', STATE.current.project.id);
+  if(error){ toast("Erreur: "+error.message); return; }
+  await loadProjects(); showView('projects');
+});
+
+async function openProject(id){
+  const project = STATE.projects.find(p=>p.id===id) || (await sb.from('projects').select('*').eq('id',id).single()).data;
+  const { data: paramRow } = await sb.from('parametres').select('*').eq('project_id', id).single();
+  const { data: bilanRows } = await sb.from('bilans').select('*').eq('project_id', id);
+
+  const bilans = {0:{},[-1]:{},[-2]:{}};
+  const unavailableBilan = {0:[],[-1]:[],[-2]:[]};
+  (bilanRows||[]).forEach(r=>{ bilans[r.annee_offset] = r.data||{}; unavailableBilan[r.annee_offset] = r.unavailable||[]; });
+
+  STATE.current = {
+    project,
+    params: (paramRow && paramRow.params) || {...DEFAULT_PARAMS},
+    bilans, unavailableBilan,
+  };
+  STATE.activeTab = "infos";
+  document.getElementById('ws-title').textContent = project.nom;
+  showView('workspace');
+  renderTabs();
+}
+
+document.querySelectorAll('#tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{ STATE.activeTab = btn.dataset.tab; renderTabs(); });
+});
+
+function renderTabs(){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===STATE.activeTab));
+  const c = document.getElementById('tab-content');
+  if(STATE.activeTab==='infos') return renderInfosTab(c);
+  if(STATE.activeTab==='parametres') return renderParametresTab(c);
+  if(STATE.activeTab==='bilans') return renderBilansTab(c);
+  if(STATE.activeTab==='evaluation') return renderEvaluationTab(c);
+  if(STATE.activeTab==='valorisation') return renderValorisationTab(c);
+  if(STATE.activeTab==='previsionnel') return renderPrevisionnelTab(c);
+}
+
+function escapeHtml(s){ return (s===undefined||s===null)?'':String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ==========================================================================================
+   7. TAB — INFORMATIONS PROJET
+   ========================================================================================== */
+function renderInfosTab(root){
+  const infos = STATE.current.project.infos || {};
+  const unavail = new Set(STATE.current.project.unavailable || []);
+  root.innerHTML = `
+    <div class="card">
+      <h2>Informations générales du projet</h2>
+      <p class="note">Renseignez ce que vous savez. Cochez "non disponible" pour les informations que vous n'avez pas encore — elles resteront visibles comme manquantes plutôt que d'être laissées vides par erreur.</p>
+      <div class="field-grid wide" id="infos-grid"></div>
+      <div class="modal-actions"><button class="primary" id="save-infos">Enregistrer</button></div>
+    </div>`;
+  const grid = document.getElementById('infos-grid');
+  INFO_FIELDS.forEach(([key,label])=>{
+    const isNA = unavail.has(key);
+    const row = document.createElement('div'); row.style.display='contents';
+    row.innerHTML = `
+      <div class="field-label">${label}</div>
+      <input type="text" class="f-input" data-key="${key}" ${isNA?'disabled':''} value="${escapeHtml(infos[key]||'')}">
+      <label class="na-toggle"><input type="checkbox" data-na="${key}" ${isNA?'checked':''}> non disponible</label>`;
+    grid.appendChild(row);
+  });
+  grid.addEventListener('change', (e)=>{
+    if(e.target.dataset.na){
+      const input = grid.querySelector(`input[data-key="${e.target.dataset.na}"]`);
+      input.disabled = e.target.checked;
+      if(e.target.checked) input.value = "";
+    }
+  });
+  document.getElementById('save-infos').addEventListener('click', async ()=>{
+    const newInfos = {}; const newUnavail = [];
+    INFO_FIELDS.forEach(([key])=>{
+      const na = grid.querySelector(`input[data-na="${key}"]`).checked;
+      if(na) newUnavail.push(key);
+      else newInfos[key] = grid.querySelector(`input[data-key="${key}"]`).value;
+    });
+    const { error } = await sb.from('projects').update({ infos:newInfos, unavailable:newUnavail }).eq('id', STATE.current.project.id);
+    if(error) return toast("Erreur: "+error.message);
+    STATE.current.project.infos = newInfos; STATE.current.project.unavailable = newUnavail;
+    toast("Informations enregistrées.");
+  });
+}
+
+/* ==========================================================================================
+   8. TAB — PARAMÈTRES (+ Import IA)
+   ========================================================================================== */
+function renderParametresTab(root){
+  const p = STATE.current.params;
+  root.innerHTML = `
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <h2 style="margin:0;">Paramètres du projet</h2>
+        <button class="primary" id="btn-import-ia">Importer depuis bilan (IA)</button>
+      </div>
+      <p class="note">Ces valeurs sont pré-remplies avec les normes nationales. Modifiez-les librement pour coller à ce dossier précis — elles serviront à tous les calculs des onglets Évaluation, Valorisation et Prévisionnel.</p>
+      <div id="params-groups"></div>
+      <div class="modal-actions"><button class="primary" id="save-params">Enregistrer les paramètres</button></div>
+    </div>`;
+  const groupsEl = document.getElementById('params-groups');
+  PARAM_GROUPS.forEach(g=>{
+    const sec = document.createElement('div');
+    sec.innerHTML = `<h4 class="section-title">${g.title}</h4><div class="field-grid" data-group></div>`;
+    groupsEl.appendChild(sec);
+    const grid = sec.querySelector('[data-group]');
+    g.fields.forEach(([key,label])=>{
+      const row = document.createElement('div'); row.style.display='contents';
+      if(key==="in_fine_select"){
+        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="in_fine"><option value="true" ${p.in_fine?'selected':''}>Oui</option><option value="false" ${!p.in_fine?'selected':''}>Non</option></select>`;
+      } else if(key==="stock_financement_select"){
+        const opts = ["Prêt vendeur 12 fois","Apports directe","Emprunts bancaire"];
+        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="stock_financement">${opts.map(o=>`<option ${p.stock_financement===o?'selected':''}>${o}</option>`).join('')}</select>`;
+      } else if(key==="besoin_bfr_select"){
+        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="besoin_bfr"><option value="true" ${p.besoin_bfr?'selected':''}>Oui</option><option value="false" ${!p.besoin_bfr?'selected':''}>Non</option></select>`;
+      } else if(key==="financement_travaux_mode_select"){
+        const opts = ["Apports","Prêt"];
+        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="financement_travaux_mode">${opts.map(o=>`<option ${p.financement_travaux_mode===o?'selected':''}>${o}</option>`).join('')}</select>`;
+      } else {
+        row.innerHTML = `<div class="field-label">${label}</div><input type="number" step="any" class="f-edit" data-pkey="${key}" value="${p[key]??''}">`;
+      }
+      grid.appendChild(row);
+    });
+  });
+  document.getElementById('save-params').addEventListener('click', async ()=>{
+    const newParams = {...p};
+    groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
+      const k = inp.dataset.pkey; let v = inp.value;
+      if(inp.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true';
+      else if(inp.tagName==='INPUT') v = parseFloat(v);
+      newParams[k] = v;
+    });
+    const { error } = await sb.from('parametres').update({ params:newParams }).eq('project_id', STATE.current.project.id);
+    if(error) return toast("Erreur: "+error.message);
+    STATE.current.params = newParams;
+    toast("Paramètres enregistrés.");
+  });
+  document.getElementById('btn-import-ia').addEventListener('click', openImportModal);
+}
+
+/* ==========================================================================================
+   9. TAB — DONNÉES BILANS (saisie brute, 3 années)
+   ========================================================================================== */
+let bilansActiveYear = 0;
+function renderBilansTab(root){
+  root.innerHTML = `
+    <div class="card">
+      <div class="legend">
+        <span class="leg-input"><i></i> Doit être saisi</span>
+        <span class="leg-edit"><i></i> Peut être modifié (valeur par défaut)</span>
+        <span class="leg-lock"><i></i> Calculé automatiquement</span>
+      </div>
+      <div class="row" style="margin-bottom:14px;">
+        ${[0,-1,-2].map(y=>`<button class="ghost small yr-btn" data-y="${y}">${yearLabel(y)}</button>`).join('')}
+      </div>
+      <div id="bilan-form"></div>
+      <div class="modal-actions"><button class="primary" id="save-bilan">Enregistrer cette année</button></div>
+    </div>`;
+  root.querySelectorAll('.yr-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{ bilansActiveYear = parseInt(b.dataset.y); renderBilanYear(); });
+  });
+  renderBilanYear();
+
+  function renderBilanYear(){
+    root.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('primary', parseInt(b.dataset.y)===bilansActiveYear));
+    const data = STATE.current.bilans[bilansActiveYear] || {};
+    const unavail = new Set(STATE.current.unavailableBilan[bilansActiveYear] || []);
+    const form = document.getElementById('bilan-form');
+    form.innerHTML = "";
+    BILAN_SECTIONS.forEach(sec=>{
+      const h = document.createElement('h4'); h.className='section-title'; h.textContent = sec.title;
+      form.appendChild(h);
+      const grid = document.createElement('div');
+      grid.className = 'field-grid' + (sec.fields.some(f=>f.kind==='ht') ? ' wide' : '');
+      form.appendChild(grid);
+      sec.fields.forEach(f=>{
+        const na = unavail.has(f.key);
+        const row = document.createElement('div'); row.style.display='contents';
+        if(f.kind==='ht'){
+          const tvaVal = data[f.key+'_tva'] ?? f.tva;
+          row.innerHTML = `
+            <div class="field-label">${f.label}</div>
+            <input type="number" step="any" class="f-input" data-key="${f.key}" ${na?'disabled':''} value="${data[f.key]??''}" placeholder="HT €">
+            <input type="number" step="any" class="${f.tvaLocked?'f-lock':'f-edit'}" data-key="${f.key}_tva" ${(na||f.tvaLocked)?'disabled':''} value="${tvaVal}" title="Taux TVA" placeholder="TVA">`;
+        } else if(f.kind==='pct'){
+          row.innerHTML = `
+            <div class="field-label">${f.label}</div>
+            <input type="number" step="any" class="f-input" data-key="${f.key}" ${na?'disabled':''} value="${data[f.key]??''}" placeholder="%">
+            <span></span>`;
+        } else {
+          row.innerHTML = `
+            <div class="field-label">${f.label}${f.editable?' <em style="color:var(--muted)">(retraitement)</em>':''}</div>
+            <input type="number" step="any" class="${f.editable?'f-edit':'f-input'}" data-key="${f.key}" ${na?'disabled':''} value="${data[f.key]??''}">
+            <label class="na-toggle"><input type="checkbox" data-na="${f.key}" ${na?'checked':''}> N/A</label>`;
+        }
+        grid.appendChild(row);
+      });
+    });
+    form.addEventListener('change', (e)=>{
+      if(e.target.dataset.na){
+        const input = form.querySelector(`input[data-key="${e.target.dataset.na}"]`);
+        input.disabled = e.target.checked;
+      }
+    });
+  }
+
+  document.getElementById('save-bilan').addEventListener('click', async ()=>{
+    const form = document.getElementById('bilan-form');
+    const data = {}; const unavail = [];
+    form.querySelectorAll('input[data-key]').forEach(inp=>{
+      if(inp.disabled) return;
+      const v = inp.value; if(v!=='') data[inp.dataset.key] = parseFloat(v);
+    });
+    form.querySelectorAll('input[data-na]').forEach(inp=>{ if(inp.checked) unavail.push(inp.dataset.na); });
+    const { error } = await sb.from('bilans').upsert({
+      project_id: STATE.current.project.id, annee_offset: bilansActiveYear,
+      data, unavailable: unavail, annee_label: yearLabel(bilansActiveYear),
+    }, { onConflict: 'project_id,annee_offset' });
+    if(error) return toast("Erreur: "+error.message);
+    STATE.current.bilans[bilansActiveYear] = data;
+    STATE.current.unavailableBilan[bilansActiveYear] = unavail;
+    toast(`Bilan ${yearLabel(bilansActiveYear)} enregistré.`);
+  });
+}
+function yearLabel(y){ return y===0 ? "Année N" : y===-1 ? "Année N-1" : "Année N-2"; }
+
+/* ==========================================================================================
+   10. MOTEUR DE CALCUL — reproduit fidèlement les formules du classeur Excel source.
+   Chaque fonction est commentée avec la référence de cellule d'origine pour audit facile.
+   ========================================================================================== */
+function sumGroupHT(data, keys){
+  let ht=0, tva=0;
+  keys.forEach(k=>{
+    const v = num(data[k]);
+    const rate = data[k+'_tva'] !== undefined ? num(data[k+'_tva']) : (allFieldDefs().find(f=>f.key===k)||{}).tva || 0;
+    ht += v; tva += v*rate;
+  });
+  return { ht, tva, ttc: ht+tva };
+}
+
+function computeBilanAggregate(data){
+  const ventes = sumGroupHT(data, VENTES_KEYS);
+  const presta = sumGroupHT(data, PRESTA_KEYS);
+  const achats = sumGroupHT(data, ACHATS_KEYS);
+  const caTotalHT = ventes.ht + presta.ht;                       // CA_TOTAL_HT
+  const caTotalTTC = ventes.ttc + presta.ttc;                    // CA_TOTAL_TTC
+  const remisesTotal = num(data.remise_commerciale)+num(data.rfa)+num(data.escompte); // Achats_remisé TOTAL
+  const achatsTotalRemise = achats.ht - remisesTotal;             // B49
+  const variationStock = num(data.stock_initial) - num(data.stock_final); // B50
+  const achatsConsoHT = achatsTotalRemise + variationStock;       // B51 = Achats_Conso
+  const chargesExternes = CHARGES_EXT_KEYS.reduce((s,k)=>s+num(data[k]),0); // Charges_Externe TOTAL
+  return { ventes, presta, achats, caTotalHT, caTotalTTC, achatsTotalRemise, variationStock, achatsConsoHT, chargesExternes };
+}
+
+// ---- Onglet "Evaluation pharmacie" ----
+function computeEvaluation(dataN, dataN1){
+  const N = computeBilanAggregate(dataN);
+  const N1 = computeBilanAggregate(dataN1);
+
+  // Ratios financiers (A8, D8, A15)
+  const ratioClients = N.caTotalTTC ? (num(dataN.creances_clients_ttc)*360)/N.caTotalTTC : null;      // B8
+  const ratioFournisseurs = N.achats.ht ? (num(dataN.dettes_fournisseurs)*360)/N.achats.ht : null;     // E8
+  const ratioTresorerie = N.achats.ht ? ((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360)/N.achats.ht : null; // B15
+  const ratioStock = N.achatsConsoHT ? (num(dataN.stock_final)*360)/N.achatsConsoHT : null;            // E14
+
+  // Ratios exploitation
+  const evolutionCA = N1.caTotalHT ? (N.caTotalHT - N1.caTotalHT)/N1.caTotalHT*100 : null;             // B24
+  const ratioChargesExterne = N.caTotalHT ? (N.chargesExternes*100)/N.caTotalHT : null;                // E24 (déno = CA année N)
+  const margeBruteSans0 = (N.caTotalHT - num(dataN.ventes_0)) - (N.achatsConsoHT - num(dataN.achats_0)); // B32
+  const ratioChargesPersonnel = margeBruteSans0 ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/margeBruteSans0 : null; // E33
+
+  // Taux de marge commerciale
+  const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;    // = Marge_brute_commerciale (identique à margeBruteSans0? formule différente, on garde distincte: B36 en fait = table Marge_brute_commerciale = même range que Marge Brute sans 0% -> donc = margeBruteSans0)
+  const tauxMarge = N.caTotalHT ? margeBruteSans0*100/N.caTotalHT : null;                              // B38
+  const productionTheoriqueRatio = STATE.current.params.production_theorique ? N.ventes.ttc/STATE.current.params.production_theorique : null; // E38
+
+  // EBE
+  const remunerationDirigeant = num(dataN.remuneration_gerance)+num(dataN.charges_gerance);
+  const EBE = N.ventes.ht + N.presta.ht - N.achatsConsoHT - N.chargesExternes - num(dataN.impots_taxes_hors_is)
+            - (num(dataN.salaires_personnel)+num(dataN.charges_personnel)+num(dataN.remuneration_gerance)+num(dataN.charges_gerance)); // B48
+  const EBE_retraite = EBE + remunerationDirigeant + num(dataN.activite_exceptionnelle);               // E45
+  const tauxEBE_CA = N.caTotalHT ? EBE_retraite*100/N.caTotalHT : null;                                 // E49
+  const tauxEBE_Marge = margeBruteSans0 ? EBE_retraite*100/margeBruteSans0 : null;                      // E50
+
+  return { N, N1, ratioClients, ratioFournisseurs, ratioTresorerie, ratioStock, evolutionCA, ratioChargesExterne,
+    margeBruteSans0, ratioChargesPersonnel, margeBruteCommerciale, tauxMarge, productionTheoriqueRatio,
+    EBE, EBE_retraite, tauxEBE_CA, tauxEBE_Marge, remunerationDirigeant };
+}
+
+// ---- Onglet "Valorisation et prêt" ----
+function computeValorisation(dataRef, params){
+  const seuil = num(params.marge_valorisation_seuil_k)*1000;
+  const margeGlobale = num(dataRef.marge_brute_globale_bilan);
+  const auDessus = margeGlobale >= seuil;
+
+  const coefCA = auDessus ? params.coef_ca_sup : params.coef_ca_inf;
+  const coefEBE = auDessus ? params.coef_ebe_sup : params.coef_ebe_inf;
+  const coefMarge = auDessus ? params.coef_marge_sup : params.coef_marge_inf;
+
+  const trancheChere = num(dataRef.tranche_150_1930)+num(dataRef.tranche_sup_1930);
+  const differenceProduitsChers = trancheChere > num(params.produits_150_1930)
+    ? (trancheChere - num(params.produits_150_1930)) * num(dataRef.ca_ht_bilan) : 0;   // B9
+
+  const valorisationCA = (num(dataRef.ca_ht_bilan) + num(dataRef.retrocessions) + num(dataRef.honoraires_coop)
+    - num(dataRef.maison_retraite) - differenceProduitsChers) * coefCA;                // B11
+  const valorisationEBE = (num(dataRef.ebe_bilan) + num(dataRef.csg_deductible) + num(dataRef.autres_retraitements)
+    + num(dataRef.tiers_payant) + num(dataRef.fonds_incorporels) + num(dataRef.fonds_corporels)) * coefEBE; // E13
+  const valorisationMarge = (margeGlobale + num(dataRef.vaccination)) * coefMarge;      // E20
+
+  const valorisationTheorique = (valorisationCA + valorisationEBE + valorisationMarge)/3; // B19
+
+  // Financement
+  const honoraireTransaction = num(params.honoraire_transaction_pct) * valorisationTheorique * 1.2; // H8
+  const honoraireComptable = num(params.honoraire_comptable);
+  const honoraireJuridique = num(params.honoraire_juridique);
+  const fraisAcquisition = num(params.frais_acquisition_pct) * valorisationTheorique;
+  const travaux = num(params.travaux);
+
+  const agg = computeBilanAggregate(dataRef);
+  const bfrStock = num(params.ratio_stock) * agg.achats.ht / 360;      // K25
+  const bfrCreances = num(params.ratio_clients) * agg.ventes.ttc / 360; // K26
+  const bfrFournisseur = num(params.ratio_fournisseurs) * agg.achats.ttc / 360; // K27
+  const bfrTotal = bfrStock + bfrCreances - bfrFournisseur;             // K28
+  const bfrRetenu = params.besoin_bfr ? bfrTotal : 0;                   // H14
+
+  const stockFinalLigne = num(dataRef.stock_final);                     // H7 (ligne "stock final" incluse telle quelle dans le total besoins)
+  const totalBesoinsFinanciers = stockFinalLigne + honoraireTransaction + honoraireComptable + honoraireJuridique
+    + fraisAcquisition + travaux + valorisationTheorique + bfrRetenu;   // H15
+
+  const aFinancerMinApports = honoraireTransaction + honoraireComptable + honoraireJuridique + fraisAcquisition + bfrRetenu + agg.chargesExternes*0 + num(dataRef.retrocessions)*0; // approx H24=SUM(H8:H11)+H14+H6 (H6=rétrocessions display)
+  const aFinancerMinApportsFidele = honoraireTransaction+honoraireComptable+honoraireJuridique+fraisAcquisition+bfrRetenu+num(dataRef.retrocessions); // H24
+
+  const emprunt = num(params.emprunt_banque_montant);
+  const aFinancerMinEmprunts = valorisationTheorique + (params.stock_financement==="Prêt vendeur 12 fois" ? 0 : valorisationEBE*0); // H26 simplifié (le cas H29="Prêt" ne s'applique qu'au financement travaux, cf H26 réf H12=valorisationEBE)
+  // Fidèle: H26 = H13 + IF(financement_travaux=="Prêt", H12, 0); H13=valorisationTheorique, H12=valorisationEBE
+  const aFinancerMinEmpruntsFidele = valorisationTheorique + (params.financement_travaux_mode==="Prêt" ? valorisationEBE : 0);
+
+  const apportsTotal = num(params.apports_capital_personnel)+num(params.apports_cc_personnel)
+    +num(params.apports_associe_exec)+num(params.apports_associe_investisseur)+num(params.apports_booster);
+
+  const aFinancerStock = params.stock_financement==="Prêt vendeur 12 fois" ? 0
+    : params.stock_financement==="Apports directe" ? 0
+    : stockFinalLigne; // "Emprunts bancaire" -> montant stock à financer par ailleurs
+
+  const aFinancerTravaux = valorisationEBE; // H30 = H12 (référence directe à valorisationEBE, fidèle au classeur même si sémantiquement surprenant)
+
+  const resteAFinancer = totalBesoinsFinanciers + aFinancerMinEmpruntsFidele + aFinancerStock
+    + (params.financement_travaux_mode==="Apports" ? aFinancerTravaux : 0) - apportsTotal - emprunt; // H31
+
+  // Tableau amortissement prêt bancaire (PMT)
+  const dureeAns = Math.round(num(params.duree_pret_ans));
+  const tauxAn = num(params.taux_bancaire);
+  const pmt = pmtAnnuite(tauxAn, dureeAns, emprunt);
+  const tableauPret = [];
+  let reste = emprunt;
+  for(let a=1; a<=dureeAns; a++){
+    const interets = tauxAn * reste;
+    const capital = pmt - interets;
+    reste = reste - capital;
+    tableauPret.push({ annee:a, annuite:pmt, interets, capital, reste: Math.max(reste,0) });
+  }
+
+  // Apports booster (in fine, intérêts simples chaque année)
+  const boosterMontant = num(params.apports_booster);
+  const boosterTaux = num(params.taux_booster);
+  const boosterInteretsAn = boosterMontant * boosterTaux; // N28
+
+  return {
+    seuil, auDessus, coefCA, coefEBE, coefMarge, differenceProduitsChers,
+    valorisationCA, valorisationEBE, valorisationMarge, valorisationTheorique,
+    honoraireTransaction, honoraireComptable, honoraireJuridique, fraisAcquisition, travaux,
+    bfrStock, bfrCreances, bfrFournisseur, bfrTotal, bfrRetenu, stockFinalLigne,
+    totalBesoinsFinanciers, aFinancerMinApports: aFinancerMinApportsFidele, aFinancerMinEmprunts: aFinancerMinEmpruntsFidele,
+    apportsTotal, aFinancerStock, aFinancerTravaux, resteAFinancer,
+    emprunt, dureeAns, tauxAn, pmt, tableauPret, boosterMontant, boosterTaux, boosterInteretsAn,
+  };
+}
+
+// PMT standard (annuité constante), équivalent Excel =PMT(taux, durée, -capital)
+function pmtAnnuite(taux, nper, pv){
+  if(taux===0) return pv/nper;
+  return pv*taux/(1-Math.pow(1+taux,-nper));
+}
+
+// Barème IS progressif à 2 paliers, avec report du déficit N-1 (formule SUMPRODUCT du classeur)
+function calcIS(resultatAnnee, resultatAnneePrecedente, params){
+  const base = Math.max(0, resultatAnnee + Math.min(0, resultatAnneePrecedente||0));
+  const seuil = num(params.is_seuil_bas);
+  const t1 = num(params.is_taux_p1), t2 = num(params.is_taux_p2);
+  if(base<=0) return 0;
+  if(base<=seuil) return base*t1;
+  return seuil*t1 + (base-seuil)*t2;
+}
+
+// ---- Onglet "Prévisionnel" ----
+function computePrevisionnel(dataRef, params, valo, chargesExtOverrides, salariesOverrides){
+  // Charges externes prévisionnelles = pour chaque poste : override si renseigné, sinon (si gardé) valeur du bilan, sinon 0
+  let totalChargesExtInit = 0;
+  CHARGES_EXT_KEYS.forEach(k=>{
+    const ov = chargesExtOverrides[k];
+    const garde = ov ? ov.garde : true;
+    const autreMontant = ov ? ov.autreMontant : undefined;
+    let val;
+    if(autreMontant !== undefined && autreMontant !== null && autreMontant !== '') val = num(autreMontant);
+    else if(garde) val = num(dataRef[k]);
+    else val = 0;
+    totalChargesExtInit += val;
+  });
+
+  const totalSalairesInit = salariesOverrides.reduce((s,row)=> s + (row.garde ? num(row.montant) : 0), 0);
+
+  const agg = computeBilanAggregate(dataRef);
+  const caN0 = agg.ventes.ht + agg.presta.ht; // H5
+  const tauxMargeBrute = agg.caTotalHT ? (num(dataRef.marge_brute_globale_bilan)/agg.caTotalHT)*100 : 0; // H6 (constant)
+
+  const evolCA = num(params.evolution_ca_estime)/100;
+  const evolCharges = num(params.evolution_charges_estime)/100;
+  const evolSalaires = num(params.evolution_salaires_estime)/100;
+
+  const dureeAmortTravaux = num(params.duree_amortissement_travaux)||1;
+  const dotationAmort = num(params.travaux)/dureeAmortTravaux;
+  const droitsFraisInstall = num(params.honoraire_juridique)*0.8 + num(params.honoraire_comptable)
+    + num(params.honoraire_transaction_pct)*valo.valorisationTheorique; // H16
+  const creditVendeurStock = params.stock_financement==="Prêt vendeur 12 fois" ? num(dataRef.stock_final) : 0; // H17
+
+  const years = [];
+  let CA = caN0, chargesExt = totalChargesExtInit, salaires = totalSalairesInit;
+  let remuneration = num(params.remuneration_exploitant_souhaitee);
+  const impotsTaxesConst = STATE.current._impotsTaxesRatio ?? null; // set below
+
+  let prevResultatCourant = 0;
+  for(let a=0; a<=12; a++){
+    if(a>0){ CA = CA*(1+evolCA); chargesExt = chargesExt*(1+evolCharges); salaires = salaires*(1+evolSalaires); }
+    const margeCommerciale = CA*tauxMargeBrute/100;
+    const impotsTaxes = num(dataRef.impots_taxes_hors_is) ? (num(dataRef.impots_taxes_hors_is)) : 0; // reconduit constant (ratio national appliqué déjà en amont dans le classeur original ; on garde le montant bilan reconduit tel quel par simplicité)
+    let ebeRetraite=null, remunerationAn=null, cotisSociales=null, ebeComptable=null, resultatExploit=null,
+        chargesFiBooster=null, chargesFiBanque=null, resultatCourant=null, IS=null, resultatNet=null,
+        paiementCapital=null, resultatAvantRedistrib=null;
+    if(a>=1){
+      ebeRetraite = margeCommerciale - chargesExt - impotsTaxes - salaires; // I11 style
+      remunerationAn = remuneration;
+      cotisSociales = remunerationAn*num(params.charges_sociales_exploitant)/100;
+      ebeComptable = ebeRetraite - remunerationAn - cotisSociales;
+      const amort = a===1 ? dotationAmort : dotationAmort; // constant chaque année (I15 = H15/duree pour toutes colonnes)
+      const install = a===1 ? droitsFraisInstall : 0;
+      const creditVdr = a===1 ? creditVendeurStock : 0;
+      resultatExploit = ebeComptable - amort - install - creditVdr;
+      chargesFiBooster = valo.boosterInteretsAn;
+      const ligne = valo.tableauPret[a-1];
+      chargesFiBanque = ligne ? ligne.interets : 0;
+      resultatCourant = resultatExploit - chargesFiBooster - chargesFiBanque;
+      IS = calcIS(resultatCourant, prevResultatCourant, params);
+      resultatNet = resultatCourant - IS;
+      paiementCapital = ligne ? ligne.capital : 0;
+      resultatAvantRedistrib = resultatNet - paiementCapital;
+      prevResultatCourant = resultatCourant;
+    }
+    years.push({ annee:a, CA, tauxMargeBrute, margeCommerciale, chargesExt, impotsTaxes, salaires,
+      ebeRetraite, remunerationAn, cotisSociales, ebeComptable, dotationAmort: a===1?dotationAmort:(a>=1?dotationAmort:null),
+      droitsFraisInstall: a===1?droitsFraisInstall:(a>=1?0:null), creditVendeurStock: a===1?creditVendeurStock:(a>=1?0:null),
+      resultatExploit, chargesFiBooster, chargesFiBanque, resultatCourant, IS, resultatNet, paiementCapital, resultatAvantRedistrib });
+  }
+  return { years, totalChargesExtInit, totalSalairesInit, caN0, tauxMargeBrute, dotationAmort, droitsFraisInstall, creditVendeurStock };
+}
+
+/* ==========================================================================================
+   11. TAB — ÉVALUATION (100% calculé)
+   ========================================================================================== */
+function renderEvaluationTab(root){
+  const dataN = STATE.current.bilans[0]||{}, dataN1 = STATE.current.bilans[-1]||{};
+  if(Object.keys(dataN).length===0){
+    root.innerHTML = `<div class="card"><p class="note">Aucune donnée saisie pour l'année N. Complétez d'abord l'onglet "Données bilans".</p></div>`;
+    return;
+  }
+  const r = computeEvaluation(dataN, dataN1);
+  const params = STATE.current.params;
+
+  root.innerHTML = `
+    <div class="card">
+      <h2>Ratios financiers &amp; d'exploitation — Année N</h2>
+      <div class="kpi-row">
+        <div class="kpi"><div class="v">${fmtNum(r.ratioClients)} j</div><div class="l">Ratio clients</div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioTresorerie)} j</div><div class="l">Ratio trésorerie</div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioFournisseurs)} j</div><div class="l">Ratio fournisseurs</div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioStock)} j</div><div class="l">Ratio stock</div></div>
+        <div class="kpi ${r.evolutionCA>=0?'good':'bad'}"><div class="v">${fmtPct(r.evolutionCA)}</div><div class="l">Évolution CA</div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesExterne)}</div><div class="l">Ratio charges externes</div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesPersonnel)}</div><div class="l">Ratio charges personnel</div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.tauxMarge)}</div><div class="l">Taux de marge</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>EBE retraité</h2>
+      <div class="two-col">
+        <table class="calc">
+          <tr><td>CA Ventes HT</td><td>${fmtEUR(r.N.ventes.ht)}</td></tr>
+          <tr><td>CA Prestations HT</td><td>${fmtEUR(r.N.presta.ht)}</td></tr>
+          <tr><td>Achats consommés HT</td><td>${fmtEUR(-r.N.achatsConsoHT)}</td></tr>
+          <tr><td>Charges externes</td><td>${fmtEUR(-r.N.chargesExternes)}</td></tr>
+          <tr><td>Impôts et taxes (hors IS)</td><td>${fmtEUR(-num(dataN.impots_taxes_hors_is))}</td></tr>
+          <tr><td>Salaires et charges (dont gérance)</td><td>${fmtEUR(-(num(dataN.salaires_personnel)+num(dataN.charges_personnel)+num(dataN.remuneration_gerance)+num(dataN.charges_gerance)))}</td></tr>
+          <tr class="total"><td>EBE</td><td>${fmtEUR(r.EBE)}</td></tr>
+          <tr><td>+ Rémunération du dirigeant</td><td>${fmtEUR(r.remunerationDirigeant)}</td></tr>
+          <tr><td>+ Activité exceptionnelle (retraitement)</td><td>${fmtEUR(num(dataN.activite_exceptionnelle))}</td></tr>
+          <tr class="total"><td>EBE retraité</td><td>${fmtEUR(r.EBE_retraite)}</td></tr>
+        </table>
+        <div class="kpi-row" style="grid-template-columns:1fr;">
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_CA)}</div><div class="l">Taux EBE / CA</div></div>
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_Marge)}</div><div class="l">Taux EBE / Marge</div></div>
+          <div class="kpi"><div class="v">${fmtNum(r.productionTheoriqueRatio,2)}×</div><div class="l">vs Production théorique nationale</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Comparaison aux moyennes nationales</h2>
+      ${benchBar('Ratio clients (j)', r.ratioClients, params.ratio_clients, 0, 60)}
+      ${benchBar('Ratio trésorerie (j)', r.ratioTresorerie, params.ratio_tresorerie, 0, 80)}
+      ${benchBar('Ratio fournisseurs (j)', r.ratioFournisseurs, params.ratio_fournisseurs, 0, 80)}
+      ${benchBar('Ratio stock (j)', r.ratioStock, params.ratio_stock, 0, 80)}
+      ${benchBar('Évolution CA (%)', r.evolutionCA, params.evolution_ca_nationale, -10, 20)}
+      ${benchBar('Charges externes (%)', r.ratioChargesExterne, params.ratio_charges_externe, 0, 15)}
+      ${benchBar('Charges personnel (%)', r.ratioChargesPersonnel, params.ratio_charges_personnel, 0, 25)}
+      ${benchBar('Taux marge (%)', r.tauxMarge, params.marge_brute_commerciale_nationale, 0, 40)}
+      ${benchBar('Taux EBE / CA (%)', r.tauxEBE_CA, params.taux_ebe_ca, 0, 20)}
+      ${benchBar('Taux EBE / Marge (%)', r.tauxEBE_Marge, params.taux_ebe_marge, 0, 50)}
+    </div>`;
+}
+
+function benchBar(label, value, ref, min, max){
+  const clamp = v => Math.max(min, Math.min(max, v ?? min));
+  const pctPos = v => ((clamp(v)-min)/(max-min))*100;
+  return `<div class="bench-bar">
+    <div class="lbl">${label}</div>
+    <div class="track"><div class="fillme" style="width:${pctPos(value)}%"></div><div class="marker" style="left:${pctPos(ref)}%"></div></div>
+    <div class="val">${fmtNum(value)} <span style="opacity:.5">/ ${fmtNum(ref)} nat.</span></div>
+  </div>`;
+}
+
+/* ==========================================================================================
+   12. TAB — VALORISATION & PRÊT
+   ========================================================================================== */
+function renderValorisationTab(root){
+  const dataRef = STATE.current.bilans[0]||{};
+  const params = STATE.current.params;
+  if(Object.keys(dataRef).length===0){
+    root.innerHTML = `<div class="card"><p class="note">Complétez d'abord le bilan de l'année N dans "Données bilans".</p></div>`;
+    return;
+  }
+  const v = computeValorisation(dataRef, params);
+
+  root.innerHTML = `
+    <div class="card">
+      <h2>Valorisation théorique</h2>
+      <div class="kpi-row">
+        <div class="kpi"><div class="v">${fmtEUR(v.valorisationCA)}</div><div class="l">Par le CA (×${fmtNum(v.coefCA,2)})</div></div>
+        <div class="kpi"><div class="v">${fmtEUR(v.valorisationEBE)}</div><div class="l">Par l'EBE (×${fmtNum(v.coefEBE,2)})</div></div>
+        <div class="kpi"><div class="v">${fmtEUR(v.valorisationMarge)}</div><div class="l">Par la marge (×${fmtNum(v.coefMarge,2)})</div></div>
+        <div class="kpi good"><div class="v">${fmtEUR(v.valorisationTheorique)}</div><div class="l">Valorisation retenue (moyenne)</div></div>
+      </div>
+      <p class="note">Coefficients ${v.auDessus?'"marge ≥ seuil"':'"marge < seuil"'} appliqués (seuil = ${fmtEUR(v.seuil)}, marge bilan = ${fmtEUR(num(dataRef.marge_brute_globale_bilan))}).
+      ${v.differenceProduitsChers>0 ? `Abattement produits chers appliqué : -${fmtEUR(v.differenceProduitsChers)} sur la base CA.`:''}</p>
+    </div>
+
+    <div class="card">
+      <h2>Plan de financement</h2>
+      <div class="two-col">
+        <table class="calc">
+          <tr><td>Honoraire de transaction</td><td>${fmtEUR(v.honoraireTransaction)}</td></tr>
+          <tr><td>Honoraire comptable</td><td>${fmtEUR(v.honoraireComptable)}</td></tr>
+          <tr><td>Honoraire juridique</td><td>${fmtEUR(v.honoraireJuridique)}</td></tr>
+          <tr><td>Frais d'acquisition</td><td>${fmtEUR(v.fraisAcquisition)}</td></tr>
+          <tr><td>Travaux</td><td>${fmtEUR(v.travaux)}</td></tr>
+          <tr><td>Stock (valeur bilan)</td><td>${fmtEUR(v.stockFinalLigne)}</td></tr>
+          <tr><td>BFR ${params.besoin_bfr?'':'(non financé)'}</td><td>${fmtEUR(v.bfrRetenu)}</td></tr>
+          <tr><td>Valorisation théorique</td><td>${fmtEUR(v.valorisationTheorique)}</td></tr>
+          <tr class="total"><td>Total besoins financiers</td><td>${fmtEUR(v.totalBesoinsFinanciers)}</td></tr>
+        </table>
+        <table class="calc">
+          <tr><td>Apports personnels (total)</td><td>${fmtEUR(v.apportsTotal)}</td></tr>
+          <tr><td>Emprunt banque</td><td>${fmtEUR(v.emprunt)}</td></tr>
+          <tr><td>À financer minimum (apports)</td><td>${fmtEUR(v.aFinancerMinApports)}</td></tr>
+          <tr><td>À financer minimum (emprunts)</td><td>${fmtEUR(v.aFinancerMinEmprunts)}</td></tr>
+          <tr><td>À financer — stock</td><td>${fmtEUR(v.aFinancerStock)}</td></tr>
+          <tr><td>À financer — travaux (${params.financement_travaux_mode})</td><td>${fmtEUR(params.financement_travaux_mode==='Apports'?v.aFinancerTravaux:0)}</td></tr>
+          <tr class="total ${Math.abs(v.resteAFinancer)<1000?'':''}"><td>Reste à financer</td><td class="${Math.abs(v.resteAFinancer)>1000?'neg':'pos'}">${fmtEUR(v.resteAFinancer)}</td></tr>
+        </table>
+      </div>
+      <p class="note">Ajustez le "Montant emprunt banque" dans Paramètres jusqu'à ce que le <b>Reste à financer</b> se rapproche de 0.</p>
+    </div>
+
+    <div class="card">
+      <h2>Amortissement du prêt bancaire</h2>
+      <p class="note">${fmtEUR(v.emprunt)} sur ${v.dureeAns} ans à ${fmtPct(v.tauxAn*100)} — annuité constante ${fmtEUR(v.pmt)}/an.</p>
+      <div class="scrollx"><table class="calc">
+        <tr><th>Année</th><th>Annuité</th><th>Intérêts</th><th>Capital remboursé</th><th>Reste dû</th></tr>
+        ${v.tableauPret.map(l=>`<tr><td>${l.annee}</td><td>${fmtEUR(l.annuite)}</td><td>${fmtEUR(l.interets)}</td><td>${fmtEUR(l.capital)}</td><td>${fmtEUR(l.reste)}</td></tr>`).join('')}
+      </table></div>
+    </div>
+
+    <div class="card">
+      <h2>Apport booster</h2>
+      <div class="kpi-row">
+        <div class="kpi"><div class="v">${fmtEUR(v.boosterMontant)}</div><div class="l">Montant</div></div>
+        <div class="kpi"><div class="v">${fmtPct(v.boosterTaux*100)}</div><div class="l">Taux</div></div>
+        <div class="kpi"><div class="v">${fmtEUR(v.boosterInteretsAn)}</div><div class="l">Intérêts / an (in fine)</div></div>
+      </div>
+    </div>`;
+}
+
+/* ==========================================================================================
+   13. TAB — PRÉVISIONNEL
+   ========================================================================================== */
+let previsionnelState = { chargesExt:{}, salaries:null };
+function renderPrevisionnelTab(root){
+  const dataRef = STATE.current.bilans[0]||{};
+  const params = STATE.current.params;
+  if(Object.keys(dataRef).length===0){
+    root.innerHTML = `<div class="card"><p class="note">Complétez d'abord le bilan de l'année N.</p></div>`;
+    return;
+  }
+  const v = computeValorisation(dataRef, params);
+
+  if(!previsionnelState.salaries){
+    previsionnelState.salaries = [
+      { key:'sal1', label:'Salarié 1 (repris du bilan)', garde:true, montant: num(dataRef.salaires_personnel)+num(dataRef.charges_personnel) },
+    ];
+  }
+
+  root.innerHTML = `
+    <div class="card">
+      <h2>Charges externes prévisionnelles</h2>
+      <p class="note">Cochez les postes à conserver, et indiquez un "autre montant" pour remplacer la valeur du bilan si besoin.</p>
+      <div class="field-grid wide" id="charges-prev-grid"></div>
+      <div style="margin-top:10px; font-weight:600;">Total retenu : <span id="charges-prev-total"></span></div>
+    </div>
+    <div class="card">
+      <h2>Masse salariale prévisionnelle</h2>
+      <div class="field-grid wide" id="salaries-prev-grid"></div>
+      <button class="ghost small" id="add-salary" style="margin-top:8px;">+ Ajouter un salarié / poste</button>
+      <div style="margin-top:10px; font-weight:600;">Total retenu : <span id="salaries-prev-total"></span></div>
+    </div>
+    <div class="card" id="previ-table-card">
+      <h2>Prévisionnel sur 12 ans</h2>
+      <div class="scrollx" id="previ-table"></div>
+    </div>`;
+
+  const chargesGrid = document.getElementById('charges-prev-grid');
+  CHARGES_EXT_KEYS.forEach(k=>{
+    const def = BILAN_SECTIONS.find(s=>s.title==="Charges externes détaillées").fields.find(f=>f.key===k);
+    const bilanVal = num(dataRef[k]);
+    const ov = previsionnelState.chargesExt[k] || { garde:true, autreMontant:'' };
+    previsionnelState.chargesExt[k] = ov;
+    const row = document.createElement('div'); row.style.display='contents';
+    row.innerHTML = `
+      <div class="field-label">${def.label} <span style="color:var(--muted)">(bilan: ${fmtEUR(bilanVal)})</span></div>
+      <label class="na-toggle"><input type="checkbox" data-ck="${k}" ${ov.garde?'checked':''}> gardé</label>
+      <input type="number" step="any" class="f-edit" data-cm="${k}" placeholder="autre montant" value="${ov.autreMontant}">`;
+    chargesGrid.appendChild(row);
+  });
+  chargesGrid.addEventListener('input', recomputePrevi);
+  chargesGrid.addEventListener('change', recomputePrevi);
+
+  const salGrid = document.getElementById('salaries-prev-grid');
+  function renderSalRows(){
+    salGrid.innerHTML = '';
+    previsionnelState.salaries.forEach((row,i)=>{
+      const r = document.createElement('div'); r.style.display='contents';
+      r.innerHTML = `
+        <input type="text" class="f-input" data-sl="${i}" value="${escapeHtml(row.label)}">
+        <label class="na-toggle"><input type="checkbox" data-sg="${i}" ${row.garde?'checked':''}> gardé</label>
+        <input type="number" step="any" class="f-edit" data-sm="${i}" value="${row.montant}">`;
+      salGrid.appendChild(r);
+    });
+  }
+  renderSalRows();
+  salGrid.addEventListener('input', (e)=>{
+    if(e.target.dataset.sl!==undefined) previsionnelState.salaries[e.target.dataset.sl].label = e.target.value;
+    if(e.target.dataset.sm!==undefined) previsionnelState.salaries[e.target.dataset.sm].montant = num(e.target.value);
+    recomputePrevi();
+  });
+  salGrid.addEventListener('change', (e)=>{
+    if(e.target.dataset.sg!==undefined) previsionnelState.salaries[e.target.dataset.sg].garde = e.target.checked;
+    recomputePrevi();
+  });
+  document.getElementById('add-salary').addEventListener('click', ()=>{
+    previsionnelState.salaries.push({ label:'Nouveau poste', garde:true, montant:0 });
+    renderSalRows(); recomputePrevi();
+  });
+
+  function recomputePrevi(){
+    chargesGrid.querySelectorAll('[data-ck]').forEach(cb=>{ previsionnelState.chargesExt[cb.dataset.ck].garde = cb.checked; });
+    chargesGrid.querySelectorAll('[data-cm]').forEach(inp=>{ previsionnelState.chargesExt[inp.dataset.cm].autreMontant = inp.value; });
+
+    const p = computePrevisionnel(dataRef, params, v, previsionnelState.chargesExt, previsionnelState.salaries);
+    document.getElementById('charges-prev-total').textContent = fmtEUR(p.totalChargesExtInit);
+    document.getElementById('salaries-prev-total').textContent = fmtEUR(p.totalSalairesInit);
+
+    const cols = p.years;
+    const rows = [
+      ['CA HT', y=>fmtEUR(y.CA)],
+      ['Taux marge brute', y=>fmtPct(y.tauxMargeBrute)],
+      ['Marge commerciale', y=>fmtEUR(y.margeCommerciale)],
+      ['Charges externes', y=>fmtEUR(y.chargesExt)],
+      ['Impôts et taxes', y=>fmtEUR(y.impotsTaxes)],
+      ['Salaires et charges', y=>fmtEUR(y.salaires)],
+      ['EBE retraité', y=>y.ebeRetraite==null?'—':fmtEUR(y.ebeRetraite)],
+      ['Rémunération exploitants', y=>y.remunerationAn==null?'—':fmtEUR(y.remunerationAn)],
+      ['Cotisations sociales exploitants', y=>y.cotisSociales==null?'—':fmtEUR(y.cotisSociales)],
+      ['EBE comptable', y=>y.ebeComptable==null?'—':fmtEUR(y.ebeComptable)],
+      ['Dotation amortissement', y=>y.dotationAmort==null?'—':fmtEUR(y.dotationAmort)],
+      ["Frais d'installation", y=>y.droitsFraisInstall==null?'—':fmtEUR(y.droitsFraisInstall)],
+      ['Crédit vendeur stock', y=>y.creditVendeurStock==null?'—':fmtEUR(y.creditVendeurStock)],
+      ["Résultat d'exploitation après gérance", y=>y.resultatExploit==null?'—':fmtEUR(y.resultatExploit)],
+      ['Charges fin. (booster)', y=>y.chargesFiBooster==null?'—':fmtEUR(y.chargesFiBooster)],
+      ['Charges fin. (emprunt banque)', y=>y.chargesFiBanque==null?'—':fmtEUR(y.chargesFiBanque)],
+      ['Résultat courant après gérance', y=>y.resultatCourant==null?'—':fmtEUR(y.resultatCourant)],
+      ['Impôt société (IS)', y=>y.IS==null?'—':fmtEUR(y.IS)],
+      ['Résultat net après IS', y=>y.resultatNet==null?'—':fmtEUR(y.resultatNet)],
+      ['Paiement capital', y=>y.paiementCapital==null?'—':fmtEUR(y.paiementCapital)],
+      ['Résultat avant redistribution', y=>y.resultatAvantRedistrib==null?'—':fmtEUR(y.resultatAvantRedistrib)],
+    ];
+    const table = document.getElementById('previ-table');
+    table.innerHTML = `<table class="calc">
+      <tr><th>Poste</th>${cols.map(c=>`<th>An ${c.annee}</th>`).join('')}</tr>
+      ${rows.map(([label,fn])=>`<tr><td>${label}</td>${cols.map(c=>`<td>${fn(c)}</td>`).join('')}</tr>`).join('')}
+    </table>`;
+  }
+  recomputePrevi();
+}
+
+/* ==========================================================================================
+   14. IMPORT IA — modal (prompt généré + collage JSON + dispatch manuel appris)
+   ========================================================================================== */
+async function loadMappings(){
+  const { data } = await sb.from('import_mappings').select('*').eq('user_id', STATE.user.id);
+  STATE.importMappings = {};
+  (data||[]).forEach(r=> STATE.importMappings[r.source_label.toLowerCase().trim()] = r.target_field);
+}
+
+function buildImportPrompt(){
+  const fields = allFieldDefs();
+  const lines = fields.map(f=>{
+    if(f.kind==='ht') return `- "${f.key}" (${f.label}) : montant HT en euros. Optionnel: "${f.key}_tva" = taux de TVA en décimal (ex 0.021 pour 2,1%) si différent du taux standard.`;
+    if(f.kind==='pct') return `- "${f.key}" (${f.label}) : pourcentage en décimal (ex 0.15 pour 15%).`;
+    return `- "${f.key}" (${f.label}) : montant en euros.`;
+  }).join('\n');
+
+  return `Tu es un assistant comptable. Je te fournis en pièce jointe le(s) bilan(s) comptable(s) d'une officine de pharmacie (liasse fiscale, compte de résultat, SIG...).
+
+Extrait toutes les informations suivantes pour CHAQUE année disponible dans les documents (le plus souvent 3 exercices : N, N-1, N-2), et réponds UNIQUEMENT avec un JSON valide, sans texte autour, au format suivant :
+
+{
+  "annee_N":   { "clé_du_champ": valeur, ... },
+  "annee_N-1": { "clé_du_champ": valeur, ... },
+  "annee_N-2": { "clé_du_champ": valeur, ... }
+}
+
+Voici la liste exacte des champs attendus (utilise ces clés précises, en anglais/snake_case tel quel) :
+
+${lines}
+
+Règles importantes :
+- Si une information est introuvable dans le document, omets simplement la clé (ne mets pas 0 par défaut).
+- Si tu trouves une ligne du bilan qui ne correspond à AUCUN des champs ci-dessus mais qui semble pertinente (ex: une charge non listée, un compte particulier), ajoute-la quand même dans un objet séparé "non_classes" avec le libellé EXACT tel qu'il apparaît sur le bilan comme clé, et le montant comme valeur — par exemple : "non_classes": { "Achats exonérés": 50 }. Je ferai le tri moi-même ensuite.
+- Les montants sont en euros, nombres simples sans espace ni symbole (ex: 12345.67, pas "12 345,67 €").
+- Les taux de TVA et pourcentages sont en décimal (2,1% = 0.021, pas 2.1).
+
+Réponds uniquement avec le JSON, rien d'autre.`;
+}
+
+function openImportModal(){
+  const root = document.getElementById('modal-root');
+  root.innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <button class="close-x" id="close-import">×</button>
+        <h2>Import de bilan assisté par IA</h2>
+        <div class="step">Étape 1 — Copiez ce prompt dans votre IA (avec les bilans en pièce jointe)</div>
+        <textarea class="promptbox" id="import-prompt" readonly>${buildImportPrompt()}</textarea>
+        <div class="modal-actions"><button class="ghost" id="copy-prompt">Copier le prompt</button></div>
+
+        <div class="step" style="margin-top:20px;">Étape 2 — Collez ici la réponse JSON de l'IA</div>
+        <textarea class="jsonbox" id="import-json" placeholder='{"annee_N": {...}, "annee_N-1": {...}, ...}'></textarea>
+        <div class="modal-actions"><button class="primary" id="parse-json">Analyser</button></div>
+
+        <div id="dispatch-zone"></div>
+      </div>
+    </div>`;
+  document.getElementById('close-import').addEventListener('click', ()=> root.innerHTML='');
+  document.getElementById('copy-prompt').addEventListener('click', ()=>{
+    navigator.clipboard.writeText(document.getElementById('import-prompt').value);
+    toast("Prompt copié.");
+  });
+  document.getElementById('parse-json').addEventListener('click', handleParseJson);
+}
+
+let pendingImport = null; // { parsed, unclassified: [{label, value}], resolved: {} }
+
+function handleParseJson(){
+  const raw = document.getElementById('import-json').value.trim();
+  let parsed;
+  try {
+    const cleaned = raw.replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+    parsed = JSON.parse(cleaned);
+  } catch(e){
+    toast("JSON invalide : "+e.message);
+    return;
+  }
+  const yearMap = { annee_N:0, "annee_N-1":-1, "annee_N-2":-2, N:0, "N-1":-1, "N-2":-2 };
+  const known = new Set(allFieldDefs().map(f=>f.key));
+  const unclassified = [];
+  const byYear = {0:{}, [-1]:{}, [-2]:{}};
+
+  Object.keys(parsed).forEach(yk=>{
+    const y = yearMap[yk];
+    if(y===undefined) return;
+    const obj = parsed[yk] || {};
+    Object.keys(obj).forEach(k=>{
+      if(k==='non_classes'){
+        Object.entries(obj[k]||{}).forEach(([label,val])=>{
+          const mapped = STATE.importMappings[label.toLowerCase().trim()];
+          if(mapped) byYear[y][mapped] = val;
+          else unclassified.push({ year:y, label, value: val });
+        });
+      } else if(known.has(k) || k.endsWith('_tva')){
+        byYear[y][k] = obj[k];
+      } else {
+        const mapped = STATE.importMappings[k.toLowerCase().trim()];
+        if(mapped) byYear[y][mapped] = obj[k];
+        else unclassified.push({ year:y, label:k, value: obj[k] });
+      }
+    });
+  });
+
+  pendingImport = { byYear, unclassified, resolved:{} };
+  renderDispatchZone();
+}
+
+function renderDispatchZone(){
+  const zone = document.getElementById('dispatch-zone');
+  const fields = allFieldDefs();
+  if(pendingImport.unclassified.length===0){
+    zone.innerHTML = `<div class="note">Tous les champs ont été reconnus automatiquement.</div>
+      <div class="modal-actions"><button class="primary" id="apply-import">Appliquer l'import</button></div>`;
+    document.getElementById('apply-import').addEventListener('click', applyImport);
+    return;
+  }
+  zone.innerHTML = `
+    <div class="step" style="margin-top:20px;">Étape 3 — ${pendingImport.unclassified.length} ligne(s) non reconnue(s) : choisissez leur destination</div>
+    <div class="dispatch-row" style="font-weight:600; color:var(--muted); font-size:11px; text-transform:uppercase;">
+      <div>Trouvé dans le bilan</div><div>Montant</div><div>Champ cible</div>
+    </div>
+    ${pendingImport.unclassified.map((u,i)=>`
+      <div class="dispatch-row">
+        <div>${escapeHtml(u.label)} <span style="color:var(--muted)">(${yearLabel(u.year)})</span></div>
+        <div>${typeof u.value==='number' ? fmtEUR(u.value) : escapeHtml(String(u.value))}</div>
+        <select class="f-edit" data-dispatch="${i}">
+          <option value="">— ignorer —</option>
+          ${fields.map(f=>`<option value="${f.key}">${f.label}</option>`).join('')}
+        </select>
+      </div>`).join('')}
+    <div class="modal-actions"><button class="primary" id="apply-import">Appliquer l'import</button></div>`;
+
+  zone.querySelectorAll('[data-dispatch]').forEach(sel=>{
+    sel.addEventListener('change', ()=>{
+      const i = sel.dataset.dispatch;
+      pendingImport.resolved[i] = sel.value || null;
+    });
+  });
+  document.getElementById('apply-import').addEventListener('click', applyImport);
+}
+
+async function applyImport(){
+  const { byYear, unclassified, resolved } = pendingImport;
+  // applique les choix de dispatch + sauvegarde les mappings appris
+  for(let i=0;i<unclassified.length;i++){
+    const target = resolved[i];
+    if(!target) continue;
+    const u = unclassified[i];
+    byYear[u.year][target] = u.value;
+    STATE.importMappings[u.label.toLowerCase().trim()] = target;
+    await sb.from('import_mappings').upsert({
+      user_id: STATE.user.id, source_label: u.label, target_field: target,
+    }, { onConflict: 'user_id,source_label' });
+  }
+  // fusionne avec les données déjà en base pour chaque année
+  for(const y of [0,-1,-2]){
+    if(Object.keys(byYear[y]).length===0) continue;
+    const merged = { ...(STATE.current.bilans[y]||{}), ...byYear[y] };
+    const { error } = await sb.from('bilans').upsert({
+      project_id: STATE.current.project.id, annee_offset: y, data: merged, annee_label: yearLabel(y),
+    }, { onConflict: 'project_id,annee_offset' });
+    if(error){ toast("Erreur import "+yearLabel(y)+": "+error.message); continue; }
+    STATE.current.bilans[y] = merged;
+  }
+  toast("Import appliqué.");
+  document.getElementById('modal-root').innerHTML = '';
+  if(STATE.activeTab==='bilans') renderTabs();
+}
+
+/* ==========================================================================================
+   15. BOOT
+   ========================================================================================== */
+(async function boot(){
+  renderAuthMode();
+  const { data: { session } } = await sb.auth.getSession();
+  if(session){ await onAuthed(session); }
+  else { showView('auth'); }
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event === 'SIGNED_OUT'){ showView('auth'); }
+  });
+})();
+</script>
+</body>
+</html>
