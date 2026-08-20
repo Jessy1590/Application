@@ -1710,39 +1710,35 @@ function renderPrevisionnelTab(root){
       <div class="scrollx" id="previ-table"></div>
     </div>`;
 
-  window.recomputePrevi = function(){
-    const p = computePrevisionnel(dataRef, params, v, pState);
-    const cols = p.years;
-    const rows = [
-      ['CA HT', y=>fmtEUR(y.CA)],
-      ['Taux de Marge Brute', y=>fmtPct(y.tauxMargeAnnee, 2)],
-      ['Marge Commerciale', y=>fmtEUR(y.margeCommerciale)],
-      ['Charges externes', y=>fmtEUR(y.chargesExt)],
-      ['Impôts et taxes', y=>fmtEUR(y.impotsTaxes)],
-      ['Salaires et charges', y=>fmtEUR(y.salaires)],
-      ['EBE retraité', y=>y.ebeRetraite==null?'—':fmtEUR(y.ebeRetraite)],
-      ['Rémunération dirigeant(s)', y=>y.remunerationAn==null?'—':fmtEUR(-y.remunerationAn)],
-      ['Cotisations sociales TNS', y=>y.cotisSociales==null?'—':fmtEUR(-y.cotisSociales)],
-      ['EBE comptable', y=>y.ebeComptable==null?'—':fmtEUR(y.ebeComptable)],
-      ['Dotation amortissements', y=>y.dotationAmort==null?'—':fmtEUR(-y.dotationAmort)],
-      ["Frais d'installation (1ère année)", y=>y.droitsFraisInstall==null?'—':fmtEUR(-y.droitsFraisInstall)],
-      ["Résultat d'exploitation", y=>y.resultatExploit==null?'—':fmtEUR(y.resultatExploit)],
-      ['Intérêts d\'emprunts (Tous prêts)', y=>y.chargesFi==null?'—':fmtEUR(-y.chargesFi)],
-      ['Résultat courant', y=>y.resultatCourant==null?'—':fmtEUR(y.resultatCourant)],
-      ['Impôt sur les sociétés (IS)', y=>y.IS==null?'—':fmtEUR(-y.IS)],
-      ['Résultat net après IS', y=>y.resultatNet==null?'—':fmtEUR(y.resultatNet)],
-      ['Remboursement Capital (Tous prêts)', y=>y.paiementCapital==null?'—':fmtEUR(-y.paiementCapital)],
-      ['Paiement crédit vendeur (Stock direct)', y=>y.paiementStockVendeur==null?'—':fmtEUR(-y.paiementStockVendeur)],
-      ['Résultat avant redistribution', y=>y.resultatAvantRedistrib==null?'—':`<span style="color:${y.resultatAvantRedistrib<0?'var(--danger)':'var(--accent-dark)'}; font-weight:bold; font-size:15px;">${fmtEUR(y.resultatAvantRedistrib)}</span>`],
-    ];
-    const table = document.getElementById('previ-table');
-    table.innerHTML = `<table class="calc">
-      <tr><th>Poste</th>${cols.map(c=>`<th>An ${c.annee}</th>`).join('')}</tr>
-      ${rows.map(([label,fn])=>`<tr class="${label==='Résultat avant redistribution'?'total':''}"><td>${label}</td>${cols.map(c=>`<td>${fn(c)}</td>`).join('')}</tr>`).join('')}
-    </table>`;
-  };
-
-  recomputePrevi();
+  const p = computePrevisionnel(dataRef, params, v, pState);
+  const cols = p.years;
+  const rows = [
+    ['CA HT', y=>fmtEUR(y.CA)],
+    ['Taux de Marge Brute', y=>fmtPct(y.tauxMargeAnnee, 2)],
+    ['Marge Commerciale', y=>fmtEUR(y.margeCommerciale)],
+    ['Charges externes', y=>fmtEUR(y.chargesExt)],
+    ['Impôts et taxes', y=>fmtEUR(y.impotsTaxes)],
+    ['Salaires et charges', y=>fmtEUR(y.salaires)],
+    ['EBE retraité', y=>y.ebeRetraite==null?'—':fmtEUR(y.ebeRetraite)],
+    ['Rémunération dirigeant(s)', y=>y.remunerationAn==null?'—':fmtEUR(-y.remunerationAn)],
+    ['Cotisations sociales TNS', y=>y.cotisSociales==null?'—':fmtEUR(-y.cotisSociales)],
+    ['EBE comptable', y=>y.ebeComptable==null?'—':fmtEUR(y.ebeComptable)],
+    ['Dotation amortissements', y=>y.dotationAmort==null?'—':fmtEUR(-y.dotationAmort)],
+    ["Frais d'installation (1ère année)", y=>y.droitsFraisInstall==null?'—':fmtEUR(-y.droitsFraisInstall)],
+    ["Résultat d'exploitation", y=>y.resultatExploit==null?'—':fmtEUR(y.resultatExploit)],
+    ['Intérêts d\'emprunts (Tous prêts)', y=>y.chargesFi==null?'—':fmtEUR(-y.chargesFi)],
+    ['Résultat courant', y=>y.resultatCourant==null?'—':fmtEUR(y.resultatCourant)],
+    ['Impôt sur les sociétés (IS)', y=>y.IS==null?'—':fmtEUR(-y.IS)],
+    ['Résultat net après IS', y=>y.resultatNet==null?'—':fmtEUR(y.resultatNet)],
+    ['Remboursement Capital (Tous prêts)', y=>y.paiementCapital==null?'—':fmtEUR(-y.paiementCapital)],
+    ['Paiement crédit vendeur (Stock direct)', y=>y.paiementStockVendeur==null?'—':fmtEUR(-y.paiementStockVendeur)],
+    ['Résultat avant redistribution', y=>y.resultatAvantRedistrib==null?'—':`<span style="color:${y.resultatAvantRedistrib<0?'var(--danger)':'var(--accent-dark)'}; font-weight:bold; font-size:15px;">${fmtEUR(y.resultatAvantRedistrib)}</span>`],
+  ];
+  const table = document.getElementById('previ-table');
+  table.innerHTML = `<table class="calc">
+    <tr><th>Poste</th>${cols.map(c=>`<th>An ${c.annee}</th>`).join('')}</tr>
+    ${rows.map(([label,fn])=>`<tr class="${label==='Résultat avant redistribution'?'total':''}"><td>${label}</td>${cols.map(c=>`<td>${fn(c)}</td>`).join('')}</tr>`).join('')}
+  </table>`;
 }
 
 /* Modales Prévisionnel : Croissance */
@@ -1825,7 +1821,7 @@ window.saveCroissanceModal = async function() {
    document.getElementById('modal-root').innerHTML='';
    
    // Modification instantanée du prévisionnel
-   if(STATE.activeTab === 'previsionnel') window.recomputePrevi();
+   if(STATE.activeTab === 'previsionnel') renderTabs();
    toast("Hypothèses de croissance appliquées");
 }
 
@@ -1912,7 +1908,7 @@ window.saveChargesModal = async function() {
    saveCurrentChargesState();
    await sb.from('parametres').update({ params: STATE.current.params }).eq('project_id', STATE.current.project.id);
    document.getElementById('modal-root').innerHTML='';
-   if(STATE.activeTab === 'previsionnel') window.recomputePrevi();
+   if(STATE.activeTab === 'previsionnel') renderTabs();
    toast("Charges enregistrées");
 }
 
@@ -1971,7 +1967,7 @@ window.saveSalariesModal = async function() {
    saveCurrentSalariesState();
    await sb.from('parametres').update({ params: STATE.current.params }).eq('project_id', STATE.current.project.id);
    document.getElementById('modal-root').innerHTML='';
-   if(STATE.activeTab === 'previsionnel') window.recomputePrevi();
+   if(STATE.activeTab === 'previsionnel') renderTabs();
    toast("Masse salariale enregistrée");
 }
 
