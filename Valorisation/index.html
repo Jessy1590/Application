@@ -892,7 +892,7 @@ window.buildFinancementHTML = function(p) {
     `;
 
     let html = `<div style="background:#fcfbf8; padding:16px; border-radius:8px; border:1px solid var(--line); margin-bottom:16px;">`;
-    html += `<h4 style="margin-bottom:16px; color:var(--ink); font-size:15px;">1. Financement de l'acquisition (Ressources)</h4>`;
+    html += `<h4 style="margin-bottom:16px; color:var(--ink); font-size:15px;">A. Financement de l'acquisition (Ressources)</h4>`;
 
     if (isSet('emprunt_banque_montant')) {
         html += makeLine('l-banque', 'Prêt Bancaire Classique', `
@@ -964,7 +964,7 @@ window.buildFinancementHTML = function(p) {
     html += `</div>`;
 
 
-    html += `<h4 style="margin-bottom:12px; color:var(--ink); font-size:15px; border-top:1px solid var(--line); padding-top:16px;">2. Financement Annexe (Travaux & Stock)</h4>`;
+    html += `<h4 style="margin-bottom:12px; color:var(--ink); font-size:15px; border-top:1px solid var(--line); padding-top:16px;">B. Financement Annexe (Travaux & Stock)</h4>`;
 
     // TRAVAUX
     if(isSet('travaux')) {
@@ -1024,20 +1024,26 @@ function renderParametresTab(root){
   const p = STATE.current.params;
   
   let html = `
-    <div class="card">
+    <div class="card" id="params-form-wrapper">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <h2 style="margin:0;">Hypothèses et Paramètres</h2>
         <button class="ghost small" id="btn-copy-missing-params">📝 Copier les champs manquants</button>
       </div>
       <p class="note">Saisissez ici les coefficients de marché, vos apports, les frais annexes et les hypothèses du prévisionnel.</p>
       
-      <!-- Smart UI Block pour le financement -->
-      <div id="smart-ui-container"></div>
-
       <div class="row" style="margin-bottom: 18px; margin-top:24px;">
         <label class="chk"><input type="checkbox" id="filter-empty-params"> 🔍 N'afficher que les champs d'hypothèses vides</label>
       </div>
-      <div id="params-groups"></div>
+
+      <h3 style="color:var(--accent-dark); border-bottom:2px solid var(--accent); padding-bottom:8px; margin-top:30px;">1. Hypothèses de Financement</h3>
+      <!-- Smart UI Block pour le financement -->
+      <div id="smart-ui-container"></div>
+
+      <h3 style="color:var(--accent-dark); border-bottom:2px solid var(--accent); padding-bottom:8px; margin-top:40px;">2. Paramètres & Moyennes Nationaux</h3>
+      <div id="params-group-nationaux"></div>
+
+      <h3 style="color:var(--accent-dark); border-bottom:2px solid var(--accent); padding-bottom:8px; margin-top:40px;">3. Frais de rachat & BFR</h3>
+      <div id="params-group-frais"></div>
       
       <div class="modal-actions" style="margin-top:30px;"><button class="primary" id="save-params">Enregistrer les hypothèses</button></div>
     </div>`;
@@ -1047,12 +1053,13 @@ function renderParametresTab(root){
   // Lancement du rendu dynamique
   window.refreshSmartUI('smart-ui-container');
 
-  const groupsEl = document.getElementById('params-groups');
+  const groupNatEl = document.getElementById('params-group-nationaux');
+  const groupFraisEl = document.getElementById('params-group-frais');
+  const wrapperEl = document.getElementById('params-form-wrapper');
 
   PARAM_GROUPS_SIMPLE.forEach(g=>{
     const sec = document.createElement('div');
     sec.innerHTML = `<h4 class="section-title">${g.title}</h4><div class="field-grid-params" data-group></div>`;
-    groupsEl.appendChild(sec);
     const grid = sec.querySelector('[data-group]');
 
     g.fields.forEach(([key,label])=>{
@@ -1065,12 +1072,18 @@ function renderParametresTab(root){
       }
       grid.appendChild(row);
     });
+
+    if(g.title === "Frais Divers & BFR") {
+        groupFraisEl.appendChild(sec);
+    } else {
+        groupNatEl.appendChild(sec);
+    }
   });
 
   document.getElementById('save-params').addEventListener('click', async ()=>{
     window.syncSmartUIParams('smart-ui-container'); // Capture le contenu dynamique en mémoire
     const newParams = {...STATE.current.params};
-    groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
+    wrapperEl.querySelectorAll('[data-pkey]').forEach(inp=>{
       const k = inp.dataset.pkey; let v = inp.value;
       if(inp.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true';
       else if(inp.tagName==='INPUT') v = v === '' ? null : parseFloat(v);
@@ -1085,8 +1098,9 @@ function renderParametresTab(root){
   const filterChk = document.getElementById('filter-empty-params');
   const applyParamsFilter = () => {
     const isChecked = filterChk.checked;
-    groupsEl.querySelectorAll('.section-title').forEach(title => {
+    wrapperEl.querySelectorAll('.section-title').forEach(title => {
       const grid = title.nextElementSibling;
+      if(!grid || !grid.classList.contains('field-grid-params')) return;
       let hasVisible = false;
       Array.from(grid.children).forEach(row => {
         if(row.classList && row.classList.contains('col-header')) return;
@@ -1108,7 +1122,7 @@ function renderParametresTab(root){
 
   document.getElementById('btn-copy-missing-params').addEventListener('click', () => {
     let missing = [];
-    groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
+    wrapperEl.querySelectorAll('[data-pkey]').forEach(inp=>{
         if(inp.tagName === 'INPUT' && (inp.value === "" || inp.value === null)) {
             let el = inp.previousElementSibling;
             while(el && !el.classList.contains('field-label')) {
