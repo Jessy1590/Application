@@ -159,7 +159,7 @@ table.calc td.neg{color:var(--danger); font-weight:bold;}
 
 /* --- modals --- */
 .modal-bg{position:fixed; inset:0; background:rgba(20,20,15,.7); display:flex; align-items:center; justify-content:center; padding:20px; overflow:auto; z-index:50;}
-.modal{background:#fff; border-radius:12px; max-width:760px; width:100%; padding:30px; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto;}
+.modal{background:#fff; border-radius:12px; max-width:850px; width:100%; padding:30px; position:relative; box-shadow:0 10px 30px rgba(0,0,0,0.2); max-height:90vh; overflow-y:auto;}
 .modal.small-modal { max-width: 500px; text-align:center; padding: 30px 24px; }
 .modal h2{margin-bottom:8px; color:var(--accent-dark);}
 .modal .step{font-size:12px; color:var(--accent); text-transform:uppercase; font-weight:bold; letter-spacing:.05em; margin-bottom:12px;}
@@ -383,10 +383,10 @@ const EMPTY_PARAMS = {
   taux_bancaire: null, duree_pret_ans: null, emprunt_banque_montant: null,
   
   aide_financiere: null,
-  booster_mult: null, booster_taux: null, booster_duree: null, booster_infine: true,
+  booster_mult: null, booster_taux: null, booster_duree: null, booster_infine: true, booster_capital: false,
   honneur_montant: null, honneur_taux: null, honneur_duree: null, honneur_infine: false,
-  vendeur_montant: null, vendeur_taux: null, vendeur_duree: null, vendeur_infine: false,
-  invest_montant: null, invest_taux: null, invest_duree: null, invest_infine: false,
+  vendeur_montant: null, vendeur_taux: null, vendeur_duree: null, vendeur_infine: false, vendeur_capital: false,
+  invest_montant: null, invest_taux: null, invest_duree: null, invest_infine: false, invest_capital: false,
   
   stock_financement: "Intégré au prêt global", duree_credit_vendeur_mois: 12, annee_debut_credit_vendeur: 1,
   taux_pret_stock: null, duree_pret_stock_ans: null,
@@ -397,16 +397,9 @@ const EMPTY_PARAMS = {
   
   is_seuil_bas: null, is_taux_p1: null, is_taux_p2: null,
   
-  // Variables Prévisionnelles Globales
-  marge_cible_previsionnel: null,
-  evolution_ca_estime: null, 
-  evolution_charges_estime: null, 
-  evolution_salaires_estime: null,
-  charges_sociales_exploitant: null, 
-  remuneration_exploitant_souhaitee: null,
-  impots_theorique: null, 
-  duree_amortissement_travaux: null,
-  
+  marge_cible_previsionnel: null, evolution_ca_estime: null, evolution_charges_estime: null, evolution_salaires_estime: null,
+  charges_sociales_exploitant: null, remuneration_exploitant_souhaitee: null,
+  impots_theorique: null, duree_amortissement_travaux: null,
   previ_state: { chargesExt: {}, salaries: null, customCharges: [], growth: {} }
 };
 
@@ -431,15 +424,6 @@ const PARAM_GROUPS_SIMPLE = [
     ["honoraire_transaction_pct","Honoraire transaction (% HT)"], ["honoraire_comptable","Honoraire comptable (€)"],
     ["honoraire_juridique","Honoraire juridique TTC + débours (€)"], ["frais_acquisition_pct","Frais d'acquisition (%)"],
     ["besoin_bfr_select","Financer le BFR initial ?"], 
-  ]},
-  { title:"Autres Prêts Spécifiques & Subventions", fields:[
-    ["aide_financiere","Aide / Subvention (Sans rmb.) (€)"],
-    ["booster_mult","Prêt Booster (x fois l'apport perso, ex: 2)"], ["booster_taux","Taux Booster (%)"], ["booster_duree","Durée Booster (ans)"], ["booster_infine","Booster In Fine ?"],
-    ["honneur_montant","Prêt d'Honneur (€)"], ["honneur_taux","Taux Prêt d'Honneur (%)"], ["honneur_duree","Durée Prêt d'Honneur (ans)"], ["honneur_infine","Prêt d'Honneur In Fine ?"],
-    ["vendeur_montant","Crédit Vendeur (Fonds) (€)"], ["vendeur_taux","Taux Crédit Vendeur (%)"], ["vendeur_duree","Durée Crédit Vendeur (ans)"], ["vendeur_infine","Crédit Vendeur In Fine ?"],
-    ["taux_pret_travaux","Taux Prêt Travaux (%)"], ["duree_pret_travaux_ans","Durée Prêt Travaux (ans)"],
-    ["taux_pret_stock", "Taux Prêt Stock (%)"], ["duree_pret_stock_ans", "Durée Prêt Stock (ans)"],
-    ["duree_credit_vendeur_mois", "Si Crédit Vendeur direct (Stock) : Durée (mois)"], ["annee_debut_credit_vendeur", "Si Crédit Vendeur direct (Stock) : Année début"]
   ]},
   { title:"Barème Fiscal (IS)", fields:[
     ["is_seuil_bas","Seuil palier 1 → palier 2 IS (€)"], ["is_taux_p1","Taux IS palier 1 (%, ex 0.15)"], ["is_taux_p2","Taux IS palier 2 (%, ex 0.25)"],
@@ -599,11 +583,7 @@ async function openProject(id){
   let loadedParams = (paramRow && paramRow.params) || {...EMPTY_PARAMS};
   if(!loadedParams.previ_state) loadedParams.previ_state = { chargesExt: {}, salaries: null, customCharges: [], growth: {} };
 
-  STATE.current = {
-    project,
-    params: loadedParams,
-    bilans, unavailableBilan,
-  };
+  STATE.current = { project, params: loadedParams, bilans, unavailableBilan };
   STATE.activeTab = "infos";
   document.getElementById('ws-title').textContent = project.nom;
   showView('workspace');
@@ -848,8 +828,198 @@ function applyBilansFilter() {
 function yearLabel(y){ return y===0 ? "Année N" : y===-1 ? "Année N-1" : "Année N-2"; }
 
 /* ==========================================================================================
-   ONGLET 3 : PARAMÈTRES ET HYPOTHÈSES
+   ONGLET 3 : PARAMÈTRES ET HYPOTHÈSES (ET SMART UI)
    ========================================================================================== */
+   
+// SMART UI: Functions attachées à Window pour être accessibles par les onclick inline
+let currentSmartContainerId = 'smart-ui-container';
+
+window.syncSmartUIParams = function(containerId) {
+    const container = document.getElementById(containerId);
+    if(!container) return;
+    container.querySelectorAll('.dyn-p').forEach(el => {
+        const k = el.dataset.k;
+        if(el.tagName === 'SELECT') STATE.current.params[k] = el.value;
+        else STATE.current.params[k] = el.value === '' ? null : parseFloat(el.value);
+    });
+    container.querySelectorAll('.dyn-p-chk').forEach(el => {
+        STATE.current.params[el.dataset.k] = el.checked;
+    });
+};
+
+window.refreshSmartUI = function(containerId = currentSmartContainerId) {
+    currentSmartContainerId = containerId;
+    const container = document.getElementById(containerId);
+    if(container) {
+        container.innerHTML = window.buildFinancementHTML(STATE.current.params);
+        container.querySelectorAll('select.dyn-p').forEach(sel => {
+            sel.addEventListener('change', () => { window.syncSmartUIParams(containerId); window.refreshSmartUI(containerId); });
+        });
+        container.querySelectorAll('.dyn-p, .dyn-p-chk').forEach(el => {
+            if(el.tagName !== 'SELECT') {
+                el.addEventListener('change', () => { window.syncSmartUIParams(containerId); });
+                el.addEventListener('keyup', () => { window.syncSmartUIParams(containerId); });
+            }
+        });
+    }
+};
+
+window.addParam = function(key) {
+    window.syncSmartUIParams(currentSmartContainerId);
+    if(key === 'booster_mult') STATE.current.params[key] = 2;
+    else if (key === 'stock_financement' || key === 'financement_travaux_mode') STATE.current.params[key] = 'Intégré au prêt global';
+    else STATE.current.params[key] = 0;
+    window.refreshSmartUI(currentSmartContainerId);
+};
+
+window.delParam = function(key) {
+    window.syncSmartUIParams(currentSmartContainerId);
+    STATE.current.params[key] = null;
+    window.refreshSmartUI(currentSmartContainerId);
+};
+
+window.buildFinancementHTML = function(p) {
+    const val = (k) => (p[k] !== null && p[k] !== undefined) ? p[k] : '';
+    const chk = (k) => p[k] ? 'checked' : '';
+    const isSet = (k) => (p[k] !== null && p[k] !== undefined && p[k] !== '');
+
+    const makeLine = (id, label, content, onRemove) => `
+        <div class="row" style="align-items:center; margin-bottom:12px; background:#fff; padding:12px 16px; border-radius:8px; border:1px solid var(--accent); box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+            <div style="font-weight:bold; width:170px; color:var(--accent-dark);">${label}</div>
+            <div class="grow row" style="align-items:center; gap:10px;">${content}</div>
+            <button class="ghost small danger" onclick="${onRemove}" title="Supprimer" style="border:none;">✖</button>
+        </div>
+    `;
+
+    let html = `<div style="background:#fcfbf8; padding:16px; border-radius:8px; border:1px solid var(--line); margin-bottom:16px;">`;
+    html += `<h4 style="margin-bottom:16px; color:var(--ink); font-size:15px;">1. Financement de l'acquisition (Ressources)</h4>`;
+
+    if (isSet('emprunt_banque_montant')) {
+        html += makeLine('l-banque', 'Prêt Bancaire Classique', `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="emprunt_banque_montant" value="${val('emprunt_banque_montant')}" placeholder="Montant €">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="taux_bancaire" value="${val('taux_bancaire')}" placeholder="Taux (%)" style="width:100px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="duree_pret_ans" value="${val('duree_pret_ans')}" placeholder="Durée (ans)" style="width:100px;">
+        `, `delParam('emprunt_banque_montant')`);
+    }
+    if (isSet('apports_capital_personnel')) {
+        html += makeLine('l-apport', 'Apports Personnels', `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="apports_capital_personnel" value="${val('apports_capital_personnel')}" placeholder="Montant €">
+        `, `delParam('apports_capital_personnel')`);
+    }
+    if (isSet('aide_financiere')) {
+        html += makeLine('l-aide', 'Aides financières (Sans rmb.)', `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="aide_financiere" value="${val('aide_financiere')}" placeholder="Montant €">
+        `, `delParam('aide_financiere')`);
+    }
+    if (isSet('honneur_montant')) {
+        html += makeLine('l-honneur', "Prêt d'Honneur", `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="honneur_montant" value="${val('honneur_montant')}" placeholder="Montant €">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="honneur_taux" value="${val('honneur_taux')}" placeholder="Taux (%)" style="width:80px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="honneur_duree" value="${val('honneur_duree')}" placeholder="Durée (ans)" style="width:80px;">
+            <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="honneur_infine" ${chk('honneur_infine')}> In fine</label>
+        `, `delParam('honneur_montant')`);
+    }
+    if (isSet('vendeur_montant')) {
+        html += makeLine('l-vendeur', "Crédit Vendeur", `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="vendeur_montant" value="${val('vendeur_montant')}" placeholder="Montant €">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="vendeur_taux" value="${val('vendeur_taux')}" placeholder="Taux (%)" style="width:80px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="vendeur_duree" value="${val('vendeur_duree')}" placeholder="Durée (ans)" style="width:80px;">
+            <div class="row" style="gap:12px;">
+               <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="vendeur_infine" ${chk('vendeur_infine')}> In fine</label>
+               <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="vendeur_capital" ${chk('vendeur_capital')}> Prise Capital</label>
+            </div>
+        `, `delParam('vendeur_montant')`);
+    }
+    if (isSet('invest_montant')) {
+        html += makeLine('l-invest', "Investisseur", `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="invest_montant" value="${val('invest_montant')}" placeholder="Montant €">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="invest_taux" value="${val('invest_taux')}" placeholder="Taux (%)" style="width:80px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="invest_duree" value="${val('invest_duree')}" placeholder="Durée (ans)" style="width:80px;">
+            <div class="row" style="gap:12px;">
+              <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="invest_infine" ${chk('invest_infine')}> In fine</label>
+              <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="invest_capital" ${chk('invest_capital')}> Prise Capital</label>
+            </div>
+        `, `delParam('invest_montant')`);
+    }
+    if (isSet('booster_mult')) {
+        html += makeLine('l-booster', "Booster d'Apport", `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="booster_mult" value="${val('booster_mult')}" placeholder="Mult. (ex: 2)" style="width:100px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="booster_taux" value="${val('booster_taux')}" placeholder="Taux (%)" style="width:80px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="booster_duree" value="${val('booster_duree')}" placeholder="Durée (ans)" style="width:80px;">
+            <div class="row" style="gap:12px;">
+              <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="booster_infine" ${chk('booster_infine')}> In fine</label>
+              <label class="chk" style="font-size:12px;"><input type="checkbox" class="dyn-p-chk" data-k="booster_capital" ${chk('booster_capital')}> Prise Capital</label>
+            </div>
+        `, `delParam('booster_mult')`);
+    }
+
+    html += `<div class="row" style="gap:8px; margin-bottom: 24px; flex-wrap:wrap;">`;
+    if(!isSet('emprunt_banque_montant')) html += `<button class="ghost small" onclick="addParam('emprunt_banque_montant')">➕ Prêt Bancaire Classique</button>`;
+    if(!isSet('apports_capital_personnel')) html += `<button class="ghost small" onclick="addParam('apports_capital_personnel')">➕ Apports personnels</button>`;
+    if(!isSet('aide_financiere')) html += `<button class="ghost small" onclick="addParam('aide_financiere')">➕ Aides financières</button>`;
+    if(!isSet('honneur_montant')) html += `<button class="ghost small" onclick="addParam('honneur_montant')">➕ Prêt d'Honneur</button>`;
+    if(!isSet('vendeur_montant')) html += `<button class="ghost small" onclick="addParam('vendeur_montant')">➕ Crédit Vendeur</button>`;
+    if(!isSet('invest_montant')) html += `<button class="ghost small" onclick="addParam('invest_montant')">➕ Investisseur</button>`;
+    if(!isSet('booster_mult')) html += `<button class="ghost small" onclick="addParam('booster_mult')">➕ Booster d'apport</button>`;
+    html += `</div>`;
+
+
+    html += `<h4 style="margin-bottom:12px; color:var(--ink); font-size:15px; border-top:1px solid var(--line); padding-top:16px;">2. Financement Annexe (Travaux & Stock)</h4>`;
+
+    // TRAVAUX
+    if(isSet('travaux')) {
+        let tMode = p.financement_travaux_mode || 'Intégré au prêt global';
+        let tOpts = `
+            <option value="Intégré au prêt global" ${tMode==='Intégré au prêt global'?'selected':''}>Intégré au prêt principal (ou payé cash)</option>
+            <option value="Prêt Bancaire Dédié" ${tMode==='Prêt Bancaire Dédié'?'selected':''}>Prêt Bancaire Dédié avec intérêts</option>
+        `;
+        let tExtras = tMode === 'Prêt Bancaire Dédié' ? `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="taux_pret_travaux" value="${val('taux_pret_travaux')}" placeholder="Taux (%)" style="width:100px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="duree_pret_travaux_ans" value="${val('duree_pret_travaux_ans')}" placeholder="Durée (ans)" style="width:100px;">
+        ` : '';
+        html += makeLine('l-travaux', 'Travaux', `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="travaux" value="${val('travaux')}" placeholder="Montant €">
+            <select class="f-edit dyn-p" data-k="financement_travaux_mode">${tOpts}</select>
+            ${tExtras}
+        `, `delParam('travaux')`);
+    } else {
+        html += `<div style="margin-bottom:16px;"><button class="ghost small" onclick="addParam('travaux')">➕ Ajouter des travaux</button></div>`;
+    }
+
+    // STOCK
+    let sMode = p.stock_financement || 'Intégré au prêt global';
+    let sOpts = `
+        <option value="Intégré au prêt global" ${sMode==='Intégré au prêt global'?'selected':''}>100% payé à l'apport (comptant ou prêt principal)</option>
+        <option value="Crédit Vendeur" ${sMode==='Crédit Vendeur'?'selected':''}>Paiement échelonné au vendeur (sans frais)</option>
+        <option value="Prêt Bancaire Dédié" ${sMode==='Prêt Bancaire Dédié'?'selected':''}>Prêt Bancaire Dédié avec intérêts</option>
+    `;
+    let sExtras = '';
+    if (sMode === 'Crédit Vendeur') {
+        sExtras = `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="duree_credit_vendeur_mois" value="${val('duree_credit_vendeur_mois')}" placeholder="Pendant X mois" style="width:150px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="annee_debut_credit_vendeur" value="${val('annee_debut_credit_vendeur')}" placeholder="Dès l'année N°" style="width:140px;">
+        `;
+    } else if (sMode === 'Prêt Bancaire Dédié') {
+        sExtras = `
+            <input type="number" step="any" class="f-edit dyn-p" data-k="taux_pret_stock" value="${val('taux_pret_stock')}" placeholder="Taux (%)" style="width:100px;">
+            <input type="number" step="any" class="f-edit dyn-p" data-k="duree_pret_stock_ans" value="${val('duree_pret_stock_ans')}" placeholder="Durée (ans)" style="width:100px;">
+        `;
+    }
+
+    html += `
+        <div class="row" style="align-items:center; margin-bottom:12px; background:#fff; padding:12px 16px; border-radius:8px; border:1px solid var(--accent); box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+            <div style="font-weight:bold; width:170px; color:var(--accent-dark);">Achat du Stock <span class="info-icon" title="Le montant du stock provient du Bilan (Année N). Choisissez ici comment financer ce montant.">${SVG_INFO}</span></div>
+            <div class="grow row" style="align-items:center; gap:10px;">
+                <select class="f-edit dyn-p" data-k="stock_financement">${sOpts}</select>
+                ${sExtras}
+            </div>
+        </div>
+    `;
+
+    html += `</div>`;
+    return html;
+};
+
 function renderParametresTab(root){
   const p = STATE.current.params;
   
@@ -860,8 +1030,12 @@ function renderParametresTab(root){
         <button class="ghost small" id="btn-copy-missing-params">📝 Copier les champs manquants</button>
       </div>
       <p class="note">Saisissez ici les coefficients de marché, vos apports, les frais annexes et les hypothèses du prévisionnel.</p>
-      <div class="row" style="margin-bottom: 18px;">
-        <label class="chk"><input type="checkbox" id="filter-empty-params"> 🔍 N'afficher que les champs vides</label>
+      
+      <!-- Smart UI Block pour le financement -->
+      <div id="smart-ui-container"></div>
+
+      <div class="row" style="margin-bottom: 18px; margin-top:24px;">
+        <label class="chk"><input type="checkbox" id="filter-empty-params"> 🔍 N'afficher que les champs d'hypothèses vides</label>
       </div>
       <div id="params-groups"></div>
       
@@ -870,58 +1044,10 @@ function renderParametresTab(root){
   
   root.innerHTML = html;
 
-  const groupsEl = document.getElementById('params-groups');
+  // Lancement du rendu dynamique
+  window.refreshSmartUI('smart-ui-container');
 
-  // --- SMART UI : Montage & Financement ---
-  const financeSec = document.createElement('div');
-  financeSec.innerHTML = `<h4 class="section-title">Montage & Financement Principal</h4>`;
-  
-  const vApport = p.apports_capital_personnel;
-  const vTravaux = p.travaux;
-  const vStockMode = p.stock_financement;
-  
-  financeSec.innerHTML += `
-    <div style="background:#fff; border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:16px;">
-       
-       <!-- Ligne Apport -->
-       <div class="row" style="align-items:center; margin-bottom:12px;">
-         <div style="font-weight:bold; width:150px;">Apport Personnel</div>
-         ${(vApport !== null && vApport !== undefined) ? 
-           `<div><input type="number" step="any" class="f-edit" data-pkey="apports_capital_personnel" value="${vApport}"> €</div>` : 
-           `<button class="ghost small" onclick="this.outerHTML='<div><input type=\\'number\\' step=\\'any\\' class=\\'f-edit\\' data-pkey=\\'apports_capital_personnel\\' value=\\'\\'> €</div>';">➕ Ajouter un apport</button>`
-         }
-       </div>
-       
-       <!-- Ligne Travaux -->
-       <div class="row" style="align-items:center; margin-bottom:12px;">
-         <div style="font-weight:bold; width:150px;">Travaux Prévus</div>
-         ${(vTravaux !== null && vTravaux !== undefined) ? 
-           `<div><input type="number" step="any" class="f-edit" data-pkey="travaux" value="${vTravaux}"> € 
-             <select class="f-edit" data-pkey="financement_travaux_mode" style="margin-left:8px; width:auto;">
-               <option value="Intégré au prêt global" ${p.financement_travaux_mode==='Intégré au prêt global'?'selected':''}>Intégré au prêt global</option>
-               <option value="Prêt Bancaire Dédié" ${p.financement_travaux_mode==='Prêt Bancaire Dédié'?'selected':''}>Prêt dédié</option>
-             </select></div>` : 
-           `<button class="ghost small" onclick="this.outerHTML='<div><input type=\\'number\\' step=\\'any\\' class=\\'f-edit\\' data-pkey=\\'travaux\\' value=\\'\\'> € <select class=\\'f-edit\\' data-pkey=\\'financement_travaux_mode\\'><option value=\\'Intégré au prêt global\\'>Intégré au prêt global</option><option value=\\'Prêt Bancaire Dédié\\'>Prêt Dédié</option></select></div>';">➕ Prévoir des travaux</button>`
-         }
-       </div>
-       
-       <!-- Ligne Stock -->
-       <div class="row" style="align-items:center;">
-         <div style="font-weight:bold; width:150px;">Achat du Stock</div>
-         ${(vStockMode && vStockMode !== "Intégré au prêt global") ? 
-           `<select class="f-edit" data-pkey="stock_financement">
-              <option value="Crédit Vendeur" ${p.stock_financement==='Crédit Vendeur'?'selected':''}>Crédit Vendeur direct</option>
-              <option value="Prêt Bancaire Dédié" ${p.stock_financement==='Prêt Bancaire Dédié'?'selected':''}>Prêt Bancaire dédié</option>
-              <option value="Intégré au prêt global">Le ré-intégrer au prêt global</option>
-            </select>` : 
-           `<button class="ghost small" onclick="this.outerHTML='<select class=\\'f-edit\\' data-pkey=\\'stock_financement\\'><option value=\\'Intégré au prêt global\\'>Intégré au prêt global</option><option value=\\'Crédit Vendeur\\'>Crédit Vendeur direct</option><option value=\\'Prêt Bancaire Dédié\\'>Prêt Bancaire Dédié</option></select>';">➕ Ajouter un montage spécifique pour le rachat</button>`
-         }
-       </div>
-       
-    </div>
-  `;
-  groupsEl.appendChild(financeSec);
-  // --- FIN SMART UI ---
+  const groupsEl = document.getElementById('params-groups');
 
   PARAM_GROUPS_SIMPLE.forEach(g=>{
     const sec = document.createElement('div');
@@ -932,9 +1058,7 @@ function renderParametresTab(root){
     g.fields.forEach(([key,label])=>{
       const row = document.createElement('div'); row.style.display='contents';
       const val = (p[key] !== null && p[key] !== undefined) ? p[key] : '';
-      if(key==="in_fine_select" || key==="booster_infine" || key==="honneur_infine" || key==="vendeur_infine" || key==="invest_infine"){
-        row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="${key}"><option value="false" ${p[key]===false?'selected':''}>Non</option><option value="true" ${p[key]===true?'selected':''}>Oui</option></select>`;
-      } else if(key==="besoin_bfr_select"){
+      if(key==="besoin_bfr_select"){
         row.innerHTML = `<div class="field-label">${label}</div><select class="f-edit" data-pkey="besoin_bfr"><option value="true" ${p.besoin_bfr!==false?'selected':''}>Oui</option><option value="false" ${p.besoin_bfr===false?'selected':''}>Non</option></select>`;
       } else {
         row.innerHTML = `<div class="field-label">${label}</div><input type="number" step="any" class="f-edit" data-pkey="${key}" value="${val}">`;
@@ -944,7 +1068,8 @@ function renderParametresTab(root){
   });
 
   document.getElementById('save-params').addEventListener('click', async ()=>{
-    const newParams = {...p};
+    window.syncSmartUIParams('smart-ui-container'); // Capture le contenu dynamique en mémoire
+    const newParams = {...STATE.current.params};
     groupsEl.querySelectorAll('[data-pkey]').forEach(inp=>{
       const k = inp.dataset.pkey; let v = inp.value;
       if(inp.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true';
@@ -961,7 +1086,6 @@ function renderParametresTab(root){
   const applyParamsFilter = () => {
     const isChecked = filterChk.checked;
     groupsEl.querySelectorAll('.section-title').forEach(title => {
-      if(title.textContent.includes('Montage & Financement Principal')) return; // ignore smart UI
       const grid = title.nextElementSibling;
       let hasVisible = false;
       Array.from(grid.children).forEach(row => {
@@ -1507,51 +1631,15 @@ function renderValorisationTab(root){
   });
 }
 
-/* Modal Ajustement Plan de Financement */
+/* Modal Ajustement Plan de Financement utilisant la SMART UI */
 window.openFinancementModal = function() {
-  const p = STATE.current.params;
-  const val = (k) => (p[k] !== null && p[k] !== undefined) ? p[k] : '';
-  
   const html = `
     <div class="modal-bg" onclick="if(event.target===this) document.getElementById('modal-root').innerHTML=''">
-      <div class="modal" style="max-width:700px;">
+      <div class="modal" style="max-width:850px;">
         <button class="close-x" onclick="document.getElementById('modal-root').innerHTML=''">×</button>
         <h3 style="color:var(--accent-dark); margin-bottom:16px; font-size:18px;">Ajuster le Plan de Financement</h3>
         
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; max-height:65vh; overflow-y:auto; padding-right:10px;">
-            <!-- Côté Apports -->
-            <div>
-              <h4 style="border-bottom:1px solid var(--line); padding-bottom:6px;">Ressources & Apports</h4>
-              <div class="field-label">Apport personnel (€)</div>
-              <input type="number" step="any" id="f-apport" class="f-edit" value="${val('apports_capital_personnel')}" style="margin-bottom:8px;">
-              
-              <div class="field-label">Prêt Bancaire Principal (€)</div>
-              <input type="number" step="any" id="f-banque" class="f-edit" value="${val('emprunt_banque_montant')}" style="margin-bottom:8px;">
-              <div class="row"><input type="number" step="any" id="f-banque-taux" class="f-edit" placeholder="Taux (%)" value="${val('taux_bancaire')}"> <input type="number" step="any" id="f-banque-duree" class="f-edit" placeholder="Durée (ans)" value="${val('duree_pret_ans')}"></div>
-              
-              <div class="field-label" style="margin-top:8px;">Investisseur Privé (€)</div>
-              <input type="number" step="any" id="f-invest" class="f-edit" value="${val('invest_montant')}" style="margin-bottom:8px;">
-            </div>
-            
-            <!-- Côté Besoins -->
-            <div>
-              <h4 style="border-bottom:1px solid var(--line); padding-bottom:6px;">Travaux & Stock</h4>
-              
-              <div class="field-label">Montant des Travaux (€)</div>
-              <input type="number" step="any" id="f-travaux" class="f-edit" value="${val('travaux')}" style="margin-bottom:8px;">
-              <select class="f-edit" id="f-travaux-mode" style="margin-bottom:8px;">
-                <option value="Intégré au prêt global" ${p.financement_travaux_mode==='Intégré au prêt global'?'selected':''}>Intégré au prêt global</option>
-                <option value="Prêt Bancaire Dédié" ${p.financement_travaux_mode==='Prêt Bancaire Dédié'?'selected':''}>Prêt Bancaire Dédié</option>
-              </select>
-
-              <div class="field-label" style="margin-top:8px;">Montage d'Achat du Stock</div>
-              <select class="f-edit" id="f-stock-mode" style="margin-bottom:8px;">
-                <option value="Intégré au prêt global" ${p.stock_financement==='Intégré au prêt global'?'selected':''}>Intégré au prêt global</option>
-                <option value="Crédit Vendeur" ${p.stock_financement==='Crédit Vendeur'?'selected':''}>Crédit Vendeur direct</option>
-                <option value="Prêt Bancaire Dédié" ${p.stock_financement==='Prêt Bancaire Dédié'?'selected':''}>Prêt Bancaire Dédié</option>
-              </select>
-            </div>
-        </div>
+        <div id="smart-ui-modal-container" style="max-height:65vh; overflow-y:auto; padding-right:10px;"></div>
         
         <div class="modal-actions" style="margin-top:24px;">
            <button class="primary" onclick="saveFinancementModal()">Enregistrer et Actualiser</button>
@@ -1560,31 +1648,18 @@ window.openFinancementModal = function() {
     </div>
   `;
   document.getElementById('modal-root').innerHTML = html;
+  
+  // Injection de la même interface dynamique que dans l'onglet Hypothèses
+  window.refreshSmartUI('smart-ui-modal-container');
 }
 
 window.saveFinancementModal = async function() {
-   const p = STATE.current.params;
-   const gv = (id) => { const v = document.getElementById(id).value; return v === '' ? null : parseFloat(v); };
-   
-   const newParams = { 
-       ...p, 
-       apports_capital_personnel: gv('f-apport'),
-       emprunt_banque_montant: gv('f-banque'),
-       taux_bancaire: gv('f-banque-taux'),
-       duree_pret_ans: gv('f-banque-duree'),
-       invest_montant: gv('f-invest'),
-       travaux: gv('f-travaux'),
-       financement_travaux_mode: document.getElementById('f-travaux-mode').value,
-       stock_financement: document.getElementById('f-stock-mode').value
-   };
-   
-   await sb.from('parametres').update({ params:newParams }).eq('project_id', STATE.current.project.id);
-   STATE.current.params = newParams;
+   window.syncSmartUIParams('smart-ui-modal-container');
+   await sb.from('parametres').update({ params: STATE.current.params }).eq('project_id', STATE.current.project.id);
    document.getElementById('modal-root').innerHTML = '';
    if(STATE.activeTab === 'valorisation') renderValorisationTab(document.getElementById('tab-content'));
    toast("Plan de financement mis à jour");
 }
-
 
 /* ==========================================================================================
    ONGLET 6 : PRÉVISIONNEL
