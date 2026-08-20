@@ -820,19 +820,19 @@ function computeEvaluation(dataN, dataN1){
 
   // Ratios financiers (A8, D8, A15)
   const ratioClients = N.caTotalTTC ? (num(dataN.creances_clients_ttc)*360)/N.caTotalTTC : null;      // B8
-  const ratioFournisseurs = N.achats.ht ? (num(dataN.dettes_fournisseurs)*360)/N.achats.ht : null;     // E8
-  const ratioTresorerie = N.achats.ht ? ((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360)/N.achats.ht : null; // B15
+  const ratioFournisseurs = N.achats.ttc ? (num(dataN.dettes_fournisseurs)*360)/N.achats.ttc : null;
+  const ratioTresorerie = N.achats.ttc ? ((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360)/N.achats.ttc : null;
   const ratioStock = N.achatsConsoHT ? (num(dataN.stock_final)*360)/N.achatsConsoHT : null;            // E14
 
   // Ratios exploitation
   const evolutionCA = N1.caTotalHT ? (N.caTotalHT - N1.caTotalHT)/N1.caTotalHT*100 : null;             // B24
   const ratioChargesExterne = N.caTotalHT ? (N.chargesExternes*100)/N.caTotalHT : null;                // E24 (déno = CA année N)
   const margeBruteSans0 = (N.caTotalHT - num(dataN.ventes_0)) - (N.achatsConsoHT - num(dataN.achats_0)); // B32
-  const ratioChargesPersonnel = margeBruteSans0 ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/margeBruteSans0 : null; // E33
+  const ratioChargesPersonnel = N.caTotalHT ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/N.caTotalHT : null;
 
   // Taux de marge commerciale
   const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;    // = Marge_brute_commerciale (identique à margeBruteSans0? formule différente, on garde distincte: B36 en fait = table Marge_brute_commerciale = même range que Marge Brute sans 0% -> donc = margeBruteSans0)
-  const tauxMarge = N.caTotalHT ? margeBruteSans0*100/N.caTotalHT : null;                              // B38
+  const tauxMarge = N.caTotalHT ? margeBruteCommerciale*100/N.caTotalHT : null;                            // B38
   const productionTheoriqueRatio = STATE.current.params.production_theorique ? N.ventes.ttc/STATE.current.params.production_theorique : null; // E38
 
   // EBE
