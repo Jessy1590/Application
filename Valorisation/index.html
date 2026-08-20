@@ -115,7 +115,69 @@ table.calc td.neg{color:var(--danger);}
 .kpi .v{font-size:20px; font-weight:700; font-family:Georgia,serif;}
 .kpi .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; display:flex; justify-content:space-between; align-items:center;}
 .kpi.good .v{color:var(--accent-dark);} .kpi.bad .v{color:var(--danger);}
-.info-icon{cursor:help; background:#e2ded4; color:#726f66; width:16px; height:16px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:bold; font-family:sans-serif;}
+
+/* Infobulles CSS (Remplacement de l'attribut title natif) */
+.info-icon {
+  position: relative;
+  cursor: help;
+  background: #e2ded4;
+  color: #726f66;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  font-family: sans-serif;
+  margin-left: 4px;
+}
+.info-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  width: max-content;
+  max-width: 220px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease-in-out;
+  pointer-events: none;
+  z-index: 100;
+  font-weight: normal;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.info-icon::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--ink) transparent transparent transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease-in-out;
+  pointer-events: none;
+  z-index: 100;
+}
+.info-icon:hover::after, .info-icon:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
 
 .bench-bar{display:flex; align-items:center; gap:8px; margin:6px 0; font-size:12.5px;}
 .bench-bar .lbl{width:190px; flex-shrink:0;}
@@ -752,7 +814,6 @@ function renderBilansTab(root){
               if(inp) {
                   const isEmpty = (inp.value === "" || inp.value === null);
                   const isNa = naCb ? naCb.checked : false;
-                  // Si c'est vide et pas coché N/A, on ajoute à la liste
                   if(isEmpty && !isNa) {
                       const labelNode = row.querySelector('.field-label');
                       const label = labelNode.childNodes[0].textContent.trim();
@@ -811,7 +872,7 @@ function renderBilansTab(root){
         input.disabled = e.target.checked;
       }
     });
-    applyBilansFilter(); // Appliquer le filtre si actif
+    applyBilansFilter();
   }
 
   document.getElementById('save-bilan').addEventListener('click', async ()=>{
@@ -888,7 +949,6 @@ function computeEvaluation(dataN, dataN1){
   const N = computeBilanAggregate(dataN);
   const N1 = computeBilanAggregate(dataN1);
 
-  // Formules STRICTEMENT conformes au fichier Excel de l'utilisateur
   const ratioClients = N.caTotalTTC ? (num(dataN.creances_clients_ttc)*360)/N.caTotalTTC : null;
   const ratioFournisseurs = N.achats.ht ? (num(dataN.dettes_fournisseurs)*360)/N.achats.ht : null; 
   const ratioTresorerie = N.achats.ht ? ((num(dataN.compte_grossiste)+num(dataN.disponibilite))*360)/N.achats.ht : null;
@@ -898,13 +958,11 @@ function computeEvaluation(dataN, dataN1){
   const ratioChargesExterne = N.caTotalHT ? (N.chargesExternes*100)/N.caTotalHT : null;
   const margeBruteSans0 = (N.caTotalHT - num(dataN.ventes_0)) - (N.achatsConsoHT - num(dataN.achats_0));
   
-  // Correction de la formule : division par le CA Total HT (cellule B37) pour les charges de personnel et la marge
-  const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT; // B36
-  const tauxMarge = N.caTotalHT ? margeBruteCommerciale*100/N.caTotalHT : null; // B38 = B36 * 100 / B37
-  const ratioChargesPersonnel = N.caTotalHT ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/N.caTotalHT : null; // E33 sur la base du CA
+  const margeBruteCommerciale = N.caTotalHT - N.achatsConsoHT;
+  const tauxMarge = N.caTotalHT ? margeBruteCommerciale*100/N.caTotalHT : null; 
+  const ratioChargesPersonnel = N.caTotalHT ? (num(dataN.salaires_personnel)+num(dataN.charges_personnel))*100/N.caTotalHT : null; 
   const productionTheoriqueRatio = STATE.current.params.production_theorique ? N.ventes.ttc/STATE.current.params.production_theorique : null;
 
-  // EBE
   const remunerationDirigeant = num(dataN.remuneration_gerance)+num(dataN.charges_gerance);
   const EBE = N.ventes.ht + N.presta.ht - N.achatsConsoHT - N.chargesExternes - num(dataN.impots_taxes_hors_is)
             - (num(dataN.salaires_personnel)+num(dataN.charges_personnel)+num(dataN.remuneration_gerance)+num(dataN.charges_gerance));
@@ -1091,14 +1149,14 @@ function renderEvaluationTab(root){
     <div class="card">
       <h2>Ratios financiers &amp; d'exploitation — Année N</h2>
       <div class="kpi-row">
-        <div class="kpi"><div class="v">${fmtNum(r.ratioClients)} j</div><div class="l">Ratio clients <span class="info-icon" title="Formule : (Créances Clients TTC × 360) / CA Total TTC">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioTresorerie)} j</div><div class="l">Ratio trésorerie <span class="info-icon" title="Formule (selon Excel) : ((Compte grossiste + Disponibilité) × 360) / Achats HT bruts">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioFournisseurs)} j</div><div class="l">Ratio fournisseurs <span class="info-icon" title="Formule (selon Excel) : (Dettes fournisseurs × 360) / Achats HT bruts">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtNum(r.ratioStock)} j</div><div class="l">Ratio stock <span class="info-icon" title="Formule : (Stock final × 360) / Achats consommés HT">ℹ️</span></div></div>
-        <div class="kpi ${r.evolutionCA>=0?'good':'bad'}"><div class="v">${fmtPct(r.evolutionCA)}</div><div class="l">Évolution CA <span class="info-icon" title="Formule : (CA HT N - CA HT N-1) / CA HT N-1">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesExterne)}</div><div class="l">Ratio charges ext. <span class="info-icon" title="Formule (selon Excel) : Charges externes de l'année N / CA Total HT de l'année N">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesPersonnel)}</div><div class="l">Ratio charges perso <span class="info-icon" title="Formule corrigée : (Salaires + Charges de personnel) / CA Total HT">ℹ️</span></div></div>
-        <div class="kpi"><div class="v">${fmtPct(r.tauxMarge)}</div><div class="l">Taux de marge <span class="info-icon" title="Formule corrigée : Marge Brute Commerciale / CA Total HT">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioClients)} j</div><div class="l">Ratio clients <span class="info-icon" data-tooltip="Formule : (Créances Clients TTC × 360) / CA Total TTC">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioTresorerie)} j</div><div class="l">Ratio trésorerie <span class="info-icon" data-tooltip="Formule (selon Excel) : ((Compte grossiste + Disponibilité) × 360) / Achats HT bruts">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioFournisseurs)} j</div><div class="l">Ratio fournisseurs <span class="info-icon" data-tooltip="Formule (selon Excel) : (Dettes fournisseurs × 360) / Achats HT bruts">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtNum(r.ratioStock)} j</div><div class="l">Ratio stock <span class="info-icon" data-tooltip="Formule : (Stock final × 360) / Achats consommés HT">ℹ️</span></div></div>
+        <div class="kpi ${r.evolutionCA>=0?'good':'bad'}"><div class="v">${fmtPct(r.evolutionCA)}</div><div class="l">Évolution CA <span class="info-icon" data-tooltip="Formule : (CA HT N - CA HT N-1) / CA HT N-1">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesExterne)}</div><div class="l">Ratio charges ext. <span class="info-icon" data-tooltip="Formule (selon Excel) : Charges externes de l'année N / CA Total HT de l'année N">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.ratioChargesPersonnel)}</div><div class="l">Ratio charges perso <span class="info-icon" data-tooltip="Formule corrigée : (Salaires + Charges de personnel) / CA Total HT">ℹ️</span></div></div>
+        <div class="kpi"><div class="v">${fmtPct(r.tauxMarge)}</div><div class="l">Taux de marge <span class="info-icon" data-tooltip="Formule corrigée : Marge Brute Commerciale / CA Total HT">ℹ️</span></div></div>
       </div>
     </div>
 
@@ -1118,9 +1176,9 @@ function renderEvaluationTab(root){
           <tr class="total"><td>EBE retraité</td><td>${fmtEUR(r.EBE_retraite)}</td></tr>
         </table>
         <div class="kpi-row" style="grid-template-columns:1fr;">
-          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_CA)}</div><div class="l">Taux EBE / CA <span class="info-icon" title="Formule : EBE retraité / CA Total HT">ℹ️</span></div></div>
-          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_Marge)}</div><div class="l">Taux EBE / Marge <span class="info-icon" title="Formule corrigée : EBE retraité / Marge brute commerciale">ℹ️</span></div></div>
-          <div class="kpi"><div class="v">${fmtNum(r.productionTheoriqueRatio,2)}×</div><div class="l">vs Prod. théorique nationale <span class="info-icon" title="Formule (selon Excel) : CA Ventes TTC / Paramètre 'Production théorique'">ℹ️</span></div></div>
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_CA)}</div><div class="l">Taux EBE / CA <span class="info-icon" data-tooltip="Formule : EBE retraité / CA Total HT">ℹ️</span></div></div>
+          <div class="kpi"><div class="v">${fmtPct(r.tauxEBE_Marge)}</div><div class="l">Taux EBE / Marge <span class="info-icon" data-tooltip="Formule corrigée : EBE retraité / Marge brute commerciale">ℹ️</span></div></div>
+          <div class="kpi"><div class="v">${fmtNum(r.productionTheoriqueRatio,2)}×</div><div class="l">vs Prod. théorique nat. <span class="info-icon" data-tooltip="Formule (selon Excel) : CA Ventes TTC / Paramètre 'Production théorique'">ℹ️</span></div></div>
         </div>
       </div>
     </div>
@@ -1343,34 +1401,136 @@ async function loadMappings(){
 }
 
 function buildImportPrompt(){
-  const fields = allFieldDefs();
-  const lines = fields.map(f=>{
-    if(f.kind==='ht') return `- "${f.key}" (${f.label}) : montant HT en euros. Optionnel: "${f.key}_tva" = taux de TVA en décimal (ex 0.021 pour 2,1%) si différent du taux standard.`;
-    if(f.kind==='pct') return `- "${f.key}" (${f.label}) : pourcentage en décimal (ex 0.15 pour 15%).`;
-    return `- "${f.key}" (${f.label}) : montant en euros.`;
-  }).join('\n');
+  return `Tu es un expert-comptable spécialisé dans les officines de pharmacie et un extracteur de données de très haute précision. Je te fournis en pièce jointe les documents comptables d'une pharmacie (liasse fiscale, compte de résultat, SIG, détail des comptes).
 
-  return `Tu es un assistant comptable. Je te fournis en pièce jointe le(s) bilan(s) comptable(s) d'une officine de pharmacie (liasse fiscale, compte de résultat, SIG...).
+**TA MISSION :**
+Extrais les informations listées ci-dessous pour CHAQUE année disponible (N, N-1, N-2). 
+Réponds STRICTEMENT et UNIQUEMENT avec un objet JSON valide, sans aucune phrase d'introduction ou de conclusion, ni formatage markdown autour.
 
-Extrait toutes les informations suivantes pour CHAQUE année disponible dans les documents (le plus souvent 3 exercices : N, N-1, N-2), et réponds UNIQUEMENT avec un JSON valide, sans texte autour, au format suivant :
+**RÈGLES DE FORMATAGE ABSOLUES :**
+1. **Nombres purs :** Les montants doivent être des nombres décimaux (float) ou entiers (int), sans espaces, sans symbole "€". Utilise le point . comme séparateur décimal (ex: 12345.67).
+2. **Nombres négatifs :** Attention, sur les bilans, les valeurs négatives peuvent être indiquées avec un signe moins à la fin (ex: 35226-) ou entre parenthèses. Convertis-les bien en nombres négatifs (ex: -35226).
+3. **Pourcentages / TVA :** À formater en décimal (ex: 2,1% = 0.021 ; 15% = 0.15).
+4. **Données manquantes :** Si une donnée est introuvable ou égale à zéro, NE CRÉE PAS LA CLÉ dans le JSON. Omet-la simplement.
+5. **Comptes non classés :** Si tu trouves des lignes de charges (comptes 6) ou de produits (comptes 7) ayant un montant significatif mais qui ne rentrent dans aucune des clés ci-dessous, place-les dans un objet "non_classes": { "Nom de la ligne exact": montant }. Ne mets pas les sous-totaux dans les non classés.
 
+**DICTIONNAIRE DE DONNÉES (Utilise EXACTEMENT ces clés JSON) :**
+
+*Indications pour t'aider : les numéros de comptes (PCG) fréquents en pharmacie sont précisés.*
+
+**-- CHIFFRE D'AFFAIRES (Comptes 70) --**
+- "ventes_0" : Ventes 0% (ex: compte 70710000)
+- "ventes_21" : Ventes 2,1% (ex: compte 70720000)
+- "ventes_55" : Ventes 5,5% (ex: compte 70730000)
+- "ventes_10" : Ventes 10% (ex: compte 70750000)
+- "ventes_20" : Ventes 20% (ex: compte 70770000)
+- "hono_dispensation" : Honoraires de dispensation (ex: 70600000)
+- "activites_0" : Activités ou prestations 0% exonérées (ex: 70640010)
+- "locations" : Locations (souvent à 20%, ex: 70640100)
+- "preparations" : Préparations magistrales
+- "autres_presta" : Autres prestations (ex: 70640020)
+- "rosp" : Rémunération sur Objectif CPAM / ROSP (ex: 70601200)
+- "gardes" : Honoraires de gardes et astreintes (ex: 70604000)
+- "vaccination" : Rémunération vaccination (ex: 70604100)
+
+**-- ACHATS ET STOCKS (Comptes 60) --**
+- "achats_0" : Achats exonérés / CEE (ex: 60710000)
+- "achats_21" : Achats 2,10% (ex: 60720000)
+- "achats_55" : Achats 5,5% (ex: 60730000)
+- "achats_10" : Achats 10% (ex: 60750000)
+- "achats_20" : Achats 20% (ex: 60770000)
+- "mat_location_20" : Locations matériel reloué 20% (ex: 60700100)
+- "remise_commerciale" : Remises / RRR obtenus (doit être négatif, ex: 60970000)
+- "rfa" : RFA (Remises de fin d'année)
+- "escompte" : Escomptes commerciaux (ex: 60790000)
+- "stock_initial" : Stock au début de l'exercice
+- "stock_final" : Stock à la fin de l'exercice (compte 37000000)
+
+**-- CHARGES EXTERNES (Comptes 61 & 62) --**
+- "eau_energie" : Eau, Énergie (ex: 60610000)
+- "carburant" : Carburant (ex: 60620000)
+- "prod_entretien" : Produits d'entretien et petit outillage (ex: 60630000)
+- "fournitures_bureau" : Fournitures de bureau (ex: 60640000)
+- "emballages" : Emballages (ex: 60650000)
+- "frais_grossiste" : Frais généraux grossiste (ex: 60660000)
+- "loyers" : Loyers immobiliers (ex: 61320000)
+- "locations_mobilieres" : Locations mobilières (ex: 61350000)
+- "charges_locatives" : Charges locatives (ex: 61400000)
+- "entretien_immeuble" : Entretien immeuble (ex: 61520000)
+- "entretien_mat_mob" : Entretien matériel et mobilier (ex: 61550000)
+- "entretien_vehicules" : Entretien véhicules (ex: 61555000)
+- "maintenance_ordinateur" : Maintenance informatique (ex: 61560000)
+- "maintenance_carte_vitale" : Maintenance carte vitale (ex: 61561000)
+- "assurances" : Assurances (ex: 61600000)
+- "assurance_pret" : Assurance prêt (ex: 61610000)
+- "assurance_vehicule" : Assurance véhicule (ex: 61620000)
+- "documentation_generale" : Documentation générale (ex: 61810000)
+- "frais_seminaires" : Frais de séminaires (ex: 61850000)
+- "honoraires" : Honoraires divers (ex: 62260000)
+- "frais_actes_contentieux" : Frais d'actes et contentieux (ex: 62270000)
+- "travaux_externes_divers" : Travaux externes (ex: 62280000)
+- "cadeaux_clientele" : Cadeaux clientèle (ex: 62340000)
+- "pourboires_dons" : Pourboires, dons (ex: 62380000)
+- "transports_achats" : Transports sur achats (ex: 62410000)
+- "voyages_deplacements" : Voyages et déplacements (ex: 62510000)
+- "missions_receptions" : Missions et réceptions (ex: 62560000)
+- "timbres_telephone" : Timbres et télécoms (ex: 62600000)
+- "frais_internet" : Frais Internet (ex: 62620000)
+- "frais_bancaires_tva" : Frais bancaires avec TVA (ex: 62700000)
+- "frais_cb" : Frais de carte bancaire (ex: 62710000)
+- "cotisations" : Cotisations (ex: 62810000)
+
+**-- IMPÔTS, PERSONNEL ET GÉRANCE --**
+- "impots_taxes_hors_is" : Impôts et taxes (total des comptes 63)
+- "salaires_personnel" : Salaires et traitements (comptes 641, hors gérance)
+- "charges_personnel" : Charges sociales (comptes 645, hors gérance)
+- "remuneration_gerance" : Rémunération exploitant/gérance
+- "charges_gerance" : Charges sociales exploitant (ex: comptes 646, Madelin)
+- "avantage_nature" : Avantage en nature
+- "effectif_temps_plein" : Effectif ETP
+
+**-- BILAN (ACTIF / PASSIF) --**
+- "creances_clients_ttc" : Créances clients nettes ou brutes (comptes 41)
+- "dettes_fournisseurs" : Dettes fournisseurs (comptes 401)
+- "compte_grossiste" : Comptes de provision grossiste (ex: 46732000)
+- "disponibilite" : Trésorerie disponible (Additionner les comptes 508 VMP + 512 Banques + 530 Caisse)
+- "fonds_incorporels" : Fonds commercial (compte 207)
+- "fonds_corporels" : Immobilisations corporelles (Additionner les montants nets des Constructions 213 + Matériel 215 + Autres 218)
+
+**-- SOLDES ET RETRAITEMENTS --**
+- "ca_ht_bilan" : Chiffre d'affaires HT total
+- "retrocessions" : Rétrocessions
+- "honoraires_coop" : Honoraires Coopérative
+- "maison_retraite" : Part du CA liée aux EHPAD/MAS
+- "marge_brute_globale_bilan" : Marge brute globale
+- "ebe_bilan" : Excédent Brut d'Exploitation (EBE)
+- "csg_deductible" : CSG déductible (ex: 63781000)
+- "autres_retraitements" : Autres retraitements
+- "tiers_payant" : Tiers payant
+- "activite_exceptionnelle" : Activité exceptionnelle pour retraitement EBE
+
+**-- RÉPARTITION DU CA PAR TRANCHES (si disponible, en décimal) --**
+- "tranche_0_191" : % CA 0 € à 1,91 €
+- "tranche_192_2290" : % CA 1,92 € à 22,90 €
+- "tranche_2291_150" : % CA 22,91 € à 150 €
+- "tranche_150_1930" : % CA 150 € à 1930 €
+- "tranche_sup_1930" : % CA > 1930 €
+
+**FORMAT DE SORTIE ATTENDU (Exemple) :**
 {
-  "annee_N":   { "clé_du_champ": valeur, ... },
-  "annee_N-1": { "clé_du_champ": valeur, ... },
-  "annee_N-2": { "clé_du_champ": valeur, ... }
-}
-
-Voici la liste exacte des champs attendus (utilise ces clés précises, en anglais/snake_case tel quel) :
-
-${lines}
-
-Règles importantes :
-- Si une information est introuvable dans le document, omets simplement la clé (ne mets pas 0 par défaut).
-- Si tu trouves une ligne du bilan qui ne correspond à AUCUN des champs ci-dessus mais qui semble pertinente (ex: une charge non listée, un compte particulier), ajoute-la quand même dans un objet séparé "non_classes" avec le libellé EXACT tel qu'il apparaît sur le bilan comme clé, et le montant comme valeur — par exemple : "non_classes": { "Achats exonérés": 50 }. Je ferai le tri moi-même ensuite.
-- Les montants sont en euros, nombres simples sans espace ni symbole (ex: 12345.67, pas "12 345,67 €").
-- Les taux de TVA et pourcentages sont en décimal (2,1% = 0.021, pas 2.1).
-
-Réponds uniquement avec le JSON, rien d'autre.`;
+  "annee_N": {
+    "ventes_21": 1200500.50,
+    "ventes_21_tva": 0.021,
+    "achats_21": 850000.0,
+    "disponibilite": 145000.0,
+    "fonds_corporels": 15000.0,
+    "non_classes": {
+      "70641000 HONORAIRES TELETRANSMISSION": 73.0
+    }
+  },
+  "annee_N-1": { ... },
+  "annee_N-2": { ... }
+}`;
 }
 
 function openImportModal(){
@@ -1393,8 +1553,7 @@ function openImportModal(){
     </div>`;
   document.getElementById('close-import').addEventListener('click', ()=> root.innerHTML='');
   document.getElementById('copy-prompt').addEventListener('click', ()=>{
-    navigator.clipboard.writeText(document.getElementById('import-prompt').value);
-    toast("Prompt copié.");
+    copyToClipboard(document.getElementById('import-prompt').value);
   });
   document.getElementById('parse-json').addEventListener('click', handleParseJson);
 }
