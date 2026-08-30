@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText, ShieldAlert, ClipboardCheck, BookMarked, Package, PackageX } from 'lucide-react';
+import { Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText, ShieldAlert, ClipboardCheck, BookMarked, Package, PackageX, BedDouble, Scale, AlertOctagon, FlaskConical, Droplets, Wallet } from 'lucide-react';
 import { useAuth } from '../../core/AuthContext.jsx';
 import { supabase } from '../../services/supabaseClient';
 import { expandWindow, reduceWindow, openModuleWindow } from '../../services/windowService.js';
@@ -99,6 +99,12 @@ export default function Taskbar() {
   const handleOpenDocuments = async () => openModuleWindow('documents');
   const handleOpenPerimes = async () => openModuleWindow('perimes');
   const handleOpenStock = async () => openModuleWindow('stock');
+  const handleOpenRental = async () => openModuleWindow('rental');
+  const handleOpenDisputes = async () => openModuleWindow('disputes');
+  const handleOpenLotAlerts = async () => openModuleWindow('lot_alerts');
+  const handleOpenMagistral = async () => openModuleWindow('magistral');
+  const handleOpenPsl = async () => openModuleWindow('psl');
+  const handleOpenCash = async () => openModuleWindow('cash');
 
   if (isCollapsed) {
     return (
@@ -166,6 +172,27 @@ export default function Taskbar() {
         </button>
         <button onClick={handleOpenStock} title="Erreur de stock" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-violet-400">
           <PackageX size={18} />
+        </button>
+
+        <div className="h-4 w-px bg-slate-700 mx-1" />
+
+        <button onClick={handleOpenRental} title="Location matériel" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-cyan-300">
+          <BedDouble size={18} />
+        </button>
+        <button onClick={handleOpenMagistral} title="Préparations magistrales" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-fuchsia-300">
+          <FlaskConical size={18} />
+        </button>
+        <button onClick={handleOpenPsl} title="Traçabilité PSL" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-rose-300">
+          <Droplets size={18} />
+        </button>
+        <button onClick={handleOpenCash} title="Clôture de caisse" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-emerald-300">
+          <Wallet size={18} />
+        </button>
+        <button onClick={handleOpenDisputes} title="Litiges fournisseurs" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-amber-300">
+          <Scale size={18} />
+        </button>
+        <button onClick={handleOpenLotAlerts} title="Alertes retrait de lot" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-red-400">
+          <AlertOctagon size={18} />
         </button>
       </div>
 

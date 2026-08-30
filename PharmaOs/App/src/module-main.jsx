@@ -14,6 +14,12 @@ import Controls from './modules/Controls/Controls.jsx';
 import Documents from './modules/Documents/Documents.jsx';
 import Perimes from './modules/Perimes/Perimes.jsx';
 import StockError from './modules/Stock/StockError.jsx';
+import Rental from './modules/Rental/Rental.jsx';
+import Disputes from './modules/Disputes/Disputes.jsx';
+import LotAlerts from './modules/LotAlerts/LotAlerts.jsx';
+import Magistral from './modules/Magistral/Magistral.jsx';
+import Psl from './modules/Psl/Psl.jsx';
+import CashClosure from './modules/Cash/CashClosure.jsx';
 
 // Composant temporaire pour les modules non terminés
 const PlaceholderModule = ({ title, data }) => (
@@ -73,6 +79,18 @@ function ModuleApp() {
         return <Perimes />;
       case 'stock':
         return <StockError />;
+      case 'rental':
+        return <Rental />;
+      case 'disputes':
+        return <Disputes />;
+      case 'lot_alerts':
+        return <LotAlerts />;
+      case 'magistral':
+        return <Magistral />;
+      case 'psl':
+        return <Psl />;
+      case 'cash':
+        return <CashClosure />;
       default:
         return <PlaceholderModule title="Module Introuvable" />;
     }

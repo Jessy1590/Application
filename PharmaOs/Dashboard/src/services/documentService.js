@@ -59,48 +59,16 @@ export async function fetchDocumentSignatures(documentId) {
   }));
 }
 
-export async function createRetraitLotTask({ laboratoire, medicament, lot, motif }, userId) {
-  const { data: profiles, error: profError } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', ['admin', 'équipe']);
-  if (profError) throw profError;
-
-  const assignees = profiles?.map(p => p.id) || [];
-  const details = {
-    type: 'retrait_lot',
-    laboratoire,
-    medicament,
-    lot,
-    motif,
-    quantite_isolee: null,
-    urgent: true,
-    date: new Date().toISOString().split('T')[0],
-  };
-
-  const titre = `RETRAIT LOT — ${medicament} (Lot ${lot})`;
-
-  const { data: task, error: taskError } = await supabase
-    .schema('PharmaOs')
-    .from('tasks')
-    .insert([{ titre, description: JSON.stringify(details), created_by: userId }])
-    .select()
-    .single();
-  if (taskError) throw taskError;
-
-  if (assignees.length > 0) {
-    const assignments = assignees.map(uid => ({
-      task_id: task.id,
-      user_id: uid,
-      statut: 'en_cours',
-    }));
-    const { error: assignError } = await supabase
-      .schema('PharmaOs')
-      .from('task_assignments')
-      .insert(assignments);
-    if (assignError) throw assignError;
-  }
-
-  return task;
+export async function createRetraitLotTask(form, userId) {
+  const { createLotAlert } = await import('./lotAlertService');
+  const result = await createLotAlert({
+    alert_number: form.alert_number || `MANUEL-${Date.now()}`,
+    laboratoire: form.laboratoire,
+    medicament: form.medicament,
+    lot: form.lot,
+    motif: form.motif,
+    requires_return: !!form.requires_return,
+    return_location: form.return_location,
+  }, userId);
+  return result.task;
 }

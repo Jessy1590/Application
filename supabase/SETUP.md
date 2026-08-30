@@ -23,6 +23,7 @@ Exécuter les fichiers SQL dans l'ordre (SQL Editor) :
 5. `PharmaOs/supabase/migrations/005_valorisation_rls.sql`
 6. `PharmaOs/supabase/migrations/006_autres_vaccins.sql`
 7. `PharmaOs/supabase/migrations/007_fromage_rls.sql`
+8. `PharmaOs/supabase/modules_metier_v2.sql` (location, magistrales, PSL, caisse, RH, alertes lot, litiges)
 
 ## 3. Schémas exposés (Data API)
 
@@ -45,6 +46,20 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 ```
 
 Ne jamais committer la clé `service_role`.
+
+## 5b. Modules métier v2 + e-mail transactionnel
+
+1. Exécuter `PharmaOs/supabase/modules_metier_v2.sql` dans le SQL Editor.
+2. Déployer l’Edge Function d’envoi (préparations magistrales) :
+
+```bash
+supabase functions deploy send-transactional-email
+# Recommandé — Resend
+supabase secrets set RESEND_API_KEY=re_xxx
+supabase secrets set SMTP_FROM="Pharmacie <noreply@votredomaine.fr>"
+```
+
+Alternative : `SMTP_HTTP_URL` + `SMTP_PASS` + `SMTP_FROM` (voir `supabase/functions/send-transactional-email/README.md`).
 
 ## 6. Rotation clé anon (après RLS verrouillée)
 

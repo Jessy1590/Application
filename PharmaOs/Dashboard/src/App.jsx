@@ -14,6 +14,12 @@ import DocumentManager from './pages/DocumentManager.jsx';
 import RetraitLotManager from './pages/RetraitLotManager.jsx';
 import PerimesManager from './pages/PerimesManager.jsx';
 import StockErrorManager from './pages/StockErrorManager.jsx';
+import RentalManager from './pages/RentalManager.jsx';
+import DisputesManager from './pages/DisputesManager.jsx';
+import MagistralManager from './pages/MagistralManager.jsx';
+import PslManager from './pages/PslManager.jsx';
+import CashManager from './pages/CashManager.jsx';
+import HrManager from './pages/HrManager.jsx';
 
 function Router() {
   const { isLoading, isAuthenticated, isAuthorized } = useAuth();
@@ -48,6 +54,12 @@ function Router() {
   if (route.page === 'retrait_lot') return <RetraitLotManager onNavigate={navigate} />;
   if (route.page === 'perimes') return <PerimesManager onNavigate={navigate} />;
   if (route.page === 'stock') return <StockErrorManager onNavigate={navigate} />;
+  if (route.page === 'rental') return <RentalManager onNavigate={navigate} />;
+  if (route.page === 'disputes') return <DisputesManager onNavigate={navigate} />;
+  if (route.page === 'magistral') return <MagistralManager onNavigate={navigate} />;
+  if (route.page === 'psl') return <PslManager onNavigate={navigate} />;
+  if (route.page === 'cash') return <CashManager onNavigate={navigate} />;
+  if (route.page === 'hr') return <HrManager onNavigate={navigate} />;
 
   return <Dashboard onNavigate={navigate} />;
 }
