@@ -40,3 +40,4 @@ Le projet s'appuie sur une base de données relationnelle riche pour gérer les 
 ## 5. Démarrage des applications npm
 - App --> npm run electron:dev
 - Dashoard --> npm run dev 
+- Téléchargement des plugins : node.js puis npm install
