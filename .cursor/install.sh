@@ -21,4 +21,20 @@ python3 -m pip install --quiet --disable-pip-version-check pillow requests
 ( cd PharmaOs/App && npm ci )
 ( cd PharmaOs/Dashboard && npm ci )
 
+# The Dashboard's Supabase client has no in-code fallback, so without these
+# variables createClient() throws at import time and the app renders a blank
+# page. The App client already ships public fallback values. Seed a local .env
+# for the Dashboard (only if none exists, so real credentials/secrets win) using
+# the same *public* anon key + project URL already committed in protect.js and
+# the App's supabaseClient.js. These are publishable client-side values, not
+# secrets. Provide VITE_SUPABASE_* as environment secrets to override.
+dashboard_env="PharmaOs/Dashboard/.env"
+if [ ! -f "$dashboard_env" ]; then
+  cat > "$dashboard_env" <<'EOF'
+VITE_SUPABASE_URL=https://kpjflntnotftpzffjbud.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo
+EOF
+  echo "install.sh: wrote default $dashboard_env (public anon key)."
+fi
+
 echo "install.sh: dependencies ready."
