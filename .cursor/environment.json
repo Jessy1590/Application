@@ -1,0 +1,26 @@
+{
+  "name": "Application (Portail + PharmaOS)",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "portail",
+      "command": "python3 -m http.server 8000",
+      "description": "Static server for the root portal (index.html) and its sub-sites (Banque, Fromage, Thesaurus, Vaccin, Valorisation, Avions)."
+    },
+    {
+      "name": "pharmaos-app",
+      "command": "cd PharmaOs/App && npm run dev",
+      "description": "PharmaOS App (Vite/React shell for the Electron client) on http://localhost:5173."
+    },
+    {
+      "name": "pharmaos-dashboard",
+      "command": "cd PharmaOs/Dashboard && npm run dev",
+      "description": "PharmaOS Dashboard (Vite/React web app) on http://localhost:5174."
+    }
+  ],
+  "ports": [
+    { "name": "portail", "port": 8000 },
+    { "name": "pharmaos-app", "port": 5173 },
+    { "name": "pharmaos-dashboard", "port": 5174 }
+  ]
+}

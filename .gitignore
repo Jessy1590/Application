@@ -1,4 +1,6 @@
 /PharmaOs/App/node_modules
-/PharmaOs/App/node_modules
+/PharmaOs/Dashboard/node_modules
+/PharmaOs/App/dist
+/PharmaOs/Dashboard/dist
 PharmaOs/App/.env
 PharmaOs/Dashboard/.env
