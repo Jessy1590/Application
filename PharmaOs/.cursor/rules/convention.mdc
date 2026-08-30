@@ -1,23 +1,28 @@
 ---
-description: Conventions globales et style de code pour le projet Portail Vaccins
-globs: *.html, *.js, *.css
+description: Conventions globales et style de code pour l'App Desktop (Electron/React) et le Dashboard web
+globs: PharmaOs/**/*.jsx, PharmaOs/**/*.js, PharmaOs/**/*.html, PharmaOs/**/*.css
 ---
 
 # Conventions de Code et Architecture
 
 ## Stack et Contraintes Technologiques
-- **Vanilla strict :** Le projet utilise uniquement HTML5, CSS3 pur et JavaScript (ES6+)[cite: 4, 5, 6]. N'utilise JAMAIS de frameworks comme React, Vue, ou Tailwind.
-- **Séparation des fichiers :** Contrairement au projet précédent, l'architecture est ici séparée en `index_2.html`, `style.css` et `script.js`[cite: 6]. Respecte cette séparation lors des modifications.
-- **Pas de Build Tools :** Pas de Node.js, Webpack, ou package.json. Les librairies (Supabase v2, Quill.js) sont importées exclusivement via CDN[cite: 6].
+- **Deux apps :** `PharmaOs/App/` (Electron) et `PharmaOs/Dashboard/` (Vite SPA, port 5174, `base: '/PharmaOS/'`). Ne pas mélanger leurs `src/`.
+- **Frontend :** React 18, JSX, Vite. Composants fonctionnels + hooks uniquement.
+- **Styling :** Tailwind CSS. N’utilise pas de CSS brut pour la mise en page, privilégie les classes utilitaires Tailwind. Exceptions existantes : CSS de `react-big-calendar` (Dashboard).
+- **Desktop (Wrapper App) :** Electron multi-processus strict (Main vs Renderer). Dashboard = navigateur, **aucun** `window.electronAPI`.
+- **Base de données :** Supabase. Schéma métier **`PharmaOs`** (client `db: { schema: 'PharmaOs' }`). Profils/rôles : **`portail.profiles`** via `.schema('portail')`. Jamais le schéma `public` pour le métier. Auth = `supabase.auth` uniquement.
 
-## Règles de Développement (JavaScript & DOM)
-- **Helpers existants :** Utilise TOUJOURS la fonction utilitaire `el(id)` au lieu de `document.getElementById(id)` pour alléger le code[cite: 4].
-- **Notifications :** Utilise `showMessage(msg, isError)` pour les retours utilisateurs (toasts)[cite: 4].
-- **Sécurisation :** Utilise `escapeHtml()` pour tout affichage de données textuelles brutes, et `stripHTML()` si besoin de filtrage de texte[cite: 4].
-- **Édition de texte enrichi :** Les champs de texte complexes (détails, rattrapage) utilisent l'éditeur WYSIWYG **Quill.js**[cite: 4, 6]. Ne tente pas d'extraire leurs valeurs avec un simple `.value`, utilise l'API de Quill (`quill.root.innerHTML`)[cite: 4].
-- **Ligne de paramétrage (Astuce Base de Données) :** Les réglages globaux (date de mise à jour, légende, listes de filtres) sont stockés dans une ligne spécifique de la base de données où `pathologie === '__PARAMETRES__'`[cite: 4]. Ne modifie pas cette logique NoSQL-like.
-
-## Base de Données (Supabase)
-- **Clients multiples :** Le projet initialise deux clients distincts : `sbAuth` (schéma 'portail') et `sbVaccin` (schéma 'autres')[cite: 4]. Utilise toujours le bon client selon l'action (Auth vs Data).
+## Règles de Développement (Electron, React, Supabase)
+- **Séparation des Processus (App) :** Le code UI (`App/src/`) ne doit JAMAIS importer de modules Node (`fs`, `path`, `electron`). OS / fenêtres uniquement via `electron/preload.cjs` puis `windowService.js` (`setWindowMode`, `openModuleWindow`). Interdit d’appeler `window.electronAPI` hors `windowService.js`. Modes : `login` | `expanded` | `reduced`. Vues module : `directory` | `call` | `ip` | `tasks` | `order` | `billing`.
+- **Architecture Multi-Fenêtres (App) :** principale `index.html` / `main.jsx` (Login | Taskbar) ; enfants `module.html` / `module-main.jsx` (hash). Une seule fenêtre module ; changement de vue = IPC `module:change-view`.
+- **Routing Dashboard :** état dans `Dashboard/src/App.jsx` (`navigate(page, params)`). Pages : `dashboard` | `directory` | `calls` | `tasks` | `agenda` | `ip`. Gate : `isAuthenticated` puis `isAuthorized` (`role === 'admin'`).
+- **Composants Fonctionnels :** Hooks + `AuthContext` du **même** package (`App/src/core` vs `Dashboard/src/core`). App : session + `display_name`. Dashboard : session + `role` + `isAuthorized`.
+- **Services Isolés :** Toute logique API/BDD dans `src/services/` (`dbServices.js`, `directoryService.js`, `statsService.js`, `ipService.js`, `agendaTaskService.js`, `supabaseClient.js`). **Ne pas** ajouter de `.from()` / `.schema()` dans les composants ou pages. (État actuel : plusieurs modules App violent déjà cette règle — en cas de touche, extraire vers un service, ne pas copier le pattern.)
+- **Contrats données (ne pas inventer de colonnes) :**
+  - `call_logs.statut_traitement` : `cloture` | `a_rappeler` | `transmis_pharmacien` | `en_attente`.
+  - `act_ip_logs.statut_ip` : `Cloturee` | `En attente`. Types agenda : `commande_med` | `facturation` | `changement_horaire`.
+  - Tâches agenda : `tasks.description` souvent JSON (patient, dates, `taskId` dans `agenda_events.details`). Assignations `en_cours` | `terminee`.
+  - Taskbar logs : `login` | `expand` | `collapse`.
+- **Secrets :** `VITE_SUPABASE_*` uniquement. Pas de nouvelle clé en dur. Pas de `service_role` client.
 
 > Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.

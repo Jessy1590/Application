@@ -2,20 +2,15 @@
 /.cursorignore
 /.gitignore
 
-# .cursor folder & docs
-/.cursor/docs/ARCHITECTURE.md
-/.cursor/docs/SECURITY.md
-/.cursor/docs/STATE.md
-/.cursor/docs/supabase.md
-/.cursor/rules/convention.mdc
-
 # App Project
 /App/.env.example
+/App/node_modules
 /App/package-lock.json
 /App/package.json
 /App/postcss.config.js
 /App/tailwind.config.js
 /App/vite.config.js
+/App/.env
 
 # App - Source files
 /App/src/components/.gitkeep
@@ -24,11 +19,13 @@
 
 # Dashboard Project
 /Dashboard/.env.example
+/Dashboard/node_modules
 /Dashboard/package-lock.json
 /Dashboard/package.json
 /Dashboard/postcss.config.js
 /Dashboard/tailwind.config.js
 /Dashboard/vite.config.js
+/Dashboard/.env
 
 # Dashboard - Source & Components
 /Dashboard/src/core/AuthContext.jsx
