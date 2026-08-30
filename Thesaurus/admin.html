@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administration Thesaurus</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="stylesheet" href="script.css">
     <style>
         body {
@@ -298,29 +301,18 @@
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
 
-<!-- 2. Charger Supabase -->
+<!-- 2. Config Supabase centralisée -->
+<script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
 <script src="../protect.js"></script>
 
-<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
+<!-- 4. Admin Thesaurus : accès réservé aux administrateurs -->
 <script>
-  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
-  initialiserSite("73b04cdc-6fa7-4c5d-8bd7-a718792996c6"); 
+  initialiserSite("73b04cdc-6fa7-4c5d-8bd7-a718792996c6", { requireAdmin: true });
 </script>
 </head>
 <body>
-    <!-- Modale de mot de passe -->
-    <div id="password-modal" style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:3000;">
-        <div style="background:#fff;padding:32px 28px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.18);min-width:320px;position:relative;">
-            <h2>Accès administrateur</h2>
-            <input type="password" id="admin-password" placeholder="Mot de passe" style="width:100%;padding:10px 8px;margin:18px 0 8px 0;font-size:1.1em;border-radius:6px;border:1px solid #ccc;">
-            <div id="admin-error" style="color:#e53935;font-size:0.98em;min-height:22px;"></div>
-            <button id="admin-login-btn" style="width:100%;background:#1976d2;color:#fff;padding:10px 0;border:none;border-radius:6px;font-size:1.1em;cursor:pointer;">Se connecter</button>
-        </div>
-    </div>
-    <div class="container" id="admin-content" style="filter:blur(4px);pointer-events:none;user-select:none;">
+    <div class="container" id="admin-content">
         <div class="header">
             <h1>🔄 Administration Thesaurus</h1>
             <p>Générez et mettez à jour le fichier <b>data.js</b> du site Thesaurus</p>
@@ -764,35 +756,6 @@
         return `window.dataFromPython = ${JSON.stringify(dataObject)};`;
     }
 
-    // Protection par mot de passe dès l'ouverture
-    let essaisRestants = 3;
-    const modal = document.getElementById('password-modal');
-    const adminContent = document.getElementById('admin-content');
-    const adminPassword = document.getElementById('admin-password');
-    const adminError = document.getElementById('admin-error');
-    const adminLoginBtn = document.getElementById('admin-login-btn');
-    function checkPassword() {
-        if (adminPassword.value === 'thesaurus2025') {
-            modal.style.display = 'none';
-            adminContent.style.filter = 'none';
-            adminContent.style.pointerEvents = 'auto';
-            adminContent.style.userSelect = 'auto';
-        } else {
-            essaisRestants--;
-            if (essaisRestants <= 0) {
-                window.location.href = 'Thesaurus.html';
-            } else {
-                adminError.textContent = 'Mot de passe incorrect. Il vous reste ' + essaisRestants + ' essai(s).';
-                adminPassword.value = '';
-                adminPassword.focus();
-            }
-        }
-    }
-    adminLoginBtn.onclick = checkPassword;
-    adminPassword.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') checkPassword();
-    });
-    window.onload = function() { adminPassword.focus(); };
     </script>
 </body>
 </html> 

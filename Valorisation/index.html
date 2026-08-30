@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Valorisation Pharmacie - Outil Expert (M&A)</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <!-- Scripts Supabase, HTML2PDF & ChartJS -->
+<script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -219,12 +223,11 @@ canvas { max-width: 100%; }
   <!-- ============ AUTH ============ -->
   <div id="auth-view" class="hidden">
     <div class="card">
-      <h2 id="auth-title">Connexion</h2>
+      <h2>Connexion</h2>
       <div id="auth-error"></div>
       <input type="email" id="auth-email" placeholder="Adresse email" autocomplete="email">
       <input type="password" id="auth-password" placeholder="Mot de passe" autocomplete="current-password">
       <button class="primary" id="auth-submit">Se connecter</button>
-      <div class="switch-mode" id="auth-switch">Pas de compte ? <a id="auth-switch-link">Créer un compte</a></div>
     </div>
   </div>
 
@@ -268,10 +271,10 @@ canvas { max-width: 100%; }
 
 <script>
 /* === FONCTIONS UTILITAIRES & AUTH === */
-const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
-  
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+const cfg = window.SUPABASE_CONFIG;
+if (!cfg?.url || !cfg?.anonKey) throw new Error('SUPABASE_CONFIG manquant');
+
+const sb = window.supabase.createClient(cfg.url, cfg.anonKey, {
   db: { schema: "valorisation" }
 });
 
@@ -569,30 +572,14 @@ window.showFormulaDetail = function(type) {
 
 const SVG_INFO = `<span class="info-icon">i</span>`;
 
-let authMode = "login";
-document.getElementById('auth-switch-link').addEventListener('click', ()=>{ authMode = authMode === "login" ? "signup" : "login"; renderAuthMode(); });
-document.getElementById('auth-switch').addEventListener('click', (e)=>{
-  if(e.target.id === 'auth-switch-link'){ authMode = authMode === "login" ? "signup" : "login"; renderAuthMode(); }
-});
-function renderAuthMode(){
-  document.getElementById('auth-title').textContent = authMode === "login" ? "Connexion" : "Créer un compte";
-  document.getElementById('auth-submit').textContent = authMode === "login" ? "Se connecter" : "Créer le compte";
-  document.getElementById('auth-switch').innerHTML = authMode === "login" ? 'Pas de compte ? <a id="auth-switch-link">Créer un compte</a>' : 'Déjà un compte ? <a id="auth-switch-link">Se connecter</a>';
-}
-
 document.getElementById('auth-submit').addEventListener('click', async ()=>{
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
   const errBox = document.getElementById('auth-error');
   errBox.textContent = "";
   if(!email || !password){ errBox.textContent = "Renseignez email et mot de passe."; return; }
-  let res;
-  if(authMode === "login"){ res = await sb.auth.signInWithPassword({ email, password }); } 
-  else { res = await sb.auth.signUp({ email, password }); }
+  const res = await sb.auth.signInWithPassword({ email, password });
   if(res.error){ errBox.textContent = res.error.message; return; }
-  if(authMode === "signup" && !res.data.session){
-    errBox.textContent = "Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous."; return;
-  }
   await onAuthed(res.data.session);
 });
 

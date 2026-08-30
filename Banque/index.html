@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Budget Partagé</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -230,7 +233,8 @@
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
 
-<!-- 2. Charger Supabase -->
+<!-- 2. Config Supabase centralisée -->
+<script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
@@ -253,9 +257,6 @@
     <input type="password" id="auth-pwd" class="bh-input" placeholder="Mot de passe (min 6 car.)">
     
     <button onclick="AppAuth.login()" class="bh-btn bh-btn-primary bh-btn-block">Se connecter</button>
-    <div style="display:flex; gap:10px; margin-top:12px;">
-      <button onclick="AppAuth.signup()" class="bh-btn bh-btn-ghost bh-btn-block">Créer un compte</button>
-    </div>
     <button onclick="AppAuth.resetPwd()" class="bh-link-btn" style="margin-top:10px;">Mot de passe oublié ?</button>
   </div>
 </div>
@@ -552,9 +553,11 @@
 <div class="bh-toast" id="bh-toast"></div>
 
 <script>
-  // VOS CLÉS SUPABASE (Inchangées)
-  const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg?.url || !cfg?.anonKey) {
+    fatalError('Configuration manquante', 'Chargez shared/supabase-config.js avant ce script.');
+    throw new Error('SUPABASE_CONFIG manquant');
+  }
 
   // Affiche une erreur bloquante visible à l'écran (pas seulement en console)
   function fatalError(title, detail) {
@@ -575,7 +578,7 @@
 
   let supabaseApp;
   try {
-    supabaseApp = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseApp = window.supabase.createClient(cfg.url, cfg.anonKey);
   } catch (e) {
     fatalError('Erreur d\'initialisation Supabase', String(e && e.message ? e.message : e));
     throw e;
@@ -631,13 +634,6 @@
       const { error } = await supabaseApp.auth.signInWithPassword(creds);
       if (error) this.msg("Erreur (" + (error.status || '?') + ") : " + error.message);
       else checkSession();
-    },
-    async signup() {
-      const creds = this.getCreds(); if(!creds) return;
-      this.msg("Création...", "success");
-      const { error } = await supabaseApp.auth.signUp(creds);
-      if (error) this.msg("Erreur : " + error.message);
-      else { this.msg("Créé ! Connexion...", "success"); setTimeout(checkSession, 1000); }
     },
     async logout() {
       await supabaseApp.auth.signOut();

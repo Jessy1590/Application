@@ -4,20 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thesaurus</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
     <link rel="stylesheet" href="script.css">
     <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
 
-<!-- 2. Charger Supabase -->
+<script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<!-- 3. Charger votre fichier protect.js (qui gère la sécurité ET le bouton) -->
 <script src="../protect.js"></script>
-
-<!-- 4. Lancer le script avec le nom ou l'ID de la base en paramètre -->
 <script>
-  // Changez la valeur entre guillemets pour chaque site (ex: "Banque", "RH", etc.)
-  initialiserSite("73b04cdc-6fa7-4c5d-8bd7-a718792996c6"); 
+  initialiserSite("73b04cdc-6fa7-4c5d-8bd7-a718792996c6");
 </script>
   
 </head>

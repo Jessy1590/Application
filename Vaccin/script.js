@@ -1,9 +1,9 @@
 // --- CONFIGURATION ---
-const SUPABASE_URL = 'https://kpjflntnotftpzffjbud.supabase.co/';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
+const cfg = window.SUPABASE_CONFIG;
+if (!cfg?.url || !cfg?.anonKey) throw new Error('SUPABASE_CONFIG manquant');
 
-const sbAuth = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'portail' } });
-const sbVaccin = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { db: { schema: 'autres' } });
+const sbAuth = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'portail' } });
+const sbVaccin = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'autres' } });
 const TABLE_NAME = 'vaccins';
 
 // --- ETAT GLOBAL ---

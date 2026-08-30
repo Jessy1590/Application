@@ -4,8 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portail</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -121,15 +125,13 @@
   <div class="screen" id="loginScreen">
     <div class="login-card">
       <p class="eyebrow">Access Console</p>
-      <h1 id="authTitle">Portail</h1>
+      <h1>Portail</h1>
       <form id="loginForm">
-        <div class="field hidden" id="nameField"><label for="displayName">Nom affiché</label><input type="text" id="displayName" autocomplete="name"></div>
         <div class="field"><label for="email">Email</label><input type="email" id="email" required autocomplete="email"></div>
         <div class="field"><label for="password">Mot de passe</label><input type="password" id="password" required autocomplete="current-password"></div>
         <button type="submit" class="btn full" id="submitBtn">Se connecter</button>
         <p class="auth-error" id="authError"></p>
       </form>
-      <p class="auth-toggle"><span id="authToggleText">Pas encore de compte ?</span> <button type="button" id="toggleModeBtn">Créer un compte</button></p>
     </div>
   </div>
 
@@ -181,6 +183,23 @@
           </form>
         </div>
         <div class="admin-section">
+          <h2>Inviter un utilisateur</h2>
+          <form id="inviteUserForm" style="background:var(--panel); padding:16px; border:1px solid var(--border); border-radius:10px;">
+            <div class="field"><label for="inviteEmail">Email</label><input type="email" id="inviteEmail" required autocomplete="off"></div>
+            <div class="field"><label for="invitePassword">Mot de passe temporaire</label><input type="password" id="invitePassword" required autocomplete="new-password"></div>
+            <div class="field"><label for="inviteDisplayName">Nom affiché</label><input type="text" id="inviteDisplayName"></div>
+            <div class="field"><label for="inviteRole">Rôle</label>
+              <select id="inviteRole" style="width:100%;padding:11px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+                <option value="member">member</option>
+                <option value="équipe">équipe</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <button type="submit" class="btn small" id="inviteUserBtn">Créer le compte</button>
+            <p id="inviteUserMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+        <div class="admin-section">
           <h2>Demandes en attente</h2>
           <div id="requestsArea"></div>
         </div>
@@ -193,11 +212,13 @@
   </div>
 
 <script>
-  const SUPABASE_URL = "https://kpjflntnotftpzffjbud.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo";
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg?.url || !cfg?.anonKey) {
+    document.body.innerHTML = '<p style="color:#fff;padding:24px;">Configuration Supabase manquante.</p>';
+    throw new Error('SUPABASE_CONFIG manquant');
+  }
 
-
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const sb = supabase.createClient(cfg.url, cfg.anonKey, {
     db: { schema: 'portail' }   // toutes les requêtes .from() pointent vers le schéma "portail"
   });
 
@@ -205,43 +226,12 @@
   const loginScreen = el('loginScreen'), dashScreen = el('dashScreen');
   let CURRENT_USER = null, IS_ADMIN = false;
 
-  let authMode = 'login';
-
-  function toggleAuthMode(){
-    authMode = authMode === 'login' ? 'signup' : 'login';
-    const isSignup = authMode === 'signup';
-    el('authTitle').textContent = isSignup ? 'Créer un compte' : 'Portail';
-    el('submitBtn').textContent = isSignup ? "S'inscrire" : 'Se connecter';
-    el('nameField').classList.toggle('hidden', !isSignup);
-    el('authToggleText').textContent = isSignup ? 'Déjà un compte ?' : 'Pas encore de compte ?';
-    el('toggleModeBtn').textContent = isSignup ? 'Se connecter' : 'Créer un compte';
-    el('authError').textContent = '';
-  }
-  el('toggleModeBtn').addEventListener('click', toggleAuthMode);
-
   el('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     el('authError').textContent = '';
     const email = el('email').value.trim();
     const password = el('password').value;
     el('submitBtn').disabled = true;
-
-    if (authMode === 'signup') {
-      el('submitBtn').textContent = 'Inscription...';
-      const { data, error } = await sb.auth.signUp({
-        email, password,
-        options: { data: { display_name: el('displayName').value.trim() || email } }
-      });
-      el('submitBtn').textContent = "S'inscrire"; el('submitBtn').disabled = false;
-      if (error) { el('authError').textContent = error.message; return; }
-      if (!data.session) {
-        el('authError').textContent = "Compte créé — vérifie ta boîte mail pour confirmer, puis connecte-toi.";
-        return;
-      }
-      await bootDashboard();
-      return;
-    }
-
     el('submitBtn').textContent = 'Connexion...';
     const { error } = await sb.auth.signInWithPassword({ email, password });
     el('submitBtn').textContent = 'Se connecter'; el('submitBtn').disabled = false;
@@ -304,6 +294,45 @@
       await loadAdminView(); 
       await loadMineView();
     }
+  });
+
+  el('inviteUserForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = el('inviteUserBtn');
+    const msg = el('inviteUserMsg');
+    btn.disabled = true;
+    btn.textContent = 'Création...';
+    msg.textContent = '';
+
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { msg.textContent = 'Session expirée.'; btn.disabled = false; btn.textContent = 'Créer le compte'; return; }
+
+    const res = await fetch(`${cfg.url}/functions/v1/invite-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: cfg.anonKey,
+      },
+      body: JSON.stringify({
+        email: el('inviteEmail').value.trim(),
+        password: el('invitePassword').value,
+        display_name: el('inviteDisplayName').value.trim() || el('inviteEmail').value.trim(),
+        role: el('inviteRole').value,
+      }),
+    });
+    const body = await res.json();
+    btn.disabled = false;
+    btn.textContent = 'Créer le compte';
+    if (!res.ok) {
+      msg.textContent = body.error || 'Erreur lors de la création.';
+      msg.style.color = 'var(--amber)';
+      return;
+    }
+    msg.textContent = 'Compte créé avec succès.';
+    msg.style.color = 'var(--teal)';
+    el('inviteUserForm').reset();
+    await loadAdminView();
   });
   
   async function bootDashboard(){

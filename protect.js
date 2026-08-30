@@ -1,13 +1,22 @@
-// Définition de l'URL de votre portail
+// Gate UX uniquement — ne remplace PAS la RLS Supabase.
+// Contournable via DevTools ou appels API directs avec JWT valide.
 const URL_PORTAIL = "https://jessy1590.github.io/Application";
 
+function getSupabaseConfig() {
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg?.url || !cfg?.anonKey) {
+    console.error("SUPABASE_CONFIG manquant — chargez shared/supabase-config.js avant protect.js");
+    return null;
+  }
+  return cfg;
+}
+
 /**
- * Fonction principale appelée depuis vos fichiers HTML
- * @param {string} siteId - L'identifiant ou le nom du site
+ * @param {string} siteId - UUID du site (portail.sites)
+ * @param {{ requireAdmin?: boolean }} [options] - requireAdmin: true pour les pages admin
  */
-async function initialiserSite(siteId) {
-  // 1. On lance la vérification de sécurité
-  await verifierSecurite(siteId);
+async function initialiserSite(siteId, options = {}) {
+  await verifierSecurite(siteId, options);
 
   // 2. On ajoute le bouton flottant dès que la page est prête
   if (document.readyState === 'loading') {
@@ -20,17 +29,18 @@ async function initialiserSite(siteId) {
 /**
  * Votre système de protection Supabase
  */
-async function verifierSecurite(siteId) {
+async function verifierSecurite(siteId, options = {}) {
+  const requireAdmin = options.requireAdmin === true;
+
   if (!siteId) {
     console.error("Erreur: L'ID ou le nom du site n'a pas été fourni.");
     return refuserAcces();
   }
 
-  // Vos clés Supabase
-  const SUPABASE_URL = "https://kpjflntnotftpzffjbud.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo";
+  const config = getSupabaseConfig();
+  if (!config) return refuserAcces();
 
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const sb = supabase.createClient(config.url, config.anonKey, {
     db: { schema: 'portail' }
   });
 
@@ -50,6 +60,7 @@ async function verifierSecurite(siteId) {
     // Étape B : L'utilisateur est-il Admin ?
     const { data: profile } = await sb.from('profiles').select('role').eq('id', user.id).single();
     if (profile && profile.role === 'admin') return autoriserAcces();
+    if (requireAdmin) return refuserAcces();
 
     // Étape C : L'utilisateur a-t-il un accès spécifique à ce site ?
     const { data: access, error: accessError } = await sb.from('site_access')

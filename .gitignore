@@ -1,4 +1,12 @@
 /PharmaOs/App/node_modules
-/PharmaOs/App/node_modules
+/PharmaOs/Dashboard/node_modules
 PharmaOs/App/.env
 PharmaOs/Dashboard/.env
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials.json
+dist/
