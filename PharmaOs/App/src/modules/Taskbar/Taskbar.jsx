@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, BookOpen, Shield, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText } from 'lucide-react';
+import { Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText, ShieldAlert, ClipboardCheck, BookMarked, Package, PackageX } from 'lucide-react';
 import { useAuth } from '../../core/AuthContext.jsx';
 import { supabase } from '../../services/supabaseClient';
 import { expandWindow, reduceWindow, openModuleWindow } from '../../services/windowService.js';
@@ -94,6 +94,11 @@ export default function Taskbar() {
   const handleOpenTasks = async () => openModuleWindow('tasks');
   const handleOpenOrder = async () => openModuleWindow('order');
   const handleOpenBilling = async () => openModuleWindow('billing');
+  const handleOpenQuality = async () => openModuleWindow('quality');
+  const handleOpenControls = async () => openModuleWindow('controls');
+  const handleOpenDocuments = async () => openModuleWindow('documents');
+  const handleOpenPerimes = async () => openModuleWindow('perimes');
+  const handleOpenStock = async () => openModuleWindow('stock');
 
   if (isCollapsed) {
     return (
@@ -143,6 +148,24 @@ export default function Taskbar() {
 
         <button onClick={handleOpenIP} title="Interventions Pharmaceutiques" className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-black text-xs hover:bg-indigo-200 transition-colors">
           IP
+        </button>
+
+        <div className="h-4 w-px bg-slate-700 mx-1" />
+
+        <button onClick={handleOpenQuality} title="Non-conformités" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-rose-400">
+          <ShieldAlert size={18} />
+        </button>
+        <button onClick={handleOpenControls} title="Contrôles qualité" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-teal-400">
+          <ClipboardCheck size={18} />
+        </button>
+        <button onClick={handleOpenDocuments} title="Procédures" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-blue-300">
+          <BookMarked size={18} />
+        </button>
+        <button onClick={handleOpenPerimes} title="Périmés" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-orange-400">
+          <Package size={18} />
+        </button>
+        <button onClick={handleOpenStock} title="Erreur de stock" className="p-1.5 rounded hover:bg-slate-700/70 transition-colors text-violet-400">
+          <PackageX size={18} />
         </button>
       </div>
 

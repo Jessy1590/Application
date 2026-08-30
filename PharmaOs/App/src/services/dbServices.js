@@ -23,16 +23,14 @@ export async function logTaskbarToggle(userId, action) {
 }
 
 /**
- * Prepare l'insertion d'un evenement Qualite (module /modules/Quality, Phase 2).
- * @param {string} userId - uuid de l'utilisateur
- * @param {string} type - type d'evenement qualite (ex: 'non_conformite', 'controle')
- * @param {object} data - payload libre (stocke en jsonb)
- * Table attendue : PharmaOs.quality_events (user_id uuid, type text, data jsonb, created_at timestamptz default now())
+ * @deprecated Utiliser qualityService.insertQualityEvent
  */
 export async function insertQualityEvent(userId, type, data) {
   return supabase.from('quality_events').insert({
     user_id: userId,
     type,
+    status: 'ouvert',
+    severity: data?.severity || 'mineure',
     data,
   });
 }

@@ -292,7 +292,11 @@ export default function Ip() {
             <div key={log.id} className="bg-white p-4 rounded-lg border shadow-sm text-sm">
               <div className="flex justify-between items-start mb-2">
                 <span className="font-bold">{log.patient_initiales} ({log.patient_age || '?'} ans)</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${log.statut_ip === 'Cloturee' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  log.statut_ip === 'Cloturee' ? 'bg-indigo-100 text-indigo-700' : 
+                  log.statut_ip === 'Déclaré' ? 'bg-slate-100 text-slate-500' : 
+                  'bg-amber-100 text-amber-700'
+                }`}>
                   {log.statut_ip}
                 </span>
               </div>

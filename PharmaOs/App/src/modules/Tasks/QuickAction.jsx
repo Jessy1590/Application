@@ -29,7 +29,7 @@ export default function QuickAction({ type }) {
       const groupId = crypto.randomUUID();
 
       // 1. Récupération de l'équipe
-      const { data: profiles, error: profilesError } = await supabase.schema('portail').from('profiles').select('id');
+      const { data: profiles, error: profilesError } = await supabase.schema('portail').from('profiles').select('id').in('role', ['admin', 'équipe']);
       if (profilesError) throw new Error(`Erreur Profils: ${profilesError.message}`);
       const assignees = profiles ? profiles.map(p => p.id) : [];
 

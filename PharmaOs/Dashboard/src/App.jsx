@@ -8,6 +8,12 @@ import CallTracking from './pages/CallTracking.jsx';
 import TasksManager from './pages/TasksManager.jsx';
 import AgendaManager from './pages/AgendaManager.jsx'; 
 import IpManagement from './pages/IpManagement.jsx';
+import QualityManager from './pages/QualityManager.jsx';
+import ControlsManager from './pages/ControlsManager.jsx';
+import DocumentManager from './pages/DocumentManager.jsx';
+import RetraitLotManager from './pages/RetraitLotManager.jsx';
+import PerimesManager from './pages/PerimesManager.jsx';
+import StockErrorManager from './pages/StockErrorManager.jsx';
 
 function Router() {
   const { isLoading, isAuthenticated, isAuthorized } = useAuth();
@@ -36,6 +42,12 @@ function Router() {
   if (route.page === 'tasks') return <TasksManager onNavigate={navigate} />;
   if (route.page === 'agenda') return <AgendaManager onNavigate={navigate} />;
   if (route.page === 'ip') return <IpManagement onNavigate={navigate} />;
+  if (route.page === 'quality') return <QualityManager onNavigate={navigate} />;
+  if (route.page === 'controls') return <ControlsManager onNavigate={navigate} />;
+  if (route.page === 'documents') return <DocumentManager onNavigate={navigate} />;
+  if (route.page === 'retrait_lot') return <RetraitLotManager onNavigate={navigate} />;
+  if (route.page === 'perimes') return <PerimesManager onNavigate={navigate} />;
+  if (route.page === 'stock') return <StockErrorManager onNavigate={navigate} />;
 
   return <Dashboard onNavigate={navigate} />;
 }

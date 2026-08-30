@@ -9,6 +9,11 @@ import Calls from './modules/Calls/Calls.jsx';
 import Ip from './modules/Ip/Ip.jsx';
 import Tasks from './modules/Tasks/Tasks.jsx';
 import QuickAction from './modules/Tasks/QuickAction.jsx';
+import Quality from './modules/Quality/Quality.jsx';
+import Controls from './modules/Controls/Controls.jsx';
+import Documents from './modules/Documents/Documents.jsx';
+import Perimes from './modules/Perimes/Perimes.jsx';
+import StockError from './modules/Stock/StockError.jsx';
 
 // Composant temporaire pour les modules non terminés
 const PlaceholderModule = ({ title, data }) => (
@@ -58,6 +63,16 @@ function ModuleApp() {
         return <QuickAction type="order" />;
       case 'billing':
         return <QuickAction type="billing" />;
+      case 'quality':
+        return <Quality />;
+      case 'controls':
+        return <Controls />;
+      case 'documents':
+        return <Documents />;
+      case 'perimes':
+        return <Perimes />;
+      case 'stock':
+        return <StockError />;
       default:
         return <PlaceholderModule title="Module Introuvable" />;
     }

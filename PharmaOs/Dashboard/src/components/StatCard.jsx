@@ -6,9 +6,12 @@ import React from 'react';
  * @param {{ label: string, value: string | number }[]} metrics
  * @param {string} [footnote]
  */
-export default function StatCard({ title, icon: Icon, metrics, footnote }) {
+export default function StatCard({ title, icon: Icon, metrics, footnote, onClick }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4 ${onClick ? 'cursor-pointer hover:border-sky-300 transition' : ''}`}
+    >
       <div className="flex items-center gap-2">
         {Icon && (
           <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center">

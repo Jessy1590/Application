@@ -132,7 +132,44 @@ export default function TasksManager({ onNavigate }) {
                             details = {};
                           }
 
-                          if (task.titre.startsWith('Commande') || details.medicament) {
+                          if (details.type === 'retrait_lot') {
+                            return (
+                              <div className="text-sm text-red-700 space-y-0.5 mt-1 bg-red-50 p-2 rounded border border-red-100">
+                                <p><strong>Médicament :</strong> {details.medicament}</p>
+                                <p><strong>Lot :</strong> {details.lot}</p>
+                                <p><strong>Laboratoire :</strong> {details.laboratoire}</p>
+                                <p><strong>Motif :</strong> {details.motif}</p>
+                                {details.quantite_isolee != null && <p><strong>Qté isolée :</strong> {details.quantite_isolee}</p>}
+                              </div>
+                            );
+                          }
+
+                          if (details.type === 'stock_error' || details.type === 'stock_recompte') {
+                            return (
+                              <div className="text-sm text-violet-700 space-y-0.5 mt-1 bg-violet-50 p-2 rounded border border-violet-100">
+                                <p><strong>{details.type === 'stock_recompte' ? 'Recomptage' : 'Erreur stock'} :</strong> {details.medicament}</p>
+                                {details.description && <p>{details.description}</p>}
+                              </div>
+                            );
+                          }
+
+                          if (details.type === 'perimes_mensuel') {
+                            return (
+                              <div className="text-sm text-orange-700 mt-1 bg-orange-50 p-2 rounded border border-orange-100">
+                                <p><strong>{details.count}</strong> produit(s) à traiter (en avant / promo)</p>
+                              </div>
+                            );
+                          }
+
+                          if (details.type === 'etalonnage_rdv') {
+                            return (
+                              <div className="text-sm text-teal-800 mt-1 bg-teal-50 p-2 rounded border border-teal-100">
+                                <p>RDV {details.equipment_name} — visite le {new Date(details.next_visit_date).toLocaleDateString('fr-FR')}</p>
+                              </div>
+                            );
+                          }
+
+                          if (task.titre.startsWith('Commande') || (details.medicament && !details.lot && !details.type)) {
                             return (
                               <div className="text-sm text-slate-600 space-y-0.5 mt-1">
                                 <p><strong>Médicament :</strong> {details.medicament || 'Non spécifié'} {details.cip ? `(CIP: ${details.cip})` : ''}</p>

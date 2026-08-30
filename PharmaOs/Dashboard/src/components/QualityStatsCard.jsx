@@ -1,23 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import StatCard from './StatCard.jsx';
-import { getMockQualityStats } from '../services/statsService.js';
+import { fetchQualityStats } from '../services/qualityService.js';
 
-// MOCK DATA — a remplacer par une requete sur PharmaOs.quality_events
-// une fois le module Quality (Phase 2 de l'app Electron) branche.
-export default function QualityStatsCard() {
-  const stats = getMockQualityStats();
+export default function QualityStatsCard({ onNavigate }) {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    fetchQualityStats().then(setStats).catch(console.error);
+  }, []);
+
+  if (!stats) return null;
 
   return (
     <StatCard
-      title="Stats de Qualité"
+      title="Qualité ISO 9001"
       icon={ShieldCheck}
+      onClick={() => onNavigate?.('quality')}
       metrics={[
-        { label: 'Interventions Pharmaceutiques', value: stats.interventionsPharmaceutiques },
-        { label: 'Appels traités', value: stats.appelsTraites },
-        { label: 'Taux de conformité', value: `${stats.tauxConformite}%` },
+        { label: 'Événements ouverts', value: stats.open },
+        { label: 'Critiques en cours', value: stats.critical },
+        { label: 'CAPA en attente', value: stats.capaPending },
       ]}
-      footnote="Données fictives (mock) — module Quality non branché"
+      footnote={`${stats.total} événement(s) au total — ${stats.closed} clôturé(s)`}
     />
   );
 }

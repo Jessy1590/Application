@@ -1,11 +1,12 @@
 import React from 'react';
-import { LogOut, BookOpen, PhoneCall, Calendar, CheckSquare, Activity } from 'lucide-react';
+import { LogOut, BookOpen, PhoneCall, Calendar, CheckSquare, Activity, ShieldAlert, ClipboardCheck, FileText, AlertOctagon, Package, PackageX } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import AdviceStatsCard from '../components/AdviceStatsCard.jsx';
 import TaskbarUsageCard from '../components/TaskbarUsageCard.jsx';
 import TaskStatsCard from '../components/TaskStatsCard.jsx';
 import CallStatsCard from '../components/CallStatsCard.jsx';
 import IpStatsCard from '../components/IpStatsCard.jsx';
+import QualityStatsCard from '../components/QualityStatsCard.jsx';
 
 export default function Dashboard({ onNavigate }) {
   const { user, signOut } = useAuth();
@@ -27,7 +28,7 @@ export default function Dashboard({ onNavigate }) {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         
         {/* BOUTONS RÉDUITS : py-3 au lieu de py-6, gap-2 au lieu de gap-3, icônes w-10 h-10 */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <button onClick={() => onNavigate('calls')} className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 shadow-sm transition-all group">
             <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform"><PhoneCall size={20} /></div>
             <span className="font-semibold text-slate-700 text-sm">Appels</span>
@@ -54,6 +55,38 @@ export default function Dashboard({ onNavigate }) {
           </button>
         </div>
 
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+          <button onClick={() => onNavigate('quality')} className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl hover:bg-rose-50 hover:border-rose-200 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform"><ShieldAlert size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">Qualité</span>
+          </button>
+
+          <button onClick={() => onNavigate('controls')} className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl hover:bg-teal-50 hover:border-teal-200 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 group-hover:scale-110 transition-transform"><ClipboardCheck size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">Contrôles</span>
+          </button>
+
+          <button onClick={() => onNavigate('documents')} className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 px-4 py-3 rounded-xl hover:bg-indigo-50 hover:border-indigo-200 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform"><FileText size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">GED</span>
+          </button>
+
+          <button onClick={() => onNavigate('retrait_lot')} className="flex flex-col items-center justify-center gap-2 bg-white border border-red-200 px-4 py-3 rounded-xl hover:bg-red-50 hover:border-red-300 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 group-hover:scale-110 transition-transform"><AlertOctagon size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">Retrait lot</span>
+          </button>
+
+          <button onClick={() => onNavigate('perimes')} className="flex flex-col items-center justify-center gap-2 bg-white border border-orange-200 px-4 py-3 rounded-xl hover:bg-orange-50 hover:border-orange-300 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 group-hover:scale-110 transition-transform"><Package size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">Périmés</span>
+          </button>
+
+          <button onClick={() => onNavigate('stock')} className="flex flex-col items-center justify-center gap-2 bg-white border border-violet-200 px-4 py-3 rounded-xl hover:bg-violet-50 hover:border-violet-300 shadow-sm transition-all group">
+            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center text-violet-600 group-hover:scale-110 transition-transform"><PackageX size={20} /></div>
+            <span className="font-semibold text-slate-700 text-sm">Stock</span>
+          </button>
+        </div>
+
         <div className="mb-6">
           <h2 className="text-xl font-bold text-slate-800 border-b border-slate-300 pb-2">Vue d'ensemble</h2>
         </div>
@@ -65,6 +98,7 @@ export default function Dashboard({ onNavigate }) {
           <TaskbarUsageCard />
           <CallStatsCard onNavigate={onNavigate} />
           <TaskStatsCard onNavigate={onNavigate} />
+          <QualityStatsCard onNavigate={onNavigate} />
           <AdviceStatsCard />
         </div>
       </main>
