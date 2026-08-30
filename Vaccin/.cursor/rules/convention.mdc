@@ -1,0 +1,23 @@
+---
+description: Conventions globales et style de code pour le projet Portail Vaccins
+globs: *.html, *.js, *.css
+---
+
+# Conventions de Code et Architecture
+
+## Stack et Contraintes Technologiques
+- **Vanilla strict :** Le projet utilise uniquement HTML5, CSS3 pur et JavaScript (ES6+)[cite: 4, 5, 6]. N'utilise JAMAIS de frameworks comme React, Vue, ou Tailwind.
+- **Séparation des fichiers :** Contrairement au projet précédent, l'architecture est ici séparée en `index_2.html`, `style.css` et `script.js`[cite: 6]. Respecte cette séparation lors des modifications.
+- **Pas de Build Tools :** Pas de Node.js, Webpack, ou package.json. Les librairies (Supabase v2, Quill.js) sont importées exclusivement via CDN[cite: 6].
+
+## Règles de Développement (JavaScript & DOM)
+- **Helpers existants :** Utilise TOUJOURS la fonction utilitaire `el(id)` au lieu de `document.getElementById(id)` pour alléger le code[cite: 4].
+- **Notifications :** Utilise `showMessage(msg, isError)` pour les retours utilisateurs (toasts)[cite: 4].
+- **Sécurisation :** Utilise `escapeHtml()` pour tout affichage de données textuelles brutes, et `stripHTML()` si besoin de filtrage de texte[cite: 4].
+- **Édition de texte enrichi :** Les champs de texte complexes (détails, rattrapage) utilisent l'éditeur WYSIWYG **Quill.js**[cite: 4, 6]. Ne tente pas d'extraire leurs valeurs avec un simple `.value`, utilise l'API de Quill (`quill.root.innerHTML`)[cite: 4].
+- **Ligne de paramétrage (Astuce Base de Données) :** Les réglages globaux (date de mise à jour, légende, listes de filtres) sont stockés dans une ligne spécifique de la base de données où `pathologie === '__PARAMETRES__'`[cite: 4]. Ne modifie pas cette logique NoSQL-like.
+
+## Base de Données (Supabase)
+- **Clients multiples :** Le projet initialise deux clients distincts : `sbAuth` (schéma 'portail') et `sbVaccin` (schéma 'autres')[cite: 4]. Utilise toujours le bon client selon l'action (Auth vs Data).
+
+> Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.

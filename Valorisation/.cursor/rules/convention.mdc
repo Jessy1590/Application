@@ -1,0 +1,27 @@
+---
+description: Conventions globales et style de code pour le projet Valorisation Pharmacie
+globs: *.html, *.js, *.css
+---
+
+# Conventions de Code et Architecture
+
+## Stack et Contraintes Technologiques
+- **Vanilla strict :** Le projet utilise uniquement HTML5, CSS3 pur (Vanilla) et JavaScript (ES6+). N'utilise JAMAIS de frameworks comme React, Vue, ou Tailwind.
+- **Architecture Monolithique :** TOUT le code (UI, style, logique métier, appels base de données) réside dans l'unique fichier `index.html`. Ne propose JAMAIS d'éclater le code dans d'autres fichiers ou de créer une architecture modulaire classique sauf demande explicite.
+- **Pas de Build Tools :** Pas de Node.js, pas de Webpack, pas de package.json. Les librairies (Supabase, html2pdf.js, Chart.js) sont importées exclusivement via CDN.
+
+## Règles de Développement
+- **Repères de navigation :** Le fichier `index.html` utilise un système de commentaires structurés (ex: `/* === 1. CONFIG & SETUP === */`, `/* === ONGLETS === */`). Respecte et maintiens cette structure lors des ajouts.
+- **Manipulation du DOM :** Utilise les API Vanilla (`document.getElementById`, `document.createElement`, `innerHTML` avec backticks pour les templates).
+- **Fonctions utilitaires existantes :** Réutilise TOUJOURS les fonctions existantes au lieu de les recréer :
+  - `fmtEUR(n)` : Formatage en euros.
+  - `fmtPct(n)` : Formatage en pourcentage.
+  - `num(v)` : Conversion sécurisée en nombre (remplace `parseFloat`).
+  - `toast(msg)` : Notifications utilisateur.
+  - `escapeHtml(str)` : Sécurisation des données affichées.
+
+## Base de Données (Supabase)
+- **Client Supabase :** Le client est instancié globalement via `window.supabase`.
+- **JSONB :** Exploite la flexibilité du schéma NoSQL-like (colonnes `params`, `data`, `infos` en JSONB). Ne propose pas de créer de nouvelles colonnes SQL pour chaque nouveau champ, injecte-les dans les objets JSON existants.
+
+> Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.

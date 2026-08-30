@@ -1,0 +1,20 @@
+---
+description: Conventions globales et style de code pour le projet Carnet de Fromages
+globs: *.html
+---
+
+# Conventions de Code et Architecture
+
+## Stack et Contraintes Technologiques
+- **Single File React :** Le projet est un monolithe `index.html` qui utilise React 18 et Babel en mode standalone via CDN[cite: 10]. Ne propose JAMAIS d'installer Node.js, Vite, Create React App ou npm.
+- **Base de données :** Supabase (Client JS v2 importé via CDN)[cite: 10]. Le schéma utilisé est `autres`[cite: 10].
+- **Styles :** CSS pur dans la balise `<style>` avec des variables CSS (`:root`)[cite: 10]. Pas de framework CSS externe comme Tailwind.
+
+## Règles de Développement (React & DOM)
+- **Composants Fonctionnels :** Utilise exclusivement des composants fonctionnels React avec des Hooks (`useState`, `useEffect`, `useRef`, `useMemo`)[cite: 10].
+- **Icônes Inline :** Les icônes sont de simples fonctions qui retournent du SVG inline (objet `Icon`)[cite: 10]. N'ajoute pas de bibliothèques d'icônes externes (FontAwesome, Lucide, etc.).
+- **Optimisation des performances :** Les statistiques globales et la liste filtrée/triée sont mises en cache via `useMemo` pour éviter les calculs inutiles à chaque rendu[cite: 10].
+- **Gestion des états d'UI :** L'état d'ouverture des catégories est géré par un objet `expanded` unique pour éviter de surcharger le DOM avec des états locaux multiples[cite: 10].
+- **Structure de données :** Les fromages ont une propriété `notes` sous forme de tableau d'objets (`{id, value}`)[cite: 10]. Utilise l'utilitaire `avg()` pour calculer la moyenne[cite: 10].
+
+> Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.
