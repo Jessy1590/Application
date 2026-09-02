@@ -72,6 +72,47 @@ export async function deleteAbsence(id) {
   if (error) throw error;
 }
 
+export async function fetchScheduleChanges() {
+  const { data, error } = await supabase.from('hr_schedule_changes').select('*').order('date_debut', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createScheduleChange(userId, payload) {
+  const motif = payload.motif || 'Retard / arrivée';
+  const base = {
+    user_id: payload.user_id,
+    motif,
+    date_debut: payload.date_debut,
+    heure_debut: payload.heure_prevue || payload.heure_debut || null,
+    date_fin: payload.date_fin || null,
+    heure_fin: payload.heure_fin || null,
+    commentaire: [
+      payload.heure_arrivee ? `Arrivée réelle : ${String(payload.heure_arrivee).slice(0, 5)}` : null,
+      payload.commentaire,
+    ].filter(Boolean).join(' — ') || null,
+    created_by: userId,
+  };
+
+  const withCols = {
+    ...base,
+    heure_prevue: payload.heure_prevue || null,
+    heure_arrivee: payload.heure_arrivee || null,
+  };
+
+  let { data, error } = await supabase.from('hr_schedule_changes').insert([withCols]).select().single();
+  if (error && /heure_arrivee|heure_prevue|column/i.test(error.message || '')) {
+    ({ data, error } = await supabase.from('hr_schedule_changes').insert([base]).select().single());
+  }
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteScheduleChange(id) {
+  const { error } = await supabase.from('hr_schedule_changes').delete().eq('id', id);
+  if (error) throw error;
+}
+
 /** Présence du jour + heuristique arrivée / dernière activité via taskbar_logs */
 export async function fetchPresenceForDay(dateStr) {
   const start = `${dateStr}T00:00:00`;

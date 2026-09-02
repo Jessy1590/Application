@@ -1,123 +1,122 @@
 import { supabase } from './supabaseClient';
 
-export function calcMagistralPrice(rule, quantite = 1) {
-  if (!rule) return 0;
-  const base = Number(rule.base_price) || 0;
-  const coef = Number(rule.coefficient) || 1;
-  const qty = Number(quantite) || 1;
-  return Math.round(base * coef * qty * 100) / 100;
+export function calcMagistralPrice(settings, prixHtNet, tvaRate) {
+  if (!settings || prixHtNet == null) return null;
+  const ht = Number(prixHtNet) || 0;
+  const port = Number(settings.frais_port) || 0;
+  const coef = Number(settings.coefficient) || 1;
+  const tva = Number(tvaRate) || 0;
+  const base = ht + port;
+  const ttc = base * (1 + tva / 100);
+  return Math.round(ttc * coef * 100) / 100;
 }
 
-export async function fetchProviders() {
-  const { data, error } = await supabase.from('magistral_providers').select('*').order('name');
-  if (error) throw error;
-  return data || [];
+export function maskPatient(nom, prenom) {
+  return `${(prenom || '').slice(0, 2).toUpperCase()}${(nom || '').slice(0, 2).toUpperCase()}`;
 }
 
-export async function upsertProvider(payload, id = null) {
-  if (id) {
-    const { data, error } = await supabase.from('magistral_providers').update(payload).eq('id', id).select().single();
-    if (error) throw error;
-    return data;
-  }
-  const { data, error } = await supabase.from('magistral_providers').insert([payload]).select().single();
+export async function fetchSettings() {
+  const { data, error } = await supabase.from('magistral_settings').select('*').limit(1).maybeSingle();
   if (error) throw error;
   return data;
 }
 
-export async function fetchPriceRules() {
-  const { data, error } = await supabase.from('magistral_price_rules').select('*').order('name');
-  if (error) throw error;
-  return data || [];
-}
-
-export async function upsertPriceRule(payload, id = null) {
+export async function updateSettings(payload, id) {
   const row = { ...payload, updated_at: new Date().toISOString() };
-  if (id) {
-    const { data, error } = await supabase.from('magistral_price_rules').update(row).eq('id', id).select().single();
-    if (error) throw error;
-    return data;
-  }
-  const { data, error } = await supabase.from('magistral_price_rules').insert([row]).select().single();
+  const { data, error } = await supabase.from('magistral_settings').update(row).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
 
 export async function fetchOrders() {
-  const { data, error } = await supabase
-    .from('magistral_orders')
-    .select('*, magistral_providers(name, email), magistral_price_rules(name)')
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('magistral_orders').select('*').order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
 
-export async function createOrder(userId, payload) {
-  const prix = calcMagistralPrice(payload.price_rule, payload.quantite);
-  const { data, error } = await supabase
-    .from('magistral_orders')
-    .insert([{
-      provider_id: payload.provider_id || null,
-      price_rule_id: payload.price_rule_id || null,
-      formule: payload.formule,
-      patient_initiales: payload.patient_initiales || null,
-      quantite: payload.quantite ?? 1,
-      forme: payload.forme || null,
-      prix_calcule: prix,
-      statut: 'brouillon',
-      created_by: userId,
-      notes: payload.notes || null,
-    }])
-    .select()
-    .single();
+export async function updateOrder(id, payload) {
+  const row = { ...payload, updated_at: new Date().toISOString() };
+  const { data, error } = await supabase.from('magistral_orders').update(row).eq('id', id).select().single();
   if (error) throw error;
   return data;
 }
 
-export async function sendOrderEmail(order, providerEmail) {
-  const html = `
-    <h2>Commande préparation magistrale</h2>
-    <p><strong>Patient (initiales) :</strong> ${order.patient_initiales || '—'}</p>
-    <p><strong>Forme / qté :</strong> ${order.forme || '—'} × ${order.quantite ?? 1}</p>
-    <p><strong>Formule :</strong></p>
-    <pre>${(order.formule || '').replace(/</g, '&lt;')}</pre>
-    <p><strong>Prix indicatif :</strong> ${order.prix_calcule ?? '—'} €</p>
+async function sendEmail(to, subject, html) {
+  if (!to) throw new Error('E-mail destinataire manquant.');
+  const { data, error } = await supabase.functions.invoke('send-transactional-email', { body: { to, subject, html } });
+  if (error || data?.error) {
+    throw new Error(data?.error || error?.message || 'Échec envoi e-mail');
+  }
+  return data;
+}
+
+function buildHtml(order, settings, title) {
+  const fd = order.form_data || {};
+  const dem = fd.demande || {};
+  const pat = fd.patient || {};
+  return `
+    <h2>${title}</h2>
+    <pre>${(dem.formule || order.formule || '').replace(/</g, '&lt;')}</pre>
+    <p>Patient : ${maskPatient(pat.nom, pat.prenom)} — ${pat.dob || ''}</p>
+    ${order.prix_calcule != null ? `<p>Prix TTC : <strong>${order.prix_calcule} €</strong></p>` : ''}
+    <p>Pharmacie : ${settings?.pharmacy_name || ''}</p>
   `;
-
-  const { data, error } = await supabase.functions.invoke('send-transactional-email', {
-    body: {
-      to: providerEmail,
-      subject: `Commande préparation #${String(order.id).slice(0, 8)}`,
-      html,
-    },
-  });
-  if (error) throw error;
-
-  const { data: updated, error: upErr } = await supabase
-    .from('magistral_orders')
-    .update({
-      statut: 'envoye',
-      email_sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', order.id)
-    .select()
-    .single();
-  if (upErr) throw upErr;
-  return { order: updated, email: data };
 }
 
-export async function markReceived(orderId) {
-  const { data, error } = await supabase
-    .from('magistral_orders')
-    .update({
-      statut: 'recu',
-      received_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', orderId)
-    .select()
-    .single();
+export async function validateDevis(orderId, { launchOrder = true, sendEmail: doSend = true, notifyPatient = false } = {}) {
+  const settings = await fetchSettings();
+  const { data: order, error } = await supabase.from('magistral_orders').select('*').eq('id', orderId).single();
   if (error) throw error;
-  return data;
+
+  if (!launchOrder) {
+    return updateOrder(orderId, { statut: 'cloture', closed_at: new Date().toISOString(), closed_reason: 'Devis refusé' });
+  }
+
+  const updated = await updateOrder(orderId, { statut: 'commande' });
+  if (doSend && settings?.provider_email) {
+    await sendEmail(settings.provider_email, `Commande préparation magistrale #${orderId.slice(0, 8)}`, buildHtml(order, settings, 'Commande confirmée'));
+    await updateOrder(orderId, { email_sent_at: new Date().toISOString() });
+  }
+  if (notifyPatient && order.patient_email) {
+    await sendEmail(order.patient_email, 'Votre devis est validé', '<p>Votre demande de préparation magistrale a été validée. La commande est lancée.</p>');
+  }
+  return updated;
+}
+
+export async function receiveOrder(orderId, prixHtNet, { tvaRate, notifyPatient = false, sendEmail: doSend = false } = {}) {
+  const settings = await fetchSettings();
+  const prix = calcMagistralPrice(settings, prixHtNet, tvaRate);
+  const order = await updateOrder(orderId, {
+    statut: 'receptionne',
+    prix_ht_net: prixHtNet,
+    tva_rate: tvaRate,
+    prix_calcule: prix,
+    received_at: new Date().toISOString(),
+  });
+  if (notifyPatient && order.patient_email) {
+    await sendEmail(order.patient_email, 'Préparation disponible', `<p>Votre préparation est disponible.${prix != null ? ` Montant : ${prix} €` : ''}</p>`);
+  }
+  if (doSend && settings?.provider_email) {
+    await sendEmail(settings.provider_email, 'Réception préparation', buildHtml(order, settings, 'Réception confirmée'));
+  }
+  return order;
+}
+
+export async function closeOrder(orderId, reason = '') {
+  return updateOrder(orderId, { statut: 'cloture', closed_at: new Date().toISOString(), closed_reason: reason || null });
+}
+
+export async function saveOrderEdit(orderId, formData, { sendEmail: doSend = false } = {}) {
+  const settings = await fetchSettings();
+  const pat = formData?.patient || {};
+  const order = await updateOrder(orderId, {
+    form_data: formData,
+    formule: formData?.demande?.formule || '',
+    patient_initiales: maskPatient(pat.nom, pat.prenom),
+    patient_email: formData?.patient_email || null,
+  });
+  if (doSend && settings?.provider_email) {
+    await sendEmail(settings.provider_email, 'Mise à jour préparation magistrale', buildHtml(order, settings, 'Mise à jour'));
+  }
+  return order;
 }

@@ -1,65 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Droplets, Download } from 'lucide-react';
-import { fetchPslUnits, fetchPslMovements, exportPslRegisterCsv } from '../services/pslService';
+import { Droplets, Download, Printer } from 'lucide-react';
+import { fetchPslUnits, fetchPslMovements, exportPslRegisterCsv, printMdsRegistry } from '../services/pslService';
 
-export default function PslManager({ onNavigate }) {
+export default function PslManager() {
   const [units, setUnits] = useState([]);
   const [movements, setMovements] = useState([]);
 
   useEffect(() => {
     (async () => {
       setUnits(await fetchPslUnits());
-      setMovements(await fetchPslMovements());
+      setMovements(await fetchPslMovements(500));
     })().catch((e) => alert(e.message));
   }, []);
 
   const stock = units.filter((u) => u.statut === 'en_stock');
+  const deliv = movements.filter((m) => m.movement_type === 'delivrance');
 
   return (
-    <div className="p-8 max-w-6xl mx-auto w-full">
-      <button type="button" onClick={() => onNavigate('dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-rose-600 mb-6 text-sm font-medium">
-        <ArrowLeft size={16} /> Retour
-      </button>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Droplets className="text-rose-600" /> Registre PSL</h1>
-        <button type="button" onClick={() => exportPslRegisterCsv(movements)} className="flex items-center gap-2 px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium">
-          <Download size={16} /> Export CSV audit
-        </button>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Droplets className="text-rose-600" /> Registre MDS</h1>
+          <p className="text-sm text-slate-500">Médicaments dérivés du sang — registre spécial ARS</p>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => printMdsRegistry(movements)} className="flex items-center gap-2 px-3 py-2 bg-rose-600 text-white rounded-lg text-sm font-medium">
+            <Printer size={16} /> Imprimer registre ARS
+          </button>
+          <button type="button" onClick={() => exportPslRegisterCsv(movements)} className="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium">
+            <Download size={16} /> Export CSV
+          </button>
+        </div>
       </div>
 
-      <h2 className="font-semibold mb-2">Stock actuel ({stock.length})</h2>
-      <div className="bg-white rounded-xl border overflow-hidden mb-8">
-        <table className="w-full text-sm text-left">
+      <h2 className="font-semibold">Stock ({stock.length})</h2>
+      <div className="bg-white rounded-xl border overflow-x-auto">
+        <table className="w-full text-sm text-left min-w-[600px]">
           <thead className="bg-slate-50 border-b"><tr>
-            <th className="p-3">Code</th><th className="p-3">N° unité</th><th className="p-3">ABO/Rh</th><th className="p-3">Péremption</th><th className="p-3">Fournisseur</th>
+            <th className="p-3">Dénomination</th><th className="p-3">Code</th><th className="p-3">N° unité</th><th className="p-3">Lot</th><th className="p-3">Péremption</th>
           </tr></thead>
           <tbody className="divide-y">
             {stock.map((u) => (
               <tr key={u.id}>
+                <td className="p-3">{u.denomination || '—'}</td>
                 <td className="p-3">{u.code_produit}</td>
                 <td className="p-3 font-mono">{u.numero_unite}</td>
-                <td className="p-3">{u.groupe_abo}{u.rh}</td>
+                <td className="p-3">{u.lot || '—'}</td>
                 <td className="p-3">{u.date_peremption || '—'}</td>
-                <td className="p-3">{u.fournisseur || '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <h2 className="font-semibold mb-2">Mouvements</h2>
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <table className="w-full text-sm text-left">
+      <h2 className="font-semibold">Registre des délivrances ({deliv.length})</h2>
+      <div className="bg-white rounded-xl border overflow-x-auto">
+        <table className="w-full text-sm text-left min-w-[900px]">
           <thead className="bg-slate-50 border-b"><tr>
-            <th className="p-3">Date</th><th className="p-3">Type</th><th className="p-3">Unité</th><th className="p-3">Patient</th>
+            <th className="p-3">N°</th><th className="p-3">Date</th><th className="p-3">Prescripteur</th><th className="p-3">Patient</th><th className="p-3">Médicament</th><th className="p-3">Qté</th>
           </tr></thead>
           <tbody className="divide-y">
-            {movements.map((m) => (
+            {deliv.map((m) => (
               <tr key={m.id}>
-                <td className="p-3">{new Date(m.created_at).toLocaleString('fr-FR')}</td>
-                <td className="p-3 capitalize">{m.movement_type}</td>
-                <td className="p-3 font-mono text-xs">{m.psl_units?.code_produit} / {m.psl_units?.numero_unite}</td>
-                <td className="p-3">{m.patient_initiales || '—'} {m.patient_ipp ? `(${m.patient_ipp})` : ''}</td>
+                <td className="p-3 font-bold">{m.registry_number ?? '—'}</td>
+                <td className="p-3">{m.date_delivrance || new Date(m.created_at).toLocaleDateString('fr-FR')}</td>
+                <td className="p-3">{m.prescripteur_nom || '—'}</td>
+                <td className="p-3">{m.patient_nom} {m.patient_prenom}</td>
+                <td className="p-3">{m.denomination || m.psl_units?.code_produit}</td>
+                <td className="p-3">{m.quantite ?? 1}</td>
               </tr>
             ))}
           </tbody>

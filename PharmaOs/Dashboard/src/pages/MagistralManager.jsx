@@ -1,127 +1,192 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, FlaskConical, Send, PackageCheck } from 'lucide-react';
-import { useAuth } from '../core/AuthContext';
+import { FlaskConical, Send, PackageCheck, XCircle, Settings, Edit2 } from 'lucide-react';
 import {
-  fetchProviders, upsertProvider, fetchPriceRules, upsertPriceRule,
-  fetchOrders, createOrder, sendOrderEmail, markReceived, calcMagistralPrice,
+  fetchSettings, updateSettings, fetchOrders, validateDevis, receiveOrder, closeOrder,
+  saveOrderEdit, calcMagistralPrice,
 } from '../services/magistralService';
 
-export default function MagistralManager({ onNavigate }) {
-  const { user } = useAuth();
+const STATUTS = { devis: 'Devis', commande: 'Commandé', receptionne: 'Réceptionné', cloture: 'Clôturé' };
+
+const Field = ({ label, children, hint }) => (
+  <div>
+    <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
+    {children}
+    {hint && <p className="text-[11px] text-slate-500 mt-0.5">{hint}</p>}
+  </div>
+);
+
+export default function MagistralManager() {
   const [tab, setTab] = useState('orders');
-  const [providers, setProviders] = useState([]);
-  const [rules, setRules] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [provForm, setProvForm] = useState({ name: '', email: '', delai_jours: 5 });
-  const [ruleForm, setRuleForm] = useState({ name: '', forme: '', base_price: '', coefficient: '1' });
-  const [orderForm, setOrderForm] = useState({ provider_id: '', price_rule_id: '', formule: '', patient_initiales: '', quantite: '1' });
+  const [selected, setSelected] = useState(null);
+  const [editJson, setEditJson] = useState('');
+  const [recvHt, setRecvHt] = useState('');
+  const [recvTva, setRecvTva] = useState('5.5');
   const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  const [setForm, setSetForm] = useState({});
+  const [sendMailOnValidate, setSendMailOnValidate] = useState(true);
 
   const load = async () => {
-    setProviders(await fetchProviders());
-    setRules(await fetchPriceRules());
+    const s = await fetchSettings();
+    setSettings(s);
+    setSetForm(s || {});
     setOrders(await fetchOrders());
   };
-  useEffect(() => { load().catch((e) => alert(e.message)); }, []);
+  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
 
-  const rule = rules.find((r) => r.id === orderForm.price_rule_id);
+  const openEdit = (o) => {
+    setSelected(o);
+    setEditJson(JSON.stringify(o.form_data || {}, null, 2));
+    setRecvHt(o.prix_ht_net != null ? String(o.prix_ht_net) : '');
+    setRecvTva(o.tva_rate != null ? String(o.tva_rate) : '5.5');
+    setErr('');
+  };
+
+  const previewPrice = recvHt && settings && recvTva !== ''
+    ? calcMagistralPrice(settings, Number(recvHt), Number(recvTva))
+    : null;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto w-full">
-      <button type="button" onClick={() => onNavigate('dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-fuchsia-600 mb-6 text-sm font-medium">
-        <ArrowLeft size={16} /> Retour
-      </button>
-      <h1 className="text-2xl font-bold flex items-center gap-2 mb-4"><FlaskConical className="text-fuchsia-600" /> Préparations magistrales</h1>
-      {msg && <p className="mb-3 text-sm text-emerald-700 bg-emerald-50 p-2 rounded">{msg}</p>}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><FlaskConical className="text-fuchsia-600" /> Préparations magistrales</h1>
+        <p className="text-sm text-slate-500">Tarif = (HT net réception + frais port) × (1 + TVA à la réception) × coefficient</p>
+      </div>
+      {msg && <p className="text-sm text-emerald-700 bg-emerald-50 p-2 rounded">{msg}</p>}
+      {err && <p className="text-sm text-red-700 bg-red-50 p-2 rounded">{err}</p>}
 
-      <div className="flex gap-2 mb-6">
-        {['orders', 'tarifs', 'prestataires'].map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${tab === t ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}>{t}</button>
-        ))}
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setTab('orders')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'orders' ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}>Commandes</button>
+        <button type="button" onClick={() => setTab('parametres')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'parametres' ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}>Paramètres</button>
       </div>
 
-      {tab === 'prestataires' && (
-        <div className="grid md:grid-cols-2 gap-6">
-          <form onSubmit={async (e) => { e.preventDefault(); await upsertProvider({ ...provForm, delai_jours: Number(provForm.delai_jours) || 5, actif: true }); setMsg('Prestataire enregistré'); setProvForm({ name: '', email: '', delai_jours: 5 }); load(); }} className="bg-white p-4 rounded-xl border space-y-3 text-sm">
-            <input required placeholder="Nom" value={provForm.name} onChange={(e) => setProvForm({ ...provForm, name: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <input required type="email" placeholder="E-mail" value={provForm.email} onChange={(e) => setProvForm({ ...provForm, email: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <input type="number" placeholder="Délai (jours)" value={provForm.delai_jours} onChange={(e) => setProvForm({ ...provForm, delai_jours: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <button type="submit" className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">Ajouter</button>
-          </form>
-          <div className="bg-white rounded-xl border divide-y text-sm">{providers.map((p) => (
-            <div key={p.id} className="p-3 flex justify-between"><span>{p.name}</span><span className="text-slate-500">{p.email}</span></div>
-          ))}</div>
-        </div>
-      )}
-
-      {tab === 'tarifs' && (
-        <div className="grid md:grid-cols-2 gap-6">
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            await upsertPriceRule({ name: ruleForm.name, forme: ruleForm.forme || null, base_price: Number(ruleForm.base_price) || 0, coefficient: Number(ruleForm.coefficient) || 1, actif: true });
-            setMsg('Règle tarifaire enregistrée'); setRuleForm({ name: '', forme: '', base_price: '', coefficient: '1' }); load();
-          }} className="bg-white p-4 rounded-xl border space-y-3 text-sm">
-            <input required placeholder="Nom règle" value={ruleForm.name} onChange={(e) => setRuleForm({ ...ruleForm, name: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <input placeholder="Forme (crème, gélule…)" value={ruleForm.forme} onChange={(e) => setRuleForm({ ...ruleForm, forme: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <input type="number" step="0.01" placeholder="Prix de base" value={ruleForm.base_price} onChange={(e) => setRuleForm({ ...ruleForm, base_price: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <input type="number" step="0.0001" placeholder="Coefficient" value={ruleForm.coefficient} onChange={(e) => setRuleForm({ ...ruleForm, coefficient: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <button type="submit" className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">Ajouter règle</button>
-          </form>
-          <div className="bg-white rounded-xl border divide-y text-sm">{rules.map((r) => (
-            <div key={r.id} className="p-3"><span className="font-medium">{r.name}</span> — {r.base_price}€ × {r.coefficient} {r.forme && `(${r.forme})`}</div>
-          ))}</div>
-        </div>
+      {tab === 'parametres' && settings && (
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await updateSettings({
+              pharmacy_name: setForm.pharmacy_name, pharmacy_address: setForm.pharmacy_address,
+              pharmacy_email: setForm.pharmacy_email, pharmacy_interlocuteur: setForm.pharmacy_interlocuteur,
+              provider_name: setForm.provider_name, provider_email: setForm.provider_email,
+              frais_port: Number(setForm.frais_port) || 0, coefficient: Number(setForm.coefficient) || 1,
+              internal_prep_enabled: !!setForm.internal_prep_enabled,
+            }, settings.id);
+            setMsg('Paramètres enregistrés'); load();
+          } catch (ex) { setErr(ex.message); }
+        }} className="bg-white p-5 rounded-xl border grid md:grid-cols-2 gap-3 text-sm max-w-3xl">
+          <h2 className="md:col-span-2 font-semibold flex items-center gap-2"><Settings size={18} /> Paramètres globaux</h2>
+          <Field label="Nom pharmacie"><input value={setForm.pharmacy_name || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_name: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="Adresse pharmacie"><input value={setForm.pharmacy_address || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_address: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="E-mail pharmacie"><input type="email" value={setForm.pharmacy_email || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_email: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="Interlocuteur"><input value={setForm.pharmacy_interlocuteur || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_interlocuteur: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="Nom du prestataire (unique)"><input value={setForm.provider_name || ''} onChange={(e) => setSetForm({ ...setForm, provider_name: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="E-mail du prestataire"><input type="email" value={setForm.provider_email || ''} onChange={(e) => setSetForm({ ...setForm, provider_email: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="Frais de port (€)"><input type="number" step="0.01" value={setForm.frais_port ?? ''} onChange={(e) => setSetForm({ ...setForm, frais_port: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <Field label="Coefficient"><input type="number" step="0.0001" value={setForm.coefficient ?? ''} onChange={(e) => setSetForm({ ...setForm, coefficient: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
+          <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" checked={!!setForm.internal_prep_enabled} onChange={(e) => setSetForm({ ...setForm, internal_prep_enabled: e.target.checked })} /> Autoriser la préparation interne (rare)</label>
+          <button type="submit" className="md:col-span-2 bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">Enregistrer les paramètres</button>
+        </form>
       )}
 
       {tab === 'orders' && (
-        <div className="space-y-6">
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            const order = await createOrder(user.id, { ...orderForm, quantite: Number(orderForm.quantite) || 1, price_rule: rule, forme: rule?.forme });
-            const provider = providers.find((p) => p.id === orderForm.provider_id);
-            if (provider?.email) {
-              await sendOrderEmail(order, provider.email);
-              setMsg('Commande envoyée par e-mail.');
-            } else setMsg('Commande créée (brouillon).');
-            setOrderForm({ provider_id: '', price_rule_id: '', formule: '', patient_initiales: '', quantite: '1' });
-            load();
-          }} className="bg-white p-4 rounded-xl border space-y-3 text-sm">
-            <div className="grid md:grid-cols-2 gap-3">
-              <select value={orderForm.provider_id} onChange={(e) => setOrderForm({ ...orderForm, provider_id: e.target.value })} className="p-2 border rounded-lg">
-                <option value="">Prestataire</option>
-                {providers.filter((p) => p.actif !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select value={orderForm.price_rule_id} onChange={(e) => setOrderForm({ ...orderForm, price_rule_id: e.target.value })} className="p-2 border rounded-lg">
-                <option value="">Tarif</option>
-                {rules.filter((r) => r.actif !== false).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-            </div>
-            {rule && <p className="text-xs text-fuchsia-700">Prix : {calcMagistralPrice(rule, orderForm.quantite)} €</p>}
-            <input placeholder="Initiales patient" value={orderForm.patient_initiales} onChange={(e) => setOrderForm({ ...orderForm, patient_initiales: e.target.value })} className="w-full p-2 border rounded-lg" />
-            <textarea required rows={4} placeholder="Formule" value={orderForm.formule} onChange={(e) => setOrderForm({ ...orderForm, formule: e.target.value })} className="w-full p-2 border rounded-lg font-mono text-xs" />
-            <button type="submit" className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold flex justify-center gap-2"><Send size={16} /> Créer / envoyer</button>
-          </form>
-
-          <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-xl border overflow-hidden">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b"><tr><th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3">Prix</th><th className="p-3">Statut</th><th className="p-3" /></tr></thead>
+              <thead className="bg-slate-50 border-b"><tr>
+                <th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3">Prix TTC</th><th className="p-3">Statut</th><th className="p-3" />
+              </tr></thead>
               <tbody className="divide-y">
                 {orders.map((o) => (
-                  <tr key={o.id}>
+                  <tr key={o.id} className={selected?.id === o.id ? 'bg-fuchsia-50' : ''}>
                     <td className="p-3">{new Date(o.created_at).toLocaleDateString('fr-FR')}</td>
                     <td className="p-3">{o.patient_initiales || '—'}</td>
-                    <td className="p-3">{o.prix_calcule ?? '—'} €</td>
-                    <td className="p-3 capitalize">{o.statut}</td>
-                    <td className="p-3">
-                      {['envoye', 'en_cours'].includes(o.statut) && (
-                        <button type="button" onClick={async () => { await markReceived(o.id); load(); }} className="text-emerald-700 text-xs flex items-center gap-1"><PackageCheck size={14} /> Reçu</button>
-                      )}
-                    </td>
+                    <td className="p-3">{o.prix_calcule ?? '—'}{o.prix_calcule != null ? ' €' : ''}</td>
+                    <td className="p-3">{STATUTS[o.statut] || o.statut}</td>
+                    <td className="p-3"><button type="button" onClick={() => openEdit(o)} className="text-fuchsia-700 text-xs flex items-center gap-1"><Edit2 size={14} /> Gérer</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {selected && (
+            <div className="bg-white p-4 rounded-xl border space-y-3 text-sm">
+              <h3 className="font-bold">Commande {selected.patient_initiales}</h3>
+              <p className="text-xs text-slate-500">Statut : {STATUTS[selected.statut]}</p>
+
+              {selected.statut === 'devis' && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
+                    Envoyer un e-mail au prestataire à la validation
+                  </label>
+                  <button type="button" onClick={async () => {
+                    try {
+                      await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate });
+                      setMsg('Devis validé → commande'); load(); setSelected(null);
+                    } catch (ex) { setErr(ex.message); }
+                  }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider devis & commander</button>
+                  <button type="button" onClick={async () => {
+                    try {
+                      await validateDevis(selected.id, { launchOrder: false });
+                      setMsg('Devis refusé — clôturé'); load(); setSelected(null);
+                    } catch (ex) { setErr(ex.message); }
+                  }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser & clôturer</button>
+                </div>
+              )}
+
+              {selected.statut === 'commande' && (
+                <div className="space-y-2">
+                  <Field label="Prix HT net à la réception (€)">
+                    <input type="number" step="0.01" value={recvHt} onChange={(e) => setRecvHt(e.target.value)} className="w-full p-2 border rounded" />
+                  </Field>
+                  <Field label="Taux de TVA (%) *" hint="Saisi pour chaque préparation">
+                    <input type="number" step="0.01" value={recvTva} onChange={(e) => setRecvTva(e.target.value)} className="w-full p-2 border rounded" placeholder="Ex. 5.5" />
+                  </Field>
+                  {previewPrice != null && <p className="text-fuchsia-700 text-xs">Prix TTC calculé : <strong>{previewPrice} €</strong></p>}
+                  <button type="button" onClick={async () => {
+                    try {
+                      await receiveOrder(selected.id, Number(recvHt), { tvaRate: Number(recvTva), notifyPatient: true });
+                      setMsg('Réceptionnée'); load(); setSelected(null);
+                    } catch (ex) { setErr(ex.message); }
+                  }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><PackageCheck size={14} /> Réceptionner</button>
+                </div>
+              )}
+
+              {selected.statut === 'receptionne' && (
+                <button type="button" onClick={async () => {
+                  try {
+                    await closeOrder(selected.id, 'Terminé');
+                    setMsg('Clôturée'); load(); setSelected(null);
+                  } catch (ex) { setErr(ex.message); }
+                }} className="w-full bg-slate-600 text-white py-2 rounded-lg">Clôturer</button>
+              )}
+
+              <div>
+                <Field label="Modifier les données du formulaire (JSON)" hint="Admin : édition avancée — sauver avec ou sans e-mail prestataire">
+                  <textarea rows={8} value={editJson} onChange={(e) => setEditJson(e.target.value)} className="w-full p-2 border rounded font-mono text-xs" />
+                </Field>
+                <div className="flex gap-2 mt-2">
+                  <button type="button" onClick={async () => {
+                    try {
+                      const fd = JSON.parse(editJson);
+                      await saveOrderEdit(selected.id, fd, { sendEmail: false });
+                      setMsg('Modifié sans e-mail'); load();
+                    } catch (ex) { setErr(ex.message); }
+                  }} className="flex-1 bg-slate-100 py-2 rounded text-xs">Sauver sans mail</button>
+                  <button type="button" onClick={async () => {
+                    try {
+                      const fd = JSON.parse(editJson);
+                      await saveOrderEdit(selected.id, fd, { sendEmail: true });
+                      setMsg('Modifié + mail prestataire'); load();
+                    } catch (ex) { setErr(ex.message); }
+                  }} className="flex-1 bg-fuchsia-600 text-white py-2 rounded text-xs">Sauver + mail</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

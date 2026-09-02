@@ -6,7 +6,7 @@ import startOfWeek from 'date-fns/startOfWeek';
 import getDay from 'date-fns/getDay';
 import fr from 'date-fns/locale/fr';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { ArrowLeft, Pill, FileText, Clock, Trash2, Edit2, X } from 'lucide-react';
+import { Pill, FileText, Trash2, Edit2, X } from 'lucide-react';
 import { fetchAgendaEvents, fetchProfiles, createAgendaEvent, deleteAgendaEvent, updateAgendaEvent } from '../services/agendaTaskService';
 import { useAuth } from '../core/AuthContext';
 
@@ -27,22 +27,16 @@ export default function AgendaManager({ onNavigate }) {
 
   const loadData = async () => {
     const rawEvents = await fetchAgendaEvents();
-    setEvents(rawEvents.map(e => {
-      // Construction précise de la date de début et de fin pour "changement_horaire"
-      const startDate = e.type === 'changement_horaire' && e.details.heure_debut 
-        ? new Date(`${e.date_evenement.split('T')[0]}T${e.details.heure_debut}:00`)
-        : new Date(e.date_evenement);
-        
-      const endDate = e.type === 'changement_horaire' && e.details.date_fin
-        ? new Date(`${e.details.date_fin}T${e.details.heure_fin || '23:59'}:00`)
-        : startDate;
+    setEvents(rawEvents.filter((e) => e.type !== 'changement_horaire').map(e => {
+      const startDate = new Date(e.date_evenement);
+      const endDate = startDate;
 
       return {
         id: e.id,
         title: e.type === 'commande_med' ? `Commande: ${e.details.medicament}` : e.type.replace('_', ' ').toUpperCase(),
         start: startDate,
         end: endDate,
-        allDay: e.type !== 'changement_horaire',
+        allDay: true,
         resource: e
       };
     }));
@@ -101,13 +95,10 @@ export default function AgendaManager({ onNavigate }) {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full">
-      <button onClick={() => onNavigate('dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-purple-600 mb-6 text-sm font-medium"><ArrowLeft size={16} /> Retour</button>
-      
+    <div className="w-full">
       <div className="flex gap-4 mb-8">
         <button onClick={() => { setModalType('commande_med'); setIsEditing(false); setFormData({}); }} className="flex-1 bg-white border border-blue-200 text-blue-700 p-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-50 shadow-sm font-semibold"><Pill size={20}/> Commander Médicament</button>
         <button onClick={() => { setModalType('facturation'); setIsEditing(false); setFormData({}); }} className="flex-1 bg-white border border-emerald-200 text-emerald-700 p-4 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-50 shadow-sm font-semibold"><FileText size={20}/> Facturation</button>
-        <button onClick={() => { setModalType('changement_horaire'); setIsEditing(false); setFormData({}); }} className="flex-1 bg-white border border-rose-200 text-rose-700 p-4 rounded-xl flex items-center justify-center gap-2 hover:bg-rose-50 shadow-sm font-semibold"><Clock size={20}/> Changement Horaires</button>
       </div>
 
       {/* Modal d'édition/suppression d'événement */}
@@ -121,7 +112,6 @@ export default function AgendaManager({ onNavigate }) {
             
             <div className="text-sm text-slate-600 space-y-2 mb-6 bg-slate-50 p-4 rounded-lg">
               <p><strong>Du :</strong> {selectedEvent.start.toLocaleString('fr-FR')}</p>
-              {selectedEvent.resource.type === 'changement_horaire' && <p><strong>Au :</strong> {selectedEvent.end.toLocaleString('fr-FR')}</p>}
               {selectedEvent.resource.details.nom && <p><strong>Patient :</strong> {selectedEvent.resource.details.nom} {selectedEvent.resource.details.prenom}</p>}
               {selectedEvent.resource.details.assignee_id && <p><strong>Personne concernée :</strong> {profiles.find(p => p.id === selectedEvent.resource.details.assignee_id)?.display_name}</p>}
               {selectedEvent.resource.details.commentaire && <p><strong>Notes :</strong> {selectedEvent.resource.details.commentaire}</p>}
@@ -180,49 +170,11 @@ export default function AgendaManager({ onNavigate }) {
                 <input placeholder="N° de la facture" value={formData.facture || ''} className="w-full p-2 border rounded" onChange={e=>setFormData({...formData, facture: e.target.value})}/>
               )}
 
-              {/* Spécifique Horaires (Multidate/Heure) */}
-              {modalType === 'changement_horaire' && (
-                <div className="space-y-3 bg-rose-50 p-3 rounded border border-rose-100">
-                  <select required value={formData.assignee_id || ''} className="w-full p-2 border rounded bg-white" onChange={e=>setFormData({...formData, assignee_id: e.target.value})}>
-                    <option value="">Sélectionner la personne...</option>
-                    {profiles.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)}
-                  </select>
-                  <select required value={formData.motif || ''} className="w-full p-2 border rounded bg-white" onChange={e=>setFormData({...formData, motif: e.target.value})}>
-                    <option value="">Sélectionner un motif...</option>
-                    <option value="Congés">Congés</option>
-                    <option value="Vacances">Période de vacances</option>
-                    <option value="Absence injustifiée">Absence injustifiée</option>
-                    <option value="Retard">Retard</option>
-                  </select>
-
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Date début</label>
-                      <input type="date" required value={formData.date || ''} className="w-full p-2 border rounded text-sm" onChange={e=>setFormData({...formData, date: e.target.value})}/>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Heure début</label>
-                      <input type="time" value={formData.heure_debut || ''} className="w-full p-2 border rounded text-sm" onChange={e=>setFormData({...formData, heure_debut: e.target.value})}/>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Date fin (optionnel)</label>
-                      <input type="date" value={formData.date_fin || ''} className="w-full p-2 border rounded text-sm" onChange={e=>setFormData({...formData, date_fin: e.target.value})}/>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Heure fin</label>
-                      <input type="time" value={formData.heure_fin || ''} className="w-full p-2 border rounded text-sm" onChange={e=>setFormData({...formData, heure_fin: e.target.value})}/>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Date unique pour Commande et Facturation */}
-              {modalType !== 'changement_horaire' && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Date du 1er événement</label>
-                  <input type="date" required value={formData.date || ''} className="w-full p-3 border rounded-lg font-bold text-purple-700 bg-purple-50 border-purple-200" onChange={e=>setFormData({...formData, date: e.target.value})}/>
-                </div>
-              )}
+              {/* Date unique */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase">Date du 1er événement</label>
+                <input type="date" required value={formData.date || ''} className="w-full p-3 border rounded-lg font-bold text-purple-700 bg-purple-50 border-purple-200" onChange={e=>setFormData({...formData, date: e.target.value})}/>
+              </div>
 
               <textarea placeholder="Commentaire optionnel..." value={formData.commentaire || ''} className="w-full p-2 border rounded text-sm" rows="2" onChange={e=>setFormData({...formData, commentaire: e.target.value})}/>
 

@@ -33,6 +33,17 @@ export const openModuleWindow = async (viewName, data = null) => {
   if (window.electronAPI && window.electronAPI.openModule) {
     return await window.electronAPI.openModule(viewName, data);
   }
-  console.warn("electronAPI non disponible (environnement web pur)");
+  console.warn('electronAPI non disponible (environnement web pur)');
 };
+
+/**
+ * Click-through Electron : laisse passer les clics vers les fenêtres derrière.
+ * Utilisé quand la barre est réduite (seule la pastille reste interactive).
+ */
+export async function setClickThrough(ignore) {
+  if (typeof window !== 'undefined' && window.electronAPI?.setIgnoreMouseEvents) {
+    return window.electronAPI.setIgnoreMouseEvents(!!ignore);
+  }
+  return null;
+}
 

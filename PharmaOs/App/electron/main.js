@@ -5,17 +5,15 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Dimensions pilotées par IPC depuis React (voir services/windowService.js côté renderer)
-const HEIGHT_EXPANDED = 60; // barre du haut, utilisateur authentifie
-const HEIGHT_REDUCED = 20; // barre du haut, mode reduit
-const LOGIN_WIDTH = 420; // fenetre centree, ecran de connexion
+const HEIGHT_EXPANDED = 60;
+const HEIGHT_REDUCED = 28;
+const WIDTH_REDUCED = 56;
+const LOGIN_WIDTH = 420;
 const LOGIN_HEIGHT = 480;
 
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow = null;
-// Mode courant, utilise pour recalculer les bounds si l'ecran change
-// (display-metrics-changed) sans devoir interroger le renderer.
 let currentMode = 'login';
 
 function computeBoundsForMode(mode) {
@@ -30,8 +28,16 @@ function computeBoundsForMode(mode) {
     };
   }
 
-  const height = mode === 'reduced' ? HEIGHT_REDUCED : HEIGHT_EXPANDED;
-  return { width: screenWidth, height, x: 0, y: 0 };
+  if (mode === 'reduced') {
+    return {
+      width: WIDTH_REDUCED,
+      height: HEIGHT_REDUCED,
+      x: Math.round((screenWidth - WIDTH_REDUCED) / 2),
+      y: 0,
+    };
+  }
+
+  return { width: screenWidth, height: HEIGHT_EXPANDED, x: 0, y: 0 };
 }
 
 function createWindow() {
@@ -54,7 +60,6 @@ function createWindow() {
     },
   });
 
-  // Garde la fenetre au-dessus de tout, y compris le plein-ecran d'autres apps
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -65,23 +70,12 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // Recalcule les bounds si l'utilisateur change de resolution / moniteur,
-  // en respectant le mode courant (centre pour 'login', pleine largeur sinon).
   screen.on('display-metrics-changed', () => {
     if (!mainWindow) return;
     mainWindow.setBounds(computeBoundsForMode(currentMode));
   });
 }
 
-/**
- * Canal IPC : 'window:setMode'
- * Payload attendu : 'login' | 'expanded' | 'reduced'
- * - 'login'    : fenetre centree (420x480), ecran de connexion (non authentifie)
- * - 'expanded' : barre pleine largeur, 60px, en haut de l'ecran (authentifie)
- * - 'reduced'  : barre pleine largeur, 20px, en haut de l'ecran (authentifie, reduit)
- * Le renderer (React) appelle window.electronAPI.setWindowMode(mode),
- * expose via preload.cjs, qui invoque ce handler.
- */
 ipcMain.handle('window:setMode', (_event, mode) => {
   if (!mainWindow) return { ok: false, error: 'no-window' };
   if (!['login', 'expanded', 'reduced'].includes(mode)) {
@@ -91,17 +85,29 @@ ipcMain.handle('window:setMode', (_event, mode) => {
   currentMode = mode;
   const bounds = computeBoundsForMode(mode);
   mainWindow.setBounds(bounds);
+  mainWindow.setIgnoreMouseEvents(false);
+  mainWindow.show();
 
   return { ok: true, mode, ...bounds };
 });
+
+ipcMain.handle('window:setIgnoreMouseEvents', (_event, ignore) => {
+  if (!mainWindow) return { ok: false };
+  if (ignore && currentMode === 'reduced') {
+    mainWindow.setIgnoreMouseEvents(false);
+    return { ok: true, ignore: false, reason: 'reduced-bounds' };
+  }
+  if (ignore) {
+    mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  } else {
+    mainWindow.setIgnoreMouseEvents(false);
+  }
+  return { ok: true, ignore: !!ignore };
+});
+
 let moduleWindow = null;
 
-/**
- * Canal IPC : 'window:openModule'
- * Ouvre ou met au premier plan la fenêtre secondaire générique.
- */
 ipcMain.handle('window:openModule', (_event, view, data) => {
-  // Si la fenêtre existe déjà, on la ramène au premier plan et on change sa vue
   if (moduleWindow) {
     if (moduleWindow.isMinimized()) moduleWindow.restore();
     moduleWindow.focus();
@@ -109,12 +115,11 @@ ipcMain.handle('window:openModule', (_event, view, data) => {
     return { ok: true, status: 'focused' };
   }
 
-  // Sinon on la crée (900x600, centrée)
   moduleWindow = new BrowserWindow({
     width: 900,
     height: 600,
     center: true,
-    show: false, // On cache le temps du chargement
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -123,12 +128,10 @@ ipcMain.handle('window:openModule', (_event, view, data) => {
     },
   });
 
-  // On utilise le "hash" de l'URL pour indiquer au React quelle vue charger (#directory, #ip...)
   const viewHash = `#${view}`;
 
   if (isDev) {
     moduleWindow.loadURL(`http://localhost:5173/module.html${viewHash}`);
-    // moduleWindow.webContents.openDevTools({ mode: 'detach' }); // Au besoin
   } else {
     moduleWindow.loadFile(path.join(__dirname, '../dist/module.html'), { hash: view });
   }

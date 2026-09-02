@@ -2783,7 +2783,6 @@ async function applyImport(){
 }
 
 (async function boot(){
-  renderAuthMode();
   const { data: { session } } = await sb.auth.getSession();
   if(session){ await onAuthed(session); }
   else { showView('auth'); }
