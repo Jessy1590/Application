@@ -1,0 +1,27 @@
+---
+description: Sécurité Electron, Supabase anon-only, RLS et rôles
+globs: "**/*.{js,jsx,cjs}"
+alwaysApply: true
+---
+
+# Sécurité
+
+## Electron
+- `contextIsolation: true`, `nodeIntegration: false` sur **toutes** les BrowserWindow
+- Preload expose uniquement `window.electronAPI` (allowlist IPC)
+- Canaux : `window:setMode` (`login|expanded|reduced`), `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`
+
+## Supabase
+- Clé **anon** uniquement côté client — **jamais** `service_role`
+- Schémas exposés : `PharmaOs` (métier) + `portail` (profils)
+- Rôles : lire `portail.profiles.role` / JWT claims — **pas** `user_metadata`
+- Rôles canoniques : `admin` | `équipe` (pas `member`)
+
+## Autorisation UI
+- Taskbar bouton Dashboard : rendu **ssi** `role === 'admin'`
+- DashboardShell : refuse non-admin même si la fenêtre est ouverte
+- La RLS reste la source de vérité serveur ; l’UI ne remplace pas les policies
+
+## Secrets
+- Ne pas committer `.env` ; template = `.env.example`
+- Ne pas logger tokens / mots de passe

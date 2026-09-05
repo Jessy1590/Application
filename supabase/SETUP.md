@@ -14,19 +14,24 @@ Les comptes sont créés via :
 
 ## 2. Appliquer les migrations RLS
 
-Exécuter les fichiers SQL dans l'ordre (SQL Editor) :
+### PharmaOs (app unifiée — source de vérité)
 
-1. `PharmaOs/supabase/migrations/001_portail_profiles_site_access.sql`
-2. `PharmaOs/supabase/migrations/002_pharmaos_tasks_logs.sql`
-3. `PharmaOs/supabase/migrations/003_pharmaos_directory_agenda.sql`
-4. `PharmaOs/supabase/migrations/004_banque_rls.sql`
-5. `PharmaOs/supabase/migrations/005_valorisation_rls.sql`
-6. `PharmaOs/supabase/migrations/006_autres_vaccins.sql`
-7. `PharmaOs/supabase/migrations/007_fromage_rls.sql`
-8. `PharmaOs/supabase/modules_metier_v2.sql` (location, magistrales, PSL, caisse, RH, alertes lot, litiges)
-9. `PharmaOs/supabase/migrations/008_modules_v3_enhancements.sql` (magistrales v3, MDS registre, location facturation, RH horaires)
-10. `PharmaOs/supabase/migrations/009_modules_v3_fixes.sql` (location attente réception, backfill MDS, RH heure d'arrivée)
-11. `PharmaOs/supabase/migrations/010_magistral_tva_per_order.sql` (TVA saisie à la réception de chaque préparation)
+Exécuter dans l'ordre sous `Application/PharmaOs/supabase/migrations/` :
+
+1. `001_portail_profiles_site_access.sql`
+2. `002_pharmaos_helpers_rls.sql`
+3. `003_pharmaos_tasks_logs.sql`
+4. `004_pharmaos_directory_agenda_calls_ip.sql`
+5. `005_pharmaos_quality_controls_docs_stock.sql`
+6. `006_pharmaos_modules_metier.sql` (location, magistrales, PSL, caisse, RH, alertes lot, litiges)
+
+DDL + RLS par domaine aussi dans `PharmaOs/src/modules/*/sql/`. Détail policies : `PharmaOs/.cursor/docs/SECURITY.md`.
+
+### Autres apps du monorepo (hors PharmaOs)
+
+Conserver / appliquer séparément si besoin (fichiers historiques, non versionnés dans le nouveau monorepo PharmaOs) :
+
+- Banque, Valorisation, Vaccin (`autres`), Fromage — RLS dédiées (voir dossiers app respectifs / historique git).
 
 ## 3. Schémas exposés (Data API)
 
@@ -50,11 +55,9 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 
 Ne jamais committer la clé `service_role`.
 
-## 5b. Modules métier v2 + e-mail transactionnel
+## 5b. E-mail transactionnel
 
-1. Exécuter dans le SQL Editor (après `modules_metier_v2.sql`) :
-   - `PharmaOs/supabase/migrations/008_modules_v3_enhancements.sql`
-   - `PharmaOs/supabase/migrations/009_modules_v3_fixes.sql` (obligatoire pour location « attente réception », backfill délivrances MDS manquantes, colonnes RH arrivée)
+1. Les tables métier v2/v3 (location, magistrales, MDS, RH…) sont couvertes par `PharmaOs/supabase/migrations/006_pharmaos_modules_metier.sql` (déjà appliqué sur le projet live).
 2. Déployer l’Edge Function d’envoi (magistrales ; caisse plus tard) :
 
 ```bash
@@ -71,7 +74,7 @@ supabase secrets set SMTP_FROM="Pharmacie <noreply@votredomaine.fr>"
 
 Alternative : `SMTP_HTTP_URL` + `SMTP_PASS` + `SMTP_FROM` (voir `supabase/functions/send-transactional-email/README.md`).
 
-Si une délivrance MDS apparaît dans `psl_units` (statut `delivre`) mais pas au registre : relancer la migration **009** (backfill des mouvements `delivrance`).
+Si une délivrance MDS apparaît dans `psl_units` (statut `delivre`) mais pas au registre : vérifier / backfiller manuellement les lignes `psl_movements` (`movement_type = 'delivrance'`) — l’ancienne migration 009 n’est plus un fichier séparé (schéma inclus dans `006`).
 ## 6. Rotation clé anon (après RLS verrouillée)
 
 1. Settings → API → Regenerate anon key

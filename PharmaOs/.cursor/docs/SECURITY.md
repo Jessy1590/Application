@@ -1,37 +1,70 @@
-# 🔒 Sécurité — Electron & Supabase
+# Sécurité — Electron & Supabase
 
-Ce document résume les principes de sécurité appliqués au client lourd, au dashboard web, et à la base distante, en intégrant l’analyse des règles RLS (Row Level Security) déployées sur Supabase.
+## 1. Electron
+- `contextIsolation: true`, `nodeIntegration: false` sur taskbar, module et dashboard.
+- Preload (`electron/preload.cjs`) expose uniquement `window.electronAPI`.
+- IPC allowlist :
+  - `window:setMode` → `login` | `expanded` | `reduced`
+  - `window:openModule`
+  - `window:openDashboard`
+  - `window:setIgnoreMouseEvents`
+- Le renderer ne doit jamais importer `fs` / `path` / `electron`.
 
-## 1. Sécurité Electron (Client-side)
-- **Context Isolation (`contextIsolation: true`) :** L’application React n’a aucun accès direct à Node.js. Elle doit utiliser exclusivement les ponts déclarés dans `electron/preload.cjs` (`window.electronAPI` uniquement).
-- **Node Integration (`nodeIntegration: false`) :** Strictement désactivée sur **les deux** BrowserWindow (principale + module) pour empêcher les failles XSS d’exécuter du code natif.
-- **Surface IPC :** canaux allowlistés `window:setMode` (valide `login|expanded|reduced`) et `window:openModule`. Pas d’API Node exposée (pas de `fs`, shell, etc.).
-- **Dashboard :** pas d’Electron. Auth email/password ; **autorisation applicative** : `portail.profiles.role === 'admin'` (`ALLOWED_ROLES`). Un compte authentifié non-admin voit `AccessDenied` (ne remplace pas la RLS).
-- **Clés :** uniquement la clé **anon** côté clients. Ne jamais embarquer `service_role`. L’App contient un **fallback URL/anon dans `supabaseClient.js`** : ne pas étendre ce pattern ; Dashboard refuse silencieusement si `.env` manquant. Ne pas committer `.env`.
-- **Schémas API :** `PharmaOs` et `portail` doivent être dans les Exposed schemas Supabase, sinon 404 PostgREST. Ne pas exposer d’autres schémas.
+## 2. Clés & schémas
+- Uniquement la clé **anon** (`VITE_SUPABASE_*`). Jamais `service_role` côté client.
+- Schémas exposés PostgREST : `PharmaOs`, `portail`.
+- Pas de fallback de clés hardcodé.
+- Migrations versionnées : `supabase/migrations/` (agrégat) ; source de vérité par domaine : `src/modules/*/sql/`.
 
-## 2. Sécurité Base de Données (Supabase RLS)
+## 3. Rôles (canoniques)
+- Source : `portail.profiles.role` — valeurs **`admin`** | **`équipe`**.
+- Ne **pas** utiliser `member` dans le code ni les nouvelles écritures (valeur legacy encore tolérée par le CHECK SQL live pour compat).
+- Helpers RLS : `portail.is_admin()`, `"PharmaOs".is_pharma_admin()`, `"PharmaOs".is_pharma_staff()` (`admin` ∪ `équipe`).
+- UI Dashboard : `role === 'admin'` (bouton Taskbar + gate DashboardShell).
+- Ne pas lire les rôles dans `user_metadata`.
+- Un changement de rôle n’est effectif qu’après rechargement de session (pas dans le JWT par défaut).
 
-L’architecture s’appuie fortement sur la vérification de l’état de connexion (`auth.role() = 'authenticated'`) et sur l’appropriation des lignes via l’ID utilisateur (`user_id = auth.uid()`). Les politiques vivent sur le projet distant (pas de `schema.sql` / migrations dans ce repo). Toute décision d’autorisation doit lire **`portail.profiles.role` / `app_metadata`**, jamais `user_metadata`.
+## 4. Modèle RLS admin vs utilisateur
 
-### Logs et Événements (Isolation stricte)
-Les tables `taskbar_logs`, `quality_events`, `advice_events`, `call_logs` et `act_ip_logs` fonctionnent sur un modèle d’isolation personnelle pour les utilisateurs standards :
-- **Insertion :** Un utilisateur ne peut insérer des données que si elles lui sont attribuées (`auth.uid() = user_id`). L’App pose toujours `user_id: user.id` à l’insert (appels, IP, taskbar).
-- **Lecture :** Un utilisateur ne voit que ses propres enregistrements (`auth.uid() = user_id`). Conséquence UI : l’historique Appels/IP dans la fenêtre module est **celui du user connecté**, pas l’équipe (le Dashboard admin s’appuie sur les policies admin pour tout voir).
-- **Realtime :** la Taskbar s’abonne à `PharmaOs.task_assignments` avec `filter: user_id=eq.<uid>` — la RLS Realtime doit rester cohérente.
+### Isolation personnelle (logs / événements nominatifs)
+Tables : `taskbar_logs`, `call_logs`, `act_ip_logs`, `quality_events`.
 
-### Accès Administrateur Transverse
-Pour les besoins de supervision Dashboard, une règle spécifique permet aux administrateurs de contourner cette isolation.
-- **Condition :** `EXISTS (SELECT 1 FROM portail.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')`.
-- **Application :** Cette règle s’applique en lecture (`SELECT`) sur `taskbar_logs`, `quality_events`, `advice_events` et autorise également la modification (`UPDATE`) sur `call_logs`. Le Dashboard met aussi à jour `act_ip_logs`, `tasks` / `task_assignments` (clôture globale), et supprime des `agenda_events` : **toute policy manquante fera échouer silencieusement ou 0 rows** (UPDATE RLS exige aussi un SELECT). Vérifier les policies avant d’ajouter un nouveau verb CRUD Dashboard.
-- **JWT :** le rôle lu dans `profiles` n’est pas dans le JWT par défaut ; un changement de rôle n’est effectif qu’après rechargement de session côté client.
+| Verb | Utilisateur (`équipe`) | Admin |
+|------|------------------------|-------|
+| INSERT | `user_id = auth.uid()` | idem |
+| SELECT | ses lignes seulement | **toutes** (`is_pharma_admin()`) |
+| UPDATE | selon table (souvent own) | souvent autorisé (ex. `call_logs`, `act_ip_logs`, `quality_events`) |
 
-### Tables Ouvertes / Partagées
-Certaines tables collaboratives sont librement accessibles à toute personne connectée à l’application :
-- **Annuaire et Agenda :** Les tables `directory_contacts` et `agenda_events` sont ouvertes avec tous les privilèges (`ALL`) à n’importe quel utilisateur `authenticated`. L’App met à jour `directory_contacts.switch_rupture` depuis le module IP ; le Dashboard fait CRUD complet annuaire + delete/update agenda (et tâches liées). Traiter ces tables comme **données d’équipe**, pas personnelles.
+Conséquence UI : historique Appels / IP en fenêtre module = **user connecté** ; Dashboard admin s’appuie sur les policies admin.
 
-### Gestion Collaborative des Tâches
-Le système de gestion de tâches utilise un modèle RLS mixte pour favoriser la collaboration tout en protégeant les actions de base :
-- **Lecture :** Tous les utilisateurs connectés peuvent voir l’ensemble des tâches (`tasks`) et de leurs assignations (`task_assignments`).
-- **Création :** Un utilisateur ne peut insérer une nouvelle tâche que si `created_by` = `auth.uid()`. En revanche, n’importe quel utilisateur connecté peut créer une assignation. QuickAction assigne **tous** les ids de `portail.profiles` (pas seulement admin/équipe) — les policies INSERT sur `task_assignments` et SELECT sur `profiles` doivent le permettre.
-- **Modification :** La définition d’une tâche ne peut être modifiée (`UPDATE`) que par son créateur (`created_by`). Le statut d’une assignation ne peut être modifié que par l’utilisateur à qui elle a été attribuée (`user_id = auth.uid()`). **Écart Dashboard :** `completeTaskGlobal` / `uncompleteTaskGlobal` font un `UPDATE` sur **toutes** les assignations d’une `task_id` (titulaire). Si la policy UPDATE est strictement `user_id = auth.uid()`, la clôture globale échoue pour les lignes des autres — toute évolution RLS doit coller à ce besoin admin **ou** le code doit être adapté (ne pas élargir RLS « au hasard »).
+### Tables partagées équipe
+`directory_contacts`, `agenda_events` : `ALL` pour `authenticated` (données d’équipe, pas personnelles).  
+Modules métier collaboratifs (location, magistrales, PSL, caisse, lots, litiges, RH, contrôles, docs, périmés…) : `ALL` via `is_pharma_staff()`.
+
+### Tâches — modèle mixte + clôture globale
+- **SELECT** `tasks` / `task_assignments` : tout utilisateur authentifié.
+- **INSERT** `tasks` : `created_by = auth.uid()` ; **INSERT** assignations : authentifié (QuickAction assigne les ids de `portail.profiles`).
+- **UPDATE** `tasks` : créateur **ou** admin (`tasks_admin_all`).
+- **UPDATE** `task_assignments` :
+  - titulaire : `user_id = auth.uid()` ;
+  - **admin** : `task_assignments_admin_update` pour `completeTaskGlobal` / `uncompleteTaskGlobal` (UPDATE de **toutes** les lignes d’un `task_id`).
+- Realtime Taskbar : filtre `user_id=eq.<uid>` sur `task_assignments` — rester cohérent avec la RLS.
+
+### Stock / signatures (exemples mixtes)
+- `stock_errors` : INSERT own ; SELECT équipe ; UPDATE admin.
+- `document_signatures` : INSERT own ; SELECT staff.
+
+### Portail
+- `profiles` : SELECT authentifié (nécessaire QuickAction / RH) ; INSERT/UPDATE self (+ admin update).
+- `sites` / `site_access` / `access_requests` : lecture restreinte + gestion admin.
+
+### Pièges Postgres RLS
+- Un **UPDATE** nécessite aussi un **SELECT** sur la ligne (sinon 0 rows silencieux).
+- Ne pas élargir les policies « au hasard » : coller au besoin produit (surtout clôture globale tâches).
+
+## 5. Inventaire tables (31 + portail)
+Voir audit legacy / `DOCS_ET_AUDIT_OFFICINE.md` : tables métier `PharmaOs` + `app_settings` ; portail : `profiles`, `sites`, `site_access`, `access_requests`.  
+Tables legacy `advice_events` / `magistral_providers` / `magistral_price_rules` **supprimées** (migration `011`).
+
+## 6. Dashboard équipe
+- Vision hors v1 : `DASHBOARD_EQUIPE.md` — **aucun écran** Dashboard pour le rôle `équipe`.

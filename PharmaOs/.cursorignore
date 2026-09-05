@@ -1,31 +1,22 @@
-# Root files
-/.cursorignore
-/.gitignore
+﻿# Build artifacts
+dist/
+release/
+out/
 
-# App Project
-/App/.env.example
-/App/node_modules
-/App/package-lock.json
-/App/package.json
-/App/postcss.config.js
-/App/tailwind.config.js
-/App/vite.config.js
-/App/.env
+# Dependencies
+node_modules/
 
-# App - Source files
-/App/src/components/.gitkeep
-/App/src/core/AuthContext.jsx
-/App/src/core/config.js
+# Lockfiles (heavy / noisy in agent context)
+package-lock.json
 
-# Dashboard Project
-/Dashboard/.env.example
-/Dashboard/node_modules
-/Dashboard/package-lock.json
-/Dashboard/package.json
-/Dashboard/postcss.config.js
-/Dashboard/tailwind.config.js
-/Dashboard/vite.config.js
-/Dashboard/.env
+# Secrets
+.env
+.env.local
+.env.*.local
+**/*.pem
+**/credentials*.json
 
-# Dashboard - Source & Components
-/Dashboard/src/core/AuthContext.jsx
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db

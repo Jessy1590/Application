@@ -1,28 +1,35 @@
 ---
-description: Conventions globales et style de code pour l'App Desktop (Electron/React) et le Dashboard web
-globs: PharmaOs/**/*.jsx, PharmaOs/**/*.js, PharmaOs/**/*.html, PharmaOs/**/*.css
+description: Conventions React/Tailwind/services et contrats enums PharmaOS
+globs: "src/**/*.{js,jsx}"
 ---
 
-# Conventions de Code et Architecture
+# Conventions de code
 
-## Stack et Contraintes Technologiques
-- **Deux apps :** `PharmaOs/App/` (Electron) et `PharmaOs/Dashboard/` (Vite SPA, port 5174, `base: '/PharmaOS/'`). Ne pas mélanger leurs `src/`.
-- **Frontend :** React 18, JSX, Vite. Composants fonctionnels + hooks uniquement.
-- **Styling :** Tailwind CSS. N’utilise pas de CSS brut pour la mise en page, privilégie les classes utilitaires Tailwind. Exceptions existantes : CSS de `react-big-calendar` (Dashboard).
-- **Desktop (Wrapper App) :** Electron multi-processus strict (Main vs Renderer). Dashboard = navigateur, **aucun** `window.electronAPI`.
-- **Base de données :** Supabase. Schéma métier **`PharmaOs`** (client `db: { schema: 'PharmaOs' }`). Profils/rôles : **`portail.profiles`** via `.schema('portail')`. Jamais le schéma `public` pour le métier. Auth = `supabase.auth` uniquement.
+## Stack
+- React 18 JSX, Vite, Tailwind, lucide-react, Electron, `@supabase/supabase-js`
+- Composants fonctionnels + hooks uniquement
+- Styling : classes Tailwind (pas de CSS layout ad hoc)
 
-## Règles de Développement (Electron, React, Supabase)
-- **Séparation des Processus (App) :** Le code UI (`App/src/`) ne doit JAMAIS importer de modules Node (`fs`, `path`, `electron`). OS / fenêtres uniquement via `electron/preload.cjs` puis `windowService.js` (`setWindowMode`, `openModuleWindow`). Interdit d’appeler `window.electronAPI` hors `windowService.js`. Modes : `login` | `expanded` | `reduced`. Vues module : `directory` | `call` | `ip` | `tasks` | `order` | `billing`.
-- **Architecture Multi-Fenêtres (App) :** principale `index.html` / `main.jsx` (Login | Taskbar) ; enfants `module.html` / `module-main.jsx` (hash). Une seule fenêtre module ; changement de vue = IPC `module:change-view`.
-- **Routing Dashboard :** état dans `Dashboard/src/App.jsx` (`navigate(page, params)`). Pages : `dashboard` | `directory` | `calls` | `tasks` | `agenda` | `ip`. Gate : `isAuthenticated` puis `isAuthorized` (`role === 'admin'`).
-- **Composants Fonctionnels :** Hooks + `AuthContext` du **même** package (`App/src/core` vs `Dashboard/src/core`). App : session + `display_name`. Dashboard : session + `role` + `isAuthorized`.
-- **Services Isolés :** Toute logique API/BDD dans `src/services/` (`dbServices.js`, `directoryService.js`, `statsService.js`, `ipService.js`, `agendaTaskService.js`, `supabaseClient.js`). **Ne pas** ajouter de `.from()` / `.schema()` dans les composants ou pages. (État actuel : plusieurs modules App violent déjà cette règle — en cas de touche, extraire vers un service, ne pas copier le pattern.)
-- **Contrats données (ne pas inventer de colonnes) :**
-  - `call_logs.statut_traitement` : `cloture` | `a_rappeler` | `transmis_pharmacien` | `en_attente`.
-  - `act_ip_logs.statut_ip` : `Cloturee` | `En attente`. Types agenda : `commande_med` | `facturation` | `changement_horaire`.
-  - Tâches agenda : `tasks.description` souvent JSON (patient, dates, `taskId` dans `agenda_events.details`). Assignations `en_cours` | `terminee`.
-  - Taskbar logs : `login` | `expand` | `collapse`.
-- **Secrets :** `VITE_SUPABASE_*` uniquement. Pas de nouvelle clé en dur. Pas de `service_role` client.
+## Structure
+- Un domaine = un dossier `src/modules/<x>/` avec UI comptoir, UI dashboard, `services/`, `sql/`
+- Toute logique BDD dans `services/` — **pas** de `.from()` / `.schema()` dans les composants après migration
+- IPC Electron uniquement via `src/shared/windowService.js` (jamais `window.electronAPI` ailleurs)
 
-> Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.
+## Auth
+- `AuthContext` : `session`, `profile.display_name`, `role` (`admin` | `équipe`)
+- Dashboard : gate `role === 'admin'` ; rôle `équipe` = pas de bouton Dashboard (v1)
+
+## Contrats données (ne pas inventer de colonnes)
+- `call_logs.type` : `recu` | `envoye` (affichage : Appel reçu / Appel envoyé ; legacy `in`/`out`/`missed` mappés)
+- `call_logs.motif` : `intervention_pharmaceutique` | `commande_labo` | `reclamation_patient` | `reception_du` | `litige_fournisseur` | `autre`
+- `call_logs.statut_traitement` : `resolu` | `a_rappeler` | `attente_pharmacien` | `cloture`
+  - Comptoir : pas de `cloture`, pas d’édition des notes
+  - Dashboard admin : seul le pharmacien passe en `cloture` et ajoute/modifie `notes_appel`
+- `act_ip_logs.statut_ip` : `Cloturee` | `En attente` | `Déclaré` | `Annulee`
+- Types agenda : `commande_med` | `facturation` | `changement_horaire`
+- Assignations : `en_cours` | `terminee`
+- Taskbar logs : `login` | `expand` | `collapse`
+
+## Secrets
+- `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` via `.env` (voir `.env.example`)
+- Pas de clé en dur, pas de `service_role`

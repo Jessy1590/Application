@@ -1,0 +1,43 @@
+---
+description: Checklist pour ajouter ou migrer un module vertical
+globs: "src/modules/**/*"
+---
+
+# Modules verticaux
+
+## Structure obligatoire
+```
+src/modules/<domaine>/
+  comptoir/     # UI saisie rapide (fenêtre module)
+  dashboard/    # UI admin (fenêtre dashboard) — optionnel si dashboard-only
+  services/     # *Service.js unique (plus de doublon App/Dashboard)
+  sql/          # tables + RLS (README + scripts)
+```
+
+## Checklist nouveau / migration module
+1. [ ] Créer le dossier `src/modules/<domaine>/` avec sous-dossiers ci-dessus
+2. [ ] Porter UI comptoir depuis `PharmaOs-legacy/App` si applicable
+3. [ ] Porter UI dashboard depuis `PharmaOs-legacy/Dashboard` si applicable
+4. [ ] Fusionner en **un** `*Service.js` (extraire les `.from()` des composants)
+5. [ ] Documenter / versionner SQL + RLS dans `sql/`
+6. [ ] Brancher le routeur `module-main.jsx` (hash) et/ou `DashboardShell`
+7. [ ] Mettre à jour `.cursor/docs/STATE.md`
+8. [ ] Aucune colonne inventée (contrats `convention.mdc`)
+
+## Formulaires d'insert — cohérence comptoir / dashboard
+- **Règle stricte :** quand un même type de données est saisi depuis la taskbar (comptoir) ET depuis le dashboard, le formulaire DOIT être identique (mêmes champs, même ordre, mêmes labels, mêmes validations).
+- **Pattern :** extraire un composant partagé dans `src/modules/<domaine>/shared/` (ex. `PatientOrderForm.jsx`) importé par le comptoir et le dashboard.
+- **Props du composant partagé :** `type` (variante), `form` (état), `onChange(patch)` (merge partiel), `compact` (optionnel, pour modales dashboard).
+- **Labels + placeholders :** chaque champ a un label au-dessus ET un placeholder dans l’input.
+- **Commande / facture :** champs `medicament` et `facture` **séparés** ; CIP **non required**.
+- **Référence commande/facture :** `src/modules/tasks/shared/PatientOrderForm.jsx`
+- **Référence appels :** `src/modules/calls/shared/CallForm.jsx` — comptoir + dashboard.
+- **Référence IP :** `src/modules/ip/shared/IpForm.jsx` — comptoir + dashboard.
+- **Fermeture fenêtre module :** après validation d’un formulaire taskbar, fermer via `closeModuleWindow()` **sauf** si un enchaînement est demandé (ex. appel motif IP → ouvrir le module IP pré-rempli ; réclamation → Qualité ; litige_fournisseur → Litiges).
+- **Taskbar groupes :** `Tâches` (tâches, commande, facturation) puis `Communication` (appels, annuaire, IP).
+
+## Modules dashboard-only (exemples)
+- `agenda/`, `hr/` — pas de dossier `comptoir/` requis
+
+## Hors scope v1
+- UI Dashboard **équipe** (voir `DASHBOARD_EQUIPE.md`) — documenter, ne pas implémenter

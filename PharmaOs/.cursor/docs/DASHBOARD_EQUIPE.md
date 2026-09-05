@@ -77,7 +77,6 @@ Regroupement par table Supabase (`PharmaOs`), clé propriétaire, et règles de 
 | Litiges | `supplier_disputes` | `created_by` | `dispute_type`, fournisseur, montant, description, pieces | `statut = clos` → lecture seule |
 | Erreur stock | `stock_errors` | `user_id` | médicament, CIP, quantités, description | `status ≠ ouvert` ou tâche admin traitée → lecture seule |
 | Périmés | `perimes` | `created_by` | champs déclaration (produit, quantité, DLC…) | statut validé admin |
-| Contrôles | `daily_controls` | `user_id` | valeur du jour si non validé | date passée + validé |
 | Magistrales | `magistral_orders` (ou équivalent) | `created_by` | détails commande non préparée | statut ≥ « en préparation » |
 | MDS / PSL | `psl_movements` | `user_id` | commentaire, quantité **si** mouvement du jour non consolidé | export mensuel clos |
 | Location | `rental_events` | `user_id` | détails événement non facturé | contrat clos |

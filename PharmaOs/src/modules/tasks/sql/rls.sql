@@ -1,0 +1,8 @@
+-- =============================================================================
+-- RLS — module tasks
+-- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
+-- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
+-- =============================================================================
+-- SELECT authentifié ; INSERT tasks.created_by = auth.uid() ;
+-- UPDATE task_assignments : own OR admin (completeTaskGlobal / uncompleteTaskGlobal).
+-- Détail : supabase/migrations/003_pharmaos_tasks_logs.sql

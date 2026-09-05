@@ -1,0 +1,7 @@
+-- =============================================================================
+-- RLS — module home
+-- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
+-- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
+-- =============================================================================
+-- taskbar_logs + advice_events : isolation user_id + admin SELECT.
+-- Détail : supabase/migrations/003_pharmaos_tasks_logs.sql

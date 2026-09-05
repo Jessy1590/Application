@@ -1,0 +1,6 @@
+-- =============================================================================
+-- RLS — module stock
+-- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
+-- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
+-- =============================================================================
+-- insert own ; select team ; update admin. migrations/005

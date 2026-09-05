@@ -1,0 +1,32 @@
+---
+description: Architecture monorepo PharmaOS unifié (Electron 3 fenêtres + modules verticaux)
+globs: "**/*.{js,jsx,html,css,md,mdc}"
+alwaysApply: true
+---
+
+# Architecture PharmaOS unifié
+
+## Produit
+- **Une seule app Electron** à la racine `PharmaOs/` (plus de dossiers `App/` + `Dashboard/` séparés).
+- Trois surfaces UI :
+  1. **Taskbar** — `index.html` → `src/main.jsx` (login | barre always-on-top)
+  2. **Module comptoir** — `module.html` → `src/module-main.jsx` (900×600, hash `#view`)
+  3. **Dashboard admin** — `dashboard.html` → `src/dashboard-main.jsx` (fenêtre dédiée)
+
+## Découpage `src/`
+- `src/core/` — AuthContext (session + `display_name` + `role`), config / `WINDOW_MODES`
+- `src/shell/` — Login, Taskbar, DashboardShell, navConfig
+- `src/shared/` — supabaseClient, windowService (seul pont IPC), utilitaires
+- `src/modules/<domaine>/` — **module vertical** : `comptoir/` + `dashboard/` + `services/` + `sql/`
+
+## Electron
+- `electron/main.js` + `preload.cjs` — `contextIsolation: true`, `nodeIntegration: false`
+- IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`
+- Bouton Dashboard Taskbar **uniquement si** `portail.profiles.role === 'admin'`
+
+## Données
+- Schéma métier `PharmaOs`, profils `portail.profiles` (`admin` | `équipe`)
+- Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role`.
+
+## Legacy
+- Source de copie : `Application/PharmaOs-legacy/` — ne pas supprimer sans validation manuelle.

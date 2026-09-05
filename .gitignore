@@ -10,3 +10,4 @@ PharmaOs/Dashboard/.env
 *.p12
 credentials.json
 dist/
+/PharmaOs-legacy

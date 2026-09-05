@@ -1,0 +1,6 @@
+-- =============================================================================
+-- RLS — module directory
+-- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
+-- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
+-- =============================================================================
+-- ALL authenticated (données d'équipe). migrations/004
