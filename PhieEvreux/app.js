@@ -121,20 +121,42 @@ function collectPhones(listEl) {
 function addPhoneRow(listEl, value = '') {
   const row = document.createElement('div');
   row.className = 'phone-row';
-  row.innerHTML = `
-    <input type="tel" class="phone-input" inputmode="tel" placeholder="06 12 34 56 78" value="${escapeHtml(value)}">
-    <button type="button" class="icon-btn phone-remove" aria-label="Retirer">✕</button>
-  `;
-  $('.phone-remove', row).onclick = () => {
+  const input = document.createElement('input');
+  input.type = 'tel';
+  input.className = 'phone-input';
+  input.inputMode = 'tel';
+  input.autocomplete = 'off';
+  input.placeholder = '06 12 34 56 78';
+  input.value = value || '';
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'icon-btn phone-remove';
+  remove.setAttribute('aria-label', 'Retirer');
+  remove.textContent = '✕';
+  remove.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     row.remove();
-    if (!listEl.children.length) addPhoneRow(listEl);
+    if (!listEl.children.length) addPhoneRow(listEl, '');
   };
+  row.append(input, remove);
   listEl.appendChild(row);
+  return input;
 }
 
 function resetPhones(listEl, values = ['']) {
   listEl.innerHTML = '';
   (values.length ? values : ['']).forEach((v) => addPhoneRow(listEl, v));
+}
+
+function onAddPhoneClick(listEl) {
+  return (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const input = addPhoneRow(listEl, '');
+    input.value = '';
+    input.focus();
+  };
 }
 
 function appendJournal(row, line) {
@@ -194,7 +216,7 @@ async function refresh() {
 
 /* ---------- Module 1 ---------- */
 resetPhones(el('phonesList'), ['']);
-el('addPhoneBtn').addEventListener('click', () => addPhoneRow(el('phonesList')));
+el('addPhoneBtn').addEventListener('click', onAddPhoneClick(el('phonesList')));
 bindDateMasks();
 
 el('newForm').addEventListener('submit', async (e) => {
@@ -268,7 +290,7 @@ function renderCommentCard() {
     `${state.commentIndex + 1} / ${state.commentQueue.length} — glissez pour passer`;
 }
 
-el('cardAddPhoneBtn').addEventListener('click', () => addPhoneRow(el('cardPhonesList')));
+el('cardAddPhoneBtn').addEventListener('click', onAddPhoneClick(el('cardPhonesList')));
 el('commentDoneCheck').addEventListener('change', (e) => {
   el('validateCommentBtn').disabled = !e.target.checked;
 });
@@ -282,15 +304,18 @@ async function validateComment() {
   const patch = {
     commentaire_statut: 'ECRIS',
     telephones: phones,
+    mail_envoye: mailAlready,
+    mail_demande: mailAlready ? true : (row.mail_demande || false),
   };
   if (mailAlready) {
-    patch.mail_envoye = true;
-    patch.mail_demande = true;
     patch.journal = appendJournal(row, `${todayFr()} — Mail déjà envoyé (module comptes)`);
   }
 
   const { error } = await sb.from(TABLE).update(patch).eq('id', row.id);
   if (error) { toast(error.message, 'error'); return; }
+
+  // Met à jour le cache local tout de suite (module 3 lira mail_envoye)
+  Object.assign(row, patch);
 
   await animateSwipe(el('swipeCard'), 'right');
   toast(mailAlready ? 'ECRIS + mail noté' : 'Commentaire ECRIS');
@@ -416,7 +441,8 @@ function renderCallFlow() {
   el('callName').textContent = fullName(row);
   el('callMeta').textContent =
     `Né(e) ${fmtDate(row.date_naissance)} · Ordo ${fmtDate(row.date_ordonnance)}` +
-    (row.appel_statut === 'a_rappeler' ? ' · À rappeler' : '');
+    (row.appel_statut === 'a_rappeler' ? ' · À rappeler' : '') +
+    (row.mail_envoye ? ' · Mail déjà envoyé' : '');
 
   const journal = el('callJournal');
   if (row.journal) {
@@ -434,6 +460,12 @@ function renderCallFlow() {
   const steps = el('callSteps');
   steps.innerHTML = '';
   const go = (step) => { state.callStep = step; renderCallFlow(); };
+
+  // Ne jamais réafficher la question mail si déjà envoyé
+  if (state.callStep === 'ask_mail' && rowHasMailSent(row)) {
+    handleMailYes(row);
+    return;
+  }
 
   if (state.callStep === 'ask_call') {
     steps.appendChild(stepCard('Avez-vous appelé / joint le patient ?', [
@@ -527,69 +559,34 @@ function renderCallFlow() {
   }
 
   if (state.callStep === 'ask_mail') {
-    const hasMail = !!(row.email_patient || state.draft.email);
     steps.appendChild(stepCard(
-      hasMail
-        ? `Un mail est disponible (${row.email_patient || state.draft.email}). Envoyer ?`
-        : 'Avez-vous un mail pour ce patient ?',
-      hasMail
-        ? [
-            ['Oui — préparer l’envoi', () => go('mail_compose')],
-            ['Non — pas d’envoi', () => handleNoMail(row)],
-          ]
-        : [
-            ['Oui — j’ai une adresse', () => go('mail_compose')],
-            ['Non — pas de mail disponible', () => handleNoMail(row)],
-          ],
+      'Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?',
+      [
+        ['Oui — j’envoie un mail', () => handleMailYes(row)],
+        ['Non', () => handleNoMail(row)],
+      ],
       () => {
         state.callStep = state.draft.backAfterMail || 'ask_call';
         renderCallFlow();
       }
     ));
   }
+}
 
-  if (state.callStep === 'mail_compose') {
-    const wrap = document.createElement('div');
-    wrap.className = 'step-card';
-    wrap.innerHTML = `
-      <h3>Envoi du mail</h3>
-      <label class="inline-field">Email
-        <input id="mailTo" type="email" value="${escapeHtml(row.email_patient || state.draft.email || '')}">
-      </label>
-      <label class="inline-field">Commentaire mail (optionnel)
-        <textarea id="mailNote" rows="2" placeholder="Précision sur l’envoi…">${escapeHtml(state.draft.mailNote || '')}</textarea>
-      </label>
-      <div class="choice-grid"></div>
-    `;
-    const grid = $('.choice-grid', wrap);
-    const back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'btn ghost';
-    back.textContent = 'Retour';
-    back.onclick = () => go('ask_mail');
-    const send = document.createElement('button');
-    send.type = 'button';
-    send.className = 'btn primary';
-    send.textContent = 'Ouvrir Mail & enregistrer';
-    send.onclick = async () => {
-      const email = el('mailTo').value.trim();
-      if (!email) { toast('Email requis', 'error'); return; }
-      const mailNote = el('mailNote').value.trim();
-      const subject = encodeURIComponent(`Location ${row.type_location} — ${fullName(row)}`);
-      const body = encodeURIComponent(
-        `Bonjour,\n\nConcernant la location (${row.type_location}) de ${fullName(row)}` +
-        ` (né(e) le ${fmtDate(row.date_naissance)}).\n` +
-        `Date d'ordonnance souhaitée : ${fmtDate(row.date_ordonnance)}.\n\n` +
-        `${mailNote ? mailNote + '\n\n' : ''}` +
-        `${row.commentaire ? 'Note fiche : ' + row.commentaire + '\n\n' : ''}` +
-        `Cordialement,\nPharmacie`
-      );
-      window.location.href = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
-      await applyCallUpdate(row, buildMailPatch(row, email, mailNote));
-    };
-    grid.append(back, send);
-    steps.appendChild(wrap);
+/** Lecture fraîche de mail_envoye (module 2 → module 3). */
+function rowHasMailSent(row) {
+  const fresh = state.all.find((r) => r.id === row.id) || row;
+  return !!fresh.mail_envoye;
+}
+
+/** Si mail déjà coché (module 2), on ne repose pas la question. */
+function goMailStepOrSkip(row) {
+  if (rowHasMailSent(row)) {
+    handleMailYes(row);
+    return;
   }
+  state.callStep = 'ask_mail';
+  renderCallFlow();
 }
 
 async function handleCallYes(row) {
@@ -611,12 +608,11 @@ async function handleCallYes(row) {
   if (code === 'ordo_mail') {
     state.draft.backAfterMail = 'call_yes_comment';
     state.draft.afterMail = 'termine_ordo';
-    state.callStep = 'ask_mail';
-    renderCallFlow();
+    state.draft.recallLine = `${date} — Appel OK : envoie l’ordonnance par mail` + (note ? ` (${note})` : '');
+    goMailStepOrSkip(row);
     return;
   }
 
-  // message / raccroche / mauvais numéro → mail puis (sauf mauvais) rester à rappeler
   if (code === 'message_repondeur') {
     state.draft.recallLine = `${date} — Déjà appelé le ${date} et laissé message sur le répondeur` + (note ? ` (${note})` : '');
     state.draft.afterMail = 'rappeler';
@@ -629,8 +625,7 @@ async function handleCallYes(row) {
   }
 
   state.draft.backAfterMail = 'call_yes_comment';
-  state.callStep = 'ask_mail';
-  renderCallFlow();
+  goMailStepOrSkip(row);
 }
 
 async function handleCallNo(row) {
@@ -650,90 +645,107 @@ async function handleCallNo(row) {
     return;
   }
 
-  // pas de numéro → mail
   state.draft.recallLine = `${date} — Pas de numéro` + (note ? ` (${note})` : '');
   state.draft.afterMail = 'pas_de_numero';
   state.draft.backAfterMail = 'call_no_comment';
-  state.callStep = 'ask_mail';
-  renderCallFlow();
+  goMailStepOrSkip(row);
 }
 
-function buildMailPatch(row, email, mailNote) {
+async function handleMailYes(row) {
+  const fresh = state.all.find((r) => r.id === row.id) || row;
   const date = todayFr();
   const after = state.draft.afterMail;
   const baseLine = state.draft.recallLine || `${date} — Suivi appel`;
-  const mailLine = `${date} — Mail envoyé à ${email}` + (mailNote ? ` : ${mailNote}` : '');
-  let journal = appendJournal(row, baseLine);
-  journal = appendJournal({ journal }, mailLine);
+  const already = !!fresh.mail_envoye;
+  const mailLine = already
+    ? `${date} — Mail déjà envoyé (module comptes / métier)`
+    : `${date} — Mail envoyé (logiciel métier)`;
+
+  let journal = appendJournal(fresh, baseLine);
+  // Évite de dupliquer la ligne mail si déjà présente juste avant
+  if (!already || !(fresh.journal || '').includes('Mail déjà envoyé') || after) {
+    journal = appendJournal({ journal }, mailLine);
+  }
 
   const patch = {
-    email_patient: email,
     mail_demande: true,
     mail_envoye: true,
     journal,
-    appel_resultat: state.draft.resultat || state.draft.noReason || row.appel_resultat,
-    appel_motif: state.draft.note || row.appel_motif,
+    appel_resultat: state.draft.resultat || state.draft.noReason || fresh.appel_resultat,
+    appel_motif: state.draft.note || fresh.appel_motif || null,
   };
 
   if (after === 'termine_ordo') {
     patch.appel_fait = true;
     patch.appel_resultat = 'ordo_mail';
     patch.appel_statut = 'termine';
-    const note = state.draft.note ? ` (${state.draft.note})` : '';
-    patch.journal = appendJournal(row, `${date} — Appel OK : envoie l’ordonnance par mail${note}\n${mailLine}`);
   } else if (after === 'rappeler') {
     patch.appel_fait = true;
+    patch.appel_resultat = state.draft.resultat || fresh.appel_resultat;
     patch.appel_statut = 'a_rappeler';
   } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
     patch.appel_fait = after === 'mauvais_numero';
-    patch.appel_statut = 'termine'; // contacté par mail
+    patch.appel_resultat = after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero';
+    // Mail possible → pas PERTE, dossier suivi par mail
+    patch.appel_statut = 'termine';
+    patch.dossier_bloque = false;
   }
 
-  return patch;
+  await applyCallUpdate(fresh, patch);
 }
 
 async function handleNoMail(row) {
+  // Sécurité : si le mail était déjà coché, on ne passe jamais par « Non »
+  if (rowHasMailSent(row)) {
+    await handleMailYes(row);
+    return;
+  }
+
+  const fresh = state.all.find((r) => r.id === row.id) || row;
   const date = todayFr();
   const after = state.draft.afterMail;
   const baseLine = state.draft.recallLine || `${date} — Suivi`;
-  const noMailLine = `${date} — Pas d’envoi de mail (indisponible)`;
+  const noMailLine = `${date} — Pas d’adresse mail / pas d’envoi possible`;
 
   if (after === 'termine_ordo') {
-    // voulait ordo par mail mais pas de mail → on demande confirmation / PERTE? User said mauvais/pas numero without mail → PERTE
-    // For ordo_mail without mail, treat as need email - go back or PERTE? I'll toast and stay.
-    toast('Sans mail, impossible de clôturer « ordonnance par mail »', 'error');
-    state.callStep = 'ask_mail';
-    renderCallFlow();
+    await applyCallUpdate(fresh, {
+      appel_fait: true,
+      appel_resultat: 'ordo_mail',
+      appel_motif: state.draft.note || null,
+      appel_statut: 'PERTE',
+      dossier_bloque: true,
+      mail_demande: false,
+      mail_envoye: false,
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (ordo mail impossible)`),
+    });
     return;
   }
 
   if (after === 'rappeler') {
-    // message / raccroche sans mail → reste à rappeler
-    await applyCallUpdate(row, {
+    await applyCallUpdate(fresh, {
       appel_fait: true,
       appel_resultat: state.draft.resultat,
       appel_motif: state.draft.note || null,
       appel_statut: 'a_rappeler',
       mail_demande: false,
-      journal: appendJournal(row, `${baseLine}\n${noMailLine}`),
+      mail_envoye: false,
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}`),
     });
     return;
   }
 
   if (after === 'mauvais_numero' || after === 'pas_de_numero') {
-    await applyCallUpdate(row, {
+    await applyCallUpdate(fresh, {
       appel_fait: after === 'mauvais_numero',
       appel_resultat: after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero',
       appel_motif: state.draft.note || null,
       appel_statut: 'PERTE',
       dossier_bloque: true,
       mail_demande: false,
-      journal: appendJournal(row, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE`),
+      mail_envoye: false,
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE`),
     });
-    return;
   }
-
-  toast('Étape mail inattendue', 'error');
 }
 
 async function applyCallUpdate(row, patch) {
@@ -810,7 +822,7 @@ function renderEditList() {
   });
 }
 
-el('editAddPhoneBtn').addEventListener('click', () => addPhoneRow(el('editPhonesList')));
+el('editAddPhoneBtn').addEventListener('click', onAddPhoneClick(el('editPhonesList')));
 
 function openEditForm(id) {
   const row = state.all.find((r) => r.id === id);
