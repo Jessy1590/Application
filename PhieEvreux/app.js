@@ -164,11 +164,7 @@ function appendJournal(row, line) {
 }
 
 function suiviPrint(row) {
-  const parts = [];
-  if (row.journal) parts.push(row.journal);
-  if (row.appel_resultat) parts.push(`Résultat: ${APPEL_RESULTAT_LABELS[row.appel_resultat] || row.appel_resultat}`);
-  if (row.mail_envoye) parts.push('Mail: envoyé');
-  return parts.join(' | ');
+  return row.journal || '';
 }
 
 /* ---------- Navigation ---------- */
@@ -926,23 +922,46 @@ el('deleteFicheBtn').addEventListener('click', async () => {
 });
 
 /* ---------- Impression ---------- */
+function printIdentite(row) {
+  const telephones = phonesOf(row);
+  return `
+    <strong>${escapeHtml(fullName(row))}</strong>
+    <span>Né(e) le ${escapeHtml(fmtDate(row.date_naissance))}</span>
+    <span>Tél. : ${escapeHtml(telephones.join(' · ') || '—')}</span>
+  `;
+}
+
+function printLocation(row) {
+  return `
+    <strong>${escapeHtml(row.type_location)}</strong>
+    <span>Ordonnance : ${escapeHtml(fmtDate(row.date_ordonnance))}</span>
+  `;
+}
+
+function printAppel(row) {
+  const statut = APPEL_STATUT_LABELS[row.appel_statut] || row.appel_statut || '—';
+  const resultat = APPEL_RESULTAT_LABELS[row.appel_resultat] || row.appel_resultat || '—';
+  return `
+    <strong>${escapeHtml(statut)}</strong>
+    <span>Résultat : ${escapeHtml(resultat)}</span>
+    ${row.mail_envoye ? '<span>Mail : Oui</span>' : ''}
+  `;
+}
+
 el('fabPrint').addEventListener('click', async () => {
   await refresh();
   el('printDate').textContent = `Imprimé le ${new Date().toLocaleString('fr-FR')}`;
-  el('printBody').innerHTML = state.all.map((r) => `<tr>
-    <td>${escapeHtml(r.nom)}</td>
-    <td>${escapeHtml(r.prenom)}</td>
-    <td>${escapeHtml(fmtDate(r.date_naissance))}</td>
-    <td>${escapeHtml(r.type_location)}</td>
-    <td>${escapeHtml(fmtDate(r.date_ordonnance))}</td>
-    <td>${escapeHtml(phonesOf(r).join(', '))}</td>
+  const rows = [...state.all].sort(
+    (a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+  );
+  el('printBody').innerHTML = rows.map((r) => `<tr>
+    <td class="print-identity">${printIdentite(r)}</td>
+    <td class="print-location">${printLocation(r)}</td>
     <td>${escapeHtml(r.commentaire || '')}</td>
     <td>${escapeHtml(r.commentaire_statut || '')}</td>
-    <td>${escapeHtml(APPEL_STATUT_LABELS[r.appel_statut] || r.appel_statut || '')}</td>
-    <td>${escapeHtml(APPEL_RESULTAT_LABELS[r.appel_resultat] || r.appel_resultat || '')}</td>
-    <td>${escapeHtml(suiviPrint(r))}</td>
-    <td>${r.mail_envoye ? 'Oui' : ''}</td>
-  </tr>`).join('') || '<tr><td colspan="12">Aucune ligne</td></tr>';
+    <td class="print-call">${printAppel(r)}</td>
+    <td class="print-followup">${escapeHtml(suiviPrint(r))}</td>
+  </tr>`).join('') || '<tr><td colspan="6">Aucune ligne</td></tr>';
 
   el('printRoot').hidden = false;
   window.print();
