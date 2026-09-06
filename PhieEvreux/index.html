@@ -131,9 +131,42 @@
         <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">✕</button>
       </div>
       <div class="sheet-tabs">
-        <button type="button" class="sheet-tab active" data-list="recent">Récentes / appels</button>
+        <button type="button" class="sheet-tab active" data-list="recent">Récentes</button>
         <button type="button" class="sheet-tab" data-list="all">Toutes</button>
       </div>
+      <div class="edit-filters">
+        <input type="search" id="filterSearch" placeholder="Rechercher nom / prénom…" autocomplete="off">
+        <select id="filterStatut">
+          <option value="">Statut appel — tous</option>
+          <option value="a_appeler">À appeler</option>
+          <option value="a_rappeler">À rappeler</option>
+          <option value="termine">Terminé</option>
+          <option value="PERTE">PERTE</option>
+        </select>
+        <select id="filterResultat">
+          <option value="">Résultat — tous</option>
+          <option value="__none__">Sans résultat</option>
+          <option value="ramene_semaine">Ramène dans la semaine</option>
+          <option value="ordo_mail">Ordo par mail</option>
+          <option value="message_repondeur">Message répondeur</option>
+          <option value="raccroche">Raccroché</option>
+          <option value="mauvais_numero">Mauvais numéro</option>
+          <option value="pas_de_numero">Pas de numéro</option>
+          <option value="autre_raison">Autre raison</option>
+        </select>
+        <select id="filterMail">
+          <option value="">Mail — tous</option>
+          <option value="oui">Mail envoyé</option>
+          <option value="non">Pas de mail</option>
+        </select>
+        <select id="filterType">
+          <option value="">Type — tous</option>
+          <option value="Lit">Lit</option>
+          <option value="Tire lait">Tire lait</option>
+          <option value="Aérosol">Aérosol</option>
+        </select>
+      </div>
+      <p class="muted tiny" id="editCount"></p>
       <div id="editList" class="edit-list"></div>
     </div>
   </div>
@@ -145,6 +178,7 @@
         <h2 id="editFormTitle">Modifier</h2>
         <button type="button" class="icon-btn" data-close-edit-form aria-label="Fermer">✕</button>
       </div>
+      <div class="edit-summary" id="editSummary"></div>
       <form id="editForm" class="form-card flat">
         <input type="hidden" name="id">
         <label>Nom<input name="nom" required></label>
@@ -177,7 +211,7 @@
           </select>
         </label>
         <label>Statut appel / dossier
-          <select name="appel_statut">
+          <select name="appel_statut" id="editAppelStatut">
             <option value="a_appeler">À appeler</option>
             <option value="a_rappeler">À rappeler</option>
             <option value="termine">Terminé</option>
@@ -185,8 +219,8 @@
           </select>
         </label>
         <label>Résultat d’appel
-          <select name="appel_resultat">
-            <option value="">—</option>
+          <select name="appel_resultat" id="editAppelResultat">
+            <option value="">— (aucun / à recommencer)</option>
             <option value="ramene_semaine">Ramène appareil dans la semaine</option>
             <option value="ordo_mail">Envoie ordonnance par mail</option>
             <option value="message_repondeur">Message sur le répondeur</option>
@@ -196,17 +230,13 @@
             <option value="autre_raison">Autre raison</option>
           </select>
         </label>
+        <p class="hint-edit">Pour recommencer un suivi (ex. pas venu après « ramène la semaine ») : résultat → — et statut → À rappeler.</p>
         <label>Journal / suivi
           <textarea name="journal" rows="4" placeholder="Historique appels, mails…"></textarea>
         </label>
-        <label>Email patient<input name="email_patient" type="email" placeholder="optionnel"></label>
         <label class="check-row compact">
           <input type="checkbox" name="mail_envoye">
           <span>Mail envoyé</span>
-        </label>
-        <label class="check-row compact">
-          <input type="checkbox" name="dossier_bloque">
-          <span>Dossier bloqué</span>
         </label>
         <button type="submit" class="btn primary block">Enregistrer</button>
         <button type="button" class="btn danger ghost block" id="deleteFicheBtn">Supprimer</button>
@@ -222,7 +252,7 @@
         <tr>
           <th>Nom</th><th>Prénom</th><th>Naissance</th><th>Type</th>
           <th>Ordonnance</th><th>Téléphones</th><th>Commentaire</th><th>Statut com.</th>
-          <th>Statut appel</th><th>Suivi (appels / mails)</th><th>Email</th><th>Mail</th>
+          <th>Statut appel</th><th>Résultat</th><th>Suivi</th><th>Mail</th>
         </tr>
       </thead>
       <tbody id="printBody"></tbody>

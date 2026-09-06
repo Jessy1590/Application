@@ -168,10 +168,7 @@ function suiviPrint(row) {
   const parts = [];
   if (row.journal) parts.push(row.journal);
   if (row.appel_resultat) parts.push(`Résultat: ${APPEL_RESULTAT_LABELS[row.appel_resultat] || row.appel_resultat}`);
-  if (row.appel_motif) parts.push(`Motif: ${row.appel_motif}`);
   if (row.mail_envoye) parts.push('Mail: envoyé');
-  else if (row.mail_demande) parts.push('Mail: demandé');
-  if (row.dossier_bloque) parts.push('Dossier bloqué');
   return parts.join(' | ');
 }
 
@@ -305,7 +302,6 @@ async function validateComment() {
     commentaire_statut: 'ECRIS',
     telephones: phones,
     mail_envoye: mailAlready,
-    mail_demande: mailAlready ? true : (row.mail_demande || false),
   };
   if (mailAlready) {
     patch.journal = appendJournal(row, `${todayFr()} — Mail déjà envoyé (module comptes)`);
@@ -597,7 +593,6 @@ async function handleCallYes(row) {
   if (code === 'ramene_semaine') {
     const line = `${date} — Appel OK : ramène l’appareil dans la semaine` + (note ? ` (${note})` : '');
     await applyCallUpdate(row, {
-      appel_fait: true,
       appel_resultat: code,
       appel_statut: 'termine',
       journal: appendJournal(row, line),
@@ -636,9 +631,7 @@ async function handleCallNo(row) {
   if (reason === 'autre_raison') {
     const line = `${date} — Pas appelé : ${note}`;
     await applyCallUpdate(row, {
-      appel_fait: false,
       appel_resultat: 'autre_raison',
-      appel_motif: note,
       appel_statut: 'a_rappeler',
       journal: appendJournal(row, line),
     });
@@ -662,40 +655,29 @@ async function handleMailYes(row) {
     : `${date} — Mail envoyé (logiciel métier)`;
 
   let journal = appendJournal(fresh, baseLine);
-  // Évite de dupliquer la ligne mail si déjà présente juste avant
-  if (!already || !(fresh.journal || '').includes('Mail déjà envoyé') || after) {
-    journal = appendJournal({ journal }, mailLine);
-  }
+  journal = appendJournal({ journal }, mailLine);
 
   const patch = {
-    mail_demande: true,
     mail_envoye: true,
     journal,
     appel_resultat: state.draft.resultat || state.draft.noReason || fresh.appel_resultat,
-    appel_motif: state.draft.note || fresh.appel_motif || null,
   };
 
   if (after === 'termine_ordo') {
-    patch.appel_fait = true;
     patch.appel_resultat = 'ordo_mail';
     patch.appel_statut = 'termine';
   } else if (after === 'rappeler') {
-    patch.appel_fait = true;
     patch.appel_resultat = state.draft.resultat || fresh.appel_resultat;
     patch.appel_statut = 'a_rappeler';
   } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
-    patch.appel_fait = after === 'mauvais_numero';
     patch.appel_resultat = after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero';
-    // Mail possible → pas PERTE, dossier suivi par mail
     patch.appel_statut = 'termine';
-    patch.dossier_bloque = false;
   }
 
   await applyCallUpdate(fresh, patch);
 }
 
 async function handleNoMail(row) {
-  // Sécurité : si le mail était déjà coché, on ne passe jamais par « Non »
   if (rowHasMailSent(row)) {
     await handleMailYes(row);
     return;
@@ -709,12 +691,8 @@ async function handleNoMail(row) {
 
   if (after === 'termine_ordo') {
     await applyCallUpdate(fresh, {
-      appel_fait: true,
       appel_resultat: 'ordo_mail',
-      appel_motif: state.draft.note || null,
       appel_statut: 'PERTE',
-      dossier_bloque: true,
-      mail_demande: false,
       mail_envoye: false,
       journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (ordo mail impossible)`),
     });
@@ -723,11 +701,8 @@ async function handleNoMail(row) {
 
   if (after === 'rappeler') {
     await applyCallUpdate(fresh, {
-      appel_fait: true,
       appel_resultat: state.draft.resultat,
-      appel_motif: state.draft.note || null,
       appel_statut: 'a_rappeler',
-      mail_demande: false,
       mail_envoye: false,
       journal: appendJournal(fresh, `${baseLine}\n${noMailLine}`),
     });
@@ -736,12 +711,8 @@ async function handleNoMail(row) {
 
   if (after === 'mauvais_numero' || after === 'pas_de_numero') {
     await applyCallUpdate(fresh, {
-      appel_fait: after === 'mauvais_numero',
       appel_resultat: after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero',
-      appel_motif: state.draft.note || null,
       appel_statut: 'PERTE',
-      dossier_bloque: true,
-      mail_demande: false,
       mail_envoye: false,
       journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE`),
     });
@@ -770,6 +741,14 @@ bindSwipe(el('callSwipeCard'), {
 });
 
 /* ---------- Édition ---------- */
+const editFilters = {
+  search: '',
+  statut: '',
+  resultat: '',
+  mail: '',
+  type: '',
+};
+
 el('fabEdit').addEventListener('click', () => {
   state.listMode = 'recent';
   $$('.sheet-tab').forEach((t) => t.classList.toggle('active', t.dataset.list === 'recent'));
@@ -789,16 +768,51 @@ $$('.sheet-tab').forEach((tab) => {
   });
 });
 
-function renderEditList() {
-  const list = el('editList');
+['filterSearch', 'filterStatut', 'filterResultat', 'filterMail', 'filterType'].forEach((id) => {
+  const node = el(id);
+  if (!node) return;
+  const evt = id === 'filterSearch' ? 'input' : 'change';
+  node.addEventListener(evt, () => {
+    editFilters.search = el('filterSearch').value.trim().toLowerCase();
+    editFilters.statut = el('filterStatut').value;
+    editFilters.resultat = el('filterResultat').value;
+    editFilters.mail = el('filterMail').value;
+    editFilters.type = el('filterType').value;
+    renderEditList();
+  });
+});
+
+function filteredEditRows() {
   let rows = state.all;
   if (state.listMode === 'recent') {
     const weekAgo = Date.now() - 14 * 24 * 3600 * 1000;
-    rows = state.all.filter((r) => {
+    rows = rows.filter((r) => {
       const updated = new Date(r.updated_at || r.created_at).getTime();
       return updated >= weekAgo || r.commentaire_statut === 'ECRIS' || r.appel_statut !== 'a_appeler';
     });
   }
+  if (editFilters.search) {
+    rows = rows.filter((r) => fullName(r).toLowerCase().includes(editFilters.search));
+  }
+  if (editFilters.statut) {
+    rows = rows.filter((r) => r.appel_statut === editFilters.statut);
+  }
+  if (editFilters.resultat === '__none__') {
+    rows = rows.filter((r) => !r.appel_resultat);
+  } else if (editFilters.resultat) {
+    rows = rows.filter((r) => r.appel_resultat === editFilters.resultat);
+  }
+  if (editFilters.mail === 'oui') rows = rows.filter((r) => r.mail_envoye);
+  if (editFilters.mail === 'non') rows = rows.filter((r) => !r.mail_envoye);
+  if (editFilters.type) rows = rows.filter((r) => r.type_location === editFilters.type);
+  return rows;
+}
+
+function renderEditList() {
+  const list = el('editList');
+  const rows = filteredEditRows();
+  const count = el('editCount');
+  if (count) count.textContent = `${rows.length} fiche${rows.length > 1 ? 's' : ''}`;
 
   if (!rows.length) {
     list.innerHTML = '<p class="muted" style="padding:12px">Aucune fiche.</p>';
@@ -806,14 +820,19 @@ function renderEditList() {
   }
 
   list.innerHTML = rows.map((r) => {
+    const statut = APPEL_STATUT_LABELS[r.appel_statut] || r.appel_statut || '—';
+    const resultat = r.appel_resultat
+      ? (APPEL_RESULTAT_LABELS[r.appel_resultat] || r.appel_resultat)
+      : 'Aucun résultat';
     const flags = [
       r.commentaire_statut === 'ECRIS' ? 'ECRIS' : 'com. à faire',
-      APPEL_STATUT_LABELS[r.appel_statut] || r.appel_statut,
-      r.mail_envoye ? 'mail' : null,
+      statut,
+      r.mail_envoye ? 'mail envoyé' : null,
     ].filter(Boolean).join(' · ');
     return `<button type="button" class="edit-item" data-id="${r.id}">
       <strong>${escapeHtml(fullName(r))}</strong>
       <span>${escapeHtml(r.type_location)} · ordo ${escapeHtml(fmtDate(r.date_ordonnance))} · ${escapeHtml(flags)}</span>
+      <span class="res">Résultat : ${escapeHtml(resultat)}</span>
     </button>`;
   }).join('');
 
@@ -840,11 +859,21 @@ function openEditForm(id) {
   form.appel_statut.value = row.appel_statut || 'a_appeler';
   form.appel_resultat.value = row.appel_resultat || '';
   form.journal.value = row.journal || '';
-  form.email_patient.value = row.email_patient || '';
   form.mail_envoye.checked = !!row.mail_envoye;
-  form.dossier_bloque.checked = !!row.dossier_bloque;
   resetPhones(el('editPhonesList'), phonesOf(row).length ? phonesOf(row) : ['']);
   bindDateMasks(form);
+
+  const resLabel = row.appel_resultat
+    ? (APPEL_RESULTAT_LABELS[row.appel_resultat] || row.appel_resultat)
+    : 'Aucun';
+  const stLabel = APPEL_STATUT_LABELS[row.appel_statut] || row.appel_statut || '—';
+  el('editSummary').innerHTML = `
+    <strong>${escapeHtml(fullName(row))}</strong>
+    <div class="line">Statut actuel : <b>${escapeHtml(stLabel)}</b></div>
+    <div class="line">Dernier résultat : <b>${escapeHtml(resLabel)}</b></div>
+    <div class="line">Mail : <b>${row.mail_envoye ? 'envoyé' : 'non'}</b></div>
+  `;
+
   el('editFormSheet').hidden = false;
 }
 
@@ -867,6 +896,16 @@ el('editForm').addEventListener('submit', async (e) => {
   }
 
   const appelStatut = fd.get('appel_statut');
+  const appelResultat = fd.get('appel_resultat') || null;
+  let journal = String(fd.get('journal') || '').trim() || null;
+
+  // Si on remet à rappeler / sans résultat : noter dans le journal
+  const prev = state.all.find((r) => r.id === id);
+  if (prev && (appelStatut === 'a_rappeler' || appelStatut === 'a_appeler') && !appelResultat && prev.appel_resultat) {
+    const line = `${todayFr()} — Relance manuelle : ancien résultat « ${APPEL_RESULTAT_LABELS[prev.appel_resultat] || prev.appel_resultat} » effacé → ${APPEL_STATUT_LABELS[appelStatut]}`;
+    journal = appendJournal(prev, line);
+  }
+
   const payload = {
     nom: String(fd.get('nom') || '').trim().toUpperCase(),
     prenom: String(fd.get('prenom') || '').trim(),
@@ -877,11 +916,9 @@ el('editForm').addEventListener('submit', async (e) => {
     commentaire: String(fd.get('commentaire') || '').trim() || null,
     commentaire_statut: fd.get('commentaire_statut') || null,
     appel_statut: appelStatut,
-    appel_resultat: fd.get('appel_resultat') || null,
-    journal: String(fd.get('journal') || '').trim() || null,
-    email_patient: String(fd.get('email_patient') || '').trim() || null,
+    appel_resultat: appelResultat,
+    journal,
     mail_envoye: !!e.target.mail_envoye.checked,
-    dossier_bloque: !!e.target.dossier_bloque.checked || appelStatut === 'PERTE',
   };
 
   const { error } = await sb.from(TABLE).update(payload).eq('id', id);
@@ -917,9 +954,9 @@ el('fabPrint').addEventListener('click', async () => {
     <td>${escapeHtml(r.commentaire || '')}</td>
     <td>${escapeHtml(r.commentaire_statut || '')}</td>
     <td>${escapeHtml(APPEL_STATUT_LABELS[r.appel_statut] || r.appel_statut || '')}</td>
+    <td>${escapeHtml(APPEL_RESULTAT_LABELS[r.appel_resultat] || r.appel_resultat || '')}</td>
     <td>${escapeHtml(suiviPrint(r))}</td>
-    <td>${escapeHtml(r.email_patient || '')}</td>
-    <td>${r.mail_envoye ? 'Oui' : (r.mail_demande ? 'Demandé' : '')}</td>
+    <td>${r.mail_envoye ? 'Oui' : ''}</td>
   </tr>`).join('') || '<tr><td colspan="12">Aucune ligne</td></tr>';
 
   el('printRoot').hidden = false;

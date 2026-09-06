@@ -271,13 +271,34 @@ body > a[title="Retour au portail"] {
   border-radius: 999px; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .sheet-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(59,167,217,0.12); }
+.edit-filters {
+  display: grid; gap: 8px; margin-bottom: 10px;
+}
+.edit-filters input, .edit-filters select {
+  width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--text); font-size: 14px;
+}
+.edit-summary {
+  margin-bottom: 14px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(59,167,217,0.1); border: 1px solid rgba(59,167,217,0.28);
+  font-size: 13px; line-height: 1.45;
+}
+.edit-summary strong { display: block; font-size: 15px; margin-bottom: 6px; color: var(--text); }
+.edit-summary .line { color: var(--muted); }
+.edit-summary .line b { color: var(--accent); font-weight: 700; }
+.hint-edit {
+  margin: -4px 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4;
+}
 .edit-list { display: grid; gap: 8px; }
 .edit-item {
   text-align: left; width: 100%; background: var(--panel); border: 1px solid var(--line);
   border-radius: 14px; padding: 12px 14px; cursor: pointer; color: var(--text);
 }
 .edit-item strong { display: block; font-size: 15px; margin-bottom: 4px; }
-.edit-item span { font-size: 12px; color: var(--muted); }
+.edit-item > span { font-size: 12px; color: var(--muted); }
+.edit-item .res {
+  display: block; margin-top: 4px; color: var(--accent); font-size: 12px; font-weight: 600;
+}
 
 .toast {
   position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
