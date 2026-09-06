@@ -32,7 +32,6 @@
   </header>
 
   <main class="views">
-    <!-- MODULE 1 : Formulaire -->
     <section class="view active" id="view-form" data-view="form">
       <form id="newForm" class="card form-card" autocomplete="off">
         <h2>Nouvelle fiche</h2>
@@ -43,7 +42,7 @@
           <input name="prenom" required enterkeyhint="next" autocapitalize="words">
         </label>
         <label>Date de naissance
-          <input name="date_naissance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" required autocomplete="bday">
+          <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required autocomplete="bday">
         </label>
         <fieldset class="type-field">
           <legend>Type de location</legend>
@@ -54,12 +53,12 @@
           </div>
         </fieldset>
         <label>Date nécessaire pour nouvelle ordonnance
-          <input name="date_ordonnance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" required>
+          <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required>
         </label>
         <div class="phones-block">
           <div class="phones-head">
             <span>Téléphones</span>
-            <button type="button" class="btn tiny" id="addPhoneBtn">＋ Ajouter</button>
+            <button type="button" class="btn add-btn" id="addPhoneBtn">＋ Ajouter</button>
           </div>
           <div id="phonesList" class="phones-list"></div>
         </div>
@@ -70,7 +69,6 @@
       </form>
     </section>
 
-    <!-- MODULE 2 : Cartes commentaires -->
     <section class="view" id="view-comments" data-view="comments">
       <div id="commentsEmpty" class="empty hidden">
         <p class="empty-title">Aucune fiche en attente</p>
@@ -85,6 +83,13 @@
             <div><dt>Ordonnance</dt><dd id="cardOrdo">—</dd></div>
           </dl>
           <p class="card-comment" id="cardComment">—</p>
+          <div class="phones-block on-card">
+            <div class="phones-head">
+              <span>Téléphones</span>
+              <button type="button" class="btn add-btn" id="cardAddPhoneBtn">＋ Ajouter</button>
+            </div>
+            <div id="cardPhonesList" class="phones-list"></div>
+          </div>
           <label class="check-row">
             <input type="checkbox" id="commentDoneCheck">
             <span>Commentaire mis sur le compte du patient</span>
@@ -99,17 +104,17 @@
       <p class="hint" id="commentsHint"></p>
     </section>
 
-    <!-- MODULE 3 : Appels (cartes Tinder + arbre) -->
     <section class="view" id="view-calls" data-view="calls">
       <div id="callsEmpty" class="empty hidden">
         <p class="empty-title">Aucun appel en attente</p>
-        <p class="empty-sub">Toutes les fiches ont un suivi d’appel renseigné.</p>
+        <p class="empty-sub">Seules les fiches avec commentaire ECRIS apparaissent ici.</p>
       </div>
       <div id="callSwipeStage" class="swipe-stage hidden">
         <article class="swipe-card call-swipe-card" id="callSwipeCard">
           <div class="swipe-type" id="callType">—</div>
           <h2 id="callName">—</h2>
           <p class="muted" id="callMeta">—</p>
+          <div id="callJournal" class="journal-box hidden"></div>
           <div id="callPhones" class="phone-actions"></div>
           <div id="callSteps" class="call-steps"></div>
         </article>
@@ -118,7 +123,6 @@
     </section>
   </main>
 
-  <!-- Modale édition -->
   <div class="sheet" id="editSheet" hidden>
     <div class="sheet-backdrop" data-close-sheet></div>
     <div class="sheet-panel" role="dialog" aria-labelledby="editTitle">
@@ -146,7 +150,7 @@
         <label>Nom<input name="nom" required></label>
         <label>Prénom<input name="prenom" required></label>
         <label>Date de naissance
-          <input name="date_naissance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA">
+          <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
         </label>
         <label>Type
           <select name="type_location" required>
@@ -156,30 +160,41 @@
           </select>
         </label>
         <label>Date ordonnance
-          <input name="date_ordonnance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA">
+          <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
         </label>
         <div class="phones-block">
           <div class="phones-head">
             <span>Téléphones</span>
-            <button type="button" class="btn tiny" id="editAddPhoneBtn">＋ Ajouter</button>
+            <button type="button" class="btn add-btn" id="editAddPhoneBtn">＋ Ajouter</button>
           </div>
           <div id="editPhonesList" class="phones-list"></div>
         </div>
         <label>Commentaire<textarea name="commentaire" rows="3"></textarea></label>
         <label>Statut commentaire
           <select name="commentaire_statut">
-            <option value="">—</option>
+            <option value="">— (en attente)</option>
             <option value="ECRIS">ECRIS</option>
           </select>
         </label>
-        <label>Email patient<input name="email_patient" type="email" placeholder="optionnel"></label>
-        <label class="check-row compact">
-          <input type="checkbox" name="dossier_bloque">
-          <span>Dossier bloqué</span>
+        <label>Statut appel / dossier
+          <select name="appel_statut">
+            <option value="a_appeler">À appeler</option>
+            <option value="a_rappeler">À rappeler</option>
+            <option value="termine">Terminé</option>
+            <option value="PERTE">PERTE</option>
+          </select>
         </label>
+        <label>Journal / suivi
+          <textarea name="journal" rows="4" placeholder="Historique appels, mails…"></textarea>
+        </label>
+        <label>Email patient<input name="email_patient" type="email" placeholder="optionnel"></label>
         <label class="check-row compact">
           <input type="checkbox" name="mail_envoye">
           <span>Mail envoyé</span>
+        </label>
+        <label class="check-row compact">
+          <input type="checkbox" name="dossier_bloque">
+          <span>Dossier bloqué</span>
         </label>
         <button type="submit" class="btn primary block">Enregistrer</button>
         <button type="button" class="btn danger ghost block" id="deleteFicheBtn">Supprimer</button>
@@ -187,7 +202,6 @@
     </div>
   </div>
 
-  <!-- Vue impression -->
   <div id="printRoot" class="print-root" hidden>
     <h1>Phie Evreux — Locations</h1>
     <p class="print-date" id="printDate"></p>
@@ -196,7 +210,7 @@
         <tr>
           <th>Nom</th><th>Prénom</th><th>Naissance</th><th>Type</th>
           <th>Ordonnance</th><th>Téléphones</th><th>Commentaire</th><th>Statut com.</th>
-          <th>Appel</th><th>Résultat</th><th>Mail</th><th>Bloqué</th>
+          <th>Statut appel</th><th>Suivi (appels / mails)</th><th>Email</th><th>Mail</th>
         </tr>
       </thead>
       <tbody id="printBody"></tbody>
