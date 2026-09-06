@@ -2,7 +2,6 @@
 const cfg = window.SUPABASE_CONFIG;
 if (!cfg?.url || !cfg?.anonKey) throw new Error('SUPABASE_CONFIG manquant');
 
-const sbAuth = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'portail' } });
 const sb = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'autres' } });
 const TABLE = 'phie_evreux';
 
@@ -19,6 +18,7 @@ const state = {
   callStep: 'ask_call',
   listMode: 'recent',
   editingId: null,
+  _motif: '',
 };
 
 const APPEL_LABELS = {
@@ -37,11 +37,35 @@ function toast(msg, type = 'ok') {
   toast._timer = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
+/** JJ/MM/AAAA (ou variantes) → YYYY-MM-DD pour Postgres date */
+function parseFrDate(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})$/);
+  if (!m) return null;
+  let [, d, mo, y] = m;
+  if (y.length === 2) y = `20${y}`;
+  const iso = `${y.padStart(4, '0')}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  const dt = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return iso;
+}
+
+function toFrInput(iso) {
+  if (!iso) return '';
+  const s = String(iso).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const [y, m, d] = s.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  return String(iso);
+}
+
 function fmtDate(iso) {
   if (!iso) return '—';
-  const d = new Date(iso + (String(iso).length <= 10 ? 'T12:00:00' : ''));
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('fr-FR');
+  const fr = toFrInput(iso);
+  return fr || String(iso);
 }
 
 function fullName(row) {
@@ -54,7 +78,42 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/* ---------- Navigation ---------- */
+function phonesOf(row) {
+  const p = row?.telephones;
+  if (!p) return [];
+  return Array.isArray(p) ? p.filter(Boolean) : [];
+}
+
+function telHref(num) {
+  return `tel:${String(num).replace(/[^\d+]/g, '')}`;
+}
+
+function collectPhones(listEl) {
+  return $$('.phone-input', listEl)
+    .map((i) => i.value.trim())
+    .filter(Boolean);
+}
+
+function addPhoneRow(listEl, value = '') {
+  const row = document.createElement('div');
+  row.className = 'phone-row';
+  row.innerHTML = `
+    <input type="tel" class="phone-input" inputmode="tel" placeholder="06 12 34 56 78" value="${escapeHtml(value)}">
+    <button type="button" class="icon-btn phone-remove" aria-label="Retirer">✕</button>
+  `;
+  $('.phone-remove', row).onclick = () => {
+    row.remove();
+    if (!listEl.children.length) addPhoneRow(listEl);
+  };
+  listEl.appendChild(row);
+}
+
+function resetPhones(listEl, values = ['']) {
+  listEl.innerHTML = '';
+  (values.length ? values : ['']).forEach((v) => addPhoneRow(listEl, v));
+}
+
+/* ---------- Navigation (manuel uniquement) ---------- */
 function setTab(name) {
   $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   $$('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === name));
@@ -88,9 +147,8 @@ async function refresh() {
     state.callStep = 'ask_call';
   }
 
-  const pendingCom = state.commentQueue.length;
-  const pendingCall = state.callQueue.length;
-  el('queuePill').textContent = `${pendingCom} com. · ${pendingCall} appels`;
+  el('queuePill').textContent =
+    `${state.commentQueue.length} com. · ${state.callQueue.length} appels`;
 
   if (el('view-comments').classList.contains('active')) renderCommentCard();
   if (el('view-calls').classList.contains('active')) renderCallFlow();
@@ -98,15 +156,31 @@ async function refresh() {
 }
 
 /* ---------- Module 1 ---------- */
+resetPhones(el('phonesList'), ['']);
+el('addPhoneBtn').addEventListener('click', () => addPhoneRow(el('phonesList')));
+
 el('newForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
+
+  const dateNaissance = parseFrDate(fd.get('date_naissance'));
+  const dateOrdo = parseFrDate(fd.get('date_ordonnance'));
+  if (!dateNaissance) {
+    toast('Date de naissance invalide (JJ/MM/AAAA)', 'error');
+    return;
+  }
+  if (!dateOrdo) {
+    toast('Date d’ordonnance invalide (JJ/MM/AAAA)', 'error');
+    return;
+  }
+
   const payload = {
     nom: String(fd.get('nom') || '').trim().toUpperCase(),
     prenom: String(fd.get('prenom') || '').trim(),
-    date_naissance: fd.get('date_naissance') || null,
+    date_naissance: dateNaissance,
     type_location: fd.get('type_location'),
-    date_ordonnance: fd.get('date_ordonnance') || null,
+    date_ordonnance: dateOrdo,
+    telephones: collectPhones(el('phonesList')),
     commentaire: String(fd.get('commentaire') || '').trim() || null,
   };
 
@@ -124,9 +198,10 @@ el('newForm').addEventListener('submit', async (e) => {
 
   e.target.reset();
   e.target.querySelector('input[value="Lit"]').checked = true;
-  toast('Fiche créée');
+  resetPhones(el('phonesList'), ['']);
+  toast('Fiche créée — restez sur Nouveau');
   await refresh();
-  setTab('comments');
+  // Pas de changement d’onglet : enchaîner les saisies
 });
 
 /* ---------- Module 2 : cartes ---------- */
@@ -159,54 +234,59 @@ function renderCommentCard() {
   el('cardOrdo').textContent = fmtDate(row.date_ordonnance);
   el('cardComment').textContent = row.commentaire || 'Aucun commentaire';
   el('commentDoneCheck').checked = false;
+  el('mailAlreadyCheck').checked = !!row.mail_envoye;
   el('validateCommentBtn').disabled = true;
   el('commentsHint').textContent =
     `${state.commentIndex + 1} / ${state.commentQueue.length} — glissez pour passer`;
 }
 
-el('commentDoneCheck').addEventListener('change', (e) => {
-  el('validateCommentBtn').disabled = !e.target.checked;
-});
+function syncCommentValidateBtn() {
+  el('validateCommentBtn').disabled = !el('commentDoneCheck').checked;
+}
+
+el('commentDoneCheck').addEventListener('change', syncCommentValidateBtn);
 
 async function validateComment() {
   const row = currentComment();
   if (!row || !el('commentDoneCheck').checked) return;
 
-  const { error } = await sb
-    .from(TABLE)
-    .update({ commentaire_statut: 'ECRIS' })
-    .eq('id', row.id);
+  const mailAlready = el('mailAlreadyCheck').checked;
+  const patch = { commentaire_statut: 'ECRIS' };
+  if (mailAlready) {
+    patch.mail_envoye = true;
+    patch.mail_demande = true;
+  }
 
+  const { error } = await sb.from(TABLE).update(patch).eq('id', row.id);
   if (error) {
     toast(error.message, 'error');
     return;
   }
 
-  await animateSwipe('right');
-  toast('Commentaire ECRIS');
+  await animateSwipe(el('swipeCard'), 'right');
+  toast(mailAlready ? 'ECRIS + mail noté' : 'Commentaire ECRIS');
   await refresh();
   renderCommentCard();
 }
 
 el('validateCommentBtn').addEventListener('click', validateComment);
 
-function animateSwipe(dir) {
-  const card = el('swipeCard');
+function animateSwipe(card, dir) {
   return new Promise((resolve) => {
     card.classList.add(dir === 'left' ? 'out-left' : 'out-right');
     setTimeout(resolve, 280);
   });
 }
 
-/* swipe gestures */
-(() => {
-  const card = el('swipeCard');
+function bindSwipe(card, { canDrag, onSkip }) {
   let startX = 0;
   let dx = 0;
   let dragging = false;
 
   card.addEventListener('touchstart', (e) => {
-    if (!currentComment()) return;
+    if (!canDrag()) return;
+    // Ne pas bloquer les taps sur boutons / liens / inputs
+    if (e.target.closest('button, a, input, textarea, label, select')) return;
     dragging = true;
     startX = e.touches[0].clientX;
     dx = 0;
@@ -229,35 +309,62 @@ function animateSwipe(dir) {
       card.style.opacity = '';
       return;
     }
-    // swipe sans validation = passer à la suivante (comme Tinder skip)
-    await animateSwipe(dx < 0 ? 'left' : 'right');
+    await animateSwipe(card, dx < 0 ? 'left' : 'right');
+    onSkip();
+  });
+}
+
+bindSwipe(el('swipeCard'), {
+  canDrag: () => !!currentComment(),
+  onSkip: () => {
     state.commentIndex = (state.commentIndex + 1) % Math.max(state.commentQueue.length, 1);
     renderCommentCard();
-  });
-})();
+  },
+});
 
-/* ---------- Module 3 : arbre appels ---------- */
+/* ---------- Module 3 : appels (Tinder + arbre) ---------- */
 function currentCall() {
   return state.callQueue[state.callIndex] || null;
+}
+
+function renderCallPhones(row) {
+  const box = el('callPhones');
+  const phones = phonesOf(row);
+  if (!phones.length) {
+    box.innerHTML = '<p class="muted tiny">Aucun numéro renseigné</p>';
+    return;
+  }
+  box.innerHTML = phones.map((n) =>
+    `<a class="phone-call-btn" href="${telHref(n)}">${escapeHtml(n)}</a>`
+  ).join('');
 }
 
 function renderCallFlow() {
   const row = currentCall();
   const empty = el('callsEmpty');
-  const flow = el('callFlow');
+  const stage = el('callSwipeStage');
+  const card = el('callSwipeCard');
 
   if (!row) {
     empty.classList.remove('hidden');
-    flow.classList.add('hidden');
+    stage.classList.add('hidden');
+    el('callsHint').textContent = '';
     return;
   }
 
   empty.classList.add('hidden');
-  flow.classList.remove('hidden');
+  stage.classList.remove('hidden');
+  card.classList.remove('out-left', 'out-right');
+  card.style.transform = '';
+  card.style.opacity = '';
+
   el('callType').textContent = row.type_location;
   el('callName').textContent = fullName(row);
   el('callMeta').textContent =
     `Né(e) ${fmtDate(row.date_naissance)} · Ordo ${fmtDate(row.date_ordonnance)}`;
+  renderCallPhones(row);
+  el('callsHint').textContent =
+    `${state.callIndex + 1} / ${state.callQueue.length} — glissez pour passer à un autre appel`;
 
   const steps = el('callSteps');
   steps.innerHTML = '';
@@ -279,17 +386,16 @@ function renderCallFlow() {
   }
 
   if (state.callStep === 'call_no_why') {
-    const card = document.createElement('div');
-    card.className = 'step-card';
-    card.innerHTML = `
+    const step = document.createElement('div');
+    step.className = 'step-card';
+    step.innerHTML = `
       <h3>Pourquoi pas d’appel / pas joint ?</h3>
-      <label style="display:block;margin-bottom:12px;color:var(--muted);font-size:13px">
-        Motif
-        <textarea id="callMotif" rows="3" style="display:block;width:100%;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg-elev);color:var(--text);font:inherit"></textarea>
+      <label class="inline-field">Motif
+        <textarea id="callMotif" rows="3">${escapeHtml(state._motif || '')}</textarea>
       </label>
       <div class="choice-grid"></div>
     `;
-    const grid = $('.choice-grid', card);
+    const grid = $('.choice-grid', step);
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'btn ghost';
@@ -307,7 +413,7 @@ function renderCallFlow() {
       renderCallFlow();
     };
     grid.append(back, next);
-    steps.appendChild(card);
+    steps.appendChild(step);
   }
 
   if (state.callStep === 'ask_mail') {
@@ -323,19 +429,17 @@ function renderCallFlow() {
   }
 
   if (state.callStep === 'mail_yes') {
-    const card = document.createElement('div');
-    card.className = 'step-card';
-    card.innerHTML = `
+    const step = document.createElement('div');
+    step.className = 'step-card';
+    step.innerHTML = `
       <h3>Envoi du mail</h3>
-      <p>Saisissez l’adresse, puis ouvrez l’app Mail. Le suivi sera enregistré.</p>
-      <label style="display:block;margin-bottom:12px;color:var(--muted);font-size:13px">
-        Email patient
-        <input id="mailTo" type="email" required value="${escapeHtml(row.email_patient || '')}"
-          style="display:block;width:100%;margin-top:6px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg-elev);color:var(--text);font:inherit;font-size:16px">
+      <p>Saisissez l’adresse, puis ouvrez l’app Mail.</p>
+      <label class="inline-field">Email patient
+        <input id="mailTo" type="email" value="${escapeHtml(row.email_patient || '')}">
       </label>
       <div class="choice-grid"></div>
     `;
-    const grid = $('.choice-grid', card);
+    const grid = $('.choice-grid', step);
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'btn ghost';
@@ -368,7 +472,7 @@ function renderCallFlow() {
       });
     };
     grid.append(back, send);
-    steps.appendChild(card);
+    steps.appendChild(step);
   }
 }
 
@@ -411,9 +515,20 @@ async function finishCall(patch) {
   toast('Suivi d’appel enregistré');
   state.callStep = 'ask_call';
   state._motif = '';
+  await animateSwipe(el('callSwipeCard'), 'right');
   await refresh();
   renderCallFlow();
 }
+
+bindSwipe(el('callSwipeCard'), {
+  canDrag: () => !!currentCall(),
+  onSkip: () => {
+    state.callStep = 'ask_call';
+    state._motif = '';
+    state.callIndex = (state.callIndex + 1) % Math.max(state.callQueue.length, 1);
+    renderCallFlow();
+  },
+});
 
 /* ---------- FAB édition ---------- */
 el('fabEdit').addEventListener('click', () => {
@@ -439,7 +554,6 @@ function renderEditList() {
   const list = el('editList');
   let rows = state.all;
   if (state.listMode === 'recent') {
-    // créées récemment OU touchées par le module appels (appel renseigné / maj récente)
     const weekAgo = Date.now() - 14 * 24 * 3600 * 1000;
     rows = state.all.filter((r) => {
       const updated = new Date(r.updated_at || r.created_at).getTime();
@@ -470,6 +584,8 @@ function renderEditList() {
   });
 }
 
+el('editAddPhoneBtn').addEventListener('click', () => addPhoneRow(el('editPhonesList')));
+
 function openEditForm(id) {
   const row = state.all.find((r) => r.id === id);
   if (!row) return;
@@ -478,14 +594,15 @@ function openEditForm(id) {
   form.id.value = row.id;
   form.nom.value = row.nom || '';
   form.prenom.value = row.prenom || '';
-  form.date_naissance.value = row.date_naissance || '';
+  form.date_naissance.value = toFrInput(row.date_naissance);
   form.type_location.value = row.type_location || 'Lit';
-  form.date_ordonnance.value = row.date_ordonnance || '';
+  form.date_ordonnance.value = toFrInput(row.date_ordonnance);
   form.commentaire.value = row.commentaire || '';
   form.commentaire_statut.value = row.commentaire_statut || '';
   form.email_patient.value = row.email_patient || '';
   form.dossier_bloque.checked = !!row.dossier_bloque;
   form.mail_envoye.checked = !!row.mail_envoye;
+  resetPhones(el('editPhonesList'), phonesOf(row).length ? phonesOf(row) : ['']);
   el('editFormSheet').hidden = false;
 }
 
@@ -498,12 +615,25 @@ el('editForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const id = fd.get('id');
+
+  const dateNaissance = parseFrDate(fd.get('date_naissance'));
+  const dateOrdo = parseFrDate(fd.get('date_ordonnance'));
+  if (fd.get('date_naissance') && !dateNaissance) {
+    toast('Date de naissance invalide (JJ/MM/AAAA)', 'error');
+    return;
+  }
+  if (fd.get('date_ordonnance') && !dateOrdo) {
+    toast('Date d’ordonnance invalide (JJ/MM/AAAA)', 'error');
+    return;
+  }
+
   const payload = {
     nom: String(fd.get('nom') || '').trim().toUpperCase(),
     prenom: String(fd.get('prenom') || '').trim(),
-    date_naissance: fd.get('date_naissance') || null,
+    date_naissance: dateNaissance,
     type_location: fd.get('type_location'),
-    date_ordonnance: fd.get('date_ordonnance') || null,
+    date_ordonnance: dateOrdo,
+    telephones: collectPhones(el('editPhonesList')),
     commentaire: String(fd.get('commentaire') || '').trim() || null,
     commentaire_statut: fd.get('commentaire_statut') || null,
     email_patient: String(fd.get('email_patient') || '').trim() || null,
@@ -532,9 +662,8 @@ el('deleteFicheBtn').addEventListener('click', async () => {
 /* ---------- Impression ---------- */
 el('fabPrint').addEventListener('click', async () => {
   await refresh();
-  const body = el('printBody');
   el('printDate').textContent = `Imprimé le ${new Date().toLocaleString('fr-FR')}`;
-  body.innerHTML = state.all.map((r) => {
+  el('printBody').innerHTML = state.all.map((r) => {
     const appel = r.appel_fait === null
       ? '—'
       : (r.appel_fait ? 'Oui' : `Non${r.appel_motif ? ' — ' + r.appel_motif : ''}`);
@@ -545,6 +674,7 @@ el('fabPrint').addEventListener('click', async () => {
       <td>${escapeHtml(fmtDate(r.date_naissance))}</td>
       <td>${escapeHtml(r.type_location)}</td>
       <td>${escapeHtml(fmtDate(r.date_ordonnance))}</td>
+      <td>${escapeHtml(phonesOf(r).join(', '))}</td>
       <td>${escapeHtml(r.commentaire || '')}</td>
       <td>${escapeHtml(r.commentaire_statut || '')}</td>
       <td>${escapeHtml(appel)}</td>
@@ -552,7 +682,7 @@ el('fabPrint').addEventListener('click', async () => {
       <td>${r.mail_envoye ? 'Oui' : (r.mail_demande ? 'Demandé' : '')}</td>
       <td>${r.dossier_bloque ? 'Oui' : ''}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="11">Aucune ligne</td></tr>';
+  }).join('') || '<tr><td colspan="12">Aucune ligne</td></tr>';
 
   el('printRoot').hidden = false;
   window.print();

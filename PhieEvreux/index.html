@@ -43,7 +43,7 @@
           <input name="prenom" required enterkeyhint="next" autocapitalize="words">
         </label>
         <label>Date de naissance
-          <input name="date_naissance" type="date" required>
+          <input name="date_naissance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" required autocomplete="bday">
         </label>
         <fieldset class="type-field">
           <legend>Type de location</legend>
@@ -54,8 +54,15 @@
           </div>
         </fieldset>
         <label>Date nécessaire pour nouvelle ordonnance
-          <input name="date_ordonnance" type="date" required>
+          <input name="date_ordonnance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" required>
         </label>
+        <div class="phones-block">
+          <div class="phones-head">
+            <span>Téléphones</span>
+            <button type="button" class="btn tiny" id="addPhoneBtn">＋ Ajouter</button>
+          </div>
+          <div id="phonesList" class="phones-list"></div>
+        </div>
         <label>Commentaire
           <textarea name="commentaire" rows="3" placeholder="Notes utiles…"></textarea>
         </label>
@@ -63,7 +70,7 @@
       </form>
     </section>
 
-    <!-- MODULE 2 : Cartes commentaires (style Tinder) -->
+    <!-- MODULE 2 : Cartes commentaires -->
     <section class="view" id="view-comments" data-view="comments">
       <div id="commentsEmpty" class="empty hidden">
         <p class="empty-title">Aucune fiche en attente</p>
@@ -82,26 +89,32 @@
             <input type="checkbox" id="commentDoneCheck">
             <span>Commentaire mis sur le compte du patient</span>
           </label>
+          <label class="check-row">
+            <input type="checkbox" id="mailAlreadyCheck">
+            <span>Mail déjà envoyé</span>
+          </label>
           <button type="button" class="btn primary block" id="validateCommentBtn" disabled>Valider comme effectué</button>
         </article>
       </div>
       <p class="hint" id="commentsHint"></p>
     </section>
 
-    <!-- MODULE 3 : Arbre décisionnel appels -->
+    <!-- MODULE 3 : Appels (cartes Tinder + arbre) -->
     <section class="view" id="view-calls" data-view="calls">
       <div id="callsEmpty" class="empty hidden">
         <p class="empty-title">Aucun appel en attente</p>
         <p class="empty-sub">Toutes les fiches ont un suivi d’appel renseigné.</p>
       </div>
-      <div id="callFlow" class="call-flow hidden">
-        <div class="call-patient card">
+      <div id="callSwipeStage" class="swipe-stage hidden">
+        <article class="swipe-card call-swipe-card" id="callSwipeCard">
           <div class="swipe-type" id="callType">—</div>
           <h2 id="callName">—</h2>
           <p class="muted" id="callMeta">—</p>
-        </div>
-        <div id="callSteps" class="call-steps"></div>
+          <div id="callPhones" class="phone-actions"></div>
+          <div id="callSteps" class="call-steps"></div>
+        </article>
       </div>
+      <p class="hint" id="callsHint"></p>
     </section>
   </main>
 
@@ -132,7 +145,9 @@
         <input type="hidden" name="id">
         <label>Nom<input name="nom" required></label>
         <label>Prénom<input name="prenom" required></label>
-        <label>Date de naissance<input name="date_naissance" type="date"></label>
+        <label>Date de naissance
+          <input name="date_naissance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA">
+        </label>
         <label>Type
           <select name="type_location" required>
             <option>Lit</option>
@@ -140,7 +155,16 @@
             <option>Aérosol</option>
           </select>
         </label>
-        <label>Date ordonnance<input name="date_ordonnance" type="date"></label>
+        <label>Date ordonnance
+          <input name="date_ordonnance" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA">
+        </label>
+        <div class="phones-block">
+          <div class="phones-head">
+            <span>Téléphones</span>
+            <button type="button" class="btn tiny" id="editAddPhoneBtn">＋ Ajouter</button>
+          </div>
+          <div id="editPhonesList" class="phones-list"></div>
+        </div>
         <label>Commentaire<textarea name="commentaire" rows="3"></textarea></label>
         <label>Statut commentaire
           <select name="commentaire_statut">
@@ -171,7 +195,7 @@
       <thead>
         <tr>
           <th>Nom</th><th>Prénom</th><th>Naissance</th><th>Type</th>
-          <th>Ordonnance</th><th>Commentaire</th><th>Statut com.</th>
+          <th>Ordonnance</th><th>Téléphones</th><th>Commentaire</th><th>Statut com.</th>
           <th>Appel</th><th>Résultat</th><th>Mail</th><th>Bloqué</th>
         </tr>
       </thead>
@@ -179,7 +203,6 @@
     </table>
   </div>
 
-  <!-- FABs -->
   <div class="fabs">
     <button type="button" class="fab" id="fabEdit" title="Revoir / modifier les fiches" aria-label="Modifier">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
