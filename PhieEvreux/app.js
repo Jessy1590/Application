@@ -838,6 +838,7 @@ function openEditForm(id) {
   form.commentaire.value = row.commentaire || '';
   form.commentaire_statut.value = row.commentaire_statut || '';
   form.appel_statut.value = row.appel_statut || 'a_appeler';
+  form.appel_resultat.value = row.appel_resultat || '';
   form.journal.value = row.journal || '';
   form.email_patient.value = row.email_patient || '';
   form.mail_envoye.checked = !!row.mail_envoye;
@@ -876,6 +877,7 @@ el('editForm').addEventListener('submit', async (e) => {
     commentaire: String(fd.get('commentaire') || '').trim() || null,
     commentaire_statut: fd.get('commentaire_statut') || null,
     appel_statut: appelStatut,
+    appel_resultat: fd.get('appel_resultat') || null,
     journal: String(fd.get('journal') || '').trim() || null,
     email_patient: String(fd.get('email_patient') || '').trim() || null,
     mail_envoye: !!e.target.mail_envoye.checked,
