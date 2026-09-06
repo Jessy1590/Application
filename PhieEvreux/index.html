@@ -34,7 +34,10 @@
   <main class="views">
     <section class="view active" id="view-form" data-view="form">
       <form id="newForm" class="card form-card" autocomplete="off">
-        <h2>Nouvelle fiche</h2>
+        <div class="form-title-row">
+          <h2>Nouvelle fiche</h2>
+          <button type="button" class="btn add-btn" id="openAiFillBtn">Photo → IA</button>
+        </div>
         <label>Nom
           <input name="nom" required enterkeyhint="next" autocapitalize="characters">
         </label>
@@ -122,6 +125,25 @@
       <p class="hint" id="callsHint"></p>
     </section>
   </main>
+
+  <div class="sheet" id="aiFillSheet" hidden>
+    <div class="sheet-backdrop" data-close-ai-fill></div>
+    <div class="sheet-panel" role="dialog" aria-labelledby="aiFillTitle">
+      <div class="sheet-head">
+        <h2 id="aiFillTitle">Remplir depuis une photo</h2>
+        <button type="button" class="icon-btn" data-close-ai-fill aria-label="Fermer">✕</button>
+      </div>
+      <p class="hint-edit">1) Copie le prompt · 2) Envoie-le à une IA avec la photo de la fiche manuscrite · 3) Colle ici la réponse · 4) Remplis le formulaire · 5) Vérifie puis appuie sur « Créer la fiche ».</p>
+      <label class="inline-field">Prompt à donner à l’IA
+        <textarea id="aiPromptText" rows="8" readonly></textarea>
+      </label>
+      <button type="button" class="btn secondary block" id="copyAiPromptBtn">Copier le prompt</button>
+      <label class="inline-field" style="margin-top:12px">Réponse de l’IA (à coller)
+        <textarea id="aiPasteText" rows="8" placeholder="Colle ici le texte renvoyé par l’IA…"></textarea>
+      </label>
+      <button type="button" class="btn primary block" id="applyAiFillBtn">Remplir le formulaire</button>
+    </div>
+  </div>
 
   <div class="sheet" id="editSheet" hidden>
     <div class="sheet-backdrop" data-close-sheet></div>

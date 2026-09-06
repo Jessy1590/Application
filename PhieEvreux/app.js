@@ -245,6 +245,114 @@ el('newForm').addEventListener('submit', async (e) => {
   await refresh();
 });
 
+/* ---------- Remplissage Photo → IA (module 1) ---------- */
+const AI_FILL_PROMPT = `Tu analyses la photo d'une fiche manuscrite de location de matériel (pharmacie).
+Extrais uniquement les informations visibles et réponds UNIQUEMENT avec ce format exact, une ligne par champ, sans markdown ni texte autour :
+
+NOM: <nom de famille en majuscules>
+PRENOM: <prénom>
+DATE_NAISSANCE: <JJ/MM/AAAA>
+TYPE_LOCATION: <Lit OU Tire lait OU Aérosol>
+DATE_ORDONNANCE: <JJ/MM/AAAA>
+TELEPHONES: <numéros séparés par ; >
+COMMENTAIRE: <texte libre ou vide>
+
+Règles :
+- Si une info est illisible ou absente, laisse la valeur vide après les deux-points.
+- TYPE_LOCATION doit être exactement l'une de ces 3 valeurs : Lit, Tire lait, Aérosol.
+- Les dates doivent être au format JJ/MM/AAAA.
+- Ne invente rien.`;
+
+el('aiPromptText').value = AI_FILL_PROMPT;
+
+el('openAiFillBtn').addEventListener('click', () => {
+  el('aiFillSheet').hidden = false;
+});
+
+$$('[data-close-ai-fill]').forEach((n) => n.addEventListener('click', () => {
+  el('aiFillSheet').hidden = true;
+}));
+
+el('copyAiPromptBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(AI_FILL_PROMPT);
+    toast('Prompt copié');
+  } catch {
+    el('aiPromptText').select();
+    document.execCommand('copy');
+    toast('Prompt copié');
+  }
+});
+
+function parseAiFillText(raw) {
+  const text = String(raw || '').replace(/\r/g, '');
+  const get = (key) => {
+    const re = new RegExp(`^\\s*${key}\\s*:\\s*(.*)$`, 'im');
+    const m = text.match(re);
+    return m ? m[1].trim() : '';
+  };
+
+  let type = get('TYPE_LOCATION');
+  const typeNorm = type.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (typeNorm.includes('tire')) type = 'Tire lait';
+  else if (typeNorm.includes('aerosol') || typeNorm.includes('aeroso')) type = 'Aérosol';
+  else if (typeNorm.includes('lit')) type = 'Lit';
+  else type = '';
+
+  const phonesRaw = get('TELEPHONES') || get('TELEPHONE') || get('TELS');
+  const phones = phonesRaw
+    .split(/[;,\n|/]+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  return {
+    nom: get('NOM'),
+    prenom: get('PRENOM'),
+    date_naissance: get('DATE_NAISSANCE'),
+    type_location: type,
+    date_ordonnance: get('DATE_ORDONNANCE'),
+    telephones: phones,
+    commentaire: get('COMMENTAIRE'),
+  };
+}
+
+el('applyAiFillBtn').addEventListener('click', () => {
+  const parsed = parseAiFillText(el('aiPasteText').value);
+  if (!parsed.nom && !parsed.prenom && !parsed.date_naissance) {
+    toast('Réponse IA illisible — vérifie le format', 'error');
+    return;
+  }
+
+  const form = el('newForm');
+  if (parsed.nom) form.nom.value = parsed.nom.toUpperCase();
+  if (parsed.prenom) form.prenom.value = parsed.prenom;
+  if (parsed.date_naissance) {
+    form.date_naissance.value = parsed.date_naissance.replace(/\D/g, '').length
+      ? (() => {
+          const input = form.date_naissance;
+          input.value = parsed.date_naissance;
+          maskDateInput(input);
+          return input.value;
+        })()
+      : parsed.date_naissance;
+  }
+  if (parsed.date_ordonnance) {
+    form.date_ordonnance.value = parsed.date_ordonnance;
+    maskDateInput(form.date_ordonnance);
+  }
+  if (parsed.type_location) {
+    const radio = form.querySelector(`input[name="type_location"][value="${parsed.type_location}"]`);
+    if (radio) radio.checked = true;
+  }
+  resetPhones(el('phonesList'), parsed.telephones.length ? parsed.telephones : ['']);
+  form.commentaire.value = parsed.commentaire || '';
+
+  el('aiFillSheet').hidden = true;
+  toast('Formulaire prérempli — vérifie puis crée la fiche');
+});
+
 /* ---------- Module 2 ---------- */
 function currentComment() {
   return state.commentQueue[state.commentIndex] || null;

@@ -66,6 +66,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form-card h2, .sheet-head h2 {
   margin: 0 0 14px; font-family: 'Fraunces', serif; font-size: 20px;
 }
+.form-title-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; margin-bottom: 14px;
+}
+.form-title-row h2 { margin: 0; }
 .form-card.flat { padding: 0; border: none; background: transparent; }
 .form-card label, .form-card fieldset {
   display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted);
