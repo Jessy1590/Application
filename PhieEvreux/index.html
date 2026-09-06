@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phie Evreux</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+
+<script src="../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style> body { display: none; } </style>
+<script src="../protect.js"></script>
+<script>
+  initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");
+</script>
+
+<style>
+  :root {
+    --bg: #0f1a24;
+    --panel: #162532;
+    --line: #243647;
+    --text: #e8eef4;
+    --muted: #8aa0b3;
+    --accent: #3d9cf0;
+    --accent-soft: rgba(61, 156, 240, 0.12);
+    --ok: #3db88a;
+    --warn: #e0a04a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    background:
+      radial-gradient(900px 480px at 12% -8%, rgba(61,156,240,0.14), transparent),
+      radial-gradient(700px 400px at 100% 0%, rgba(61,184,138,0.08), transparent),
+      var(--bg);
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(28px, 5vw, 40px);
+    font-weight: 700;
+    margin: 0 0 10px;
+    letter-spacing: -0.02em;
+  }
+  .lead {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 0 0 28px;
+    max-width: 42ch;
+  }
+  .status {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 14px;
+  }
+  .status-row:last-child { border-bottom: none; }
+  .label { color: var(--muted); }
+  .value { font-weight: 600; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .badge.ok { background: rgba(61,184,138,0.14); color: var(--ok); }
+  .badge.warn { background: rgba(224,160,74,0.14); color: var(--warn); }
+  #msg {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 1.2em;
+  }
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <p class="eyebrow">Sous-site</p>
+    <h1>Phie Evreux</h1>
+    <p class="lead">Connexion Supabase prête (schéma <code>autres</code>, table <code>phie_evreux</code>). La table sera créée ensuite.</p>
+
+    <div class="status">
+      <div class="status-row">
+        <span class="label">Config (CI / secrets)</span>
+        <span class="badge" id="cfgBadge">…</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Session</span>
+        <span class="value" id="sessionLabel">…</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Schéma données</span>
+        <span class="value">autres</span>
+      </div>
+      <div class="status-row">
+        <span class="label">Table cible</span>
+        <span class="value">phie_evreux</span>
+      </div>
+    </div>
+    <p id="msg"></p>
+  </main>
+
+<script>
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg?.url || !cfg?.anonKey) {
+    throw new Error('SUPABASE_CONFIG manquant — shared/supabase-config.js');
+  }
+
+  // Auth / droits → schéma portail
+  const sbAuth = supabase.createClient(cfg.url, cfg.anonKey, {
+    db: { schema: 'portail' }
+  });
+
+  // Données métier → schéma autres (table créée ultérieurement)
+  const sbData = supabase.createClient(cfg.url, cfg.anonKey, {
+    db: { schema: 'autres' }
+  });
+
+  const TABLE_NAME = 'phie_evreux';
+  const el = (id) => document.getElementById(id);
+
+  async function init() {
+    const cfgBadge = el('cfgBadge');
+    cfgBadge.textContent = 'OK';
+    cfgBadge.classList.add('ok');
+
+    const { data: { session } } = await sbAuth.auth.getSession();
+    el('sessionLabel').textContent = session?.user?.email || 'non connecté';
+
+    // Sonde non bloquante : la table n'existe pas encore
+    const { error } = await sbData.from(TABLE_NAME).select('*').limit(1);
+    if (error) {
+      el('msg').textContent =
+        'Table non disponible pour le moment (création prévue) : ' + error.message;
+      return;
+    }
+    el('msg').textContent = 'Table phie_evreux accessible.';
+  }
+
+  init().catch((err) => {
+    el('msg').textContent = err.message || String(err);
+  });
+</script>
+</body>
+</html>
