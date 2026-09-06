@@ -274,9 +274,24 @@ body > a[title="Retour au portail"] {
 .edit-filters {
   display: grid; gap: 8px; margin-bottom: 10px;
 }
-.edit-filters input, .edit-filters select {
-  width: 100%; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
+.edit-filters > input {
+  width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--panel); color: var(--text); font-size: 14px;
+}
+.edit-filters-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.edit-filters-grid select {
+  width: 100%;
+  padding: 8px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  min-height: 38px;
 }
 .edit-summary {
   margin-bottom: 14px; padding: 12px 14px; border-radius: 14px;

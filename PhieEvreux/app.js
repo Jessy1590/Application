@@ -16,7 +16,6 @@ const state = {
   commentIndex: 0,
   callIndex: 0,
   callStep: 'ask_call',
-  listMode: 'recent',
   editingId: null,
   draft: {},
 };
@@ -750,8 +749,6 @@ const editFilters = {
 };
 
 el('fabEdit').addEventListener('click', () => {
-  state.listMode = 'recent';
-  $$('.sheet-tab').forEach((t) => t.classList.toggle('active', t.dataset.list === 'recent'));
   el('editSheet').hidden = false;
   renderEditList();
 });
@@ -759,14 +756,6 @@ el('fabEdit').addEventListener('click', () => {
 $$('[data-close-sheet]').forEach((n) => n.addEventListener('click', () => {
   el('editSheet').hidden = true;
 }));
-
-$$('.sheet-tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    state.listMode = tab.dataset.list;
-    $$('.sheet-tab').forEach((t) => t.classList.toggle('active', t === tab));
-    renderEditList();
-  });
-});
 
 ['filterSearch', 'filterStatut', 'filterResultat', 'filterMail', 'filterType'].forEach((id) => {
   const node = el(id);
@@ -783,14 +772,10 @@ $$('.sheet-tab').forEach((tab) => {
 });
 
 function filteredEditRows() {
-  let rows = state.all;
-  if (state.listMode === 'recent') {
-    const weekAgo = Date.now() - 14 * 24 * 3600 * 1000;
-    rows = rows.filter((r) => {
-      const updated = new Date(r.updated_at || r.created_at).getTime();
-      return updated >= weekAgo || r.commentaire_statut === 'ECRIS' || r.appel_statut !== 'a_appeler';
-    });
-  }
+  let rows = [...state.all];
+  // Plus récent → plus ancien
+  rows.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
   if (editFilters.search) {
     rows = rows.filter((r) => fullName(r).toLowerCase().includes(editFilters.search));
   }

@@ -130,41 +130,39 @@
         <h2 id="editTitle">Fiches</h2>
         <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">✕</button>
       </div>
-      <div class="sheet-tabs">
-        <button type="button" class="sheet-tab active" data-list="recent">Récentes</button>
-        <button type="button" class="sheet-tab" data-list="all">Toutes</button>
-      </div>
       <div class="edit-filters">
         <input type="search" id="filterSearch" placeholder="Rechercher nom / prénom…" autocomplete="off">
-        <select id="filterStatut">
-          <option value="">Statut appel — tous</option>
-          <option value="a_appeler">À appeler</option>
-          <option value="a_rappeler">À rappeler</option>
-          <option value="termine">Terminé</option>
-          <option value="PERTE">PERTE</option>
-        </select>
-        <select id="filterResultat">
-          <option value="">Résultat — tous</option>
-          <option value="__none__">Sans résultat</option>
-          <option value="ramene_semaine">Ramène dans la semaine</option>
-          <option value="ordo_mail">Ordo par mail</option>
-          <option value="message_repondeur">Message répondeur</option>
-          <option value="raccroche">Raccroché</option>
-          <option value="mauvais_numero">Mauvais numéro</option>
-          <option value="pas_de_numero">Pas de numéro</option>
-          <option value="autre_raison">Autre raison</option>
-        </select>
-        <select id="filterMail">
-          <option value="">Mail — tous</option>
-          <option value="oui">Mail envoyé</option>
-          <option value="non">Pas de mail</option>
-        </select>
-        <select id="filterType">
-          <option value="">Type — tous</option>
-          <option value="Lit">Lit</option>
-          <option value="Tire lait">Tire lait</option>
-          <option value="Aérosol">Aérosol</option>
-        </select>
+        <div class="edit-filters-grid">
+          <select id="filterStatut">
+            <option value="">Statut — tous</option>
+            <option value="a_appeler">À appeler</option>
+            <option value="a_rappeler">À rappeler</option>
+            <option value="termine">Terminé</option>
+            <option value="PERTE">PERTE</option>
+          </select>
+          <select id="filterResultat">
+            <option value="">Résultat — tous</option>
+            <option value="__none__">Sans résultat</option>
+            <option value="ramene_semaine">Ramène semaine</option>
+            <option value="ordo_mail">Ordo mail</option>
+            <option value="message_repondeur">Message</option>
+            <option value="raccroche">Raccroché</option>
+            <option value="mauvais_numero">Mauvais n°</option>
+            <option value="pas_de_numero">Pas de n°</option>
+            <option value="autre_raison">Autre raison</option>
+          </select>
+          <select id="filterMail">
+            <option value="">Mail — tous</option>
+            <option value="oui">Mail envoyé</option>
+            <option value="non">Pas de mail</option>
+          </select>
+          <select id="filterType">
+            <option value="">Type — tous</option>
+            <option value="Lit">Lit</option>
+            <option value="Tire lait">Tire lait</option>
+            <option value="Aérosol">Aérosol</option>
+          </select>
+        </div>
       </div>
       <p class="muted tiny" id="editCount"></p>
       <div id="editList" class="edit-list"></div>
