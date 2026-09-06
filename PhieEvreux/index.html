@@ -2,179 +2,208 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Phie Evreux</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0E1C24">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
-
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
 <script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<style> body { display: none; } </style>
+<style>body{display:none}</style>
 <script src="../protect.js"></script>
-<script>
-  initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");
-</script>
-
-<style>
-  :root {
-    --bg: #0f1a24;
-    --panel: #162532;
-    --line: #243647;
-    --text: #e8eef4;
-    --muted: #8aa0b3;
-    --accent: #3d9cf0;
-    --accent-soft: rgba(61, 156, 240, 0.12);
-    --ok: #3db88a;
-    --warn: #e0a04a;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    min-height: 100vh;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    background:
-      radial-gradient(900px 480px at 12% -8%, rgba(61,156,240,0.14), transparent),
-      radial-gradient(700px 400px at 100% 0%, rgba(61,184,138,0.08), transparent),
-      var(--bg);
-  }
-  .wrap {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 48px 20px 80px;
-  }
-  .eyebrow {
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin: 0 0 8px;
-  }
-  h1 {
-    font-family: 'Fraunces', serif;
-    font-size: clamp(28px, 5vw, 40px);
-    font-weight: 700;
-    margin: 0 0 10px;
-    letter-spacing: -0.02em;
-  }
-  .lead {
-    color: var(--muted);
-    font-size: 15px;
-    line-height: 1.55;
-    margin: 0 0 28px;
-    max-width: 42ch;
-  }
-  .status {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 18px 20px;
-  }
-  .status-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 14px;
-  }
-  .status-row:last-child { border-bottom: none; }
-  .label { color: var(--muted); }
-  .value { font-weight: 600; }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .badge.ok { background: rgba(61,184,138,0.14); color: var(--ok); }
-  .badge.warn { background: rgba(224,160,74,0.14); color: var(--warn); }
-  #msg {
-    margin-top: 16px;
-    font-size: 13px;
-    color: var(--muted);
-    min-height: 1.2em;
-  }
-</style>
+<script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="wrap">
-    <p class="eyebrow">Sous-site</p>
-    <h1>Phie Evreux</h1>
-    <p class="lead">Connexion Supabase prête (schéma <code>autres</code>, table <code>phie_evreux</code>). La table sera créée ensuite.</p>
+  <div id="toast" class="toast" hidden></div>
 
-    <div class="status">
-      <div class="status-row">
-        <span class="label">Config (CI / secrets)</span>
-        <span class="badge" id="cfgBadge">…</span>
-      </div>
-      <div class="status-row">
-        <span class="label">Session</span>
-        <span class="value" id="sessionLabel">…</span>
-      </div>
-      <div class="status-row">
-        <span class="label">Schéma données</span>
-        <span class="value">autres</span>
-      </div>
-      <div class="status-row">
-        <span class="label">Table cible</span>
-        <span class="value">phie_evreux</span>
-      </div>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Locations</p>
+      <h1>Phie Evreux</h1>
     </div>
-    <p id="msg"></p>
+    <span class="pill" id="queuePill">—</span>
+  </header>
+
+  <main class="views">
+    <!-- MODULE 1 : Formulaire -->
+    <section class="view active" id="view-form" data-view="form">
+      <form id="newForm" class="card form-card" autocomplete="off">
+        <h2>Nouvelle fiche</h2>
+        <label>Nom
+          <input name="nom" required enterkeyhint="next" autocapitalize="characters">
+        </label>
+        <label>Prénom
+          <input name="prenom" required enterkeyhint="next" autocapitalize="words">
+        </label>
+        <label>Date de naissance
+          <input name="date_naissance" type="date" required>
+        </label>
+        <fieldset class="type-field">
+          <legend>Type de location</legend>
+          <div class="seg" role="radiogroup" aria-label="Type de location">
+            <label class="seg-opt"><input type="radio" name="type_location" value="Lit" required checked><span>Lit</span></label>
+            <label class="seg-opt"><input type="radio" name="type_location" value="Tire lait"><span>Tire lait</span></label>
+            <label class="seg-opt"><input type="radio" name="type_location" value="Aérosol"><span>Aérosol</span></label>
+          </div>
+        </fieldset>
+        <label>Date nécessaire pour nouvelle ordonnance
+          <input name="date_ordonnance" type="date" required>
+        </label>
+        <label>Commentaire
+          <textarea name="commentaire" rows="3" placeholder="Notes utiles…"></textarea>
+        </label>
+        <button type="submit" class="btn primary block" id="submitFormBtn">Créer la fiche</button>
+      </form>
+    </section>
+
+    <!-- MODULE 2 : Cartes commentaires (style Tinder) -->
+    <section class="view" id="view-comments" data-view="comments">
+      <div id="commentsEmpty" class="empty hidden">
+        <p class="empty-title">Aucune fiche en attente</p>
+        <p class="empty-sub">Toutes les fiches ont le statut commentaire ECRIS.</p>
+      </div>
+      <div id="swipeStage" class="swipe-stage">
+        <article class="swipe-card" id="swipeCard">
+          <div class="swipe-type" id="cardType">—</div>
+          <h2 id="cardName">—</h2>
+          <dl class="meta">
+            <div><dt>Naissance</dt><dd id="cardBirth">—</dd></div>
+            <div><dt>Ordonnance</dt><dd id="cardOrdo">—</dd></div>
+          </dl>
+          <p class="card-comment" id="cardComment">—</p>
+          <label class="check-row">
+            <input type="checkbox" id="commentDoneCheck">
+            <span>Commentaire mis sur le compte du patient</span>
+          </label>
+          <button type="button" class="btn primary block" id="validateCommentBtn" disabled>Valider comme effectué</button>
+        </article>
+      </div>
+      <p class="hint" id="commentsHint"></p>
+    </section>
+
+    <!-- MODULE 3 : Arbre décisionnel appels -->
+    <section class="view" id="view-calls" data-view="calls">
+      <div id="callsEmpty" class="empty hidden">
+        <p class="empty-title">Aucun appel en attente</p>
+        <p class="empty-sub">Toutes les fiches ont un suivi d’appel renseigné.</p>
+      </div>
+      <div id="callFlow" class="call-flow hidden">
+        <div class="call-patient card">
+          <div class="swipe-type" id="callType">—</div>
+          <h2 id="callName">—</h2>
+          <p class="muted" id="callMeta">—</p>
+        </div>
+        <div id="callSteps" class="call-steps"></div>
+      </div>
+    </section>
   </main>
 
-<script>
-  const cfg = window.SUPABASE_CONFIG;
-  if (!cfg?.url || !cfg?.anonKey) {
-    throw new Error('SUPABASE_CONFIG manquant — shared/supabase-config.js');
-  }
+  <!-- Modale édition -->
+  <div class="sheet" id="editSheet" hidden>
+    <div class="sheet-backdrop" data-close-sheet></div>
+    <div class="sheet-panel" role="dialog" aria-labelledby="editTitle">
+      <div class="sheet-head">
+        <h2 id="editTitle">Fiches</h2>
+        <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">✕</button>
+      </div>
+      <div class="sheet-tabs">
+        <button type="button" class="sheet-tab active" data-list="recent">Récentes / appels</button>
+        <button type="button" class="sheet-tab" data-list="all">Toutes</button>
+      </div>
+      <div id="editList" class="edit-list"></div>
+    </div>
+  </div>
 
-  // Auth / droits → schéma portail
-  const sbAuth = supabase.createClient(cfg.url, cfg.anonKey, {
-    db: { schema: 'portail' }
-  });
+  <div class="sheet" id="editFormSheet" hidden>
+    <div class="sheet-backdrop" data-close-edit-form></div>
+    <div class="sheet-panel" role="dialog" aria-labelledby="editFormTitle">
+      <div class="sheet-head">
+        <h2 id="editFormTitle">Modifier</h2>
+        <button type="button" class="icon-btn" data-close-edit-form aria-label="Fermer">✕</button>
+      </div>
+      <form id="editForm" class="form-card flat">
+        <input type="hidden" name="id">
+        <label>Nom<input name="nom" required></label>
+        <label>Prénom<input name="prenom" required></label>
+        <label>Date de naissance<input name="date_naissance" type="date"></label>
+        <label>Type
+          <select name="type_location" required>
+            <option>Lit</option>
+            <option>Tire lait</option>
+            <option>Aérosol</option>
+          </select>
+        </label>
+        <label>Date ordonnance<input name="date_ordonnance" type="date"></label>
+        <label>Commentaire<textarea name="commentaire" rows="3"></textarea></label>
+        <label>Statut commentaire
+          <select name="commentaire_statut">
+            <option value="">—</option>
+            <option value="ECRIS">ECRIS</option>
+          </select>
+        </label>
+        <label>Email patient<input name="email_patient" type="email" placeholder="optionnel"></label>
+        <label class="check-row compact">
+          <input type="checkbox" name="dossier_bloque">
+          <span>Dossier bloqué</span>
+        </label>
+        <label class="check-row compact">
+          <input type="checkbox" name="mail_envoye">
+          <span>Mail envoyé</span>
+        </label>
+        <button type="submit" class="btn primary block">Enregistrer</button>
+        <button type="button" class="btn danger ghost block" id="deleteFicheBtn">Supprimer</button>
+      </form>
+    </div>
+  </div>
 
-  // Données métier → schéma autres (table créée ultérieurement)
-  const sbData = supabase.createClient(cfg.url, cfg.anonKey, {
-    db: { schema: 'autres' }
-  });
+  <!-- Vue impression -->
+  <div id="printRoot" class="print-root" hidden>
+    <h1>Phie Evreux — Locations</h1>
+    <p class="print-date" id="printDate"></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th><th>Prénom</th><th>Naissance</th><th>Type</th>
+          <th>Ordonnance</th><th>Commentaire</th><th>Statut com.</th>
+          <th>Appel</th><th>Résultat</th><th>Mail</th><th>Bloqué</th>
+        </tr>
+      </thead>
+      <tbody id="printBody"></tbody>
+    </table>
+  </div>
 
-  const TABLE_NAME = 'phie_evreux';
-  const el = (id) => document.getElementById(id);
+  <!-- FABs -->
+  <div class="fabs">
+    <button type="button" class="fab" id="fabEdit" title="Revoir / modifier les fiches" aria-label="Modifier">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+    <button type="button" class="fab" id="fabPrint" title="Imprimer le tableau" aria-label="Imprimer">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    </button>
+  </div>
 
-  async function init() {
-    const cfgBadge = el('cfgBadge');
-    cfgBadge.textContent = 'OK';
-    cfgBadge.classList.add('ok');
+  <nav class="tabbar" aria-label="Modules">
+    <button type="button" class="tab active" data-tab="form">
+      <span class="tab-ico">＋</span>
+      <span>Nouveau</span>
+    </button>
+    <button type="button" class="tab" data-tab="comments">
+      <span class="tab-ico">✓</span>
+      <span>Comptes</span>
+    </button>
+    <button type="button" class="tab" data-tab="calls">
+      <span class="tab-ico">☎</span>
+      <span>Appels</span>
+    </button>
+  </nav>
 
-    const { data: { session } } = await sbAuth.auth.getSession();
-    el('sessionLabel').textContent = session?.user?.email || 'non connecté';
-
-    // Sonde non bloquante : la table n'existe pas encore
-    const { error } = await sbData.from(TABLE_NAME).select('*').limit(1);
-    if (error) {
-      el('msg').textContent =
-        'Table non disponible pour le moment (création prévue) : ' + error.message;
-      return;
-    }
-    el('msg').textContent = 'Table phie_evreux accessible.';
-  }
-
-  init().catch((err) => {
-    el('msg').textContent = err.message || String(err);
-  });
-</script>
+  <script src="app.js"></script>
 </body>
 </html>
