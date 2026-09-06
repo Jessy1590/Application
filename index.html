@@ -183,6 +183,45 @@
           </form>
         </div>
         <div class="admin-section">
+          <h2>Modifier un site</h2>
+          <form id="editSiteForm" style="background:var(--panel); padding:16px; border:1px solid var(--border); border-radius:10px;">
+            <div class="field">
+              <label for="editSiteSelect">Site à modifier</label>
+              <select id="editSiteSelect" required style="width:100%;padding:11px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+                <option value="">— Choisir un site —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="editSiteName">Nom du site</label>
+              <input type="text" id="editSiteName" required disabled>
+            </div>
+            <div class="field">
+              <label for="editSiteUrl">URL</label>
+              <input type="url" id="editSiteUrl" placeholder="https://..." required disabled>
+            </div>
+            <div class="field">
+              <label for="editSiteDesc">Description</label>
+              <input type="text" id="editSiteDesc" disabled>
+            </div>
+            <div style="display:flex; gap:16px;">
+              <div class="field" style="flex:1;">
+                <label for="editSiteIcon">Icône (ex: 🚀, 🔗)</label>
+                <input type="text" id="editSiteIcon" placeholder="🔗" disabled>
+              </div>
+              <div class="field" style="flex:1;">
+                <label for="editSiteColor">Couleur</label>
+                <input type="color" id="editSiteColor" value="#4FD1C5" style="height:42px; padding:4px; cursor:pointer;" disabled>
+              </div>
+            </div>
+            <div class="field" style="display:flex; align-items:center; gap:10px;">
+              <input type="checkbox" id="editSiteActive" disabled style="width:auto; accent-color:var(--teal);">
+              <label for="editSiteActive" style="margin:0; cursor:pointer;">Site actif</label>
+            </div>
+            <button type="submit" class="btn small" id="editSiteBtn" disabled>Enregistrer les modifications</button>
+            <p id="editSiteMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+        <div class="admin-section">
           <h2>Inviter un utilisateur</h2>
           <form id="inviteUserForm" style="background:var(--panel); padding:16px; border:1px solid var(--border); border-radius:10px;">
             <div class="field"><label for="inviteEmail">Email</label><input type="email" id="inviteEmail" required autocomplete="off"></div>
@@ -225,6 +264,49 @@
   const el = id => document.getElementById(id);
   const loginScreen = el('loginScreen'), dashScreen = el('dashScreen');
   let CURRENT_USER = null, IS_ADMIN = false;
+  let ADMIN_SITES = [];
+
+  const EDIT_SITE_FIELDS = ['editSiteName', 'editSiteUrl', 'editSiteDesc', 'editSiteIcon', 'editSiteColor', 'editSiteActive'];
+
+  function setEditSiteFieldsEnabled(enabled){
+    EDIT_SITE_FIELDS.forEach(id => { el(id).disabled = !enabled; });
+    el('editSiteBtn').disabled = !enabled;
+  }
+
+  function clearEditSiteFields(){
+    el('editSiteName').value = '';
+    el('editSiteUrl').value = '';
+    el('editSiteDesc').value = '';
+    el('editSiteIcon').value = '';
+    el('editSiteColor').value = '#4FD1C5';
+    el('editSiteActive').checked = true;
+    setEditSiteFieldsEnabled(false);
+  }
+
+  function fillEditSiteSelect(sites, preserveId){
+    const select = el('editSiteSelect');
+    const selected = preserveId || select.value;
+    select.innerHTML = '<option value="">— Choisir un site —</option>' +
+      (sites || []).map(s => `<option value="${s.id}">${s.icon || '🔗'} ${s.name}</option>`).join('');
+    if (selected && (sites || []).some(s => s.id === selected)) {
+      select.value = selected;
+      populateEditSiteForm(selected);
+    } else {
+      clearEditSiteFields();
+    }
+  }
+
+  function populateEditSiteForm(siteId){
+    const site = ADMIN_SITES.find(s => s.id === siteId);
+    if (!site) { clearEditSiteFields(); return; }
+    el('editSiteName').value = site.name || '';
+    el('editSiteUrl').value = site.url || '';
+    el('editSiteDesc').value = site.description || '';
+    el('editSiteIcon').value = site.icon || '';
+    el('editSiteColor').value = site.color || '#4FD1C5';
+    el('editSiteActive').checked = site.is_active !== false;
+    setEditSiteFieldsEnabled(true);
+  }
 
   el('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -292,6 +374,50 @@
       
       // Recharger l'affichage de l'interface pour voir le nouveau site
       await loadAdminView(); 
+      await loadMineView();
+    }
+  });
+
+  el('editSiteSelect').addEventListener('change', () => {
+    el('editSiteMsg').textContent = '';
+    const id = el('editSiteSelect').value;
+    if (id) populateEditSiteForm(id);
+    else clearEditSiteFields();
+  });
+
+  el('editSiteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = el('editSiteBtn');
+    const msg = el('editSiteMsg');
+    const selectedId = el('editSiteSelect').value;
+    if (!selectedId) return;
+
+    const name = el('editSiteName').value.trim();
+    const url = el('editSiteUrl').value.trim();
+    const description = el('editSiteDesc').value.trim();
+    const icon = el('editSiteIcon').value.trim() || '🔗';
+    const color = el('editSiteColor').value;
+    const is_active = el('editSiteActive').checked;
+
+    btn.textContent = 'Enregistrement...';
+    btn.disabled = true;
+    msg.textContent = '';
+
+    const { error } = await sb.from('sites').update({
+      name, url, description, icon, color, is_active
+    }).eq('id', selectedId);
+
+    btn.textContent = 'Enregistrer les modifications';
+    btn.disabled = false;
+
+    if (error) {
+      msg.textContent = 'Erreur: ' + error.message;
+      msg.style.color = 'var(--amber)';
+    } else {
+      msg.textContent = 'Site modifié avec succès !';
+      msg.style.color = 'var(--teal)';
+      setTimeout(() => { if (msg.textContent === 'Site modifié avec succès !') msg.textContent = ''; }, 3000);
+      await loadAdminView();
       await loadMineView();
     }
   });
@@ -434,8 +560,11 @@
       sb.from('access_requests').select('id, user_id, site_id, requested_at').eq('status', 'pending').order('requested_at'),
       sb.from('profiles').select('id, email, display_name, role').order('email'),
       sb.from('site_access').select('user_id, site_id'),
-      sb.from('sites').select('id, name, icon, color')
+      sb.from('sites').select('id, name, description, url, icon, color, is_active').order('name')
     ]);
+
+    ADMIN_SITES = sites || [];
+    fillEditSiteSelect(ADMIN_SITES);
 
     const profileById = new Map((profiles || []).map(p => [p.id, p]));
     const siteById = new Map((sites || []).map(s => [s.id, s]));
