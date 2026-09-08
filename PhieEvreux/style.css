@@ -217,6 +217,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .hint { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
 .muted { color: var(--muted); font-size: 14px; margin: 0; }
 
+.skip-arrow { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .hint-swipe { display: none; }
+  .swipe-stage { padding-right: 44px; }
+  .skip-arrow {
+    display: grid; place-items: center;
+    position: absolute; right: 0; top: 50%;
+    width: 36px; height: 36px; padding: 0; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--bg-elev); color: var(--muted);
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: color .12s ease, border-color .12s ease, background .12s ease;
+  }
+  .skip-arrow:hover {
+    color: var(--accent); border-color: var(--accent);
+    background: rgba(59,167,217,0.12);
+  }
+  .skip-arrow:active { transform: translateY(-50%) scale(0.94); }
+}
+
 .call-flow { display: grid; gap: 12px; }
 .call-steps { display: grid; gap: 10px; }
 .step-card {
