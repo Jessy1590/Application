@@ -386,8 +386,9 @@ function renderCommentCard() {
   el('commentDoneCheck').checked = false;
   el('mailAlreadyCheck').checked = !!row.mail_envoye;
   el('validateCommentBtn').disabled = true;
-  el('commentsHint').textContent =
-    `${state.commentIndex + 1} / ${state.commentQueue.length} — glissez pour passer`;
+  el('commentsHint').innerHTML =
+    `${state.commentIndex + 1} / ${state.commentQueue.length}<span class="hint-swipe"> — glissez pour passer</span>`;
+  el('commentsSkipBtn').classList.toggle('hidden', state.commentQueue.length < 2);
 }
 
 el('cardAddPhoneBtn').addEventListener('click', onAddPhoneClick(el('cardPhonesList')));
@@ -466,12 +467,20 @@ function bindSwipe(card, { canDrag, onSkip }) {
   });
 }
 
+function skipCommentCard() {
+  state.commentIndex = (state.commentIndex + 1) % Math.max(state.commentQueue.length, 1);
+  renderCommentCard();
+}
+
 bindSwipe(el('swipeCard'), {
   canDrag: () => !!currentComment(),
-  onSkip: () => {
-    state.commentIndex = (state.commentIndex + 1) % Math.max(state.commentQueue.length, 1);
-    renderCommentCard();
-  },
+  onSkip: skipCommentCard,
+});
+
+el('commentsSkipBtn').addEventListener('click', async () => {
+  if (!currentComment() || state.commentQueue.length < 2) return;
+  await animateSwipe(el('swipeCard'), 'right');
+  skipCommentCard();
 });
 
 /* ---------- Module 3 ---------- */
@@ -553,8 +562,9 @@ function renderCallFlow() {
   }
 
   renderCallPhones(row);
-  el('callsHint').textContent =
-    `${state.callIndex + 1} / ${state.callQueue.length} — glissez pour un autre appel`;
+  el('callsHint').innerHTML =
+    `${state.callIndex + 1} / ${state.callQueue.length}<span class="hint-swipe"> — glissez pour un autre appel</span>`;
+  el('callsSkipBtn').classList.toggle('hidden', state.callQueue.length < 2);
 
   const steps = el('callSteps');
   steps.innerHTML = '';
@@ -833,14 +843,22 @@ async function applyCallUpdate(row, patch) {
   renderCallFlow();
 }
 
+function skipCallCard() {
+  state.callStep = 'ask_call';
+  state.draft = {};
+  state.callIndex = (state.callIndex + 1) % Math.max(state.callQueue.length, 1);
+  renderCallFlow();
+}
+
 bindSwipe(el('callSwipeCard'), {
   canDrag: () => !!currentCall(),
-  onSkip: () => {
-    state.callStep = 'ask_call';
-    state.draft = {};
-    state.callIndex = (state.callIndex + 1) % Math.max(state.callQueue.length, 1);
-    renderCallFlow();
-  },
+  onSkip: skipCallCard,
+});
+
+el('callsSkipBtn').addEventListener('click', async () => {
+  if (!currentCall() || state.callQueue.length < 2) return;
+  await animateSwipe(el('callSwipeCard'), 'right');
+  skipCallCard();
 });
 
 /* ---------- Édition ---------- */
