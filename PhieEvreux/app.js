@@ -185,6 +185,7 @@ function inCallQueue(r) {
 }
 
 async function refresh() {
+  const prevCallId = currentCall()?.id;
   const { data, error } = await sb.from(TABLE).select('*').order('created_at', { ascending: false });
   if (error) { toast(error.message, 'error'); return; }
 
@@ -193,7 +194,16 @@ async function refresh() {
   state.callQueue = state.all.filter(inCallQueue);
 
   if (state.commentIndex >= state.commentQueue.length) state.commentIndex = 0;
-  if (state.callIndex >= state.callQueue.length) {
+
+  if (prevCallId) {
+    const keepIdx = state.callQueue.findIndex((r) => r.id === prevCallId);
+    if (keepIdx >= 0) state.callIndex = keepIdx;
+    else {
+      state.callIndex = 0;
+      state.callStep = 'ask_call';
+      state.draft = {};
+    }
+  } else if (state.callIndex >= state.callQueue.length) {
     state.callIndex = 0;
     state.callStep = 'ask_call';
     state.draft = {};
@@ -497,20 +507,29 @@ function syncCallPatientSelect() {
   const select = el('callPatientSelect');
   if (!select) return;
   const rows = state.callQueue;
-  select.innerHTML = rows.map((r, i) =>
-    `<option value="${i}">${escapeHtml(fullName(r))} — ${escapeHtml(r.type_location || '')}</option>`
+  const current = currentCall();
+  const nextHtml = rows.map((r) =>
+    `<option value="${escapeHtml(r.id)}">${escapeHtml(fullName(r))} — ${escapeHtml(r.type_location || '')}</option>`
   ).join('');
-  if (rows.length) select.value = String(state.callIndex);
+  if (select.dataset.queueKey !== rows.map((r) => r.id).join(',')) {
+    select.innerHTML = nextHtml;
+    select.dataset.queueKey = rows.map((r) => r.id).join(',');
+  }
+  if (current) select.value = current.id;
 }
 
-el('callPatientSelect').addEventListener('change', () => {
-  const idx = Number(el('callPatientSelect').value);
-  if (Number.isNaN(idx) || idx < 0 || idx >= state.callQueue.length) return;
-  state.callIndex = idx;
-  state.callStep = 'ask_call';
-  state.draft = {};
-  renderCallFlow();
-});
+const callPatientSelectEl = el('callPatientSelect');
+if (callPatientSelectEl) {
+  callPatientSelectEl.addEventListener('change', () => {
+    const id = callPatientSelectEl.value;
+    const idx = state.callQueue.findIndex((r) => r.id === id);
+    if (idx < 0) return;
+    state.callIndex = idx;
+    state.callStep = 'ask_call';
+    state.draft = {};
+    renderCallFlow();
+  });
+}
 
 function renderCallPhones(row) {
   const box = el('callPhones');
@@ -606,7 +625,7 @@ function renderCallFlow() {
       ['Oui — appel fait', () => {
         state.draft = { fromPatientRecall: false };
         go('call_yes_comment');
-      }],
+      }, 'secondary'],
       ['Rappel du patient', () => {
         state.draft = { fromPatientRecall: true };
         go('call_yes_comment');
@@ -614,7 +633,7 @@ function renderCallFlow() {
       ['Non — pas d’appel', () => {
         state.draft = {};
         go('call_no');
-      }],
+      }, 'ghost'],
     ]));
   }
 
@@ -622,14 +641,14 @@ function renderCallFlow() {
     const wrap = document.createElement('div');
     wrap.className = 'step-card';
     const heading = state.draft.fromPatientRecall
-      ? 'Rappel par le patient — commentaire (optionnel)'
-      : 'Commentaire d’appel (optionnel)';
+      ? 'Rappel par le patient — résultat'
+      : 'Résultat de l’appel';
     wrap.innerHTML = `
       <h3>${escapeHtml(heading)}</h3>
-      <label class="inline-field">Note
+      <label class="inline-field">Note (optionnel)
         <textarea id="callYesNote" rows="2" placeholder="Ex. a décroché, ton, etc.">${escapeHtml(state.draft.note || '')}</textarea>
       </label>
-      <p class="muted tiny">Puis choisissez le résultat :</p>
+      <p class="muted tiny">Choisissez le résultat :</p>
       <div class="choice-grid" id="yesResults"></div>
     `;
     const grid = $('#yesResults', wrap);
@@ -641,18 +660,18 @@ function renderCallFlow() {
     grid.appendChild(back);
 
     const choices = [
-      ['Réponse : je vous ramène l’appareil dans la semaine', 'ramene_semaine'],
-      ['Réponse : je vous envoie par mail l’ordonnance', 'ordo_mail'],
-      ['Réponse attendue : envoi mail — À faire', 'ordo_mail_a_faire'],
-      ['Laissé un message sur le répondeur', 'message_repondeur'],
-      ['Raccroché', 'raccroche'],
-      ['Mauvais numéro', 'mauvais_numero'],
-      ['Autres', 'autre_raison'],
+      ['Ramène l’appareil dans la semaine', 'ramene_semaine', 'secondary'],
+      ['Envoie l’ordonnance par mail', 'ordo_mail', 'secondary'],
+      ['À faire', 'ordo_mail_a_faire', 'warn'],
+      ['Message sur le répondeur', 'message_repondeur', 'secondary'],
+      ['Raccroché', 'raccroche', 'secondary'],
+      ['Mauvais numéro', 'mauvais_numero', 'secondary'],
+      ['Autres…', 'autre_raison', 'primary'],
     ];
-    choices.forEach(([label, code]) => {
+    choices.forEach(([label, code, cls]) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn secondary';
+      b.className = `btn ${cls}`;
       b.textContent = label;
       b.onclick = () => {
         state.draft.note = el('callYesNote').value.trim();
@@ -671,14 +690,37 @@ function renderCallFlow() {
   if (state.callStep === 'call_yes_autre') {
     const wrap = document.createElement('div');
     wrap.className = 'step-card';
+    const selectedStatut = state.draft.autreStatut || '';
     wrap.innerHTML = `
-      <h3>Autres — précisez</h3>
-      <label class="inline-field">Raison
-        <textarea id="callYesAutreNote" rows="3" required placeholder="Obligatoire">${escapeHtml(state.draft.autreNote || state.draft.note || '')}</textarea>
+      <h3>Autres — ce qui a été dit</h3>
+      <label class="inline-field">Texte de l’échange
+        <textarea id="callYesAutreNote" rows="3" required placeholder="Obligatoire — ce qui a été dit">${escapeHtml(state.draft.autreNote || state.draft.note || '')}</textarea>
       </label>
-      <div class="choice-grid"></div>
+      <p class="muted tiny">Puis choisissez le statut :</p>
+      <div class="statut-seg" id="autreStatutSeg"></div>
+      <div class="choice-grid" id="autreActions"></div>
     `;
-    const grid = $('.choice-grid', wrap);
+    const seg = $('#autreStatutSeg', wrap);
+    const statutChoices = [
+      ['a_appeler', 'À appeler'],
+      ['a_rappeler', 'À rappeler'],
+      ['termine', 'Terminé'],
+      ['PERTE', 'PERTE'],
+    ];
+    statutChoices.forEach(([code, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `btn ghost${selectedStatut === code ? ' active' : ''}`;
+      b.textContent = label;
+      b.onclick = () => {
+        state.draft.autreNote = el('callYesAutreNote').value.trim();
+        state.draft.autreStatut = code;
+        go('call_yes_autre');
+      };
+      seg.appendChild(b);
+    });
+
+    const actions = $('#autreActions', wrap);
     const back = document.createElement('button');
     back.type = 'button';
     back.className = 'btn ghost';
@@ -690,12 +732,13 @@ function renderCallFlow() {
     next.textContent = 'Enregistrer';
     next.onclick = () => {
       const note = el('callYesAutreNote').value.trim();
-      if (!note) { toast('Précision requise', 'error'); return; }
+      if (!note) { toast('Indiquez ce qui a été dit', 'error'); return; }
+      if (!state.draft.autreStatut) { toast('Choisissez un statut', 'error'); return; }
       state.draft.note = note;
       state.draft.resultat = 'autre_raison';
       handleCallYes(row);
     };
-    grid.append(back, next);
+    actions.append(back, next);
     steps.appendChild(wrap);
   }
 
@@ -746,9 +789,9 @@ function renderCallFlow() {
     steps.appendChild(stepCard(
       'Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?',
       [
-        ['Oui — j’envoie un mail', () => handleMailYes(row)],
-        ['À faire', () => handleMailAFaire(row)],
-        ['Non', () => handleNoMail(row)],
+        ['Oui — j’envoie un mail', () => handleMailYes(row), 'secondary'],
+        ['À faire', () => handleMailAFaire(row), 'warn'],
+        ['Non', () => handleNoMail(row), 'ghost'],
       ],
       () => {
         state.callStep = state.draft.backAfterMail || 'ask_call';
@@ -801,10 +844,12 @@ async function handleCallYes(row) {
   }
 
   if (code === 'autre_raison') {
-    const line = `${date} — ${prefix} : autres — ${note}`;
+    const statut = state.draft.autreStatut || 'a_rappeler';
+    const statutLabel = APPEL_STATUT_LABELS[statut] || statut;
+    const line = `${date} — ${prefix} : autres — ${note} → ${statutLabel}`;
     await applyCallUpdate(row, {
       appel_resultat: 'autre_raison',
-      appel_statut: 'a_rappeler',
+      appel_statut: statut,
       journal: appendJournal(row, line),
     });
     return;
