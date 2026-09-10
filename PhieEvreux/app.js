@@ -625,15 +625,15 @@ function renderCallFlow() {
       ['Oui — appel fait', () => {
         state.draft = { fromPatientRecall: false };
         go('call_yes_comment');
-      }, 'secondary'],
+      }],
       ['Rappel du patient', () => {
         state.draft = { fromPatientRecall: true };
         go('call_yes_comment');
-      }, 'primary'],
+      }],
       ['Non — pas d’appel', () => {
         state.draft = {};
         go('call_no');
-      }, 'ghost'],
+      }],
     ]));
   }
 
@@ -641,14 +641,14 @@ function renderCallFlow() {
     const wrap = document.createElement('div');
     wrap.className = 'step-card';
     const heading = state.draft.fromPatientRecall
-      ? 'Rappel par le patient — résultat'
-      : 'Résultat de l’appel';
+      ? 'Rappel par le patient — commentaire (optionnel)'
+      : 'Commentaire d’appel (optionnel)';
     wrap.innerHTML = `
       <h3>${escapeHtml(heading)}</h3>
-      <label class="inline-field">Note (optionnel)
+      <label class="inline-field">Note
         <textarea id="callYesNote" rows="2" placeholder="Ex. a décroché, ton, etc.">${escapeHtml(state.draft.note || '')}</textarea>
       </label>
-      <p class="muted tiny">Choisissez le résultat :</p>
+      <p class="muted tiny">Puis choisissez le résultat :</p>
       <div class="choice-grid" id="yesResults"></div>
     `;
     const grid = $('#yesResults', wrap);
@@ -660,18 +660,17 @@ function renderCallFlow() {
     grid.appendChild(back);
 
     const choices = [
-      ['Ramène l’appareil dans la semaine', 'ramene_semaine', 'secondary'],
-      ['Envoie l’ordonnance par mail', 'ordo_mail', 'secondary'],
-      ['À faire', 'ordo_mail_a_faire', 'warn'],
-      ['Message sur le répondeur', 'message_repondeur', 'secondary'],
-      ['Raccroché', 'raccroche', 'secondary'],
-      ['Mauvais numéro', 'mauvais_numero', 'secondary'],
-      ['Autres…', 'autre_raison', 'primary'],
+      ['Réponse : je vous ramène l’appareil dans la semaine', 'ramene_semaine'],
+      ['Réponse : je vous envoie par mail l’ordonnance', 'ordo_mail'],
+      ['Laissé un message sur le répondeur', 'message_repondeur'],
+      ['Raccroché', 'raccroche'],
+      ['Mauvais numéro', 'mauvais_numero'],
+      ['Autres', 'autre_raison'],
     ];
-    choices.forEach(([label, code, cls]) => {
+    choices.forEach(([label, code]) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = `btn ${cls}`;
+      b.className = 'btn secondary';
       b.textContent = label;
       b.onclick = () => {
         state.draft.note = el('callYesNote').value.trim();
@@ -789,9 +788,9 @@ function renderCallFlow() {
     steps.appendChild(stepCard(
       'Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?',
       [
-        ['Oui — j’envoie un mail', () => handleMailYes(row), 'secondary'],
-        ['À faire', () => handleMailAFaire(row), 'warn'],
-        ['Non', () => handleNoMail(row), 'ghost'],
+        ['Oui — j’envoie un mail', () => handleMailYes(row)],
+        ['À faire', () => handleMailAFaire(row)],
+        ['Non', () => handleNoMail(row)],
       ],
       () => {
         state.callStep = state.draft.backAfterMail || 'ask_call';
@@ -828,16 +827,6 @@ async function handleCallYes(row) {
     await applyCallUpdate(row, {
       appel_resultat: code,
       appel_statut: 'termine',
-      journal: appendJournal(row, line),
-    });
-    return;
-  }
-
-  if (code === 'ordo_mail_a_faire') {
-    const line = `${date} — ${prefix} : envoie l’ordonnance par mail — À faire` + (note ? ` (${note})` : '');
-    await applyCallUpdate(row, {
-      appel_resultat: 'ordo_mail_a_faire',
-      appel_statut: 'a_rappeler',
       journal: appendJournal(row, line),
     });
     return;

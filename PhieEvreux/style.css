@@ -162,17 +162,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .patient-pick {
   display: grid; gap: 6px; width: 100%; margin: 0 0 12px;
-  padding: 12px; border-radius: 14px;
-  background: var(--panel); border: 1px solid var(--accent);
   font-size: 13px; color: var(--muted);
-}
-.patient-pick > span {
-  color: var(--accent); font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; font-size: 11px;
 }
 .patient-pick select {
   width: 100%; padding: 12px 14px; border-radius: 12px;
-  border: 1px solid var(--line); background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--line); background: var(--panel); color: var(--text);
   font-size: 15px; font-weight: 600;
 }
 .patient-pick select:focus {
@@ -184,19 +178,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--bg-elev); border-color: rgba(42,69,86,0.9);
 }
 .choice-grid { display: grid; gap: 10px; }
-.choice-grid .btn {
-  text-align: left; font-weight: 600;
-  background: var(--bg-elev); color: var(--text); border: 1px solid var(--line);
-}
-.choice-grid .btn.primary {
-  background: var(--accent); color: #06202C; border-color: var(--accent);
-}
-.choice-grid .btn.secondary {
-  background: rgba(47,155,122,0.2); color: #7ED4B5; border: 1px solid rgba(47,155,122,0.35);
-}
-.choice-grid .btn.warn {
-  background: rgba(212,163,92,0.18); color: #E8C98A; border: 1px solid rgba(212,163,92,0.4);
-}
+.choice-grid .btn { text-align: left; font-weight: 600; background: var(--bg-elev); color: var(--text); border: 1px solid var(--line); }
 .statut-seg {
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
 }
@@ -204,7 +186,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   text-align: center; padding: 12px 8px; font-size: 13px;
 }
 .statut-seg .btn.active {
-  background: rgba(59,167,217,0.2); border-color: var(--accent); color: var(--accent);
+  border-color: var(--line); background: var(--panel); font-weight: 700;
 }
 
 .empty {
