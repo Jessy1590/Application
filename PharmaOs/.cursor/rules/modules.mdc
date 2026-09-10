@@ -34,10 +34,11 @@ src/modules/<domaine>/
 - **Référence appels :** `src/modules/calls/shared/CallForm.jsx` — comptoir + dashboard.
 - **Référence IP :** `src/modules/ip/shared/IpForm.jsx` — comptoir + dashboard.
 - **Fermeture fenêtre module :** après validation d’un formulaire taskbar, fermer via `closeModuleWindow()` **sauf** si un enchaînement est demandé (ex. appel motif IP → ouvrir le module IP pré-rempli ; réclamation → Qualité ; litige_fournisseur → Litiges).
-- **Taskbar groupes :** `Tâches` (tâches, commande, facturation) puis `Communication` (appels, annuaire, IP).
+- **Taskbar groupes :** `Tâches` (tâches, commande, facturation) puis `Communication` (appels, annuaire, IP) ; `Métier` inclut RH (`hr`).
 
 ## Modules dashboard-only (exemples)
-- `agenda/`, `hr/` — pas de dossier `comptoir/` requis
+- `agenda/` — pas de dossier `comptoir/` requis
+- `hr/` — dashboard admin + module taskbar `comptoir/Hr.jsx` (retard / demande absence)
 
 ## Hors scope v1
 - UI Dashboard **équipe** (voir `DASHBOARD_EQUIPE.md`) — documenter, ne pas implémenter

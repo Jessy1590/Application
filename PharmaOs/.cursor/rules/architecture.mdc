@@ -21,7 +21,8 @@ alwaysApply: true
 
 ## Electron
 - `electron/main.js` + `preload.cjs` — `contextIsolation: true`, `nodeIntegration: false`
-- IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`
+- IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`, `window:openBug`, `bug:submit`
+- Surfaces : Taskbar (`index.html`), Module (`module.html`), Dashboard (`dashboard.html`), Bug (`bug.html`)
 - Bouton Dashboard Taskbar **uniquement si** `portail.profiles.role === 'admin'`
 
 ## Données

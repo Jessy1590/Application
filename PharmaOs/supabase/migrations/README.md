@@ -13,6 +13,8 @@ Ordre :
 9. `009_drop_controls_module_tables.sql` — drop `daily_controls` + `equipment_calibrations` (module controls retiré)
 10. `010_call_logs_motif_litige_fournisseur.sql` — motif `litige_fournisseur`
 11. `011_drop_unused_advice_magistral_tables.sql` — drop `advice_events`, `magistral_providers`, `magistral_price_rules` (+ colonnes FK sur `magistral_orders`)
+12. `012`–`015` — litiges / qualité / périmés workflow
+13. `016_hr_workflow.sql` — absences `statut` + revue ; `change_type` retards
 
 Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
 

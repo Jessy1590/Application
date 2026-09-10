@@ -9,7 +9,7 @@ alwaysApply: true
 ## Electron
 - `contextIsolation: true`, `nodeIntegration: false` sur **toutes** les BrowserWindow
 - Preload expose uniquement `window.electronAPI` (allowlist IPC)
-- Canaux : `window:setMode` (`login|expanded|reduced`), `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`
+- Canaux : `window:setMode` (`login|expanded|reduced`), `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`, `window:openBug`, `bug:submit`
 
 ## Supabase
 - Clé **anon** uniquement côté client — **jamais** `service_role`

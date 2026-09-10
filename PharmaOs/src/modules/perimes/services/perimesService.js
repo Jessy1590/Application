@@ -343,10 +343,11 @@ export async function insertPerime(userId, form) {
   const decisionDue = subMonthsISO(form.date_peremption, 3);
   const needsDecisionNow = decisionDue <= todayISO();
 
+  const cipCode = (form.cip || form.code || '').trim() || null;
   const payload = {
     medicament: form.medicament.trim(),
-    code: form.code?.trim() || null,
-    cip: form.cip?.trim() || null,
+    code: cipCode,
+    cip: cipCode,
     lot: form.lot?.trim() || null,
     date_peremption: form.date_peremption,
     quantite: Number(form.quantite) || 1,
@@ -402,12 +403,40 @@ export async function completePerimeDecisionTask(perimeId, displayName) {
     .select('decision_task_id')
     .eq('id', perimeId)
     .maybeSingle();
-  if (!row?.decision_task_id) return null;
+
+  let taskId = row?.decision_task_id || null;
+
+  // Repli : retrouver la tâche via le JSON (si decision_task_id manquant)
+  if (!taskId) {
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('id, description')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    const found = (tasks || []).find((t) => {
+      try {
+        const d = JSON.parse(t.description || '{}');
+        return d.type === 'perime_decision' && d.perime_id === perimeId;
+      } catch {
+        return false;
+      }
+    });
+    taskId = found?.id || null;
+    if (taskId) {
+      await supabase
+        .from('perimes')
+        .update({ decision_task_id: taskId, updated_at: new Date().toISOString() })
+        .eq('id', perimeId);
+    }
+  }
+
+  if (!taskId) return null;
 
   const now = new Date();
   const note = `Décision prise par ${displayName || 'Admin'} le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.`;
-  await completeAssignmentByTaskId(row.decision_task_id, note);
-  return row.decision_task_id;
+  const { error } = await completeAssignmentByTaskId(taskId, note);
+  if (error) throw new Error(error.message || 'Impossible de clôturer la tâche décision.');
+  return taskId;
 }
 
 /**

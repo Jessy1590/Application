@@ -16,7 +16,9 @@ const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
 let moduleWindow = null;
 let dashboardWindow = null;
+let bugWindow = null;
 let currentMode = 'login';
+let pendingDashboardNav = null;
 
 function computeBoundsForMode(mode) {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
@@ -173,10 +175,21 @@ ipcMain.handle('window:confirmModuleClose', () => {
   return { ok: false, error: 'no-module-window' };
 });
 
-ipcMain.handle('window:openDashboard', () => {
+ipcMain.handle('window:openDashboard', (_event, options) => {
+  const nav = options && typeof options === 'object' ? options : null;
+  if (nav) pendingDashboardNav = nav;
+
+  const sendNav = () => {
+    if (dashboardWindow && pendingDashboardNav) {
+      dashboardWindow.webContents.send('dashboard:navigate', pendingDashboardNav);
+      pendingDashboardNav = null;
+    }
+  };
+
   if (dashboardWindow) {
     if (dashboardWindow.isMinimized()) dashboardWindow.restore();
     dashboardWindow.focus();
+    sendNav();
     return { ok: true, status: 'focused' };
   }
 
@@ -201,6 +214,11 @@ ipcMain.handle('window:openDashboard', () => {
 
   dashboardWindow.once('ready-to-show', () => {
     dashboardWindow.show();
+    sendNav();
+  });
+
+  dashboardWindow.webContents.on('did-finish-load', () => {
+    sendNav();
   });
 
   dashboardWindow.on('closed', () => {
@@ -208,6 +226,77 @@ ipcMain.handle('window:openDashboard', () => {
   });
 
   return { ok: true, status: 'created' };
+});
+
+function getBugDir() {
+  if (isDev) {
+    return path.join(__dirname, '..', 'bug');
+  }
+  return path.join(app.getPath('userData'), 'bug');
+}
+
+ipcMain.handle('window:openBug', () => {
+  if (bugWindow) {
+    if (bugWindow.isMinimized()) bugWindow.restore();
+    bugWindow.focus();
+    return { ok: true, status: 'focused' };
+  }
+
+  bugWindow = new BrowserWindow({
+    width: 560,
+    height: 480,
+    center: true,
+    show: false,
+    autoHideMenuBar: true,
+    title: 'PharmaOS — Signalement bug',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isDev) {
+    bugWindow.loadURL('http://localhost:5173/bug.html');
+  } else {
+    bugWindow.loadFile(path.join(__dirname, '../dist/bug.html'));
+  }
+
+  bugWindow.once('ready-to-show', () => {
+    bugWindow.show();
+  });
+
+  bugWindow.on('closed', () => {
+    bugWindow = null;
+  });
+
+  return { ok: true, status: 'created' };
+});
+
+ipcMain.handle('bug:submit', async (_event, text) => {
+  const body = typeof text === 'string' ? text.trim() : '';
+  if (!body) return { ok: false, error: 'empty' };
+  if (body.length > 20000) return { ok: false, error: 'too-long' };
+
+  try {
+    const fs = await import('fs/promises');
+    const dir = getBugDir();
+    await fs.mkdir(dir, { recursive: true });
+    const now = new Date();
+    const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const fileName = `bug-${stamp}.md`;
+    const filePath = path.join(dir, fileName);
+    const content = [
+      `# Bug — ${now.toLocaleString('fr-FR')}`,
+      '',
+      body,
+      '',
+    ].join('\n');
+    await fs.writeFile(filePath, content, 'utf8');
+    return { ok: true, path: filePath, fileName };
+  } catch (err) {
+    return { ok: false, error: err.message || 'write-failed' };
+  }
 });
 
 app.whenReady().then(createWindow);

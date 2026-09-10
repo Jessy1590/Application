@@ -19,7 +19,7 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase
         .schema('portail')
         .from('profiles')
-        .select('display_name, role')
+        .select('display_name, role, job_title')
         .eq('id', userId)
         .single();
 

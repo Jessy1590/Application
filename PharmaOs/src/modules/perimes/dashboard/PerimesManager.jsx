@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ArrowLeft, Package, CheckCircle2, Scale, HeartHandshake, Sparkles, Tag,
   MapPin, Settings2, Trophy,
@@ -83,7 +83,7 @@ function TrackingCard({ title, icon: Icon, items, empty, renderExtra }) {
   );
 }
 
-export default function PerimesManager({ onNavigate }) {
+export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
   const { user, profile } = useAuth();
   const [items, setItems] = useState([]);
   const [emplacements, setEmplacements] = useState([]);
@@ -96,6 +96,7 @@ export default function PerimesManager({ onNavigate }) {
   const [saving, setSaving] = useState(false);
   const [showEmplacements, setShowEmplacements] = useState(false);
   const [newEmpLabel, setNewEmpLabel] = useState('');
+  const focusHandled = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,6 +117,20 @@ export default function PerimesManager({ onNavigate }) {
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!focusPerimeId || loading || !items.length) return;
+    if (focusHandled.current === focusPerimeId) return;
+    const target = items.find((p) => p.id === focusPerimeId);
+    if (!target) return;
+    if (target.status !== 'declare' && target.status !== 'a_decider') return;
+    focusHandled.current = focusPerimeId;
+    setFilter(target.status);
+    setDeciding(target);
+    setForm(emptyDecision);
+    setMsg('');
+    setErr('');
+  }, [focusPerimeId, items, loading]);
 
   const tracking = useMemo(() => splitTracking(items), [items]);
   const activeEmps = emplacements.filter((e) => e.actif);
@@ -430,9 +445,10 @@ export default function PerimesManager({ onNavigate }) {
                 <td className="p-4">
                   <p className="font-medium">{p.medicament}</p>
                   <p className="text-xs text-slate-500">
-                    {[p.code && `Code ${p.code}`, p.cip && `CIP ${p.cip}`, p.lot && `Lot ${p.lot}`]
-                      .filter(Boolean)
-                      .join(' · ')}
+                    {[
+                      (p.cip || p.code) && `CIP ${p.cip || p.code}`,
+                      p.lot && `Lot ${p.lot}`,
+                    ].filter(Boolean).join(' · ')}
                   </p>
                 </td>
                 <td className="p-4 whitespace-nowrap">

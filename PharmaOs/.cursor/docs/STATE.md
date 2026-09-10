@@ -22,6 +22,13 @@
 
 - Principal, qualité, métier, admin (home + hr) — UI + services + sql.
 
+## Refonte RH (fait — 2026-09-10)
+
+- Migration `016_hr_workflow` : `hr_absences.statut` (+ revue), `hr_schedule_changes.change_type`.
+- Dashboard `HrManager` : planning grille, validation absences, retards, présence, récap corrigé.
+- Comptoir taskbar `#hr` : mon planning, retard, demande absence, mes demandes.
+- Tâche admin `hr_absence_demande` → bouton « Ouvrir RH dashboard ».
+
 
 
 ## Phase SQL (fait — 2026-09-03)

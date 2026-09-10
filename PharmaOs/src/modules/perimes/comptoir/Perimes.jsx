@@ -95,9 +95,10 @@ export default function Perimes() {
                   </span>
                 </div>
                 <p className="text-slate-600 mt-1">
-                  {[p.code && `Code ${p.code}`, p.cip && `CIP ${p.cip}`, p.lot && `Lot ${p.lot}`]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {[
+                    (p.cip || p.code) && `CIP ${p.cip || p.code}`,
+                    p.lot && `Lot ${p.lot}`,
+                  ].filter(Boolean).join(' · ')}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
                   DLC {new Date(p.date_peremption).toLocaleDateString('fr-FR')} — Qté {p.quantite}

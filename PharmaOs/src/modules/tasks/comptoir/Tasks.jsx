@@ -14,8 +14,9 @@ import {
 } from '../shared/taskDisplay.js';
 import {
   CheckCircle, MessageSquare, CheckSquare, User, Calendar, Tag, FileText,
-  ShoppingBag, AlertOctagon, Filter,
+  ShoppingBag, AlertOctagon, Filter, LayoutDashboard,
 } from 'lucide-react';
+import { openDashboardWindow, closeModuleWindow } from '../../../shared/windowService.js';
 
 export default function Tasks() {
   const { user, profile } = useAuth();
@@ -83,6 +84,30 @@ export default function Tasks() {
     completeTask(assignment);
   };
 
+  const openPerimeDecisionOnDashboard = async (assignment) => {
+    const details = parseTaskDetails(assignment.tasks?.description);
+    await openDashboardWindow({
+      page: 'perimes',
+      perimeId: details.perime_id || null,
+    });
+    await closeModuleWindow();
+  };
+
+  const openHrOnDashboard = async () => {
+    await openDashboardWindow({ page: 'hr' });
+    await closeModuleWindow();
+  };
+
+  const isPerimeDecision = (assignment) => {
+    const details = parseTaskDetails(assignment.tasks?.description);
+    return details.type === 'perime_decision';
+  };
+
+  const isHrAdminAction = (assignment) => {
+    const details = parseTaskDetails(assignment.tasks?.description);
+    return details.type === 'hr_absence_demande' || details.type === 'hr_horaire_demande';
+  };
+
   const handleRetraitConfirm = () => {
     const qty = quantites[retraitModal.id];
     if (qty === '' || qty === undefined || qty === null) {
@@ -144,6 +169,52 @@ export default function Tasks() {
               .filter(Boolean)
               .join(' · ')}
           </p>
+        </div>
+      );
+    }
+    if (data.type === 'hr_absence_demande') {
+      return (
+        <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm">
+          <p className="font-bold text-indigo-800 mb-1">Demande d&apos;absence à valider</p>
+          <p>
+            {data.absence_type || 'Absence'} — {data.date_debut} → {data.date_fin}
+          </p>
+          {data.motif && <p className="text-xs text-slate-600 mt-1">{data.motif}</p>}
+        </div>
+      );
+    }
+    if (data.type === 'hr_absence_reponse') {
+      return (
+        <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm">
+          <p className="font-bold text-indigo-800 mb-1">
+            Réponse absence — {data.statut === 'validee' ? 'Acceptée' : 'Refusée'}
+          </p>
+          <p>{data.absence_type || 'Absence'} — {data.date_debut} → {data.date_fin}</p>
+          {data.review_note && <p className="text-xs text-slate-600 mt-1 italic">{data.review_note}</p>}
+        </div>
+      );
+    }
+    if (data.type === 'hr_horaire_demande') {
+      return (
+        <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm">
+          <p className="font-bold text-indigo-800 mb-1">Changement d&apos;horaire à valider</p>
+          <p>
+            {data.date_debut}
+            {data.heure_debut ? ` · ${String(data.heure_debut).slice(0, 5)}` : ''}
+            {data.heure_fin ? `–${String(data.heure_fin).slice(0, 5)}` : ''}
+          </p>
+          {data.commentaire && <p className="text-xs text-slate-600 mt-1">{data.commentaire}</p>}
+        </div>
+      );
+    }
+    if (data.type === 'hr_horaire_reponse') {
+      return (
+        <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-sm">
+          <p className="font-bold text-indigo-800 mb-1">
+            Réponse horaire — {data.statut === 'validee' ? 'Accepté' : 'Refusé'}
+          </p>
+          <p>{data.date_debut}</p>
+          {data.review_note && <p className="text-xs text-slate-600 mt-1 italic">{data.review_note}</p>}
         </div>
       );
     }
@@ -314,21 +385,41 @@ export default function Tasks() {
                 {renderDescription(assignment.tasks?.description, assignment.tasks?.titre)}
               </div>
               <div className="flex items-center gap-3 pt-4 mt-4 border-t border-slate-100">
-                <MessageSquare size={18} className="text-slate-400 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Ajouter une note ou visa de clôture..."
-                  value={comments[assignment.id] || ''}
-                  onChange={(e) => setComments({ ...comments, [assignment.id]: e.target.value })}
-                  className="flex-1 text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCompleteTask(assignment)}
-                  className={`font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors shrink-0 text-white ${isRetrait(assignment) ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                >
-                  <CheckCircle size={18} /> Clôturer
-                </button>
+                {isPerimeDecision(assignment) ? (
+                  <button
+                    type="button"
+                    onClick={() => openPerimeDecisionOnDashboard(assignment)}
+                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-amber-600 hover:bg-amber-700"
+                  >
+                    <LayoutDashboard size={18} /> Décider sur le dashboard
+                  </button>
+                ) : isHrAdminAction(assignment) ? (
+                  <button
+                    type="button"
+                    onClick={() => openHrOnDashboard()}
+                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    <LayoutDashboard size={18} /> Ouvrir RH dashboard
+                  </button>
+                ) : (
+                  <>
+                    <MessageSquare size={18} className="text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Ajouter une note ou visa de clôture..."
+                      value={comments[assignment.id] || ''}
+                      onChange={(e) => setComments({ ...comments, [assignment.id]: e.target.value })}
+                      className="flex-1 text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleCompleteTask(assignment)}
+                      className={`font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors shrink-0 text-white ${isRetrait(assignment) ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    >
+                      <CheckCircle size={18} /> Clôturer
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))

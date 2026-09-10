@@ -27,7 +27,7 @@ export function isPlainTaskDetails(details) {
 
 /**
  * Catégories pour filtres / regroupement.
- * @returns {'commande'|'facturation'|'retrait_lot'|'stock'|'perimes'|'ip'|'appel'|'etalonnage'|'autre'|'libre'}
+ * @returns {'commande'|'facturation'|'retrait_lot'|'stock'|'perimes'|'ip'|'appel'|'etalonnage'|'hr'|'autre'|'libre'}
  */
 export function getTaskCategory(description, titre = '') {
   const d = parseTaskDetails(description);
@@ -44,6 +44,12 @@ export function getTaskCategory(description, titre = '') {
   if (d.type === 'nc_brouillon') return 'nc';
   if (d.type === 'appel_attente_pharmacien') return 'appel';
   if (d.type === 'etalonnage_rdv') return 'etalonnage';
+  if (
+    d.type === 'hr_absence_demande'
+    || d.type === 'hr_absence_reponse'
+    || d.type === 'hr_horaire_demande'
+    || d.type === 'hr_horaire_reponse'
+  ) return 'hr';
   if (titre.startsWith('Commande') || (d.medicament && !d.lot && !d.type)) return 'commande';
   if (titre.startsWith('Facturation') || d.facture !== undefined) return 'facturation';
   if (isPlainTaskDetails(d)) return 'libre';
@@ -68,6 +74,7 @@ export const TASK_CATEGORY_LABELS = {
   nc: 'NC à finaliser',
   appel: 'Appels pharmacien',
   etalonnage: 'Étalonnage',
+  hr: 'RH',
   autre: 'Autres',
 };
 

@@ -19,6 +19,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         module: path.resolve(__dirname, 'module.html'),
         dashboard: path.resolve(__dirname, 'dashboard.html'),
+        bug: path.resolve(__dirname, 'bug.html'),
       },
     },
   },

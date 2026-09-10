@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import { NAV_SECTIONS } from './navConfig.js';
@@ -32,8 +32,7 @@ function PlaceholderPage({ label }) {
   );
 }
 
-/** Pages migrées (mod-principal + mod-metier). Autres agents : ajouter leurs cases sans écraser. */
-function renderDashboardPage(pageId, activeLabel, onNavigate) {
+function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
   switch (pageId) {
     case 'dashboard':
       return <HomeDashboard onNavigate={onNavigate} />;
@@ -62,7 +61,7 @@ function renderDashboardPage(pageId, activeLabel, onNavigate) {
     case 'documents':
       return <DocumentManager onNavigate={onNavigate} />;
     case 'perimes':
-      return <PerimesManager onNavigate={onNavigate} />;
+      return <PerimesManager onNavigate={onNavigate} focusPerimeId={pageData?.perimeId || null} />;
     case 'stock':
       return <StockErrorManager onNavigate={onNavigate} />;
     case 'retrait_lot':
@@ -74,13 +73,19 @@ function renderDashboardPage(pageId, activeLabel, onNavigate) {
   }
 }
 
-/**
- * Shell Dashboard admin — layout + nav.
- * Les pages métier seront branchées progressivement par lot de modules.
- */
 export default function DashboardShell() {
   const { user, profile, isAdmin, isLoading, signOut } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [pageData, setPageData] = useState(null);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onDashboardNavigate) return undefined;
+    return window.electronAPI.onDashboardNavigate((payload) => {
+      if (!payload?.page) return;
+      setCurrentPage(payload.page);
+      setPageData(payload);
+    });
+  }, []);
 
   if (isLoading) {
     return (
@@ -135,7 +140,10 @@ export default function DashboardShell() {
                     <li key={item.id}>
                       <button
                         type="button"
-                        onClick={() => setCurrentPage(item.id)}
+                        onClick={() => {
+                          setCurrentPage(item.id);
+                          setPageData(null);
+                        }}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                           active
                             ? 'bg-white/10 text-white font-medium'
@@ -165,7 +173,7 @@ export default function DashboardShell() {
 
       <main className="flex-1 min-w-0 overflow-y-auto">
         <div className="p-6 xl:p-8 max-w-[1600px]">
-          {renderDashboardPage(currentPage, activeLabel, setCurrentPage)}
+          {renderDashboardPage(currentPage, activeLabel, setCurrentPage, pageData)}
         </div>
       </main>
     </div>

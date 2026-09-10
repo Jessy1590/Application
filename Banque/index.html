@@ -350,7 +350,7 @@
     <div class="bh-section-label">Évolution (dépenses réglées, 12 derniers mois)</div>
     <div class="bh-card" id="stat-evolution"></div>
 
-    <div class="bh-section-label">Ce mois vs mois précédent</div>
+    <div class="bh-section-label">Dépenses effectives : ce mois vs mois précédent</div>
     <div class="bh-card" id="stat-comparison"></div>
 
     <div class="bh-section-label">Détail par catégorie</div>
@@ -453,13 +453,13 @@
     <div class="bh-two-col">
       <div>
         <div class="bh-field-label">Compte</div>
-        <input type="text" id="f-compte" list="bh-comptes-list" placeholder="Ex. Joint" oninput="BH.checkPayerField()">
-        <datalist id="bh-comptes-list"></datalist>
+        <select id="f-compte" onchange="BH.onCompteSelect()"></select>
+        <input type="text" id="f-compte-new" placeholder="Nom du nouveau compte" style="display:none; margin-top:4px;">
       </div>
       <div id="f-cat-wrap">
         <div class="bh-field-label">Catégorie</div>
-        <input type="text" id="f-cat" list="bh-cat-list" placeholder="Ex. Habitation">
-        <datalist id="bh-cat-list"></datalist>
+        <select id="f-cat" onchange="BH.onCatSelect()"></select>
+        <input type="text" id="f-cat-new" placeholder="Nouvelle catégorie" style="display:none; margin-top:4px;">
       </div>
     </div>
 
@@ -1756,6 +1756,16 @@
        const curKey = this.monthKey(now);
        const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
        const prevKey = this.monthKey(prevDate);
+       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+       const totalForMonth = (mKey) => {
+          let sum = 0;
+          (this.state.monthRecords || []).filter(r => r.month_key === mKey).forEach(rec => {
+             const paid = rec.paid_expenses || {};
+             sum += Object.values(paid).reduce((s, p) => s + Number(p.amount || 0), 0);
+          });
+          return sum;
+       };
 
        const catTotalsForMonth = (mKey) => {
           const totals = {};
@@ -1770,14 +1780,56 @@
           return totals;
        };
 
+       const curTotal = totalForMonth(curKey);
+       const prevTotal = totalForMonth(prevKey);
        const cur = catTotalsForMonth(curKey);
        const prev = catTotalsForMonth(prevKey);
        const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])];
 
        const el = document.getElementById('stat-comparison');
-       if (allCats.length === 0) { el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données validées pour comparer.</div>'; return; }
+       if (curTotal === 0 && prevTotal === 0 && allCats.length === 0) {
+          el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données validées pour comparer.</div>';
+          return;
+       }
 
-       let html = '';
+       // Diagramme barres jumelées : dépenses effectives mois N vs N-1
+       const maxT = Math.max(curTotal, prevTotal, 1);
+       const w = 300, h = 130, barW = 52, gap = 40;
+       const baseY = h - 28;
+       const curH = Math.max(curTotal > 0 ? 4 : 0, (curTotal / maxT) * (h - 48));
+       const prevH = Math.max(prevTotal > 0 ? 4 : 0, (prevTotal / maxT) * (h - 48));
+       const xPrev = w/2 - gap/2 - barW;
+       const xCur = w/2 + gap/2;
+       let deltaHtml = '';
+       if (prevTotal > 0) {
+          const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
+          const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+          deltaHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
+       } else if (curTotal > 0) {
+          deltaHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
+       }
+
+       let html = `<div style="margin-bottom:16px;">
+         <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;" xmlns="http://www.w3.org/2000/svg">
+           <rect x="${xPrev}" y="${baseY - prevH}" width="${barW}" height="${prevH}" rx="6" fill="var(--ink-faint)" opacity="0.55"></rect>
+           <rect x="${xCur}" y="${baseY - curH}" width="${barW}" height="${curH}" rx="6" fill="var(--sage)"></rect>
+           <text x="${xPrev + barW/2}" y="${baseY - prevH - 6}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--ink)">${this.fmt(prevTotal)}</text>
+           <text x="${xCur + barW/2}" y="${baseY - curH - 6}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--ink)">${this.fmt(curTotal)}</text>
+           <text x="${xPrev + barW/2}" y="${baseY + 14}" font-size="9" text-anchor="middle" fill="var(--ink-soft)">${this.esc(monthLabel(prevDate))}</text>
+           <text x="${xCur + barW/2}" y="${baseY + 14}" font-size="9" text-anchor="middle" fill="var(--ink-soft)">${this.esc(monthLabel(now))}</text>
+         </svg>
+         <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-soft); margin-top:4px;">
+           <span>Total validé</span>
+           <span>Évolution : ${deltaHtml || '—'}</span>
+         </div>
+       </div>`;
+
+       if (allCats.length === 0) {
+          el.innerHTML = html + '<div style="font-size:12px;color:var(--ink-faint);">Aucune catégorie à détailler pour l’instant.</div>';
+          return;
+       }
+
+       html += `<div style="font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;">Par catégorie</div>`;
        allCats.sort((a,b) => (cur[b]||0) - (cur[a]||0)).forEach(cat => {
           const c = cur[cat] || 0, p = prev[cat] || 0;
           let deltaLabel, color;
@@ -1791,11 +1843,13 @@
           html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line-soft); font-size:13px;">
              <span>${this.esc(cat)}</span>
              <span style="display:flex; gap:10px; align-items:center;">
+               <span class="num" style="color:var(--ink-faint); font-size:11px;">${this.fmt(p)}</span>
                <span class="num" style="color:var(--ink-soft);">${this.fmt(c)}</span>
                <span style="font-weight:700; color:${color}; font-size:12px;">${deltaLabel}</span>
              </span>
           </div>`;
        });
+       html += `<div style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Basé sur les dépenses réellement validées. Gris = mois précédent · Vert = ce mois.</div>`;
        el.innerHTML = html;
     },
 
@@ -1870,10 +1924,8 @@
       document.getElementById('f-enddate').value = '';
       document.getElementById('bh-delete-btn').style.display = 'none';
       document.getElementById('bh-duplicate-btn').style.display = 'none';
+      this.populateSheetSelects();
       this.updateSheetForm();
-      
-      const accs = this.state.accounts;
-      document.getElementById('bh-comptes-list').innerHTML = accs.map(a=>`<option value="${this.esc(a.name)}">`).join('');
       document.getElementById('bh-sheet-overlay').classList.add('open');
     },
 
@@ -1888,9 +1940,8 @@
       document.getElementById('f-desc').value = item.description;
       document.getElementById('f-amount').value = item.amount;
       document.getElementById('f-day').value = item.day;
-      document.getElementById('f-compte').value = acc ? acc.name : '';
+      this.populateSheetSelects(acc ? acc.id : '', type === 'expense' ? (item.category || '') : '');
       if(type==='expense') {
-        document.getElementById('f-cat').value = item.category || '';
         document.getElementById('f-wallet').checked = !!item.is_wallet;
         document.getElementById('f-enddate').value = item.end_date || '';
       }
@@ -1903,6 +1954,55 @@
       }
       document.getElementById('bh-duplicate-btn').style.display = 'flex';
       document.getElementById('bh-sheet-overlay').classList.add('open');
+    },
+
+    // Remplit les listes déroulantes Compte / Catégorie du formulaire saisie
+    populateSheetSelects(selectedAccId, selectedCat) {
+      const accSel = document.getElementById('f-compte');
+      const accs = this.state.accounts;
+      const mainId = this.state.profile?.main_account_id;
+      const pickAcc = selectedAccId || mainId || (accs[0] && accs[0].id) || '';
+      accSel.innerHTML =
+        accs.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('') +
+        `<option value="__new__">＋ Nouveau compte</option>`;
+      if (pickAcc && accs.some(a => a.id === pickAcc)) accSel.value = pickAcc;
+      else if (accs.length) accSel.value = accs[0].id;
+      else accSel.value = '__new__';
+      document.getElementById('f-compte-new').value = '';
+      this.onCompteSelect();
+
+      const catSel = document.getElementById('f-cat');
+      const cats = [...new Set(this.state.expenses.map(e => e.category).filter(Boolean))].sort();
+      const pickCat = selectedCat && cats.includes(selectedCat) ? selectedCat : (cats[0] || '');
+      catSel.innerHTML =
+        cats.map(c => `<option value="${this.esc(c)}">${this.esc(c)}</option>`).join('') +
+        `<option value="__autres__">Autres…</option>`;
+      if (selectedCat && !cats.includes(selectedCat)) {
+        // Catégorie orpheline (édition) : l'ajouter temporairement
+        catSel.insertAdjacentHTML('afterbegin', `<option value="${this.esc(selectedCat)}">${this.esc(selectedCat)}</option>`);
+        catSel.value = selectedCat;
+      } else if (pickCat) {
+        catSel.value = pickCat;
+      } else {
+        catSel.value = '__autres__';
+      }
+      document.getElementById('f-cat-new').value = '';
+      this.onCatSelect();
+    },
+
+    onCompteSelect() {
+      const isNew = document.getElementById('f-compte').value === '__new__';
+      const inp = document.getElementById('f-compte-new');
+      inp.style.display = isNew ? 'block' : 'none';
+      if (isNew) inp.focus();
+      this.checkPayerField();
+    },
+
+    onCatSelect() {
+      const isNew = document.getElementById('f-cat').value === '__autres__';
+      const inp = document.getElementById('f-cat-new');
+      inp.style.display = isNew ? 'block' : 'none';
+      if (isNew) inp.focus();
     },
 
     async duplicateEntry() {
@@ -1938,8 +2038,10 @@
       const wrap = document.getElementById('f-payer-wrap');
       if (this.sheetMode !== 'expense') { wrap.style.display = 'none'; return; }
       
-      const accName = document.getElementById('f-compte').value;
-      const acc = this.state.accounts.find(a => a.name === accName);
+      const accVal = document.getElementById('f-compte').value;
+      const acc = accVal && accVal !== '__new__'
+        ? this.state.accounts.find(a => a.id === accVal)
+        : null;
       
       wrap.style.display = 'block'; // Toujours afficher la case dorée pour rassurer l'utilisateur
       const sel = document.getElementById('f-payer');
@@ -1956,7 +2058,7 @@
          }
       } else {
          sel.disabled = true;
-         sel.innerHTML = `<option value="">Sélectionnez un compte valide d'abord</option>`;
+         sel.innerHTML = `<option value="">${accVal === '__new__' ? 'Compte en cours de création' : 'Sélectionnez un compte valide d\'abord'}</option>`;
       }
     },
 
@@ -1968,22 +2070,44 @@
       const amount = Number(document.getElementById('f-amount').value);
       const isWallet = type === 'expense' && document.getElementById('f-wallet').checked;
       const day = isWallet ? 1 : (Number(document.getElementById('f-day').value) || 1);
-      const accName = document.getElementById('f-compte').value;
-      const acc = this.state.accounts.find(a=>a.name === accName);
+      const accVal = document.getElementById('f-compte').value;
       const payerId = document.getElementById('f-payer').value;
       const endDate = document.getElementById('f-enddate').value || null;
 
       // --- Validation des entrées ---
       if (!desc) { toast("Merci d'indiquer une description."); return; }
-      if (!acc) { toast("Compte invalide : choisissez un compte existant."); return; }
       if (!amount || isNaN(amount) || amount <= 0) { toast("Le montant doit être un nombre positif."); return; }
       if (!isWallet && (day < 1 || day > 31)) { toast("Le jour doit être compris entre 1 et 31."); return; }
 
+      let accId = null;
+      if (accVal === '__new__') {
+        const newName = document.getElementById('f-compte-new').value.trim();
+        if (!newName) { toast("Indiquez un nom pour le nouveau compte."); return; }
+        const dup = this.state.accounts.some(a => a.name.trim().toLowerCase() === newName.toLowerCase());
+        if (dup) { toast("Un compte porte déjà ce nom."); return; }
+        accId = await this.createAccountInline(newName);
+        if (!accId) return;
+      } else {
+        const acc = this.state.accounts.find(a => a.id === accVal);
+        if (!acc) { toast("Compte invalide : choisissez un compte existant."); return; }
+        accId = acc.id;
+      }
+
+      let category = 'Autre';
+      if (type === 'expense') {
+        const catVal = document.getElementById('f-cat').value;
+        if (catVal === '__autres__') {
+          category = document.getElementById('f-cat-new').value.trim() || 'Autre';
+        } else {
+          category = catVal || 'Autre';
+        }
+      }
+
       const payload = {
-         account_id: acc.id, description: desc, amount: amount, day: day
+         account_id: accId, description: desc, amount: amount, day: day
       };
       if(type === 'expense') {
-         payload.category = document.getElementById('f-cat').value || 'Autre';
+         payload.category = category;
          payload.payer_id = payerId || null;
          payload.is_wallet = isWallet;
          payload.end_date = endDate;
@@ -2003,6 +2127,23 @@
         this.closeSheet();
         this.fetchData();
       }, 'enregistrement');
+    },
+
+    // Création de compte depuis le formulaire saisie (retourne l'id, ou null si échec)
+    async createAccountInline(name) {
+      const newId = crypto.randomUUID();
+      const ok = await withRetry(async () => {
+        const { error: e1 } = await supabaseApp.from('accounts').insert([{ id: newId, name: name }]);
+        if (e1) throw e1;
+        const { error: e2 } = await supabaseApp.from('account_members').insert([{ account_id: newId, user_id: this.user.id, role: 'owner' }]);
+        if (e2) throw e2;
+        return true;
+      }, 'création du compte');
+      if (!ok) return null;
+      // Mise à jour locale immédiate pour enchaîner sur l'enregistrement de la saisie
+      this.state.accounts.push({ id: newId, name });
+      this.state.members.push({ account_id: newId, user_id: this.user.id, role: 'owner' });
+      return newId;
     },
 
     async deleteEntry() {

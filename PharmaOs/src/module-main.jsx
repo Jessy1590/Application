@@ -20,6 +20,7 @@ import Perimes from './modules/perimes/comptoir/Perimes.jsx';
 import PerimesVitrine from './modules/perimes/comptoir/PerimesVitrine.jsx';
 import StockError from './modules/stock/comptoir/StockError.jsx';
 import LotAlerts from './modules/lot-alerts/comptoir/LotAlerts.jsx';
+import Hr from './modules/hr/comptoir/Hr.jsx';
 
 /** Placeholder jusqu'à migration des modules restants. */
 function PlaceholderModule({ title }) {
@@ -49,6 +50,7 @@ const VIEW_TITLES = {
   magistral: 'Magistrales',
   psl: 'MDS',
   cash: 'Clôture de caisse',
+  hr: 'RH',
 };
 
 function renderModuleView(view, moduleData) {
@@ -87,6 +89,8 @@ function renderModuleView(view, moduleData) {
       return <StockError />;
     case 'lot_alerts':
       return <LotAlerts />;
+    case 'hr':
+      return <Hr />;
     default:
       return <PlaceholderModule title={VIEW_TITLES[view] || `Module : ${view || 'inconnu'}`} />;
   }

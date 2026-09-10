@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
-  AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles,
+  AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import { supabase } from '../shared/supabaseClient.js';
 import {
-  expandWindow, reduceWindow, openModuleWindow, openDashboardWindow,
+  expandWindow, reduceWindow, openModuleWindow, openDashboardWindow, openBugWindow,
 } from '../shared/windowService.js';
 import { logTaskbarToggle } from '../shared/dbServices.js';
 
@@ -157,6 +158,9 @@ export default function Taskbar() {
         <TbBtn title="Location de matériel" onClick={open('rental')} className="text-cyan-300"><BedDouble size={18} /></TbBtn>
         <TbBtn title="Préparations magistrales" onClick={open('magistral')} className="text-fuchsia-300"><FlaskConical size={18} /></TbBtn>
         <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+
+        <SectionSep label="RH / Compta" />
+        <TbBtn title="RH — planning, retards, absences" onClick={open('hr')} className="text-indigo-300"><Users size={18} /></TbBtn>
         <TbBtn title="Clôture de caisse" onClick={open('cash')} className="text-emerald-300"><Wallet size={18} /></TbBtn>
       </div>
 
@@ -164,6 +168,13 @@ export default function Taskbar() {
         <span className="text-xs text-slate-300 truncate max-w-[160px] hidden lg:inline" title="Conseil du jour">
           Conseil : proposez un produit associé.
         </span>
+        <TbBtn
+          title="Signaler un bug au développeur"
+          onClick={() => openBugWindow()}
+          className="text-rose-300"
+        >
+          <Bug size={18} />
+        </TbBtn>
         {role === 'admin' && (
           <TbBtn
             title="Ouvrir le Dashboard titulaire"

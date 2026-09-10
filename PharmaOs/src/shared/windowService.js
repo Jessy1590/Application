@@ -32,12 +32,28 @@ export async function openModuleWindow(viewName, data = null) {
   return null;
 }
 
-export async function openDashboardWindow() {
+export async function openDashboardWindow(options = null) {
   if (window.electronAPI?.openDashboard) {
-    return window.electronAPI.openDashboard();
+    return window.electronAPI.openDashboard(options || null);
   }
   console.warn('[PharmaOS] electronAPI.openDashboard indisponible');
   return null;
+}
+
+export async function openBugWindow() {
+  if (window.electronAPI?.openBug) {
+    return window.electronAPI.openBug();
+  }
+  console.warn('[PharmaOS] electronAPI.openBug indisponible');
+  return null;
+}
+
+export async function submitBugReport(text) {
+  if (window.electronAPI?.submitBugReport) {
+    return window.electronAPI.submitBugReport(text);
+  }
+  console.warn('[PharmaOS] electronAPI.submitBugReport indisponible');
+  return { ok: false, error: 'unavailable' };
 }
 
 export async function closeModuleWindow() {

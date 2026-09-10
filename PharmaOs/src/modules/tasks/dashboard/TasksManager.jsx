@@ -55,6 +55,45 @@ function renderTaskBody(task) {
       </div>
     );
   }
+  if (details.type === 'hr_absence_demande') {
+    return (
+      <div className="text-sm text-indigo-800 space-y-0.5 mt-1 bg-indigo-50 p-2 rounded border border-indigo-100">
+        <p><strong>Demande d&apos;absence</strong> — {details.absence_type || 'Absence'}</p>
+        <p>{details.date_debut} → {details.date_fin}</p>
+        {details.motif && <p className="italic">{details.motif}</p>}
+      </div>
+    );
+  }
+  if (details.type === 'hr_absence_reponse') {
+    return (
+      <div className="text-sm text-indigo-800 space-y-0.5 mt-1 bg-indigo-50 p-2 rounded border border-indigo-100">
+        <p><strong>Réponse absence</strong> — {details.statut === 'validee' ? 'Acceptée' : 'Refusée'}</p>
+        <p>{details.absence_type || 'Absence'} · {details.date_debut} → {details.date_fin}</p>
+        {details.review_note && <p className="italic">{details.review_note}</p>}
+      </div>
+    );
+  }
+  if (details.type === 'hr_horaire_demande') {
+    return (
+      <div className="text-sm text-indigo-800 space-y-0.5 mt-1 bg-indigo-50 p-2 rounded border border-indigo-100">
+        <p><strong>Demande de changement d&apos;horaire</strong></p>
+        <p>{details.date_debut}
+          {details.heure_debut ? ` · ${String(details.heure_debut).slice(0, 5)}` : ''}
+          {details.heure_fin ? `–${String(details.heure_fin).slice(0, 5)}` : ''}
+        </p>
+        {details.commentaire && <p className="italic">{details.commentaire}</p>}
+      </div>
+    );
+  }
+  if (details.type === 'hr_horaire_reponse') {
+    return (
+      <div className="text-sm text-indigo-800 space-y-0.5 mt-1 bg-indigo-50 p-2 rounded border border-indigo-100">
+        <p><strong>Réponse horaire</strong> — {details.statut === 'validee' ? 'Accepté' : 'Refusé'}</p>
+        <p>{details.date_debut}</p>
+        {details.review_note && <p className="italic">{details.review_note}</p>}
+      </div>
+    );
+  }
   if (details.type === 'perime_challenge') {
     return (
       <div className="text-sm text-emerald-800 space-y-0.5 mt-1 bg-emerald-50 p-2 rounded border border-emerald-100">
@@ -220,7 +259,7 @@ export default function TasksManager({ onNavigate }) {
     return map;
   }, [filteredTasks]);
 
-  const categoryOrder = ['libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock', 'perimes', 'perime_decision', 'perime_mea', 'perime_promo', 'perime_challenge', 'etalonnage', 'autre'];
+  const categoryOrder = ['libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock', 'perimes', 'perime_decision', 'perime_mea', 'perime_promo', 'perime_challenge', 'etalonnage', 'hr', 'autre'];
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">
