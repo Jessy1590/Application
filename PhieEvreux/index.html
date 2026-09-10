@@ -115,18 +115,24 @@
         <p class="empty-title">Aucun appel en attente</p>
         <p class="empty-sub">Seules les fiches avec commentaire ECRIS apparaissent ici.</p>
       </div>
-      <div id="callSwipeStage" class="swipe-stage hidden">
-        <article class="swipe-card call-swipe-card" id="callSwipeCard">
-          <div class="swipe-type" id="callType">—</div>
-          <h2 id="callName">—</h2>
-          <p class="muted" id="callMeta">—</p>
-          <div id="callJournal" class="journal-box hidden"></div>
-          <div id="callPhones" class="phone-actions"></div>
-          <div id="callSteps" class="call-steps"></div>
-        </article>
-        <button type="button" class="skip-arrow" id="callsSkipBtn" aria-label="Appel suivant" title="Appel suivant">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-        </button>
+      <div id="callSwipeStage" class="call-stage hidden">
+        <label class="patient-pick">
+          <span>Patient</span>
+          <select id="callPatientSelect" aria-label="Sélectionner le patient"></select>
+        </label>
+        <div class="swipe-stage">
+          <article class="swipe-card call-swipe-card" id="callSwipeCard">
+            <div class="swipe-type" id="callType">—</div>
+            <h2 id="callName">—</h2>
+            <p class="muted" id="callMeta">—</p>
+            <div id="callJournal" class="journal-box hidden"></div>
+            <div id="callPhones" class="phone-actions"></div>
+            <div id="callSteps" class="call-steps"></div>
+          </article>
+          <button type="button" class="skip-arrow" id="callsSkipBtn" aria-label="Appel suivant" title="Appel suivant">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        </div>
       </div>
       <p class="hint" id="callsHint"></p>
     </section>
@@ -173,6 +179,7 @@
             <option value="__none__">Sans résultat</option>
             <option value="ramene_semaine">Ramène semaine</option>
             <option value="ordo_mail">Ordo mail</option>
+            <option value="ordo_mail_a_faire">Ordo mail — À faire</option>
             <option value="message_repondeur">Message</option>
             <option value="raccroche">Raccroché</option>
             <option value="mauvais_numero">Mauvais n°</option>
@@ -249,6 +256,7 @@
             <option value="">— (aucun / à recommencer)</option>
             <option value="ramene_semaine">Ramène appareil dans la semaine</option>
             <option value="ordo_mail">Envoie ordonnance par mail</option>
+            <option value="ordo_mail_a_faire">Envoie ordonnance par mail — À faire</option>
             <option value="message_repondeur">Message sur le répondeur</option>
             <option value="raccroche">Raccroché</option>
             <option value="mauvais_numero">Mauvais numéro</option>

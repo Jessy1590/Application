@@ -30,6 +30,7 @@ const APPEL_STATUT_LABELS = {
 const APPEL_RESULTAT_LABELS = {
   ramene_semaine: 'Ramène appareil dans la semaine',
   ordo_mail: 'Envoie ordonnance par mail',
+  ordo_mail_a_faire: 'Envoie ordonnance par mail — À faire',
   message_repondeur: 'Message sur le répondeur',
   raccroche: 'Raccroché',
   mauvais_numero: 'Mauvais numéro',
@@ -488,6 +489,29 @@ function currentCall() {
   return state.callQueue[state.callIndex] || null;
 }
 
+function callJournalPrefix() {
+  return state.draft.fromPatientRecall ? 'Rappel par le patient' : 'Appel OK';
+}
+
+function syncCallPatientSelect() {
+  const select = el('callPatientSelect');
+  if (!select) return;
+  const rows = state.callQueue;
+  select.innerHTML = rows.map((r, i) =>
+    `<option value="${i}">${escapeHtml(fullName(r))} — ${escapeHtml(r.type_location || '')}</option>`
+  ).join('');
+  if (rows.length) select.value = String(state.callIndex);
+}
+
+el('callPatientSelect').addEventListener('change', () => {
+  const idx = Number(el('callPatientSelect').value);
+  if (Number.isNaN(idx) || idx < 0 || idx >= state.callQueue.length) return;
+  state.callIndex = idx;
+  state.callStep = 'ask_call';
+  state.draft = {};
+  renderCallFlow();
+});
+
 function renderCallPhones(row) {
   const box = el('callPhones');
   const phones = phonesOf(row);
@@ -562,6 +586,7 @@ function renderCallFlow() {
   }
 
   renderCallPhones(row);
+  syncCallPatientSelect();
   el('callsHint').innerHTML =
     `${state.callIndex + 1} / ${state.callQueue.length}<span class="hint-swipe"> — glissez pour un autre appel</span>`;
   el('callsSkipBtn').classList.toggle('hidden', state.callQueue.length < 2);
@@ -578,16 +603,29 @@ function renderCallFlow() {
 
   if (state.callStep === 'ask_call') {
     steps.appendChild(stepCard('Avez-vous appelé / joint le patient ?', [
-      ['Oui — appel fait', () => { state.draft = {}; go('call_yes_comment'); }],
-      ['Non — pas d’appel', () => { state.draft = {}; go('call_no'); }],
+      ['Oui — appel fait', () => {
+        state.draft = { fromPatientRecall: false };
+        go('call_yes_comment');
+      }],
+      ['Rappel du patient', () => {
+        state.draft = { fromPatientRecall: true };
+        go('call_yes_comment');
+      }, 'primary'],
+      ['Non — pas d’appel', () => {
+        state.draft = {};
+        go('call_no');
+      }],
     ]));
   }
 
   if (state.callStep === 'call_yes_comment') {
     const wrap = document.createElement('div');
     wrap.className = 'step-card';
+    const heading = state.draft.fromPatientRecall
+      ? 'Rappel par le patient — commentaire (optionnel)'
+      : 'Commentaire d’appel (optionnel)';
     wrap.innerHTML = `
-      <h3>Commentaire d’appel (optionnel)</h3>
+      <h3>${escapeHtml(heading)}</h3>
       <label class="inline-field">Note
         <textarea id="callYesNote" rows="2" placeholder="Ex. a décroché, ton, etc.">${escapeHtml(state.draft.note || '')}</textarea>
       </label>
@@ -605,9 +643,11 @@ function renderCallFlow() {
     const choices = [
       ['Réponse : je vous ramène l’appareil dans la semaine', 'ramene_semaine'],
       ['Réponse : je vous envoie par mail l’ordonnance', 'ordo_mail'],
+      ['Réponse attendue : envoi mail — À faire', 'ordo_mail_a_faire'],
       ['Laissé un message sur le répondeur', 'message_repondeur'],
       ['Raccroché', 'raccroche'],
       ['Mauvais numéro', 'mauvais_numero'],
+      ['Autres', 'autre_raison'],
     ];
     choices.forEach(([label, code]) => {
       const b = document.createElement('button');
@@ -617,10 +657,45 @@ function renderCallFlow() {
       b.onclick = () => {
         state.draft.note = el('callYesNote').value.trim();
         state.draft.resultat = code;
+        if (code === 'autre_raison') {
+          go('call_yes_autre');
+          return;
+        }
         handleCallYes(row);
       };
       grid.appendChild(b);
     });
+    steps.appendChild(wrap);
+  }
+
+  if (state.callStep === 'call_yes_autre') {
+    const wrap = document.createElement('div');
+    wrap.className = 'step-card';
+    wrap.innerHTML = `
+      <h3>Autres — précisez</h3>
+      <label class="inline-field">Raison
+        <textarea id="callYesAutreNote" rows="3" required placeholder="Obligatoire">${escapeHtml(state.draft.autreNote || state.draft.note || '')}</textarea>
+      </label>
+      <div class="choice-grid"></div>
+    `;
+    const grid = $('.choice-grid', wrap);
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'btn ghost';
+    back.textContent = 'Retour';
+    back.onclick = () => go('call_yes_comment');
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'btn primary';
+    next.textContent = 'Enregistrer';
+    next.onclick = () => {
+      const note = el('callYesAutreNote').value.trim();
+      if (!note) { toast('Précision requise', 'error'); return; }
+      state.draft.note = note;
+      state.draft.resultat = 'autre_raison';
+      handleCallYes(row);
+    };
+    grid.append(back, next);
     steps.appendChild(wrap);
   }
 
@@ -672,6 +747,7 @@ function renderCallFlow() {
       'Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?',
       [
         ['Oui — j’envoie un mail', () => handleMailYes(row)],
+        ['À faire', () => handleMailAFaire(row)],
         ['Non', () => handleNoMail(row)],
       ],
       () => {
@@ -702,9 +778,10 @@ async function handleCallYes(row) {
   const code = state.draft.resultat;
   const note = state.draft.note || '';
   const date = todayFr();
+  const prefix = callJournalPrefix();
 
   if (code === 'ramene_semaine') {
-    const line = `${date} — Appel OK : ramène l’appareil dans la semaine` + (note ? ` (${note})` : '');
+    const line = `${date} — ${prefix} : ramène l’appareil dans la semaine` + (note ? ` (${note})` : '');
     await applyCallUpdate(row, {
       appel_resultat: code,
       appel_statut: 'termine',
@@ -713,22 +790,46 @@ async function handleCallYes(row) {
     return;
   }
 
+  if (code === 'ordo_mail_a_faire') {
+    const line = `${date} — ${prefix} : envoie l’ordonnance par mail — À faire` + (note ? ` (${note})` : '');
+    await applyCallUpdate(row, {
+      appel_resultat: 'ordo_mail_a_faire',
+      appel_statut: 'a_rappeler',
+      journal: appendJournal(row, line),
+    });
+    return;
+  }
+
+  if (code === 'autre_raison') {
+    const line = `${date} — ${prefix} : autres — ${note}`;
+    await applyCallUpdate(row, {
+      appel_resultat: 'autre_raison',
+      appel_statut: 'a_rappeler',
+      journal: appendJournal(row, line),
+    });
+    return;
+  }
+
   if (code === 'ordo_mail') {
     state.draft.backAfterMail = 'call_yes_comment';
     state.draft.afterMail = 'termine_ordo';
-    state.draft.recallLine = `${date} — Appel OK : envoie l’ordonnance par mail` + (note ? ` (${note})` : '');
+    state.draft.recallLine = `${date} — ${prefix} : envoie l’ordonnance par mail` + (note ? ` (${note})` : '');
     goMailStepOrSkip(row);
     return;
   }
 
   if (code === 'message_repondeur') {
-    state.draft.recallLine = `${date} — Déjà appelé le ${date} et laissé message sur le répondeur` + (note ? ` (${note})` : '');
+    state.draft.recallLine = state.draft.fromPatientRecall
+      ? `${date} — Rappel par le patient : message sur le répondeur` + (note ? ` (${note})` : '')
+      : `${date} — Déjà appelé le ${date} et laissé message sur le répondeur` + (note ? ` (${note})` : '');
     state.draft.afterMail = 'rappeler';
   } else if (code === 'raccroche') {
-    state.draft.recallLine = `${date} — Déjà appelé le ${date} : a raccroché` + (note ? ` (${note})` : '');
+    state.draft.recallLine = state.draft.fromPatientRecall
+      ? `${date} — Rappel par le patient : a raccroché` + (note ? ` (${note})` : '')
+      : `${date} — Déjà appelé le ${date} : a raccroché` + (note ? ` (${note})` : '');
     state.draft.afterMail = 'rappeler';
   } else if (code === 'mauvais_numero') {
-    state.draft.recallLine = `${date} — Mauvais numéro` + (note ? ` (${note})` : '');
+    state.draft.recallLine = `${date} — ${prefix} : mauvais numéro` + (note ? ` (${note})` : '');
     state.draft.afterMail = 'mauvais_numero';
   }
 
@@ -785,6 +886,40 @@ async function handleMailYes(row) {
   } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
     patch.appel_resultat = after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero';
     patch.appel_statut = 'termine';
+  }
+
+  await applyCallUpdate(fresh, patch);
+}
+
+async function handleMailAFaire(row) {
+  if (rowHasMailSent(row)) {
+    await handleMailYes(row);
+    return;
+  }
+
+  const fresh = state.all.find((r) => r.id === row.id) || row;
+  const date = todayFr();
+  const after = state.draft.afterMail;
+  const baseLine = state.draft.recallLine || `${date} — Suivi`;
+  const aFaireLine = `${date} — Mail à faire`;
+
+  let journal = appendJournal(fresh, baseLine);
+  journal = appendJournal({ journal }, aFaireLine);
+
+  const patch = {
+    mail_envoye: false,
+    journal,
+    appel_statut: 'a_rappeler',
+  };
+
+  if (after === 'termine_ordo') {
+    patch.appel_resultat = 'ordo_mail_a_faire';
+  } else if (after === 'rappeler') {
+    patch.appel_resultat = state.draft.resultat || fresh.appel_resultat;
+  } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
+    patch.appel_resultat = after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero';
+  } else {
+    patch.appel_resultat = state.draft.resultat || state.draft.noReason || fresh.appel_resultat;
   }
 
   await applyCallUpdate(fresh, patch);
