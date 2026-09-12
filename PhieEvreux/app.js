@@ -1248,16 +1248,23 @@ function statutIncoherent(resultat, statut) {
   return statut === 'PERTE' && RESULTATS_SANS_PERTE.has(resultat || '');
 }
 
-/** PERTE reste sélectionnable uniquement avec un résultat qui le justifie. */
+/** PERTE n’est proposé qu’avec un résultat qui le justifie. Une option
+ *  seulement désactivée reste illisible sur le thème sombre : on la retire. */
 function syncEditStatutOptions({ notify = false } = {}) {
   const resultat = el('editAppelResultat').value;
   const statutSelect = el('editAppelStatut');
   const perteOption = statutSelect.querySelector('option[value="PERTE"]');
+  const bloque = RESULTATS_SANS_PERTE.has(resultat);
+
+  if (!bloque) {
+    if (!perteOption) statutSelect.append(new Option('PERTE', 'PERTE'));
+    return;
+  }
   if (!perteOption) return;
 
-  const bloque = RESULTATS_SANS_PERTE.has(resultat);
-  perteOption.disabled = bloque;
-  if (bloque && statutSelect.value === 'PERTE') {
+  const etaitPerte = statutSelect.value === 'PERTE';
+  perteOption.remove();
+  if (etaitPerte) {
     statutSelect.value = 'a_rappeler';
     if (notify) {
       const label = APPEL_RESULTAT_LABELS[resultat] || resultat;
