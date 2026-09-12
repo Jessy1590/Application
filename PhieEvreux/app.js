@@ -1248,18 +1248,26 @@ function statutIncoherent(resultat, statut) {
   return statut === 'PERTE' && RESULTATS_SANS_PERTE.has(resultat || '');
 }
 
+/** À rappeler avant d’affecter un statut : l’option a pu être retirée en
+ *  consultant une autre fiche. */
+function restaurePerteOption() {
+  const statutSelect = el('editAppelStatut');
+  if (!statutSelect.querySelector('option[value="PERTE"]')) {
+    statutSelect.append(new Option('PERTE', 'PERTE'));
+  }
+}
+
 /** PERTE n’est proposé qu’avec un résultat qui le justifie. Une option
  *  seulement désactivée reste illisible sur le thème sombre : on la retire. */
 function syncEditStatutOptions({ notify = false } = {}) {
   const resultat = el('editAppelResultat').value;
   const statutSelect = el('editAppelStatut');
-  const perteOption = statutSelect.querySelector('option[value="PERTE"]');
-  const bloque = RESULTATS_SANS_PERTE.has(resultat);
-
-  if (!bloque) {
-    if (!perteOption) statutSelect.append(new Option('PERTE', 'PERTE'));
+  if (!RESULTATS_SANS_PERTE.has(resultat)) {
+    restaurePerteOption();
     return;
   }
+
+  const perteOption = statutSelect.querySelector('option[value="PERTE"]');
   if (!perteOption) return;
 
   const etaitPerte = statutSelect.value === 'PERTE';
@@ -1290,6 +1298,7 @@ function openEditForm(id) {
   form.date_ordonnance.value = toFrInput(row.date_ordonnance);
   form.commentaire.value = row.commentaire || '';
   form.commentaire_statut.value = row.commentaire_statut || '';
+  restaurePerteOption();
   form.appel_statut.value = row.appel_statut || 'a_appeler';
   form.appel_resultat.value = row.appel_resultat || '';
   form.journal.value = row.journal || '';
