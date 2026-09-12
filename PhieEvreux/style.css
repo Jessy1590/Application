@@ -338,6 +338,16 @@ body > a[title="Retour au portail"] {
 .hint-edit {
   margin: -4px 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4;
 }
+.print-cols-title {
+  margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--text);
+}
+.print-cols {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;
+}
+.print-cols .check-row {
+  margin: 0 !important; padding: 9px 10px; font-size: 13px !important;
+}
+.print-cols .check-row input { width: 19px !important; height: 19px; }
 .edit-list { display: grid; gap: 8px; }
 .edit-item {
   text-align: left; width: 100%; background: var(--panel); border: 1px solid var(--line);
@@ -396,12 +406,6 @@ body > a[title="Retour au portail"] {
   }
   .print-root tbody tr:nth-child(even) td { background: #f3f4f5 !important; }
   .print-root tr { break-inside: avoid; }
-  .print-root th:nth-child(1) { width: 19%; }
-  .print-root th:nth-child(2) { width: 12%; }
-  .print-root th:nth-child(3) { width: 17%; }
-  .print-root th:nth-child(4) { width: 7%; }
-  .print-root th:nth-child(5) { width: 18%; }
-  .print-root th:nth-child(6) { width: 27%; }
   .print-identity strong,
   .print-location strong,
   .print-call strong {

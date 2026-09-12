@@ -18,7 +18,7 @@
 <style>body{display:none}</style>
 <script src="../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
-<link rel="stylesheet" href="style.css?v=20260912a">
+<link rel="stylesheet" href="style.css?v=20260912b">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -312,6 +312,15 @@
         <input id="printOrdoMax" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
       </label>
       <p class="hint-edit">Laissez une date vide pour n’avoir qu’un minimum ou qu’un maximum.</p>
+      <p class="print-cols-title">Colonnes du tableau</p>
+      <div class="print-cols" id="printCols">
+        <label class="check-row compact"><input type="checkbox" data-print-col="identite" checked><span>Identité</span></label>
+        <label class="check-row compact"><input type="checkbox" data-print-col="location" checked><span>Location</span></label>
+        <label class="check-row compact"><input type="checkbox" data-print-col="commentaire" checked><span>Commentaire</span></label>
+        <label class="check-row compact"><input type="checkbox" data-print-col="compte" checked><span>Compte</span></label>
+        <label class="check-row compact"><input type="checkbox" data-print-col="appel" checked><span>Appel</span></label>
+        <label class="check-row compact"><input type="checkbox" data-print-col="suivi" checked><span>Suivi</span></label>
+      </div>
       <p class="muted tiny" id="printCount"></p>
       <button type="button" class="btn primary block" id="printRunBtn">Imprimer</button>
     </div>
@@ -323,14 +332,7 @@
     <p class="print-filters" id="printFilters"></p>
     <table>
       <thead>
-        <tr>
-          <th>Identité</th>
-          <th>Location</th>
-          <th>Commentaire</th>
-          <th>Compte</th>
-          <th>Appel</th>
-          <th>Suivi</th>
-        </tr>
+        <tr id="printHead"></tr>
       </thead>
       <tbody id="printBody"></tbody>
     </table>
@@ -360,6 +362,6 @@
     </button>
   </nav>
 
-  <script src="app.js?v=20260912a"></script>
+  <script src="app.js?v=20260912b"></script>
 </body>
 </html>

@@ -1430,6 +1430,23 @@ function printAppel(row) {
   `;
 }
 
+/** Colonnes imprimables : `poids` sert de largeur relative une fois le tri fait. */
+const PRINT_COLUMNS = [
+  { key: 'identite', label: 'Identité', poids: 19, cls: 'print-identity', cell: printIdentite },
+  { key: 'location', label: 'Location', poids: 12, cls: 'print-location', cell: printLocation },
+  { key: 'commentaire', label: 'Commentaire', poids: 17, cls: '', cell: (r) => escapeHtml(r.commentaire || '') },
+  { key: 'compte', label: 'Compte', poids: 7, cls: '', cell: (r) => escapeHtml(r.commentaire_statut || '') },
+  { key: 'appel', label: 'Appel', poids: 18, cls: 'print-call', cell: printAppel },
+  { key: 'suivi', label: 'Suivi', poids: 27, cls: 'print-followup', cell: (r) => escapeHtml(suiviPrint(r)) },
+];
+
+function selectedPrintColumns() {
+  return PRINT_COLUMNS.filter((c) => {
+    const box = document.querySelector(`[data-print-col="${c.key}"]`);
+    return box ? box.checked : true;
+  });
+}
+
 const printFilters = {
   statut: '',
   resultat: '',
@@ -1486,8 +1503,10 @@ function updatePrintCount() {
   const node = el('printCount');
   if (dateInvalide) { node.textContent = 'Date d’ordonnance invalide (JJ/MM/AAAA)'; return; }
   if (ordreInverse) { node.textContent = 'La date de début est après la date de fin'; return; }
+  const cols = selectedPrintColumns();
+  if (!cols.length) { node.textContent = 'Choisissez au moins une colonne'; return; }
   const n = filteredPrintRows().length;
-  node.textContent = `${n} fiche${n > 1 ? 's' : ''} à imprimer`;
+  node.textContent = `${n} fiche${n > 1 ? 's' : ''} · ${cols.length} colonne${cols.length > 1 ? 's' : ''}`;
 }
 
 el('fabPrint').addEventListener('click', async () => {
@@ -1507,26 +1526,31 @@ $$('[data-close-print]').forEach((n) => n.addEventListener('click', () => {
   node.addEventListener(id.startsWith('printOrdo') ? 'input' : 'change', updatePrintCount);
 });
 
+$$('[data-print-col]').forEach((n) => n.addEventListener('change', updatePrintCount));
+
 el('printRunBtn').addEventListener('click', async () => {
   const { dateInvalide, ordreInverse } = readPrintFilters();
   if (dateInvalide) { toast('Date d’ordonnance invalide', 'error'); return; }
   if (ordreInverse) { toast('La date de début est après la date de fin', 'error'); return; }
+
+  const cols = selectedPrintColumns();
+  if (!cols.length) { toast('Choisissez au moins une colonne', 'error'); return; }
 
   await refresh();
   readPrintFilters();
   const rows = filteredPrintRows();
   if (!rows.length) { toast('Aucune fiche pour ces filtres', 'error'); return; }
 
+  const total = cols.reduce((s, c) => s + c.poids, 0);
+
   el('printDate').textContent = `Imprimé le ${new Date().toLocaleString('fr-FR')}`;
   el('printFilters').textContent = `${printFiltersLabel()} · ${rows.length} fiche${rows.length > 1 ? 's' : ''}`;
-  el('printBody').innerHTML = rows.map((r) => `<tr>
-    <td class="print-identity">${printIdentite(r)}</td>
-    <td class="print-location">${printLocation(r)}</td>
-    <td>${escapeHtml(r.commentaire || '')}</td>
-    <td>${escapeHtml(r.commentaire_statut || '')}</td>
-    <td class="print-call">${printAppel(r)}</td>
-    <td class="print-followup">${escapeHtml(suiviPrint(r))}</td>
-  </tr>`).join('');
+  el('printHead').innerHTML = cols
+    .map((c) => `<th style="width:${(c.poids / total * 100).toFixed(2)}%">${c.label}</th>`)
+    .join('');
+  el('printBody').innerHTML = rows.map((r) => `<tr>${
+    cols.map((c) => `<td class="${c.cls}">${c.cell(r)}</td>`).join('')
+  }</tr>`).join('');
 
   el('printSheet').hidden = true;
   el('printRoot').hidden = false;
