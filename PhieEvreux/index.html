@@ -18,7 +18,7 @@
 <style>body{display:none}</style>
 <script src="../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
-<link rel="stylesheet" href="style.css?v=20260910c">
+<link rel="stylesheet" href="style.css?v=20260912a">
 </head>
 <body>
   <div id="toast" class="toast" hidden></div>
@@ -272,9 +272,55 @@
     </div>
   </div>
 
+  <div class="sheet" id="printSheet" hidden>
+    <div class="sheet-backdrop" data-close-print></div>
+    <div class="sheet-panel" role="dialog" aria-labelledby="printTitle">
+      <div class="sheet-head">
+        <h2 id="printTitle">Imprimer</h2>
+        <button type="button" class="icon-btn" data-close-print aria-label="Fermer">✕</button>
+      </div>
+      <div class="edit-filters">
+        <div class="edit-filters-grid">
+          <select id="printStatut" aria-label="Filtrer par statut">
+            <option value="">Statut — tous</option>
+            <option value="a_appeler">À appeler</option>
+            <option value="a_rappeler">À rappeler</option>
+            <option value="termine">Terminé</option>
+            <option value="PERTE">PERTE</option>
+          </select>
+          <select id="printResultat" aria-label="Filtrer par résultat">
+            <option value="">Résultat — tous</option>
+            <option value="__none__">Sans résultat</option>
+            <option value="ramene_semaine">Ramène semaine</option>
+            <option value="ordo_mail">Ordo mail</option>
+            <option value="ordo_mail_a_faire">Ordo mail — À faire</option>
+            <option value="message_repondeur">Message</option>
+            <option value="raccroche">Raccroché</option>
+            <option value="mauvais_numero">Mauvais n°</option>
+            <option value="pas_de_numero">Pas de n°</option>
+            <option value="autre_raison">Autre raison</option>
+          </select>
+          <select id="printType" aria-label="Filtrer par type d’appareil">
+            <option value="">Type — tous</option>
+          </select>
+        </div>
+      </div>
+      <label class="inline-field">Date ordonnance — à partir du
+        <input id="printOrdoMin" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
+      </label>
+      <label class="inline-field">Date ordonnance — jusqu’au
+        <input id="printOrdoMax" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
+      </label>
+      <p class="hint-edit">Laissez une date vide pour n’avoir qu’un minimum ou qu’un maximum.</p>
+      <p class="muted tiny" id="printCount"></p>
+      <button type="button" class="btn primary block" id="printRunBtn">Imprimer</button>
+    </div>
+  </div>
+
   <div id="printRoot" class="print-root" hidden>
     <h1>Phie Evreux — Locations</h1>
     <p class="print-date" id="printDate"></p>
+    <p class="print-filters" id="printFilters"></p>
     <table>
       <thead>
         <tr>
@@ -314,6 +360,6 @@
     </button>
   </nav>
 
-  <script src="app.js?v=20260910c"></script>
+  <script src="app.js?v=20260912a"></script>
 </body>
 </html>

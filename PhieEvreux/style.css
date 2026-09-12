@@ -373,7 +373,8 @@ body > a[title="Retour au portail"] {
     padding: 0; color: #111; background: #fff; font-family: Arial, sans-serif; font-size: 9px;
   }
   .print-root h1 { font-size: 15px; margin: 0 0 3px; }
-  .print-date { margin: 0 0 8px; color: #444; font-size: 8px; }
+  .print-date { margin: 0 0 2px; color: #444; font-size: 8px; }
+  .print-filters { margin: 0 0 8px; color: #444; font-size: 8px; font-weight: 700; }
   .print-root table {
     width: 100%;
     border-collapse: collapse;

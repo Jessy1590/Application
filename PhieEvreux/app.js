@@ -1179,26 +1179,33 @@ $$('[data-close-sheet]').forEach((n) => n.addEventListener('click', () => {
   });
 });
 
-function filteredEditRows() {
-  let rows = [...state.all];
-  // Plus récent → plus ancien
-  rows.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+function ordoIso(row) {
+  return row.date_ordonnance ? String(row.date_ordonnance).slice(0, 10) : '';
+}
 
-  if (editFilters.search) {
-    rows = rows.filter((r) => fullName(r).toLowerCase().includes(editFilters.search));
-  }
-  if (editFilters.statut) {
-    rows = rows.filter((r) => r.appel_statut === editFilters.statut);
-  }
-  if (editFilters.resultat === '__none__') {
-    rows = rows.filter((r) => !r.appel_resultat);
-  } else if (editFilters.resultat) {
-    rows = rows.filter((r) => r.appel_resultat === editFilters.resultat);
-  }
-  if (editFilters.mail === 'oui') rows = rows.filter((r) => r.mail_envoye);
-  if (editFilters.mail === 'non') rows = rows.filter((r) => !r.mail_envoye);
-  if (editFilters.type) rows = rows.filter((r) => r.type_location === editFilters.type);
-  return rows;
+function matchesFilters(row, f) {
+  if (f.search && !fullName(row).toLowerCase().includes(f.search)) return false;
+  if (f.statut && row.appel_statut !== f.statut) return false;
+  if (f.resultat === '__none__') {
+    if (row.appel_resultat) return false;
+  } else if (f.resultat && row.appel_resultat !== f.resultat) return false;
+  if (f.mail === 'oui' && !row.mail_envoye) return false;
+  if (f.mail === 'non' && row.mail_envoye) return false;
+  if (f.type && row.type_location !== f.type) return false;
+  if (f.ordoMin && (!ordoIso(row) || ordoIso(row) < f.ordoMin)) return false;
+  if (f.ordoMax && (!ordoIso(row) || ordoIso(row) > f.ordoMax)) return false;
+  return true;
+}
+
+/** Plus récent → plus ancien. */
+function sortedRows(rows) {
+  return [...rows].sort(
+    (a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+  );
+}
+
+function filteredEditRows() {
+  return sortedRows(state.all).filter((r) => matchesFilters(r, editFilters));
 }
 
 function renderEditList() {
@@ -1396,12 +1403,95 @@ function printAppel(row) {
   `;
 }
 
+const printFilters = {
+  statut: '',
+  resultat: '',
+  type: '',
+  ordoMin: '',
+  ordoMax: '',
+};
+
+/** Relit les filtres d’impression et signale les dates inutilisables. */
+function readPrintFilters() {
+  printFilters.statut = el('printStatut').value;
+  printFilters.resultat = el('printResultat').value;
+  printFilters.type = el('printType').value;
+
+  const minRaw = el('printOrdoMin').value.trim();
+  const maxRaw = el('printOrdoMax').value.trim();
+  const min = minRaw ? parseFrDate(minRaw) : '';
+  const max = maxRaw ? parseFrDate(maxRaw) : '';
+  printFilters.ordoMin = min || '';
+  printFilters.ordoMax = max || '';
+
+  return {
+    dateInvalide: !!((minRaw && !min) || (maxRaw && !max)),
+    ordreInverse: !!(min && max && min > max),
+  };
+}
+
+function filteredPrintRows() {
+  return sortedRows(state.all).filter((r) => matchesFilters(r, printFilters));
+}
+
+function printFiltersLabel() {
+  const parts = [];
+  if (printFilters.statut) {
+    parts.push(`Statut : ${APPEL_STATUT_LABELS[printFilters.statut] || printFilters.statut}`);
+  }
+  if (printFilters.resultat === '__none__') parts.push('Résultat : sans résultat');
+  else if (printFilters.resultat) {
+    parts.push(`Résultat : ${APPEL_RESULTAT_LABELS[printFilters.resultat] || printFilters.resultat}`);
+  }
+  if (printFilters.type) parts.push(`Type : ${printFilters.type}`);
+  if (printFilters.ordoMin && printFilters.ordoMax) {
+    parts.push(`Ordonnance du ${fmtDate(printFilters.ordoMin)} au ${fmtDate(printFilters.ordoMax)}`);
+  } else if (printFilters.ordoMin) {
+    parts.push(`Ordonnance à partir du ${fmtDate(printFilters.ordoMin)}`);
+  } else if (printFilters.ordoMax) {
+    parts.push(`Ordonnance jusqu’au ${fmtDate(printFilters.ordoMax)}`);
+  }
+  return parts.length ? `Filtres — ${parts.join(' · ')}` : 'Filtres — aucun (toutes les fiches)';
+}
+
+function updatePrintCount() {
+  const { dateInvalide, ordreInverse } = readPrintFilters();
+  const node = el('printCount');
+  if (dateInvalide) { node.textContent = 'Date d’ordonnance invalide (JJ/MM/AAAA)'; return; }
+  if (ordreInverse) { node.textContent = 'La date de début est après la date de fin'; return; }
+  const n = filteredPrintRows().length;
+  node.textContent = `${n} fiche${n > 1 ? 's' : ''} à imprimer`;
+}
+
 el('fabPrint').addEventListener('click', async () => {
+  el('printSheet').hidden = false;
+  updatePrintCount();
   await refresh();
+  updatePrintCount();
+});
+
+$$('[data-close-print]').forEach((n) => n.addEventListener('click', () => {
+  el('printSheet').hidden = true;
+}));
+
+['printStatut', 'printResultat', 'printType', 'printOrdoMin', 'printOrdoMax'].forEach((id) => {
+  const node = el(id);
+  if (!node) return;
+  node.addEventListener(id.startsWith('printOrdo') ? 'input' : 'change', updatePrintCount);
+});
+
+el('printRunBtn').addEventListener('click', async () => {
+  const { dateInvalide, ordreInverse } = readPrintFilters();
+  if (dateInvalide) { toast('Date d’ordonnance invalide', 'error'); return; }
+  if (ordreInverse) { toast('La date de début est après la date de fin', 'error'); return; }
+
+  await refresh();
+  readPrintFilters();
+  const rows = filteredPrintRows();
+  if (!rows.length) { toast('Aucune fiche pour ces filtres', 'error'); return; }
+
   el('printDate').textContent = `Imprimé le ${new Date().toLocaleString('fr-FR')}`;
-  const rows = [...state.all].sort(
-    (a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
-  );
+  el('printFilters').textContent = `${printFiltersLabel()} · ${rows.length} fiche${rows.length > 1 ? 's' : ''}`;
   el('printBody').innerHTML = rows.map((r) => `<tr>
     <td class="print-identity">${printIdentite(r)}</td>
     <td class="print-location">${printLocation(r)}</td>
@@ -1409,8 +1499,9 @@ el('fabPrint').addEventListener('click', async () => {
     <td>${escapeHtml(r.commentaire_statut || '')}</td>
     <td class="print-call">${printAppel(r)}</td>
     <td class="print-followup">${escapeHtml(suiviPrint(r))}</td>
-  </tr>`).join('') || '<tr><td colspan="6">Aucune ligne</td></tr>';
+  </tr>`).join('');
 
+  el('printSheet').hidden = true;
   el('printRoot').hidden = false;
   window.print();
   setTimeout(() => { el('printRoot').hidden = true; }, 500);
