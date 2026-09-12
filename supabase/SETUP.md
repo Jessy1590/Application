@@ -32,6 +32,7 @@ DDL + RLS par domaine aussi dans `PharmaOs/src/modules/*/sql/`. Détail policies
 Conserver / appliquer séparément si besoin (fichiers historiques, non versionnés dans le nouveau monorepo PharmaOs) :
 
 - Banque, Valorisation, Vaccin (`autres`), Fromage — RLS dédiées (voir dossiers app respectifs / historique git).
+- Phie Evreux (`autres.phie_evreux`) — `PhieEvreux/sql/001_type_location_libre.sql` : libère `type_location` pour les types d'appareil saisis via « Autres… ».
 
 ## 3. Schémas exposés (Data API)
 
