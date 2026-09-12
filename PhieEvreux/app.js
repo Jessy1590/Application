@@ -1036,7 +1036,7 @@ async function handleMailYes(row) {
     patch.appel_statut = 'a_rappeler';
   } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
     patch.appel_resultat = after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero';
-    patch.appel_statut = 'termine';
+    patch.appel_statut = 'a_rappeler';
   }
 
   await applyCallUpdate(fresh, patch);
@@ -1065,6 +1065,7 @@ async function handleMailAFaire(row) {
 
   if (after === 'termine_ordo') {
     patch.appel_resultat = 'ordo_mail_a_faire';
+    patch.appel_statut = 'termine';
   } else if (after === 'rappeler') {
     patch.appel_resultat = state.draft.resultat || fresh.appel_resultat;
   } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
@@ -1091,9 +1092,9 @@ async function handleNoMail(row) {
   if (after === 'termine_ordo') {
     await applyCallUpdate(fresh, {
       appel_resultat: 'ordo_mail',
-      appel_statut: 'a_rappeler',
+      appel_statut: 'termine',
       mail_envoye: false,
-      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — À rappeler : ordonnance encore attendue`),
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Terminé : ordonnance attendue par un autre moyen`),
     });
     return;
   }
@@ -1108,9 +1109,19 @@ async function handleNoMail(row) {
     return;
   }
 
-  if (after === 'mauvais_numero' || after === 'pas_de_numero') {
+  if (after === 'mauvais_numero') {
     await applyCallUpdate(fresh, {
-      appel_resultat: after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero',
+      appel_resultat: 'mauvais_numero',
+      appel_statut: 'a_rappeler',
+      mail_envoye: false,
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}`),
+    });
+    return;
+  }
+
+  if (after === 'pas_de_numero') {
+    await applyCallUpdate(fresh, {
+      appel_resultat: 'pas_de_numero',
       appel_statut: 'PERTE',
       mail_envoye: false,
       journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE`),
