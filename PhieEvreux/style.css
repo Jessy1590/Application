@@ -84,20 +84,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form-card input:focus, .form-card textarea:focus, .form-card select:focus {
   outline: 2px solid rgba(59,167,217,0.45); border-color: var(--accent);
 }
-.type-field { border: none; padding: 0; margin: 0 0 12px; }
-.type-field legend { margin-bottom: 8px; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.seg-opt { margin: 0 !important; }
-.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
-.seg-opt span {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 44px; padding: 8px 6px; text-align: center; font-size: 13px; font-weight: 600;
-  color: var(--text); background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-}
-.seg-opt input:checked + span {
-  background: rgba(59,167,217,0.16); border-color: var(--accent); color: var(--accent);
-}
-
 .btn {
   border: none; border-radius: 14px; padding: 14px 16px; font-weight: 700;
   cursor: pointer; transition: transform .12s ease, opacity .12s ease;

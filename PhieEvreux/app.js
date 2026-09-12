@@ -43,6 +43,10 @@ const APPEL_RESULTAT_LABELS = {
    le statut PERTE n’a alors aucun sens. */
 const RESULTATS_SANS_PERTE = new Set(['ramene_semaine', 'ordo_mail', 'ordo_mail_a_faire']);
 
+const TYPES_BASE = ['Lit', 'Tire lait', 'Aérosol'];
+const TYPES_STORAGE_KEY = 'phie_evreux_types';
+const TYPE_AUTRE = '__autre__';
+
 function toast(msg, type = 'ok') {
   const t = el('toast');
   t.hidden = false;
@@ -172,6 +176,102 @@ function suiviPrint(row) {
   return row.journal || '';
 }
 
+/* ---------- Types d’appareil ---------- */
+function normalizeTypeKey(value) {
+  return String(value || '')
+    .trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function readCustomTypes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TYPES_STORAGE_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((v) => typeof v === 'string' && v.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Types de base + types ajoutés localement + types déjà présents en base. */
+function knownTypes() {
+  const out = [];
+  const seen = new Set();
+  const push = (value) => {
+    const label = String(value || '').trim();
+    if (!label) return;
+    const key = normalizeTypeKey(label);
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(label);
+  };
+  TYPES_BASE.forEach(push);
+  readCustomTypes().forEach(push);
+  state.all.forEach((r) => push(r.type_location));
+  return out;
+}
+
+function addCustomType(label) {
+  const clean = String(label || '').trim().replace(/\s+/g, ' ');
+  if (!clean) return '';
+  const existing = knownTypes().find((t) => normalizeTypeKey(t) === normalizeTypeKey(clean));
+  if (existing) return existing;
+  try {
+    localStorage.setItem(TYPES_STORAGE_KEY, JSON.stringify([...readCustomTypes(), clean]));
+  } catch {
+    /* stockage indisponible : le type reste utilisable pour cette fiche */
+  }
+  renderTypeOptions();
+  return clean;
+}
+
+function typeOptionsHtml(types) {
+  return types.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+}
+
+function renderTypeOptions() {
+  const types = knownTypes();
+
+  [el('newType'), el('editType')].forEach((select) => {
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = `${typeOptionsHtml(types)}<option value="${TYPE_AUTRE}">Autres…</option>`;
+    select.value = prev === TYPE_AUTRE || types.includes(prev) ? prev : (types[0] || '');
+  });
+
+  [el('filterType'), el('printType')].forEach((select) => {
+    if (!select) return;
+    const prev = select.value;
+    select.innerHTML = `<option value="">Type — tous</option>${typeOptionsHtml(types)}`;
+    select.value = types.includes(prev) ? prev : '';
+  });
+}
+
+function syncTypeAutre(select, wrap, input) {
+  if (!select || !wrap || !input) return;
+  const isAutre = select.value === TYPE_AUTRE;
+  wrap.classList.toggle('hidden', !isAutre);
+  if (!isAutre) input.value = '';
+}
+
+function bindTypeAutre(select, wrap, input) {
+  if (!select || !wrap || !input) return;
+  select.addEventListener('change', () => {
+    syncTypeAutre(select, wrap, input);
+    if (select.value === TYPE_AUTRE) input.focus();
+  });
+  syncTypeAutre(select, wrap, input);
+}
+
+/** Renvoie le type retenu, en enregistrant d’abord un éventuel nouveau type. */
+function resolveTypeChoice(select, input) {
+  if (!select) return '';
+  if (select.value !== TYPE_AUTRE) return select.value;
+  const added = addCustomType(input?.value);
+  if (added) select.value = added;
+  return added;
+}
+
 /* ---------- Navigation ---------- */
 function setTab(name) {
   $$('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
@@ -196,6 +296,8 @@ async function refresh() {
   state.all = data || [];
   state.commentQueue = state.all.filter((r) => r.commentaire_statut !== 'ECRIS');
   state.callQueue = state.all.filter(inCallQueue);
+  renderTypeOptions();
+  el('aiPromptText').value = aiFillPrompt();
 
   if (state.commentIndex >= state.commentQueue.length) state.commentIndex = 0;
 
@@ -225,20 +327,24 @@ async function refresh() {
 resetPhones(el('phonesList'), ['']);
 el('addPhoneBtn').addEventListener('click', onAddPhoneClick(el('phonesList')));
 bindDateMasks();
+renderTypeOptions();
+bindTypeAutre(el('newType'), el('newTypeAutreWrap'), el('newTypeAutre'));
 
 el('newForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
   const dateNaissance = parseFrDate(fd.get('date_naissance'));
   const dateOrdo = parseFrDate(fd.get('date_ordonnance'));
+  const typeLocation = resolveTypeChoice(el('newType'), el('newTypeAutre'));
   if (!dateNaissance) { toast('Date de naissance invalide', 'error'); return; }
   if (!dateOrdo) { toast('Date d’ordonnance invalide', 'error'); return; }
+  if (!typeLocation) { toast('Indiquez le type d’appareil', 'error'); return; }
 
   const payload = {
     nom: String(fd.get('nom') || '').trim().toUpperCase(),
     prenom: String(fd.get('prenom') || '').trim(),
     date_naissance: dateNaissance,
-    type_location: fd.get('type_location'),
+    type_location: typeLocation,
     date_ordonnance: dateOrdo,
     telephones: collectPhones(el('phonesList')),
     commentaire: String(fd.get('commentaire') || '').trim() || null,
@@ -254,33 +360,39 @@ el('newForm').addEventListener('submit', async (e) => {
   if (error) { toast(error.message, 'error'); return; }
 
   e.target.reset();
-  e.target.querySelector('input[value="Lit"]').checked = true;
+  renderTypeOptions();
+  el('newType').value = TYPES_BASE[0];
+  syncTypeAutre(el('newType'), el('newTypeAutreWrap'), el('newTypeAutre'));
   resetPhones(el('phonesList'), ['']);
   toast('Fiche créée');
   await refresh();
 });
 
 /* ---------- Remplissage Photo → IA (module 1) ---------- */
-const AI_FILL_PROMPT = `Tu analyses la photo d'une fiche manuscrite de location de matériel (pharmacie).
+function aiFillPrompt() {
+  const types = knownTypes();
+  return `Tu analyses la photo d'une fiche manuscrite de location de matériel (pharmacie).
 Extrais uniquement les informations visibles et réponds UNIQUEMENT avec ce format exact, une ligne par champ, sans markdown ni texte autour :
 
 NOM: <nom de famille en majuscules>
 PRENOM: <prénom>
 DATE_NAISSANCE: <JJ/MM/AAAA>
-TYPE_LOCATION: <Lit OU Tire lait OU Aérosol>
+TYPE_LOCATION: <${types.join(' OU ')}>
 DATE_ORDONNANCE: <JJ/MM/AAAA>
 TELEPHONES: <numéros séparés par ; >
 COMMENTAIRE: <texte libre ou vide>
 
 Règles :
 - Si une info est illisible ou absente, laisse la valeur vide après les deux-points.
-- TYPE_LOCATION doit être exactement l'une de ces 3 valeurs : Lit, Tire lait, Aérosol.
+- TYPE_LOCATION doit être exactement l'une de ces ${types.length} valeurs : ${types.join(', ')}.
 - Les dates doivent être au format JJ/MM/AAAA.
 - Ne invente rien.`;
+}
 
-el('aiPromptText').value = AI_FILL_PROMPT;
+el('aiPromptText').value = aiFillPrompt();
 
 el('openAiFillBtn').addEventListener('click', () => {
+  el('aiPromptText').value = aiFillPrompt();
   el('aiFillSheet').hidden = false;
 });
 
@@ -290,7 +402,7 @@ $$('[data-close-ai-fill]').forEach((n) => n.addEventListener('click', () => {
 
 el('copyAiPromptBtn').addEventListener('click', async () => {
   try {
-    await navigator.clipboard.writeText(AI_FILL_PROMPT);
+    await navigator.clipboard.writeText(el('aiPromptText').value);
     toast('Prompt copié');
   } catch {
     el('aiPromptText').select();
@@ -307,14 +419,15 @@ function parseAiFillText(raw) {
     return m ? m[1].trim() : '';
   };
 
-  let type = get('TYPE_LOCATION');
-  const typeNorm = type.toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-  if (typeNorm.includes('tire')) type = 'Tire lait';
-  else if (typeNorm.includes('aerosol') || typeNorm.includes('aeroso')) type = 'Aérosol';
-  else if (typeNorm.includes('lit')) type = 'Lit';
-  else type = '';
+  const typeKey = normalizeTypeKey(get('TYPE_LOCATION'));
+  const types = knownTypes();
+  let type = types.find((t) => normalizeTypeKey(t) === typeKey) || '';
+  if (!type && typeKey) {
+    type = types.find((t) => {
+      const key = normalizeTypeKey(t);
+      return typeKey.includes(key) || key.includes(typeKey);
+    }) || '';
+  }
 
   const phonesRaw = get('TELEPHONES') || get('TELEPHONE') || get('TELS');
   const phones = phonesRaw
@@ -358,8 +471,8 @@ el('applyAiFillBtn').addEventListener('click', () => {
     maskDateInput(form.date_ordonnance);
   }
   if (parsed.type_location) {
-    const radio = form.querySelector(`input[name="type_location"][value="${parsed.type_location}"]`);
-    if (radio) radio.checked = true;
+    el('newType').value = parsed.type_location;
+    syncTypeAutre(el('newType'), el('newTypeAutreWrap'), el('newTypeAutre'));
   }
   resetPhones(el('phonesList'), parsed.telephones.length ? parsed.telephones : ['']);
   form.commentaire.value = parsed.commentaire || '';
@@ -1122,6 +1235,7 @@ function renderEditList() {
 }
 
 el('editAddPhoneBtn').addEventListener('click', onAddPhoneClick(el('editPhonesList')));
+bindTypeAutre(el('editType'), el('editTypeAutreWrap'), el('editTypeAutre'));
 
 function statutIncoherent(resultat, statut) {
   return statut === 'PERTE' && RESULTATS_SANS_PERTE.has(resultat || '');
@@ -1156,7 +1270,9 @@ function openEditForm(id) {
   form.nom.value = row.nom || '';
   form.prenom.value = row.prenom || '';
   form.date_naissance.value = toFrInput(row.date_naissance);
-  form.type_location.value = row.type_location || 'Lit';
+  renderTypeOptions();
+  form.type_location.value = row.type_location || TYPES_BASE[0];
+  syncTypeAutre(el('editType'), el('editTypeAutreWrap'), el('editTypeAutre'));
   form.date_ordonnance.value = toFrInput(row.date_ordonnance);
   form.commentaire.value = row.commentaire || '';
   form.commentaire_statut.value = row.commentaire_statut || '';
@@ -1200,6 +1316,9 @@ el('editForm').addEventListener('submit', async (e) => {
     toast('Date d’ordonnance invalide', 'error'); return;
   }
 
+  const typeLocation = resolveTypeChoice(el('editType'), el('editTypeAutre'));
+  if (!typeLocation) { toast('Indiquez le type d’appareil', 'error'); return; }
+
   const appelStatut = fd.get('appel_statut');
   const appelResultat = fd.get('appel_resultat') || null;
   if (statutIncoherent(appelResultat, appelStatut)) {
@@ -1220,7 +1339,7 @@ el('editForm').addEventListener('submit', async (e) => {
     nom: String(fd.get('nom') || '').trim().toUpperCase(),
     prenom: String(fd.get('prenom') || '').trim(),
     date_naissance: dateNaissance,
-    type_location: fd.get('type_location'),
+    type_location: typeLocation,
     date_ordonnance: dateOrdo,
     telephones: collectPhones(el('editPhonesList')),
     commentaire: String(fd.get('commentaire') || '').trim() || null,

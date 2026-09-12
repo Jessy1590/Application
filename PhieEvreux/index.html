@@ -47,14 +47,12 @@
         <label>Date de naissance
           <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required autocomplete="bday">
         </label>
-        <fieldset class="type-field">
-          <legend>Type de location</legend>
-          <div class="seg" role="radiogroup" aria-label="Type de location">
-            <label class="seg-opt"><input type="radio" name="type_location" value="Lit" required checked><span>Lit</span></label>
-            <label class="seg-opt"><input type="radio" name="type_location" value="Tire lait"><span>Tire lait</span></label>
-            <label class="seg-opt"><input type="radio" name="type_location" value="Aérosol"><span>Aérosol</span></label>
-          </div>
-        </fieldset>
+        <label>Type de location
+          <select name="type_location" id="newType" required></select>
+        </label>
+        <label class="hidden" id="newTypeAutreWrap">Nouveau type d’appareil
+          <input type="text" id="newTypeAutre" placeholder="Ex. Concentrateur d’oxygène" autocapitalize="sentences">
+        </label>
         <label>Date nécessaire pour nouvelle ordonnance
           <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required>
         </label>
@@ -193,9 +191,6 @@
           </select>
           <select id="filterType">
             <option value="">Type — tous</option>
-            <option value="Lit">Lit</option>
-            <option value="Tire lait">Tire lait</option>
-            <option value="Aérosol">Aérosol</option>
           </select>
         </div>
       </div>
@@ -220,11 +215,10 @@
           <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
         </label>
         <label>Type
-          <select name="type_location" required>
-            <option>Lit</option>
-            <option>Tire lait</option>
-            <option>Aérosol</option>
-          </select>
+          <select name="type_location" id="editType" required></select>
+        </label>
+        <label class="hidden" id="editTypeAutreWrap">Nouveau type d’appareil
+          <input type="text" id="editTypeAutre" placeholder="Ex. Concentrateur d’oxygène" autocapitalize="sentences">
         </label>
         <label>Date ordonnance
           <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
