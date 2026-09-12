@@ -39,6 +39,10 @@ const APPEL_RESULTAT_LABELS = {
   message_laisse: 'Message laissé',
 };
 
+/* Résultats pour lesquels le patient rend l’appareil ou fournit l’ordonnance :
+   le statut PERTE n’a alors aucun sens. */
+const RESULTATS_SANS_PERTE = new Set(['ramene_semaine', 'ordo_mail', 'ordo_mail_a_faire']);
+
 function toast(msg, type = 'ok') {
   const t = el('toast');
   t.hidden = false;
@@ -974,9 +978,9 @@ async function handleNoMail(row) {
   if (after === 'termine_ordo') {
     await applyCallUpdate(fresh, {
       appel_resultat: 'ordo_mail',
-      appel_statut: 'PERTE',
+      appel_statut: 'a_rappeler',
       mail_envoye: false,
-      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (ordo mail impossible)`),
+      journal: appendJournal(fresh, `${baseLine}\n${noMailLine}\n${date} — À rappeler : ordonnance encore attendue`),
     });
     return;
   }
@@ -1119,6 +1123,30 @@ function renderEditList() {
 
 el('editAddPhoneBtn').addEventListener('click', onAddPhoneClick(el('editPhonesList')));
 
+function statutIncoherent(resultat, statut) {
+  return statut === 'PERTE' && RESULTATS_SANS_PERTE.has(resultat || '');
+}
+
+/** PERTE reste sélectionnable uniquement avec un résultat qui le justifie. */
+function syncEditStatutOptions({ notify = false } = {}) {
+  const resultat = el('editAppelResultat').value;
+  const statutSelect = el('editAppelStatut');
+  const perteOption = statutSelect.querySelector('option[value="PERTE"]');
+  if (!perteOption) return;
+
+  const bloque = RESULTATS_SANS_PERTE.has(resultat);
+  perteOption.disabled = bloque;
+  if (bloque && statutSelect.value === 'PERTE') {
+    statutSelect.value = 'a_rappeler';
+    if (notify) {
+      const label = APPEL_RESULTAT_LABELS[resultat] || resultat;
+      toast(`PERTE incompatible avec « ${label} » → À rappeler`, 'error');
+    }
+  }
+}
+
+el('editAppelResultat').addEventListener('change', () => syncEditStatutOptions({ notify: true }));
+
 function openEditForm(id) {
   const row = state.all.find((r) => r.id === id);
   if (!row) return;
@@ -1138,6 +1166,7 @@ function openEditForm(id) {
   form.mail_envoye.checked = !!row.mail_envoye;
   resetPhones(el('editPhonesList'), phonesOf(row).length ? phonesOf(row) : ['']);
   bindDateMasks(form);
+  syncEditStatutOptions({ notify: statutIncoherent(row.appel_resultat, row.appel_statut) });
 
   const resLabel = row.appel_resultat
     ? (APPEL_RESULTAT_LABELS[row.appel_resultat] || row.appel_resultat)
@@ -1173,6 +1202,11 @@ el('editForm').addEventListener('submit', async (e) => {
 
   const appelStatut = fd.get('appel_statut');
   const appelResultat = fd.get('appel_resultat') || null;
+  if (statutIncoherent(appelResultat, appelStatut)) {
+    const label = APPEL_RESULTAT_LABELS[appelResultat] || appelResultat;
+    toast(`PERTE incompatible avec « ${label} »`, 'error');
+    return;
+  }
   let journal = String(fd.get('journal') || '').trim() || null;
 
   // Si on remet à rappeler / sans résultat : noter dans le journal
