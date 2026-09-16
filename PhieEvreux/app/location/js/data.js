@@ -612,21 +612,50 @@
     return data;
   }
 
-  /** Remet un contact en phase commentaire (invalide le « commentaire compte » fait). */
-  async function invalidateContactCommentaire(contact) {
-    if (!contact?.id) throw new Error('Contact introuvable');
+  /** Remet tout le dossier en phase commentaire (une seule file, pas de doublon). */
+  async function invalidateDossierCommentaire(dossierId, contacts) {
+    if (!dossierId) throw new Error('Dossier introuvable');
+    const list = (contacts || []).slice().sort((a, b) =>
+      String(b.updated_at || b.created_at || '').localeCompare(
+        String(a.updated_at || a.created_at || '')
+      )
+    );
+    if (!list.length) throw new Error('Aucun contact sur ce dossier');
+
+    const openStatuts = new Set(['a_contacter', 'en_cours', 'reporte']);
+    const open = list.filter((c) => openStatuts.has(c.statut));
+    const keeper = open[0] || list[0];
+    const others = list.filter((c) => c.id !== keeper.id);
+
+    for (const c of others) {
+      if (!openStatuts.has(c.statut)) continue;
+      await upsertContact({
+        id: c.id,
+        dossier_id: dossierId,
+        motif: c.motif,
+        commentaire: c.commentaire || null,
+        phase: c.phase || 'appel',
+        statut: 'annule',
+        resultat: c.resultat || null,
+        canal: c.canal || null,
+        contacted_at: c.contacted_at || null,
+        commentaire_fait_at: c.commentaire_fait_at || null,
+        phase_date_fin: c.phase_date_fin || null,
+      });
+    }
+
     return upsertContact({
-      id: contact.id,
-      dossier_id: contact.dossier_id,
-      motif: contact.motif,
-      commentaire: contact.commentaire || null,
+      id: keeper.id,
+      dossier_id: dossierId,
+      motif: keeper.motif,
+      commentaire: keeper.commentaire || null,
       phase: 'commentaire',
       statut: 'a_contacter',
       resultat: null,
       canal: null,
       contacted_at: null,
       commentaire_fait_at: null,
-      phase_date_fin: contact.phase_date_fin || null,
+      phase_date_fin: keeper.phase_date_fin || null,
     });
   }
 
@@ -756,7 +785,7 @@
     deletePrestataire,
     listOpenContacts,
     upsertContact,
-    invalidateContactCommentaire,
+    invalidateDossierCommentaire,
     syncContactQueue,
     splitList,
     joinList,

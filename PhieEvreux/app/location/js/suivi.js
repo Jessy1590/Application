@@ -310,6 +310,16 @@
         <details class="loc-card">
           <summary>Contacts / appels${contactCount ? ` · ${contactCount}` : ''}</summary>
           <div class="loc-card-body">
+            ${
+              (d.contacts || []).some(
+                (c) =>
+                  ['a_contacter', 'en_cours', 'reporte'].includes(c.statut) &&
+                  (c.phase === 'appel' || c.commentaire_fait_at)
+              )
+                ? `<button type="button" class="loc-btn loc-btn-ghost" id="suInvalidateCom">Invalider le commentaire</button>
+                   <p class="loc-muted loc-facture-hint">Remet le dossier en file Commentaire (LGO à refaire). Les autres contacts ouverts du dossier sont annulés.</p>`
+                : ''
+            }
             <ul class="loc-history loc-contact-history">
               ${(d.contacts || []).map((c) => {
                 const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
@@ -319,6 +329,7 @@
                   reporte: 'À rappeler',
                   contacte: 'Contacté',
                   resolu: 'Résolu',
+                  annule: 'Annulé',
                 };
                 const phaseLabel =
                   c.phase === 'appel' ? 'appel' : c.phase === 'commentaire' ? 'commentaire' : '';
@@ -330,16 +341,7 @@
                   c.resultat || '',
                   c.commentaire || '',
                 ].filter(Boolean);
-                const canInvalidate =
-                  c.phase === 'appel' || !!c.commentaire_fait_at;
-                return `<li class="loc-contact-hist-item">
-                  <span>${esc(bits.join(' · '))}</span>
-                  ${
-                    canInvalidate
-                      ? `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-invalidate-com="${esc(c.id)}">Invalider le commentaire</button>`
-                      : ''
-                  }
-                </li>`;
+                return `<li>${esc(bits.join(' · '))}</li>`;
               }).join('') || '<li>Aucun</li>'}
             </ul>
           </div>
@@ -369,26 +371,21 @@
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
-      detailEl.querySelectorAll('[data-invalidate-com]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.dataset.invalidateCom;
-          const contact = (d.contacts || []).find((c) => c.id === id);
-          if (!contact) return;
-          if (
-            !window.confirm(
-              'Invalider le commentaire compte ? Le dossier repassera en phase Commentaire (LGO à refaire).'
-            )
-          ) {
-            return;
-          }
-          try {
-            await LocationData.invalidateContactCommentaire(contact);
-            showMsg('Commentaire invalidé — phase Commentaire.');
-            await openDetail(d.id);
-          } catch (e) {
-            showMsg(e.message || 'Erreur', true);
-          }
-        });
+      detailEl.querySelector('#suInvalidateCom')?.addEventListener('click', async () => {
+        if (
+          !window.confirm(
+            'Invalider le commentaire ? Tout le dossier repasse en phase Commentaire (une seule file).'
+          )
+        ) {
+          return;
+        }
+        try {
+          await LocationData.invalidateDossierCommentaire(d.id, d.contacts || []);
+          showMsg('Dossier remis en phase Commentaire.');
+          await openDetail(d.id);
+        } catch (e) {
+          showMsg(e.message || 'Erreur', true);
+        }
       });
     }
 
