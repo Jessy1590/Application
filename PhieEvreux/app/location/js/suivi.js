@@ -310,7 +310,7 @@
         <details class="loc-card">
           <summary>Contacts / appels${contactCount ? ` · ${contactCount}` : ''}</summary>
           <div class="loc-card-body">
-            <ul class="loc-history">
+            <ul class="loc-history loc-contact-history">
               ${(d.contacts || []).map((c) => {
                 const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
                 const stMap = {
@@ -330,7 +330,16 @@
                   c.resultat || '',
                   c.commentaire || '',
                 ].filter(Boolean);
-                return `<li>${esc(bits.join(' · '))}</li>`;
+                const canInvalidate =
+                  c.phase === 'appel' || !!c.commentaire_fait_at;
+                return `<li class="loc-contact-hist-item">
+                  <span>${esc(bits.join(' · '))}</span>
+                  ${
+                    canInvalidate
+                      ? `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-invalidate-com="${esc(c.id)}">Invalider le commentaire</button>`
+                      : ''
+                  }
+                </li>`;
               }).join('') || '<li>Aucun</li>'}
             </ul>
           </div>
@@ -360,6 +369,27 @@
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
+      detailEl.querySelectorAll('[data-invalidate-com]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.invalidateCom;
+          const contact = (d.contacts || []).find((c) => c.id === id);
+          if (!contact) return;
+          if (
+            !window.confirm(
+              'Invalider le commentaire compte ? Le dossier repassera en phase Commentaire (LGO à refaire).'
+            )
+          ) {
+            return;
+          }
+          try {
+            await LocationData.invalidateContactCommentaire(contact);
+            showMsg('Commentaire invalidé — phase Commentaire.');
+            await openDetail(d.id);
+          } catch (e) {
+            showMsg(e.message || 'Erreur', true);
+          }
+        });
+      });
     }
 
     function cautionClotureLabel(caution) {

@@ -612,6 +612,24 @@
     return data;
   }
 
+  /** Remet un contact en phase commentaire (invalide le « commentaire compte » fait). */
+  async function invalidateContactCommentaire(contact) {
+    if (!contact?.id) throw new Error('Contact introuvable');
+    return upsertContact({
+      id: contact.id,
+      dossier_id: contact.dossier_id,
+      motif: contact.motif,
+      commentaire: contact.commentaire || null,
+      phase: 'commentaire',
+      statut: 'a_contacter',
+      resultat: null,
+      canal: null,
+      contacted_at: null,
+      commentaire_fait_at: null,
+      phase_date_fin: contact.phase_date_fin || null,
+    });
+  }
+
   /**
    * Nouveau cycle commentaire si, après passage en phase appel, la date_fin
    * a avancé (prolongation) et les règles redemandent un contact (manque ordo).
@@ -738,6 +756,7 @@
     deletePrestataire,
     listOpenContacts,
     upsertContact,
+    invalidateContactCommentaire,
     syncContactQueue,
     splitList,
     joinList,

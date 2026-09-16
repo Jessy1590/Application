@@ -798,11 +798,14 @@ a.loc-btn {
   overflow: auto;
 }
 
-.loc-phones-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 12px;
+.loc-contact-hist-item {
+  display: grid;
+  gap: 6px;
+  align-items: start;
+}
+
+.loc-contact-hist-item .loc-btn {
+  justify-self: start;
 }
 
 .loc-badge {

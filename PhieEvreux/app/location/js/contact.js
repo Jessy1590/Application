@@ -1,5 +1,5 @@
 /**
- * Module Contact — 2 files (Comptes / Appels) calquées sur Ancienne Location.
+ * Module Contact — 2 files (Commentaire / Appels) calquées sur Ancienne Location.
  * Phase commentaire = message LGO (template) à reporter sur le compte patient.
  * Phase appel = arbre décisionnel (joint ? → résultat → mail éventuel).
  * Note / résultat d’appel : champs vides (pas de préremplissage).
@@ -87,7 +87,7 @@
         <span class="loc-muted" id="coCount"></span>
       </div>
       <div class="loc-contact-tabs" role="tablist">
-        <button type="button" class="loc-admin-tab active" data-file="commentaire">Comptes</button>
+        <button type="button" class="loc-admin-tab active" data-file="commentaire">Commentaire</button>
         <button type="button" class="loc-admin-tab" data-file="appel">Appels</button>
       </div>
       <div class="loc-split">
@@ -166,7 +166,7 @@
 
     function listButton(it) {
       const d = it.dossier || {};
-      const phaseLabel = contactPhase(it) === PHASE_APPEL ? 'Appel' : 'Compte';
+      const phaseLabel = contactPhase(it) === PHASE_APPEL ? 'Appel' : 'Commentaire';
       return `<button type="button" class="loc-list-item${current?.id === it.id ? ' active' : ''}" data-id="${it.id}">
         <strong>${esc(patientLabel(d))}</strong>
         <span>${esc(it.motif || '')} · ${esc(phaseLabel)}</span>
@@ -176,7 +176,7 @@
 
     function renderList() {
       const queue = file === 'appel' ? callQueue() : commentQueue();
-      const title = file === 'appel' ? 'File Appels' : 'File Comptes (commentaire LGO)';
+      const title = file === 'appel' ? 'File Appels' : 'File Commentaire (LGO)';
       if (!queue.length) {
         listEl.innerHTML = `<p class="loc-muted">${title} vide.</p>`;
         return;
@@ -440,7 +440,7 @@
           commentaire_fait_at: new Date().toISOString(),
           phase_date_fin: current.dossier?.date_fin || null,
         });
-        showMsg(mailAlready ? 'ECRIS + mail noté — passé en file Appel.' : 'Commentaire ECRIS — passé en file Appel.');
+            showMsg(mailAlready ? 'Commentaire ECRIS + mail noté — passé en file Appel.' : 'Commentaire ECRIS — passé en file Appel.');
         current = null;
         resetDraft();
         await refresh();
@@ -456,7 +456,7 @@
       return `
         <div class="loc-detail-head">
           <div>
-            <p class="loc-badge">Phase A — Compte patient (LGO)</p>
+            <p class="loc-badge">Phase A — Commentaire (LGO)</p>
             <h3>${esc(patientLabel(d))}</h3>
             <p class="loc-muted">${esc(LocationRules.typeLabel(d.appareil_actif?.type_appareil))} · fin ${esc(d.date_fin || '—')}</p>
             <p class="loc-muted">Né(e) ${esc(p.date_naissance || '—')}</p>

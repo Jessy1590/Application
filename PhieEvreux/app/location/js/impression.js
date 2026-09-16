@@ -612,7 +612,7 @@
         const appel = `
           <strong>${esc(statut)}</strong>
           <span>Résultat : ${esc(resultat)}</span>
-          <span>Phase : ${esc(it.phase === 'appel' ? 'Appel' : 'Compte')}</span>`;
+          <span>Phase : ${esc(it.phase === 'appel' ? 'Appel' : 'Commentaire')}</span>`;
 
         return `<tr>
           <td class="print-identity">${identite}</td>
@@ -654,7 +654,7 @@
       <th>Identité</th>
       <th>Location</th>
       <th>Commentaire</th>
-      <th>Compte</th>
+      <th>Statut com.</th>
       <th>Appel</th>
       <th>Suivi</th>
     </tr></thead>
