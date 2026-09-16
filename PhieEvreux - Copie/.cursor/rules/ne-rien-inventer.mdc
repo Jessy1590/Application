@@ -1,0 +1,11 @@
+---
+description: Ne rien inventer — uniquement ce qui est demandé, demander accord avant toute proposition
+alwaysApply: true
+---
+
+# Ne rien inventer
+
+- Ne faire **que** ce qui a été explicitement demandé.
+- N’ajouter ni UI, ni couleurs, ni boutons, ni options, ni libellés, ni flux « pour améliorer ».
+- Si une idée ou amélioration semble utile : **demander l’accord avant** de créer ou modifier quoi que ce soit.
+- En cas d’ambiguïté : poser une question courte, ne pas choisir à la place de l’utilisateur.

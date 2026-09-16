@@ -1,0 +1,12 @@
+{
+  "specialites": 20,
+  "presentations": 27,
+  "compositions": 41,
+  "generiques": 14,
+  "counts": {
+    "specialites": 15859,
+    "presentations": 20885,
+    "compositions": 32400,
+    "generiques": 10720
+  }
+}
