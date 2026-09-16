@@ -104,6 +104,9 @@
     const wrap = el(`<div class="loc-module loc-contact">
       <div class="loc-bar">
         <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="coToggleFilters" aria-expanded="false" aria-controls="coFilters">Filtres</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="coToggleList" aria-expanded="true" aria-controls="coListPanel">Dossiers</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="coPrev" aria-label="Dossier précédent" disabled>←</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="coNext" aria-label="Dossier suivant" disabled>→</button>
         <button type="button" class="loc-btn" id="coSync">Synchroniser la file</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="coPrint">Imprimer la liste</button>
         <span class="loc-muted" id="coCount"></span>
@@ -126,8 +129,10 @@
         <button type="button" class="loc-admin-tab active" data-file="commentaire">Commentaire</button>
         <button type="button" class="loc-admin-tab" data-file="appel">Appels</button>
       </div>
-      <div class="loc-split">
-        <div class="loc-list" id="coList"></div>
+      <div class="loc-split" id="coSplit">
+        <div class="loc-list-panel" id="coListPanel">
+          <div class="loc-list" id="coList"></div>
+        </div>
         <div class="loc-detail" id="coFlow"><p class="loc-muted">Sélectionnez un patient.</p></div>
       </div>
       <p class="loc-msg" id="coMsg" hidden></p>
@@ -143,11 +148,59 @@
     const draft = {};
 
     const listEl = wrap.querySelector('#coList');
+    const listPanel = wrap.querySelector('#coListPanel');
+    const splitEl = wrap.querySelector('#coSplit');
     const flowEl = wrap.querySelector('#coFlow');
     const msgEl = wrap.querySelector('#coMsg');
     const countEl = wrap.querySelector('#coCount');
     const filtersEl = wrap.querySelector('#coFilters');
     const btnFilters = wrap.querySelector('#coToggleFilters');
+    const btnList = wrap.querySelector('#coToggleList');
+    const btnPrev = wrap.querySelector('#coPrev');
+    const btnNext = wrap.querySelector('#coNext');
+
+    function activeQueue() {
+      return file === 'appel' ? callQueue() : commentQueue();
+    }
+
+    function currentIndex() {
+      if (!current) return -1;
+      return activeQueue().findIndex((i) => i.id === current.id);
+    }
+
+    function updateNav() {
+      const queue = activeQueue();
+      const n = queue.length;
+      if (!n) {
+        btnPrev.disabled = true;
+        btnNext.disabled = true;
+        return;
+      }
+      const i = currentIndex();
+      if (i < 0) {
+        btnPrev.disabled = false;
+        btnNext.disabled = false;
+        return;
+      }
+      btnPrev.disabled = i <= 0;
+      btnNext.disabled = i >= n - 1;
+    }
+
+    function goPrev() {
+      const queue = activeQueue();
+      if (!queue.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? queue[queue.length - 1] : queue[i - 1];
+      if (target) selectItem(target.id);
+    }
+
+    function goNext() {
+      const queue = activeQueue();
+      if (!queue.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? queue[0] : queue[i + 1];
+      if (target) selectItem(target.id);
+    }
 
     function setToggle(btn, panel, open) {
       panel.hidden = !open;
@@ -158,7 +211,14 @@
     btnFilters.addEventListener('click', () => {
       setToggle(btnFilters, filtersEl, filtersEl.hidden);
     });
+    btnList.addEventListener('click', () => {
+      const open = listPanel.hidden;
+      setToggle(btnList, listPanel, open);
+      splitEl.classList.toggle('is-list-collapsed', !open);
+    });
     setToggle(btnFilters, filtersEl, false);
+    setToggle(btnList, listPanel, true);
+    splitEl.classList.remove('is-list-collapsed');
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -282,16 +342,18 @@
     }
 
     function renderList() {
-      const queue = file === 'appel' ? callQueue() : commentQueue();
+      const queue = activeQueue();
       const title = file === 'appel' ? 'File Appels' : 'File Commentaire (LGO)';
       if (!queue.length) {
         listEl.innerHTML = `<p class="loc-muted">${title} vide.</p>`;
+        updateNav();
         return;
       }
       listEl.innerHTML = `<h4 class="loc-queue-title">${esc(title)} (${queue.length})</h4>${queue.map(listButton).join('')}`;
       listEl.querySelectorAll('[data-id]').forEach((b) => {
         b.addEventListener('click', () => selectItem(b.dataset.id));
       });
+      updateNav();
     }
 
     function stepCard(title, actionsHtml, extraHtml = '') {
@@ -606,21 +668,40 @@
 
     function renderCallFlowBody(d, p) {
       const phones = phonesOf(d);
-      const phoneHtml = phones.length
-        ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
-        : '<p class="loc-muted">Aucun numéro</p>';
-      const journal = d.notes || '';
+      const mails = mailsOf(d);
+      const identity = [p.nom || '—', p.prenom || '—', p.date_naissance || '—'].join(' - ');
+      const appareilFin = [
+        LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
+        d.date_fin || '—',
+      ].join(' - ');
+      const journal = String(d.notes || '').trim();
       const header = `
         <div class="loc-detail-head">
           <div>
             <p class="loc-badge">Phase B — Appel</p>
-            <h3>${esc(patientLabel(d))}</h3>
-            <p class="loc-muted">${esc(LocationRules.typeLabel(d.appareil_actif?.type_appareil))} · fin ${esc(d.date_fin || '—')}</p>
-            <p class="loc-muted">Commentaire compte : ${esc(current.commentaire || '—')}</p>
+            <h3>${esc(identity)}</h3>
+            <div class="loc-phones-inline">${
+              phones.length
+                ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
+                : '<p class="loc-muted">Aucun téléphone</p>'
+            }</div>
+            <p class="loc-muted">${
+              mails.length
+                ? mails.map((m) => esc(m)).join(' · ')
+                : 'Aucun mail'
+            }</p>
+            <p class="loc-muted">${esc(appareilFin)}</p>
+            <p class="loc-muted">${esc(current.commentaire || '—')}</p>
           </div>
         </div>
-        ${journal ? `<div class="loc-journal-box">${esc(journal)}</div>` : ''}
-        <div class="loc-phones-inline">${phoneHtml}</div>`;
+        ${
+          journal
+            ? `<div class="loc-journal-box loc-journal-box--suivi">
+                <p class="loc-journal-title">Suivi appels déjà effectué</p>
+                <div class="loc-journal-body">${esc(journal)}</div>
+              </div>`
+            : ''
+        }`;
 
       let body = '';
 
@@ -827,6 +908,9 @@
         flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
       });
     });
+
+    btnPrev.addEventListener('click', goPrev);
+    btnNext.addEventListener('click', goNext);
 
     wrap.querySelector('#coSync').addEventListener('click', async () => {
       showMsg('Synchronisation…');

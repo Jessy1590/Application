@@ -11,6 +11,8 @@ html[data-theme="dark"] {
   --loc-on-accent: #061018;
   --loc-danger: #ff6b6b;
   --loc-ok: #3dd68c;
+  --loc-warn-bg: color-mix(in srgb, #e6b800 20%, var(--loc-elev));
+  --loc-warn-line: color-mix(in srgb, #e6b800 40%, var(--loc-line));
 }
 
 html[data-theme="light"] {
@@ -24,6 +26,8 @@ html[data-theme="light"] {
   --loc-on-accent: #ffffff;
   --loc-danger: #c62828;
   --loc-ok: #2e7d32;
+  --loc-warn-bg: color-mix(in srgb, #f0d060 32%, var(--loc-elev));
+  --loc-warn-line: color-mix(in srgb, #c9a227 45%, var(--loc-line));
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -796,6 +800,27 @@ a.loc-btn {
   margin-bottom: 8px;
   max-height: 120px;
   overflow: auto;
+}
+
+.loc-journal-box--suivi {
+  border-style: solid;
+  border-color: var(--loc-warn-line);
+  background: var(--loc-warn-bg);
+  color: var(--loc-text);
+  white-space: normal;
+}
+
+.loc-journal-box--suivi .loc-journal-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.loc-journal-box--suivi .loc-journal-body {
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--loc-text);
 }
 
 .loc-contact-hist-item {

@@ -535,61 +535,56 @@
       const current = rules.find((r) => r.id === selectedRuleId) || null;
 
       body.innerHTML = `
-        <div class="loc-toolbar loc-admin-rule-toolbar">
+        <div class="loc-motif-chips" role="tablist" aria-label="Règles">
+          ${
+            rules
+              .map(
+                (r) => `
+            <button type="button" class="loc-motif-chip${r.id === selectedRuleId ? ' active' : ''}" data-pick-rule="${r.id}">
+              ${esc(r.nom || r.code)}
+            </button>`
+              )
+              .join('') || '<p class="loc-muted">Aucune règle.</p>'
+          }
           <button type="button" class="loc-btn" id="adAddRule">Ajouter une règle</button>
         </div>
         <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle. Priorité calculée automatiquement. Choisissez le template LGO sur chaque règle.</p>
-        <div class="loc-params-split">
-          <div class="loc-params-nav" role="list">
-            ${
-              rules
-                .map(
-                  (r) => `
-              <button type="button" class="loc-params-nav-item${r.id === selectedRuleId ? ' active' : ''}" data-pick-rule="${r.id}">
-                <strong>${esc(r.nom || r.code)}</strong>
-                <span>${esc(r.code)}${r.actif ? '' : ' · inactif'}</span>
-              </button>`
-                )
-                .join('') || '<p class="loc-muted">Aucune règle.</p>'
-            }
-          </div>
-          <div class="loc-params-editor" data-rule-editor>
-            ${
-              current
-                ? `
-              <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
-              <div class="loc-grid-2">
-                <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}"></label>
-                <label class="loc-field">Nom<input data-f="nom" value="${esc(current.nom)}"></label>
-                <label class="loc-field">Type appareil<select data-f="type_appareil">
-                  <option value="">Tous</option>
-                  ${Object.entries(LocationRules.TYPE_LABELS)
-                    .map(
-                      ([k, v]) =>
-                        `<option value="${k}"${current.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
-                    )
-                    .join('')}
-                </select></label>
-                <label class="loc-field">Action<select data-f="action">
-                  ${ACTION_OPTS.map(
+        <div class="loc-params-editor" data-rule-editor>
+          ${
+            current
+              ? `
+            <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
+            <div class="loc-grid-2">
+              <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}"></label>
+              <label class="loc-field">Nom<input data-f="nom" value="${esc(current.nom)}"></label>
+              <label class="loc-field">Type appareil<select data-f="type_appareil">
+                <option value="">Tous</option>
+                ${Object.entries(LocationRules.TYPE_LABELS)
+                  .map(
                     ([k, v]) =>
-                      `<option value="${k}"${current.action === k ? ' selected' : ''}>${esc(v)}</option>`
-                  ).join('')}
-                  ${
-                    ACTION_OPTS.some(([k]) => k === current.action)
-                      ? ''
-                      : `<option value="${esc(current.action)}" selected>${esc(current.action)}</option>`
-                  }
-                </select></label>
-              </div>
-              <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
-              ${templateSelectHtml(templates, current.template_id)}
-              <h3>Conditions</h3>
-              ${conditionsFormHtml(current.conditions)}
-            `
-                : '<p class="loc-muted">Sélectionnez une règle ou ajoutez-en une.</p>'
-            }
-          </div>
+                      `<option value="${k}"${current.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
+                  )
+                  .join('')}
+              </select></label>
+              <label class="loc-field">Action<select data-f="action">
+                ${ACTION_OPTS.map(
+                  ([k, v]) =>
+                    `<option value="${k}"${current.action === k ? ' selected' : ''}>${esc(v)}</option>`
+                ).join('')}
+                ${
+                  ACTION_OPTS.some(([k]) => k === current.action)
+                    ? ''
+                    : `<option value="${esc(current.action)}" selected>${esc(current.action)}</option>`
+                }
+              </select></label>
+            </div>
+            <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
+            ${templateSelectHtml(templates, current.template_id)}
+            <h3>Conditions</h3>
+            ${conditionsFormHtml(current.conditions)}
+          `
+              : '<p class="loc-muted">Sélectionnez une règle ou ajoutez-en une.</p>'
+          }
         </div>
       `;
 
