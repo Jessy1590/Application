@@ -243,6 +243,7 @@
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
           <button type="button" class="loc-admin-tab" data-tab="champs">Champs création</button>
+          <button type="button" class="loc-admin-tab" data-tab="acces">Accès</button>
         </nav>
         <div class="loc-params-body" id="locParamsBody"></div>
         <p class="loc-msg" id="locParamsMsg" hidden></p>
@@ -289,10 +290,66 @@
         else if (tab === 'prestataires') await renderPrestataires();
         else if (tab === 'regles') await renderRegles();
         else if (tab === 'templates') await renderTemplates();
+        else if (tab === 'acces') renderAcces();
         else await renderChampsCreation();
       } catch (e) {
         body.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
+    }
+
+    /** Matrice lecture seule — droits réellement appliqués dans le code Location / PhieEquipe. */
+    function renderAcces() {
+      const YES = 'Oui';
+      const NO = 'Non';
+      const rows = [
+        { label: 'Module Création', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Module Suivi (consultation / édition)', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Module Contact', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Module Facture', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Impression fiche (Suivi)', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Clôture de dossier (Suivi)', personnel: YES, gestionnaire: YES, administrateur: YES },
+        { label: 'Suppression de dossier (Suivi)', personnel: NO, gestionnaire: YES, administrateur: YES },
+        { label: 'Paramètres Location (tuile + page)', personnel: NO, gestionnaire: NO, administrateur: YES },
+        {
+          label: 'Hub — équipe, invitations, gestion bugs',
+          personnel: NO,
+          gestionnaire: NO,
+          administrateur: YES,
+        },
+      ];
+      const cell = (v) =>
+        v === YES
+          ? `<td>${esc(YES)}</td>`
+          : `<td class="loc-muted">${esc(NO)}</td>`;
+      body.innerHTML = `
+        <h3>Accès par rôle</h3>
+        <p class="loc-muted">Lecture seule — comportement actuel de l’application (pas de modification ici).</p>
+        <p class="loc-muted">Administrateur = rôle équipe <code>administrateur</code> ou profil portail <code>admin</code>.</p>
+        <div class="loc-admin-table-wrap">
+          <table class="loc-admin-table">
+            <thead>
+              <tr>
+                <th>Fonctionnalité</th>
+                <th>Personnel</th>
+                <th>Gestionnaire</th>
+                <th>Administrateur</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows
+                .map(
+                  (r) => `<tr>
+                  <td>${esc(r.label)}</td>
+                  ${cell(r.personnel)}
+                  ${cell(r.gestionnaire)}
+                  ${cell(r.administrateur)}
+                </tr>`
+                )
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     async function renderParams() {
@@ -582,6 +639,9 @@
             ${templateSelectHtml(templates, current.template_id)}
             <h3>Conditions</h3>
             ${conditionsFormHtml(current.conditions)}
+            <div class="loc-row-actions" style="margin-top:12px">
+              <button type="button" class="loc-btn loc-btn-ghost" id="adDelRule">Supprimer</button>
+            </div>
           `
               : '<p class="loc-muted">Sélectionnez une règle ou ajoutez-en une.</p>'
           }
@@ -623,6 +683,20 @@
           showMsg('Règle enregistrée.');
           await renderRegles();
         });
+      });
+
+      body.querySelector('#adDelRule')?.addEventListener('click', async () => {
+        if (!selectedRuleId) return;
+        if (!confirm('Supprimer définitivement cette règle ?')) return;
+        try {
+          await LocationRules.deleteRule(LocationData.sb(), selectedRuleId);
+          LocationData.invalidateCache();
+          selectedRuleId = null;
+          showMsg('Règle supprimée.');
+          await renderRegles();
+        } catch (e) {
+          showMsg(e.message || 'Suppression impossible', true);
+        }
       });
     }
 

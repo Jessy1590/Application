@@ -1,7 +1,8 @@
 /**
- * Module Contact — 2 files (Commentaire / Appels) calquées sur Ancienne Location.
+ * Module Contact — files Commentaire / Appels / Attente / Perte.
  * Phase commentaire = message LGO (template) à reporter sur le compte patient.
  * Phase appel = arbre décisionnel (joint ? → résultat → mail éventuel).
+ * Attente = resolu + ramene_semaine | ordo_mail ; Perte = resolu + resultat PERTE.
  * Note / résultat d’appel : champs vides (pas de préremplissage).
  */
 (function (global) {
@@ -42,7 +43,11 @@
     pas_de_numero: 'Pas de numéro',
     autre_raison: 'Autre raison',
     message_laisse: 'Message laissé',
+    PERTE: 'PERTE',
   };
+
+  /** Résultats d’appel → file « Attente prolongation ou retour appareil ». */
+  const ATTENTE_RESULTATS = new Set(['ramene_semaine', 'ordo_mail']);
 
   /** Libellés motifs template (mêmes que admin-location). */
   const MOTIF_LABELS = {
@@ -91,12 +96,24 @@
     return [p.nom, p.prenom].filter(Boolean).join(' ').trim() || '—';
   }
 
-  /** Map statut appel Ancienne → statut location_contacts. */
+  /** Map statut appel Ancienne → statut location_contacts (contrainte DB sans PERTE). */
   function mapAppelStatut(ancienne) {
     if (ancienne === 'termine' || ancienne === 'PERTE') return 'resolu';
     if (ancienne === 'a_rappeler') return 'reporte';
     if (ancienne === 'a_appeler') return 'a_contacter';
     return 'a_contacter';
+  }
+
+  function isOpenContact(it) {
+    return ['a_contacter', 'en_cours', 'reporte'].includes(it?.statut);
+  }
+
+  function isAttenteContact(it) {
+    return it?.statut === 'resolu' && ATTENTE_RESULTATS.has(it.resultat);
+  }
+
+  function isPerteContact(it) {
+    return it?.statut === 'resolu' && it.resultat === 'PERTE';
   }
 
   async function mount(root, ctx) {
@@ -128,6 +145,8 @@
       <div class="loc-contact-tabs" role="tablist">
         <button type="button" class="loc-admin-tab active" data-file="commentaire">Commentaire</button>
         <button type="button" class="loc-admin-tab" data-file="appel">Appels</button>
+        <button type="button" class="loc-admin-tab" data-file="attente">Attente prolongation ou retour appareil</button>
+        <button type="button" class="loc-admin-tab" data-file="perte">Perte</button>
       </div>
       <div class="loc-split" id="coSplit">
         <div class="loc-list-panel" id="coListPanel">
@@ -160,7 +179,10 @@
     const btnNext = wrap.querySelector('#coNext');
 
     function activeQueue() {
-      return file === 'appel' ? callQueue() : commentQueue();
+      if (file === 'appel') return callQueue();
+      if (file === 'attente') return attenteQueue();
+      if (file === 'perte') return perteQueue();
+      return commentQueue();
     }
 
     function currentIndex() {
@@ -227,15 +249,30 @@
     }
 
     function commentQueue() {
-      return filteredItems.filter((i) => contactPhase(i) === PHASE_COMMENTAIRE);
+      return filteredItems.filter((i) => isOpenContact(i) && contactPhase(i) === PHASE_COMMENTAIRE);
     }
 
     function callQueue() {
-      return filteredItems.filter((i) => contactPhase(i) === PHASE_APPEL);
+      return filteredItems.filter((i) => isOpenContact(i) && contactPhase(i) === PHASE_APPEL);
+    }
+
+    function attenteQueue() {
+      return filteredItems.filter(isAttenteContact);
+    }
+
+    function perteQueue() {
+      return filteredItems.filter(isPerteContact);
     }
 
     function updateCount() {
-      countEl.textContent = `${commentQueue().length} com. · ${callQueue().length} appels`;
+      countEl.textContent = `${commentQueue().length} com. · ${callQueue().length} appels · ${attenteQueue().length} attente · ${perteQueue().length} perte`;
+    }
+
+    function queueTitle() {
+      if (file === 'appel') return 'File Appels';
+      if (file === 'attente') return 'Attente prolongation ou retour appareil';
+      if (file === 'perte') return 'Perte';
+      return 'File Commentaire (LGO)';
     }
 
     /** Filtrage dossier = mêmes critères que Suivi / listDossiers. */
@@ -283,7 +320,11 @@
     async function refresh() {
       showMsg('Chargement…');
       try {
-        items = await LocationData.listOpenContacts();
+        const [open, outcomes] = await Promise.all([
+          LocationData.listOpenContacts(),
+          LocationData.listOutcomeContacts(),
+        ]);
+        items = open.concat(outcomes);
         await applyFilters();
         updateCount();
         showMsg('');
@@ -321,7 +362,7 @@
     function selectItem(id) {
       current = filteredItems.find((i) => i.id === id) || null;
       resetDraft();
-      if (current) {
+      if (current && (file === 'commentaire' || file === 'appel') && isOpenContact(current)) {
         file = contactPhase(current) === PHASE_APPEL ? 'appel' : 'commentaire';
         wrap.querySelectorAll('[data-file]').forEach((b) =>
           b.classList.toggle('active', b.dataset.file === file)
@@ -333,25 +374,39 @@
 
     function listButton(it) {
       const d = it.dossier || {};
-      const phaseLabel = contactPhase(it) === PHASE_APPEL ? 'Appel' : 'Commentaire';
-      return `<button type="button" class="loc-list-item${current?.id === it.id ? ' active' : ''}" data-id="${it.id}">
-        <strong>${esc(patientLabel(d))}</strong>
-        <span>${esc(it.motif || '')} · ${esc(phaseLabel)}</span>
-        <span class="loc-badge">${esc(d.date_fin || '—')}</span>
-      </button>`;
+      let phaseLabel = 'Commentaire';
+      if (isAttenteContact(it)) phaseLabel = APPEL_RESULTAT_LABELS[it.resultat] || it.resultat || 'Attente';
+      else if (isPerteContact(it)) phaseLabel = 'PERTE';
+      else if (contactPhase(it) === PHASE_APPEL) phaseLabel = 'Appel';
+      const dossierId = it.dossier_id || d.id || '';
+      return `<div class="loc-list-row">
+        <button type="button" class="loc-list-item${current?.id === it.id ? ' active' : ''}" data-id="${esc(it.id)}">
+          <strong>${esc(patientLabel(d))}</strong>
+          <span>${esc(it.motif || '')} · ${esc(phaseLabel)}</span>
+          <span class="loc-badge">${esc(d.date_fin || '—')}</span>
+        </button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm loc-list-suivi" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>
+      </div>`;
     }
 
     function renderList() {
       const queue = activeQueue();
-      const title = file === 'appel' ? 'File Appels' : 'File Commentaire (LGO)';
+      const title = queueTitle();
       if (!queue.length) {
-        listEl.innerHTML = `<p class="loc-muted">${title} vide.</p>`;
+        listEl.innerHTML = `<p class="loc-muted">${esc(title)} vide.</p>`;
         updateNav();
         return;
       }
       listEl.innerHTML = `<h4 class="loc-queue-title">${esc(title)} (${queue.length})</h4>${queue.map(listButton).join('')}`;
       listEl.querySelectorAll('[data-id]').forEach((b) => {
         b.addEventListener('click', () => selectItem(b.dataset.id));
+      });
+      listEl.querySelectorAll('[data-suivi]').forEach((b) => {
+        b.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const id = b.dataset.suivi;
+          if (id) ctx.openSuivi?.(id);
+        });
       });
       updateNav();
     }
@@ -390,6 +445,8 @@
 
     async function applyCallUpdate(contact, { appel_statut, appel_resultat, journalLine, mailNote }) {
       const statut = mapAppelStatut(appel_statut);
+      /** PERTE n’existe pas en contrainte statut DB → resolu + resultat PERTE. */
+      const resultat = appel_statut === 'PERTE' ? 'PERTE' : appel_resultat || null;
       const lines = [journalLine, mailNote].filter(Boolean);
       for (const line of lines) {
         await appendDossierJournal(contact.dossier_id, line);
@@ -401,12 +458,12 @@
         statut,
         phase: PHASE_APPEL,
         commentaire: contact.commentaire || null,
-        resultat: appel_resultat || null,
+        resultat,
         canal: 'telephone',
         contacted_at: new Date().toISOString(),
         phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
       });
-      showMsg('Appel enregistré.');
+      showMsg(appel_statut === 'PERTE' ? 'Statut PERTE' : 'Appel enregistré.');
       current = null;
       resetDraft();
       await refresh();
@@ -785,6 +842,50 @@
       return header + body;
     }
 
+    function renderOutcomeFlow(d, p) {
+      const phones = phonesOf(d);
+      const mails = mailsOf(d);
+      const identity = [p.nom || '—', p.prenom || '—', p.date_naissance || '—'].join(' - ');
+      const appareilFin = [
+        LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
+        d.date_fin || '—',
+      ].join(' - ');
+      const journal = String(d.notes || '').trim();
+      const badge = isPerteContact(current)
+        ? 'Perte'
+        : 'Attente prolongation ou retour appareil';
+      const resultatLabel =
+        APPEL_RESULTAT_LABELS[current.resultat] || current.resultat || '—';
+      return `
+        <div class="loc-detail-head">
+          <div>
+            <p class="loc-badge">${esc(badge)}</p>
+            <h3>${esc(identity)}</h3>
+            <div class="loc-phones-inline">${
+              phones.length
+                ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
+                : '<p class="loc-muted">Aucun téléphone</p>'
+            }</div>
+            <p class="loc-muted">${
+              mails.length
+                ? mails.map((m) => esc(m)).join(' · ')
+                : 'Aucun mail'
+            }</p>
+            <p class="loc-muted">${esc(appareilFin)}</p>
+            <p class="loc-muted">Résultat : ${esc(resultatLabel)}</p>
+            <p class="loc-muted">${esc(current.commentaire || '—')}</p>
+          </div>
+        </div>
+        ${
+          journal
+            ? `<div class="loc-journal-box loc-journal-box--suivi">
+                <p class="loc-journal-title">Suivi appels déjà effectué</p>
+                <div class="loc-journal-body">${esc(journal)}</div>
+              </div>`
+            : ''
+        }`;
+    }
+
     function renderFlow() {
       if (!current) {
         flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
@@ -792,6 +893,12 @@
       }
       const d = current.dossier || {};
       const p = d.patient || {};
+
+      if (isAttenteContact(current) || isPerteContact(current)) {
+        flowEl.innerHTML = renderOutcomeFlow(d, p);
+        return;
+      }
+
       const phase = contactPhase(current);
 
       if (phase === PHASE_COMMENTAIRE) {

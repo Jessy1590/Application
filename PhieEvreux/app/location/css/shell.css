@@ -756,6 +756,25 @@ a.loc-btn {
   gap: 4px;
 }
 
+.loc-list-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.loc-list-row .loc-list-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.loc-list-suivi {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 8px 10px;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .loc-list-item.active { border-color: var(--loc-accent); }
 .loc-list-item span { font-size: 12px; color: var(--loc-muted); }
 

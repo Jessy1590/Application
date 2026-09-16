@@ -621,6 +621,26 @@
     }));
   }
 
+  /**
+   * Contacts résolus en attente de suite métier (prolongation / retour appareil / PERTE).
+   * Hors file ouverte (listOpenContacts) — statut DB = resolu uniquement.
+   */
+  async function listOutcomeContacts() {
+    const { data, error } = await sb()
+      .from('location_contacts')
+      .select(
+        '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))'
+      )
+      .eq('statut', 'resolu')
+      .in('resultat', ['ramene_semaine', 'ordo_mail', 'PERTE'])
+      .order('contacted_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map((c) => ({
+      ...c,
+      dossier: enrichDossier(c.dossier),
+    }));
+  }
+
   async function upsertContact(row) {
     if (row.id) {
       const { data, error } = await sb()
@@ -819,6 +839,7 @@
     upsertPrestataire,
     deletePrestataire,
     listOpenContacts,
+    listOutcomeContacts,
     upsertContact,
     invalidateDossierCommentaire,
     syncContactQueue,
