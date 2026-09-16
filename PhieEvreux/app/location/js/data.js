@@ -460,10 +460,10 @@
   }
 
   /**
-   * Résout un template Contact : mapping motif règle → motif template + fallback prolongation.
+   * Résout un template Contact par motif template (prolongation, reclame_appareil, …).
    */
-  async function findTemplate(typeAppareil, motif) {
-    const tplMotif = global.LocationRules.templateMotifFor(motif);
+  async function findTemplateByMotif(typeAppareil, templateMotif) {
+    const tplMotif = templateMotif || 'prolongation';
     const all = await listTemplates();
     const actifs = all.filter((t) => t.actif !== false);
     return (
@@ -475,11 +475,28 @@
     );
   }
 
+  /** @deprecated Prefer findTemplateByMotif / findTemplateById + resolveLgo. */
+  async function findTemplate(typeAppareil, motif) {
+    return findTemplateByMotif(typeAppareil, global.LocationRules.templateMotifFor(motif));
+  }
+
+  async function findTemplateById(id) {
+    if (!id) return null;
+    const { data, error } = await sb()
+      .from('location_templates_contact')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
   function contactInterpVars(motif, rules, dossier) {
     const rule = (rules || []).find((r) => r.code === motif);
     const cond = global.LocationRules.parseJson(rule?.conditions, {});
+    const dateRaw = dossier?.date_fin || '';
     return global.LocationRules.varsFromConditions(cond, {
-      date_min: dossier?.date_fin || '',
+      date_min: global.LocationRules.formatDateFr(dateRaw) || dateRaw,
     });
   }
 
@@ -688,12 +705,20 @@
     for (const d of dossiers) {
       const a = d.appareil_actif;
       if (d.qui_facture === 'prestataire' || a?.facturation_prestataire) continue;
-      const evalRes = global.LocationRules.evaluate(dossierContext(d), rules, params);
+      const ctx = dossierContext(d);
+      const evalRes = global.LocationRules.evaluate(ctx, rules, params);
       if (!evalRes.shouldContact) continue;
 
-      const motif = evalRes.contactReasons[0]?.motif || 'fin_location';
-      const tpl = await findTemplate(a?.type_appareil, motif);
+      const resolved = global.LocationRules.resolveLgo(ctx, evalRes.contactReasons, params);
+      const motif = resolved.motif;
       const vars = contactInterpVars(motif, rules, d);
+      let tpl = null;
+      if (resolved.template_id) {
+        tpl = await findTemplateById(resolved.template_id);
+      }
+      if (!tpl) {
+        tpl = await findTemplateByMotif(a?.type_appareil, resolved.templateMotif);
+      }
       const rawCorps =
         tpl?.corps || evalRes.contactReasons.map((r) => r.message).join('\n');
       const commentaire = global.LocationRules.interpolate(rawCorps, vars);
@@ -775,6 +800,8 @@
     deleteSuiviLigne,
     listTemplates,
     findTemplate,
+    findTemplateByMotif,
+    findTemplateById,
     contactInterpVars,
     listChampsCreation,
     upsertChampCreation,

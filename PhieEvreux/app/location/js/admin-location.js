@@ -300,6 +300,7 @@
       const params = await LocationData.loadParams();
       const champs = params.champs_obligatoires || {};
       const seuil = params.seuil_contact_jours ?? 7;
+      const seuilReclame = params.seuil_reclame_mois ?? 6;
       const qui = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
       const delaiFacture = params.facture_delai_cloture_jours ?? 30;
 
@@ -315,12 +316,14 @@
         <h3>Seuils</h3>
         <div class="loc-grid-2">
           <label class="loc-field">Seuil contact (J-n)<input type="number" min="0" id="adSeuil" value="${Number(seuil)}"></label>
+          <label class="loc-field">Seuil réclamer appareil (mois)<input type="number" min="0" id="adSeuilReclame" value="${Number(seuilReclame)}"></label>
           <label class="loc-field">Délai clôture facture (jours)<input type="number" min="0" id="adDelaiFacture" value="${Number(delaiFacture)}"></label>
           <label class="loc-field">Qui facture (défaut)<select id="adQui">
             <option value="pharmacie"${qui === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
             <option value="prestataire"${qui === 'prestataire' ? ' selected' : ''}>Prestataire</option>
           </select></label>
         </div>
+        <p class="loc-muted">Sans règle spécifique : &lt; seuil mois → message prolongation ; ≥ seuil → réclamer l’appareil.</p>
         <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
 
@@ -332,6 +335,11 @@
         try {
           await LocationData.setParam('champs_obligatoires', nextChamps, ctx.userId);
           await LocationData.setParam('seuil_contact_jours', Number(body.querySelector('#adSeuil').value), ctx.userId);
+          await LocationData.setParam(
+            'seuil_reclame_mois',
+            Number(body.querySelector('#adSeuilReclame').value),
+            ctx.userId
+          );
           await LocationData.setParam(
             'facture_delai_cloture_jours',
             Number(body.querySelector('#adDelaiFacture').value),
@@ -416,17 +424,47 @@
       });
     }
 
+    function isContactAction(action) {
+      return action === 'alerte_contact' || action === 'bloquer_ou_alerter';
+    }
+
+    function templateSelectHtml(templates, selectedId) {
+      const actifs = (templates || []).filter((t) => t.actif !== false);
+      return `<label class="loc-field" data-template-field>
+        Template (message LGO si règle dépassée)
+        <select data-f="template_id">
+          <option value="">— Aucun (fallback motif) —</option>
+          ${actifs
+            .map(
+              (t) =>
+                `<option value="${esc(t.id)}"${t.id === selectedId ? ' selected' : ''}>${esc(
+                  `${t.titre || t.motif} (${t.motif}${t.type_appareil ? ' · ' + t.type_appareil : ''})`
+                )}</option>`
+            )
+            .join('')}
+          <option value="__nouveau__">Nouveau…</option>
+        </select>
+      </label>`;
+    }
+
     function collectRuleFromEditor(editor, id, prioriteAuto) {
+      const action = editor.querySelector('[data-f=action]').value.trim();
+      const tplSel = editor.querySelector('[data-f=template_id]');
+      let template_id = null;
+      if (isContactAction(action) && tplSel && tplSel.value && tplSel.value !== '__nouveau__') {
+        template_id = tplSel.value;
+      }
       return {
         id,
         code: editor.querySelector('[data-f=code]').value.trim(),
         nom: editor.querySelector('[data-f=nom]').value.trim(),
         type_appareil: editor.querySelector('[data-f=type_appareil]').value || null,
-        action: editor.querySelector('[data-f=action]').value.trim(),
+        action,
         priorite: prioriteAuto,
         message: editor.querySelector('[data-f=message]').value,
         conditions: readConditionsFromForm(editor),
         actif: editor.querySelector('[data-f=actif]').checked,
+        template_id,
       };
     }
 
@@ -450,13 +488,29 @@
       }
     }
 
+    async function createStubTemplateForRule(rule) {
+      const code = String(rule.code || 'custom').trim() || 'custom';
+      const motif = code.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+      return LocationData.upsertTemplate({
+        motif,
+        titre: rule.nom || code,
+        corps: 'À compléter',
+        type_appareil: rule.type_appareil || null,
+        actif: true,
+      });
+    }
+
     async function renderRegles() {
-      const rules = await LocationRules.listRules(LocationData.sb());
+      const [rules, templates] = await Promise.all([
+        LocationRules.listRules(LocationData.sb()),
+        LocationData.listTemplates(),
+      ]);
       if (!selectedRuleId && rules[0]) selectedRuleId = rules[0].id;
       if (selectedRuleId && !rules.some((r) => r.id === selectedRuleId)) {
         selectedRuleId = rules[0]?.id || null;
       }
       const current = rules.find((r) => r.id === selectedRuleId) || null;
+      const showTpl = current && isContactAction(current.action);
 
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
@@ -505,6 +559,7 @@
                 </select></label>
               </div>
               <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
+              ${showTpl ? templateSelectHtml(templates, current.template_id) : ''}
               <h3>Conditions</h3>
               ${conditionsFormHtml(current.conditions)}
             `
@@ -516,6 +571,33 @@
 
       const editor = body.querySelector('[data-rule-editor]');
       if (editor) bindConditionsForm(editor);
+
+      const actionSel = editor?.querySelector('[data-f=action]');
+      actionSel?.addEventListener('change', async () => {
+        const ok = await saveCurrentRule(true);
+        if (!ok) return;
+        await renderRegles();
+      });
+
+      const tplSel = editor?.querySelector('[data-f=template_id]');
+      tplSel?.addEventListener('change', async () => {
+        if (tplSel.value === '__nouveau__') {
+          try {
+            const stub = await createStubTemplateForRule(current);
+            tplSel.value = stub.id;
+            const ok = await saveCurrentRule(true);
+            if (!ok) return;
+            showMsg('Template créé — complétez le texte dans l’onglet Templates.');
+            selectedMotif = stub.motif;
+            await renderRegles();
+          } catch (e) {
+            showMsg(e.message || 'Création template impossible', true);
+            tplSel.value = current.template_id || '';
+          }
+          return;
+        }
+        await saveCurrentRule(true);
+      });
 
       body.querySelectorAll('[data-pick-rule]').forEach((btn) => {
         btn.addEventListener('click', async () => {

@@ -21,10 +21,38 @@
     autre: '',
   };
 
+  const GENERIC_CONTACT_MOTIFS = new Set([
+    'fin_location',
+    'pas_de_rendu',
+    'pas_de_prolongation',
+  ]);
+
+  /** Motif file Contact (code règle / seuil) → motif template (fallback). */
+  const MOTIF_TO_TEMPLATE = {
+    tens_max: 'reclame_appareil_tens',
+    tire_lait_prolong_max: 'prolongation_tire_lait',
+    pas_de_rendu: 'reclame_appareil',
+    fin_location: 'prolongation',
+    pas_de_prolongation: 'prolongation',
+  };
+
+  /** Plus petit = prioritaire quand plusieurs raisons Contact. */
+  const MOTIF_PRIORITY = {
+    tens_max: 10,
+    tire_lait_prolong_max: 20,
+    pas_de_rendu: 30,
+    fin_location: 40,
+    pas_de_prolongation: 50,
+  };
+
   function parseJson(v, fallback) {
     if (v == null) return fallback;
     if (typeof v === 'object') return v;
-    try { return JSON.parse(v); } catch (_) { return fallback; }
+    try {
+      return JSON.parse(v);
+    } catch (_) {
+      return fallback;
+    }
   }
 
   function addDuration(dateStr, duree, unite) {
@@ -65,15 +93,62 @@
     return days / 7;
   }
 
-  /** Motif file Contact (code règle / seuil) → motif template. */
-  const MOTIF_TO_TEMPLATE = {
-    tens_max: 'reclame_appareil_tens',
-    tire_lait_prolong_max: 'prolongation_tire_lait',
-    pas_de_rendu: 'reclame_appareil',
-  };
-
   function templateMotifFor(motif) {
     return MOTIF_TO_TEMPLATE[motif] || 'prolongation';
+  }
+
+  function isGenericContactMotif(motif) {
+    return GENERIC_CONTACT_MOTIFS.has(motif);
+  }
+
+  function sortContactReasons(reasons) {
+    return (reasons || []).slice().sort((a, b) => {
+      const pa = MOTIF_PRIORITY[a.motif] ?? 100;
+      const pb = MOTIF_PRIORITY[b.motif] ?? 100;
+      return pa - pb;
+    });
+  }
+
+  function pickContactMotif(reasons) {
+    const list = sortContactReasons(reasons);
+    if (!list.length) return 'fin_location';
+    return list[0].motif;
+  }
+
+  /**
+   * Résout le message LGO :
+   * 1) règle dépassée → template_id de la règle (sinon motif template mappé) ;
+   * 2) sinon générique → âge location vs seuil_reclame_mois → prolongation | reclame_appareil.
+   */
+  function resolveLgo(ctx, reasons, params) {
+    const sorted = sortContactReasons(reasons);
+    const ruleReason = sorted.find((r) => r.fromRule);
+    if (ruleReason) {
+      return {
+        motif: ruleReason.motif,
+        template_id: ruleReason.template_id || null,
+        templateMotif: templateMotifFor(ruleReason.motif),
+      };
+    }
+    const motif = sorted[0]?.motif || 'fin_location';
+    const seuilMois = Number(params?.seuil_reclame_mois ?? 6);
+    const days = durationDays(ctx?.date_debut, todayISO());
+    const ageMois = monthsApprox(days);
+    const templateMotif =
+      ageMois != null && ageMois >= seuilMois ? 'reclame_appareil' : 'prolongation';
+    return {
+      motif,
+      template_id: null,
+      templateMotif,
+    };
+  }
+
+  function formatDateFr(iso) {
+    if (!iso) return '';
+    const s = String(iso).slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return s;
+    return `${m[3]}/${m[2]}/${m[1]}`;
   }
 
   function interpolate(text, vars) {
@@ -99,17 +174,8 @@
 
   /**
    * @param {object} ctx
-   * @param {string} [ctx.type_appareil]
-   * @param {string} [ctx.date_debut]
-   * @param {string} [ctx.date_fin] date fin courante (dernière prolongation)
-   * @param {boolean} [ctx.appareil_rendu]
-   * @param {string} [ctx.qui_facture]
-   * @param {boolean} [ctx.facturation_prestataire]
-   * @param {boolean} [ctx.has_prolongation] au moins une prolongation au-delà de l’initiale
-   * @param {number} [ctx.prolong_duree]
-   * @param {string} [ctx.prolong_unite]
    * @param {object[]} rules
-   * @param {object} [params] map cle -> valeur
+   * @param {object} [params]
    */
   function evaluate(ctx, rules, params) {
     const infos = [];
@@ -126,7 +192,9 @@
       }
       const cond = parseJson(rule.conditions, {});
       const hit = matchConditions(cond, ctx, rule);
-      const msgVars = varsFromConditions(cond, { date_min: ctx.date_fin || '' });
+      const msgVars = varsFromConditions(cond, {
+        date_min: formatDateFr(ctx.date_fin) || ctx.date_fin || '',
+      });
       const rawMsg = rule.message || rule.nom;
       const message = interpolate(rawMsg, msgVars);
 
@@ -139,7 +207,12 @@
       const item = { code: rule.code, message, action: rule.action, rule };
       if (rule.action === 'alerte_contact' || rule.action === 'bloquer_ou_alerter') {
         alerts.push(item);
-        contactReasons.push({ motif: rule.code, message: item.message });
+        contactReasons.push({
+          motif: rule.code,
+          message: item.message,
+          fromRule: true,
+          template_id: rule.template_id || null,
+        });
       } else if (rule.action === 'bascule_facture') {
         actions.push(item);
       } else {
@@ -147,7 +220,6 @@
       }
     }
 
-    // File contact générique : fin proche / dépassée sans rendu
     if (
       ctx.qui_facture !== 'prestataire' &&
       !ctx.facturation_prestataire &&
@@ -160,23 +232,25 @@
           contactReasons.push({
             motif: 'pas_de_rendu',
             message: 'Fin de location dépassée — appareil non rendu.',
+            fromRule: false,
           });
         } else if (delta <= seuil && !ctx.appareil_rendu) {
           contactReasons.push({
             motif: 'fin_location',
             message: `Fin de location dans ${delta} j (seuil J-${seuil}).`,
+            fromRule: false,
           });
         }
         if (delta <= seuil && ctx.has_prolongation === false && !ctx.appareil_rendu) {
           contactReasons.push({
             motif: 'pas_de_prolongation',
             message: 'Pas de prolongation enregistrée alors que la fin approche.',
+            fromRule: false,
           });
         }
       }
     }
 
-    // Dédup motifs
     const seen = new Set();
     const uniqueReasons = [];
     for (const r of contactReasons) {
@@ -186,7 +260,13 @@
       uniqueReasons.push(r);
     }
 
-    return { infos, alerts, contactReasons: uniqueReasons, actions, shouldContact: uniqueReasons.length > 0 };
+    return {
+      infos,
+      alerts,
+      contactReasons: uniqueReasons,
+      actions,
+      shouldContact: uniqueReasons.length > 0,
+    };
   }
 
   function matchConditions(cond, ctx, rule) {
@@ -247,10 +327,16 @@
       message: row.message || null,
       actif: row.actif !== false,
       priorite: row.priorite ?? 100,
+      template_id: row.template_id || null,
       updated_at: new Date().toISOString(),
     };
     if (id) {
-      const { data, error } = await sb.from('location_regles').update(payload).eq('id', id).select().single();
+      const { data, error } = await sb
+        .from('location_regles')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
       return data;
     }
@@ -268,13 +354,19 @@
     TYPE_LABELS,
     ENCART_DEFAUT,
     MOTIF_TO_TEMPLATE,
+    MOTIF_PRIORITY,
+    GENERIC_CONTACT_MOTIFS,
     parseJson,
     addDuration,
     daysBetween,
     todayISO,
+    formatDateFr,
     interpolate,
     varsFromConditions,
     templateMotifFor,
+    isGenericContactMotif,
+    pickContactMotif,
+    resolveLgo,
     evaluate,
     infosForType,
     encartDefaut,

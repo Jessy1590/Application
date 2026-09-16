@@ -422,6 +422,11 @@
 
     async function validateCommentaire(mailAlready) {
       if (!current) return;
+      const lgoText = String(current.commentaire || '').trim();
+      if (!lgoText) {
+        showMsg('Aucun message LGO à valider.', true);
+        return;
+      }
       try {
         showMsg('Enregistrement…');
         if (mailAlready) {
@@ -436,11 +441,15 @@
           motif: current.motif,
           statut: current.statut === 'reporte' ? 'reporte' : 'a_contacter',
           phase: PHASE_APPEL,
-          commentaire: current.commentaire || '',
+          commentaire: lgoText,
           commentaire_fait_at: new Date().toISOString(),
           phase_date_fin: current.dossier?.date_fin || null,
         });
-            showMsg(mailAlready ? 'Commentaire ECRIS + mail noté — passé en file Appel.' : 'Commentaire ECRIS — passé en file Appel.');
+        showMsg(
+          mailAlready
+            ? 'Commentaire ECRIS + mail noté — passé en file Appel.'
+            : 'Commentaire ECRIS — passé en file Appel.'
+        );
         current = null;
         resetDraft();
         await refresh();
@@ -466,7 +475,7 @@
           <h4>Message à mettre sur le LGO</h4>
           <p class="loc-hint">Motif : ${esc(current.motif || '—')}</p>
           <div class="loc-lgo-box" id="coLgoText">${esc(lgo) || '<span class="loc-muted">Aucun texte template.</span>'}</div>
-          <button type="button" class="loc-btn loc-btn-ghost" id="coCopyLgo">Copier le message</button>
+          <button type="button" class="loc-btn loc-btn-ghost" id="coCopyLgo" ${lgo ? '' : 'disabled'}>Copier le message</button>
           <div class="loc-phones-inline">${
             phones.length
               ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
@@ -592,18 +601,20 @@
         const done = flowEl.querySelector('#coCommentDone');
         const validate = flowEl.querySelector('#coValidateComment');
         done?.addEventListener('change', () => {
-          validate.disabled = !done.checked;
+          if (validate) validate.disabled = !done.checked || !String(current.commentaire || '').trim();
         });
         flowEl.querySelector('#coCopyLgo')?.addEventListener('click', async () => {
+          const text = current.commentaire || '';
+          if (!text) return;
           try {
-            await navigator.clipboard.writeText(current.commentaire || '');
+            await navigator.clipboard.writeText(text);
             showMsg('Message LGO copié.');
           } catch (_) {
             showMsg('Copie impossible', true);
           }
         });
         validate?.addEventListener('click', () => {
-          if (!done?.checked) return;
+          if (validate.disabled) return;
           validateCommentaire(!!flowEl.querySelector('#coMailAlready')?.checked);
         });
         return;
