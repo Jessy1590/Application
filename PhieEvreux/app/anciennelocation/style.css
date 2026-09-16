@@ -84,6 +84,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form-card input:focus, .form-card textarea:focus, .form-card select:focus {
   outline: 2px solid rgba(59,167,217,0.45); border-color: var(--accent);
 }
+.type-field { border: none; padding: 0; margin: 0 0 12px; }
+.type-field legend { margin-bottom: 8px; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.seg-opt { margin: 0 !important; }
+.seg-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.seg-opt span {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 44px; padding: 8px 6px; text-align: center; font-size: 13px; font-weight: 600;
+  color: var(--text); background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+}
+.seg-opt input:checked + span {
+  background: rgba(59,167,217,0.16); border-color: var(--accent); color: var(--accent);
+}
+
 .btn {
   border: none; border-radius: 14px; padding: 14px 16px; font-weight: 700;
   cursor: pointer; transition: transform .12s ease, opacity .12s ease;
@@ -269,10 +283,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .tab.active { color: var(--accent); background: rgba(59,167,217,0.1); }
 .tab-ico { font-size: 16px; line-height: 1; }
 
-/* Remonte le bouton portail (protect.js) au-dessus de la barre */
+/* Remonte le bouton portail (protect.js) au-dessus de la barre + FABs partagés */
 body > a[title="Retour au portail"] {
-  bottom: calc(var(--tab-h) + 14px) !important;
+  bottom: calc(var(--tab-h) + 14px + 128px) !important;
   right: 14px !important;
+}
+
+/* FABs Accueil/Bug partagés au-dessus de la tabbar */
+.phie-fabs {
+  bottom: calc(var(--tab-h) + 14px) !important;
 }
 
 .fabs {
@@ -338,16 +357,6 @@ body > a[title="Retour au portail"] {
 .hint-edit {
   margin: -4px 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4;
 }
-.print-cols-title {
-  margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--text);
-}
-.print-cols {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px;
-}
-.print-cols .check-row {
-  margin: 0 !important; padding: 9px 10px; font-size: 13px !important;
-}
-.print-cols .check-row input { width: 19px !important; height: 19px; }
 .edit-list { display: grid; gap: 8px; }
 .edit-item {
   text-align: left; width: 100%; background: var(--panel); border: 1px solid var(--line);
@@ -383,8 +392,7 @@ body > a[title="Retour au portail"] {
     padding: 0; color: #111; background: #fff; font-family: Arial, sans-serif; font-size: 9px;
   }
   .print-root h1 { font-size: 15px; margin: 0 0 3px; }
-  .print-date { margin: 0 0 2px; color: #444; font-size: 8px; }
-  .print-filters { margin: 0 0 8px; color: #444; font-size: 8px; font-weight: 700; }
+  .print-date { margin: 0 0 8px; color: #444; font-size: 8px; }
   .print-root table {
     width: 100%;
     border-collapse: collapse;
@@ -406,6 +414,12 @@ body > a[title="Retour au portail"] {
   }
   .print-root tbody tr:nth-child(even) td { background: #f3f4f5 !important; }
   .print-root tr { break-inside: avoid; }
+  .print-root th:nth-child(1) { width: 19%; }
+  .print-root th:nth-child(2) { width: 12%; }
+  .print-root th:nth-child(3) { width: 17%; }
+  .print-root th:nth-child(4) { width: 7%; }
+  .print-root th:nth-child(5) { width: 18%; }
+  .print-root th:nth-child(6) { width: 27%; }
   .print-identity strong,
   .print-location strong,
   .print-call strong {

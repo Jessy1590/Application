@@ -23,3 +23,8 @@ Schéma `PharmaOs`. Colonnes d’après `pslService.js` unifié.
 ## RLS
 
 Phase `sql`. Registre sensible (conservation longue durée) — ne pas inventer de colonnes ici.
+
+## Séquence registre
+
+`PharmaOs.mds_registry_seq` + trigger `trg_mds_registry_number` (fonction `assign_mds_registry_number`, SECURITY DEFINER).
+Migration : `supabase/migrations/020_mds_registry_seq_grants.sql` (GRANT USAGE authenticated).

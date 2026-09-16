@@ -1,23 +1,39 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import StatCard from './StatCard.jsx';
-import { getMockAdviceStats } from '../../services/statsService.js';
+import { fetchConseilStats } from '../../../conseil/services/conseilService.js';
 
-// MOCK DATA — a remplacer par une requete sur PharmaOs.advice_events
-// une fois le module Advice (Phase 2 de l'app Electron) branche.
-export default function AdviceStatsCard() {
-  const stats = getMockAdviceStats();
+export default function AdviceStatsCard({ onNavigate }) {
+  const [stats, setStats] = useState(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchConseilStats({ days: 30 })
+      .then((s) => { if (!cancelled) setStats(s); })
+      .catch((e) => { if (!cancelled) setErr(e.message || 'Erreur stats'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const metrics = stats
+    ? [
+        { label: 'Acceptés (30 j)', value: stats.accepte },
+        { label: 'Refusés (30 j)', value: stats.refuse },
+        { label: 'Taux d’acceptation', value: `${stats.tauxAcceptation}%` },
+      ]
+    : [
+        { label: 'Acceptés (30 j)', value: '…' },
+        { label: 'Refusés (30 j)', value: '…' },
+        { label: 'Taux d’acceptation', value: '…' },
+      ];
 
   return (
     <StatCard
       title="Stats de Conseil"
       icon={BookOpen}
-      metrics={[
-        { label: 'Conseils donnés', value: stats.conseilsDonnes },
-        { label: 'Ventes associées', value: stats.ventesAssociees },
-        { label: 'Taux de transformation', value: `${stats.tauxTransformation}%` },
-      ]}
-      footnote="Données fictives (mock) — module Advice non branché"
+      metrics={metrics}
+      footnote={err || 'Ventes associées : N/A (données non branchées)'}
+      onClick={onNavigate ? () => onNavigate('conseil') : undefined}
     />
   );
 }

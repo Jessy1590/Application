@@ -20,6 +20,7 @@ import {
   closeModuleWindow,
   setModuleBeforeCloseHandler,
 } from '../../../shared/windowService.js';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 const STATUS_LABELS = {
   ouvert: 'Ouvert',
@@ -262,15 +263,13 @@ export default function Quality({ data: prefill }) {
                 placeholder="Comptoir, frigo..."
               />
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Médicament concerné</label>
-              <input
-                type="text"
-                value={form.medicament}
-                onChange={(e) => setForm({ ...form, medicament: e.target.value })}
-                className="w-full p-2 border rounded-lg"
-              />
-            </div>
+            <MedicamentFields
+              mode="name-only"
+              medicament={form.medicament}
+              medicamentLabel="Médicament concerné"
+              inputClassName="w-full p-2 border rounded-lg"
+              onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+            />
           </div>
 
           <div className="flex flex-col gap-2 pt-1">

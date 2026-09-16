@@ -1,8 +1,8 @@
 import { supabase } from '../../../shared/supabaseClient.js';
 
 /**
- * Datamatrix = chaîne complète stockée telle quelle.
- * Parsing optionnel uniquement pour préremplir lot / péremption / CIP si présent.
+ * Datamatrix = chaîne complète stockée telle quelle (scan UI retiré temporairement).
+ * Parsing conservé pour imports / données déjà présentes.
  */
 export function parseDatamatrix(raw) {
   if (!raw) return { datamatrix_raw: null };
@@ -41,24 +41,19 @@ export function parseDatamatrix(raw) {
 }
 
 export async function receivePslUnit(userId, payload) {
-  const parsed = payload.datamatrix_raw ? parseDatamatrix(payload.datamatrix_raw) : {};
-  const hasDm = !!(payload.datamatrix_raw && String(payload.datamatrix_raw).trim());
-
-  if (!hasDm) {
-    if (!payload.lot || !payload.date_peremption || !payload.code_produit || !payload.denomination) {
-      throw new Error('Sans datamatrix : renseignez dénomination, code CIP, lot et date de péremption.');
-    }
+  if (!payload.lot || !payload.date_peremption || !payload.code_produit || !payload.denomination) {
+    throw new Error('Renseignez dénomination, code CIP, lot et date de péremption.');
   }
 
   const row = {
-    code_produit: payload.code_produit || parsed.code_produit,
-    numero_unite: payload.numero_unite || parsed.numero_unite || payload.lot || `MANUEL-${Date.now()}`,
+    code_produit: payload.code_produit,
+    numero_unite: payload.numero_unite || payload.lot || `MANUEL-${Date.now()}`,
     denomination: payload.denomination || null,
-    date_peremption: payload.date_peremption || parsed.date_peremption || null,
+    date_peremption: payload.date_peremption || null,
     fournisseur: payload.fournisseur || null,
-    lot: payload.lot || parsed.lot || null,
-    gtin: parsed.gtin || payload.gtin || null,
-    datamatrix_raw: hasDm ? payload.datamatrix_raw : null,
+    lot: payload.lot || null,
+    gtin: payload.gtin || null,
+    datamatrix_raw: payload.datamatrix_raw || null,
     statut: 'en_stock',
     created_by: userId,
   };
@@ -112,7 +107,7 @@ export async function deliverPslUnit(userId, unitId, payload) {
     date_delivrance: payload.date_delivrance || new Date().toISOString().slice(0, 10),
     denomination: payload.denomination || unit.denomination || unit.code_produit,
     quantite: qte,
-    etiquette_tracabilite: payload.etiquette_tracabilite || payload.datamatrix_raw || unit.datamatrix_raw || null,
+    etiquette_tracabilite: payload.etiquette_tracabilite || unit.datamatrix_raw || null,
     datamatrix_raw: payload.datamatrix_raw || unit.datamatrix_raw || null,
     user_id: userId,
     notes: payload.notes || null,
@@ -120,10 +115,45 @@ export async function deliverPslUnit(userId, unitId, payload) {
 
   if (movErr) {
     await supabase.from('psl_units').update({ statut: 'en_stock', updated_at: new Date().toISOString() }).eq('id', unitId);
-    throw new Error(`Délivrance non enregistrée au registre : ${movErr.message}. Vérifiez que la migration 008 est appliquée.`);
+    throw new Error(`Délivrance non enregistrée au registre : ${movErr.message}`);
   }
 
   return { unit, movement };
+}
+
+export async function updatePslUnit(id, payload) {
+  const updates = {
+    denomination: payload.denomination ?? null,
+    code_produit: payload.code_produit,
+    numero_unite: payload.numero_unite,
+    lot: payload.lot || null,
+    date_peremption: payload.date_peremption || null,
+    fournisseur: payload.fournisseur || null,
+    gtin: payload.gtin || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from('psl_units').update(updates).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updatePslMovement(id, payload) {
+  const updates = {
+    date_delivrance: payload.date_delivrance || null,
+    prescripteur_nom: payload.prescripteur_nom || null,
+    prescripteur_adresse: payload.prescripteur_adresse || null,
+    patient_nom: payload.patient_nom || null,
+    patient_prenom: payload.patient_prenom || null,
+    patient_adresse: payload.patient_adresse || null,
+    patient_dob: payload.patient_dob || null,
+    denomination: payload.denomination || null,
+    quantite: payload.quantite != null ? Number(payload.quantite) : 1,
+    etiquette_tracabilite: payload.etiquette_tracabilite || null,
+    notes: payload.notes || null,
+  };
+  const { data, error } = await supabase.from('psl_movements').update(updates).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
 }
 
 export async function fetchStockUnits() {
@@ -139,7 +169,7 @@ export async function fetchStockUnits() {
 export async function fetchDeliveryHistory(limit = 50) {
   const { data, error } = await supabase
     .from('psl_movements')
-    .select('*, psl_units(code_produit, numero_unite, denomination, lot)')
+    .select('*, psl_units(code_produit, numero_unite, denomination, lot, date_peremption, fournisseur)')
     .eq('movement_type', 'delivrance')
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -158,7 +188,7 @@ export async function fetchPslUnits({ statut } = {}) {
 export async function fetchPslMovements(limit = 200) {
   const { data, error } = await supabase
     .from('psl_movements')
-    .select('*, psl_units(code_produit, numero_unite, denomination, lot, gtin, datamatrix_raw)')
+    .select('*, psl_units(code_produit, numero_unite, denomination, lot, gtin, datamatrix_raw, date_peremption, fournisseur)')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
@@ -168,7 +198,7 @@ export async function fetchPslMovements(limit = 200) {
 export async function fetchMdsDeliveries() {
   const { data, error } = await supabase
     .from('psl_movements')
-    .select('*, psl_units(code_produit, numero_unite, denomination, lot, gtin, datamatrix_raw)')
+    .select('*, psl_units(code_produit, numero_unite, denomination, lot, gtin, datamatrix_raw, date_peremption, fournisseur)')
     .eq('movement_type', 'delivrance')
     .order('registry_number', { ascending: true, nullsFirst: false });
   if (error) throw new Error(error.message);
@@ -185,7 +215,7 @@ export function printMdsRegistry(movements, pharmacyName = 'Pharmacie') {
       <td>${m.prescripteur_nom || ''}<br><small>${m.prescripteur_adresse || ''}</small></td>
       <td>${m.patient_nom || ''} ${m.patient_prenom || ''}<br><small>${m.patient_adresse || ''}</small><br>${m.patient_dob || ''}</td>
       <td>${m.denomination || m.psl_units?.denomination || m.psl_units?.code_produit || ''}<br>
-        <small>Lot : ${m.psl_units?.lot || '—'} — N° : ${m.psl_units?.numero_unite || '—'}</small></td>
+        <small>Lot : ${m.psl_units?.lot || '—'} — N° : ${m.psl_units?.numero_unite || '—'} — CIP : ${m.psl_units?.code_produit || '—'}</small></td>
       <td>${m.quantite ?? 1}</td>
       <td class="mono">${(m.etiquette_tracabilite || m.datamatrix_raw || m.psl_units?.datamatrix_raw || '').slice(0, 120)}</td>
     </tr>
@@ -210,12 +240,15 @@ export function printMdsRegistry(movements, pharmacyName = 'Pharmacie') {
 }
 
 export function exportPslRegisterCsv(movements) {
-  const header = ['N° ordre', 'Date délivrance', 'Prescripteur', 'Patient', 'Médicament', 'Qté', 'Code', 'N° unité', 'Lot', 'Traçabilité'];
+  const header = ['N° ordre', 'Date délivrance', 'Prescripteur', 'Adresse presc.', 'Patient', 'Adresse patient', 'Naissance', 'Médicament', 'Qté', 'Code', 'N° unité', 'Lot', 'Traçabilité'];
   const rows = movements.filter((m) => m.movement_type === 'delivrance').map((m) => [
     m.registry_number ?? '',
     m.date_delivrance || new Date(m.created_at).toLocaleDateString('fr-FR'),
     m.prescripteur_nom || '',
+    m.prescripteur_adresse || '',
     `${m.patient_nom || ''} ${m.patient_prenom || ''}`,
+    m.patient_adresse || '',
+    m.patient_dob || '',
     m.denomination || m.psl_units?.denomination || m.psl_units?.code_produit || '',
     m.quantite ?? 1,
     m.psl_units?.code_produit || '',

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
@@ -11,6 +11,7 @@ import { fetchAgendaEvents, fetchProfiles, createAgendaEvent, deleteAgendaEvent,
 import { fetchTasksCompletionMap } from '../../tasks/services/taskService.js';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import PatientOrderForm from '../../tasks/shared/PatientOrderForm.jsx';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 const locales = { fr };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -31,7 +32,7 @@ export default function AgendaManager() {
   const [isEditing, setIsEditing] = useState(false);
   const [updateFuture, setUpdateFuture] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const rawEvents = await fetchAgendaEvents();
     const relevant = rawEvents.filter((e) => e.type !== 'changement_horaire');
     const taskIds = relevant.map((e) => e.details?.taskId).filter(Boolean);
@@ -52,9 +53,10 @@ export default function AgendaManager() {
       };
     }));
     setProfiles(await fetchProfiles());
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['agenda_events', 'tasks', 'task_assignments'] });
 
   const eventStyleGetter = (event) => {
     const isCmdOrBill = event.eventKind === 'commande_med' || event.eventKind === 'facturation';

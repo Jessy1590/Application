@@ -188,3 +188,61 @@ export async function createRetraitLotTask(form, userId) {
     requires_return: false,
   }, userId).then((r) => r.task);
 }
+
+const ANSM_RSS_URL = import.meta.env.DEV
+  ? '/api/ansm-rss'
+  : 'https://ansm.sante.fr/rss/informations_securite?produitsSante=medicaments';
+
+function stripHtml(html) {
+  return String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseRssItems(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
+  const nodes = [...doc.querySelectorAll('item')];
+  return nodes.map((item) => {
+    const title = item.querySelector('title')?.textContent?.trim() || '';
+    const link = item.querySelector('link')?.textContent?.trim() || '';
+    const description = stripHtml(item.querySelector('description')?.textContent || '');
+    const pubDate = item.querySelector('pubDate')?.textContent?.trim() || '';
+    const alertMatch = title.match(/n[°o]\s*([A-Z0-9\-_/]+)/i)
+      || description.match(/Information n[°o]\s*([A-Z0-9\-_/]+)/i)
+      || title.match(/\b(R\d{6,})\b/i);
+    const lotMatch = (title + ' ' + description).match(/\blot[s]?\s*[:\-]?\s*([A-Z0-9\-\/]+)/i);
+    const isRappel = /rappel|retrait|quarantaine/i.test(title + ' ' + description);
+    return {
+      title,
+      link,
+      description,
+      pubDate,
+      alert_number: alertMatch?.[1] || '',
+      lot: lotMatch?.[1] || '',
+      medicament: title.replace(/^(RAPPEL DE PRODUIT|INFORMATION AUX UTILISATEURS|INFORMATION)\s*/i, '').split('–')[0].trim() || title,
+      laboratoire: '',
+      motif: description.slice(0, 500) || title,
+      isRappel,
+      source: 'ansm',
+      external_ref: link,
+    };
+  });
+}
+
+/**
+ * Récupère le flux RSS ANSM (informations de sécurité médicaments).
+ * Pas d'API structurée officielle : préremplit des brouillons ; lot / labo à compléter.
+ */
+export async function fetchAnsmSecurityAlerts() {
+  const res = await fetch(ANSM_RSS_URL);
+  if (!res.ok) throw new Error(`ANSM RSS indisponible (${res.status}). Vérifiez la connexion.`);
+  const xml = await res.text();
+  const items = parseRssItems(xml);
+  if (items.length === 0) throw new Error('Aucune alerte trouvée dans le flux ANSM.');
+  return items;
+}

@@ -22,6 +22,7 @@ import {
   setModuleBeforeCloseHandler,
 } from '../../../shared/windowService.js';
 import { Phone, Save, History, AlertCircle, CheckCircle2, Clock, X, Play } from 'lucide-react';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function Calls({ data: initialContact }) {
   const { user, profile } = useAuth();
@@ -86,6 +87,8 @@ export default function Calls({ data: initialContact }) {
     applyContact();
     return () => { cancelled = true; };
   }, [initialContact, loadLists]);
+
+  useRealtimeRefresh(loadLists, { tables: ['call_logs'], enabled: !!user?.id });
 
   const autoSavePending = useCallback(async () => {
     if (skipRef.current) return;

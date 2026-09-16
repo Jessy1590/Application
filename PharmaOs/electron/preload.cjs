@@ -22,4 +22,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('module:before-close', handler);
     return () => ipcRenderer.removeListener('module:before-close', handler);
   },
+  startContextWatch: () => ipcRenderer.invoke('context:startWatch'),
+  stopContextWatch: () => ipcRenderer.invoke('context:stopWatch'),
+  onContextText: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('context:text', handler);
+    return () => ipcRenderer.removeListener('context:text', handler);
+  },
 });

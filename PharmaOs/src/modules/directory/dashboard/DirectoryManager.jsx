@@ -1,7 +1,8 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Users, Plus, Phone, Edit, Trash2, Filter } from 'lucide-react';
 import { fetchContacts, deleteContact } from '../services/directoryService.js';
 import DirectoryForm from './DirectoryForm.jsx';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function DirectoryManager({ onNavigate }) {
   const [contacts, setContacts] = useState([]);
@@ -10,18 +11,19 @@ export default function DirectoryManager({ onNavigate }) {
   const [editingContact, setEditingContact] = useState(null);
   const [filterType, setFilterType] = useState('all');
 
-  const loadContacts = async () => {
+  const loadContacts = useCallback(async () => {
     try {
       const data = await fetchContacts();
       setContacts(data);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [loadContacts]);
+  useRealtimeRefresh(loadContacts, { tables: ['directory_contacts'] });
 
   const toggleRow = (id) => setExpandedId(expandedId === id ? null : id);
 

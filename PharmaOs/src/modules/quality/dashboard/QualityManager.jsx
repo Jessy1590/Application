@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, ShieldAlert, Edit2, Save, X, Filter, Clock } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import {
@@ -7,6 +7,7 @@ import {
   completePendingQualityTask,
   cancelPendingQualityTask,
 } from '../services/qualityService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 const TYPE_LABELS = {
   erreur_delivrance: 'Erreur de délivrance',
@@ -33,7 +34,7 @@ export default function QualityManager({ onNavigate }) {
   const [filter, setFilter] = useState('all');
   const [editing, setEditing] = useState(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       setEvents(await fetchQualityEvents());
@@ -42,9 +43,10 @@ export default function QualityManager({ onNavigate }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['quality_events'] });
 
   const filtered = events.filter((e) => filter === 'all' || e.status === filter);
 

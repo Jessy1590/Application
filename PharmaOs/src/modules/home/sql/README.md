@@ -4,4 +4,4 @@
 - `PharmaOs.taskbar_logs` — télémétrie barre (`login` | `expand` | `collapse`)
 
 ## Supprimé
-- `advice_events` — jamais branchée UI (mock `AdviceStatsCard`) ; drop migration `011`
+- `advice_events` — remplacé par `PharmaOs.conseil_events` (module `conseil/`, migration `022`)

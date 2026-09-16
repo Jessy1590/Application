@@ -1,0 +1,2 @@
+-- Tables BDPM (schéma bdm) — voir migration 021_bdm_schema.sql
+-- Source : https://base-donnees-publique.medicaments.gouv.fr/telechargement

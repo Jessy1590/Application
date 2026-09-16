@@ -2,8 +2,10 @@
 const cfg = window.SUPABASE_CONFIG;
 if (!cfg?.url || !cfg?.anonKey) throw new Error('SUPABASE_CONFIG manquant');
 
-const sb = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'autres' } });
-const TABLE = 'phie_evreux';
+const sb = window.PhieEvreuxApps
+  ? PhieEvreuxApps.createAppsClient()
+  : supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'phieevreux' } });
+const TABLE = 'anciennelocation';
 
 const el = (id) => document.getElementById(id);
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -1557,5 +1559,18 @@ el('printRunBtn').addEventListener('click', async () => {
   window.print();
   setTimeout(() => { el('printRoot').hidden = true; }, 500);
 });
+
+/* FABs partagés Accueil + Bug */
+(async function mountSharedFabs() {
+  try {
+    if (window.PhieEquipe?.load) await PhieEquipe.load();
+  } catch (_) { /* droits optionnels pour le signalement */ }
+  if (window.PhieFab?.mount) {
+    PhieFab.mount({
+      app: 'anciennelocation',
+      homeHref: '../../index.html',
+    });
+  }
+})();
 
 refresh().catch((err) => toast(err.message || String(err), 'error'));

@@ -20,6 +20,7 @@ import {
   closeModuleWindow,
   setModuleBeforeCloseHandler,
 } from '../../../shared/windowService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 function buildDescriptionFromCall(prefill) {
   return [
@@ -86,6 +87,7 @@ export default function Disputes({ data: prefill }) {
   }, [user?.id]);
 
   useEffect(() => { loadLists().catch((e) => setErr(e.message)); }, [loadLists]);
+  useRealtimeRefresh(loadLists, { tables: ['supplier_disputes'], enabled: !!user?.id });
 
   useEffect(() => {
     if (!prefill?.fromCall) return;

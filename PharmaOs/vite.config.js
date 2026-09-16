@@ -11,6 +11,13 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api/ansm-rss': {
+        target: 'https://ansm.sante.fr',
+        changeOrigin: true,
+        rewrite: () => '/rss/informations_securite?produitsSante=medicaments',
+      },
+    },
   },
   build: {
     outDir: 'dist',

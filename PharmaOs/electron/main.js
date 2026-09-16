@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createContextTextBus } from './contextText/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -271,6 +272,17 @@ ipcMain.handle('window:openBug', () => {
   });
 
   return { ok: true, status: 'created' };
+});
+
+const contextTextBus = createContextTextBus({
+  getTargetWebContents: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null),
+});
+
+ipcMain.handle('context:startWatch', () => contextTextBus.startWatch());
+ipcMain.handle('context:stopWatch', () => contextTextBus.stopWatch());
+
+app.on('before-quit', () => {
+  contextTextBus.stopWatch();
 });
 
 ipcMain.handle('bug:submit', async (_event, text) => {

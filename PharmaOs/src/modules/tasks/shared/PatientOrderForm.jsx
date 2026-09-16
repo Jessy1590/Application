@@ -1,4 +1,5 @@
 import React from 'react';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 /**
  * Formulaire partagé commande / facturation.
@@ -54,31 +55,36 @@ export default function PatientOrderForm({ type, form, onChange, compact = false
       </div>
 
       {/* Médicament ou facture */}
-      <div>
-        <label className="block font-semibold mb-1 text-sm">
-          {type === 'order' ? 'Nom du médicament' : 'N° de facture'}
-        </label>
-        <input
-          type="text" required
-          placeholder={type === 'order' ? 'Ex: Doliprane 1000mg' : 'Ex: FA-2026-0042'}
-          value={type === 'order' ? (form.medicament || '') : (form.facture || '')}
-          onChange={type === 'order' ? set('medicament') : set('facture')}
-          className={inputBase}
+      {type === 'order' ? (
+        <MedicamentFields
+          mode="name+cip"
+          medicament={form.medicament || ''}
+          cip={form.cip || ''}
+          required
+          medicamentLabel="Nom du médicament"
+          cipLabel="Code CIP"
+          medicamentPlaceholder="Ex: Doliprane 1000mg"
+          cipPlaceholder="Optionnel"
+          inputClassName={inputBase}
+          labelClassName="block font-semibold mb-1 text-sm"
+          onChange={onChange}
         />
-      </div>
+      ) : (
+        <div>
+          <label className="block font-semibold mb-1 text-sm">N° de facture</label>
+          <input
+            type="text" required
+            placeholder="Ex: FA-2026-0042"
+            value={form.facture || ''}
+            onChange={set('facture')}
+            className={inputBase}
+          />
+        </div>
+      )}
 
       {/* Champs spécifiques commande */}
       {type === 'order' && (
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block font-semibold mb-1 text-sm">Code CIP</label>
-            <input
-              type="text" placeholder="Optionnel"
-              value={form.cip || ''}
-              onChange={set('cip')}
-              className={inputBase}
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block font-semibold mb-1 text-sm">Récurrence (sem.)</label>
             <input

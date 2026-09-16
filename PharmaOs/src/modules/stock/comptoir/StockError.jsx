@@ -1,14 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { PackageX, Save, CheckCircle2, History } from 'lucide-react';
-import { declareStockError, fetchMyStockErrors } from '../services/stockService.js';
-
-const STATUS_LABELS = {
-  ouvert: 'En attente admin',
-  recompter: 'Recomptage demandé',
-  erreur_commande: 'Erreur commande (validée)',
-  cloture: 'Clôturé',
-};
+import { declareStockError, fetchMyStockErrors, STOCK_STATUS_LABELS } from '../services/stockService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 export default function StockError() {
   const { user } = useAuth();
@@ -20,13 +15,14 @@ export default function StockError() {
     medicament: '', cip: '', quantite_theorique: '', quantite_constatee: '', description: '',
   });
 
-  useEffect(() => { loadHistory(); }, [user?.id]);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!user?.id) return;
     const { data } = await fetchMyStockErrors(user.id);
     if (data) setHistory(data);
-  };
+  }, [user?.id]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useRealtimeRefresh(loadHistory, { tables: ['stock_errors'], enabled: !!user?.id });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -68,21 +64,23 @@ export default function StockError() {
         {errorMsg && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{errorMsg}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-sm">
-          <div>
-            <label className="block font-semibold mb-1">Médicament *</label>
-            <input required value={form.medicament} onChange={e => setForm({ ...form, medicament: e.target.value })} className="w-full p-2 border rounded-lg" />
-          </div>
-          <div>
-            <label className="block font-semibold mb-1">CIP</label>
-            <input value={form.cip} onChange={e => setForm({ ...form, cip: e.target.value })} className="w-full p-2 border rounded-lg" />
-          </div>
+          <MedicamentFields
+            mode="name+cip"
+            medicament={form.medicament}
+            cip={form.cip}
+            required
+            medicamentLabel="Médicament"
+            cipLabel="CIP"
+            inputClassName="w-full p-2 border rounded-lg"
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          />
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold mb-1">Qté théorique (logiciel)</label>
+              <label className="block font-semibold mb-1">Qté théorique (logiciel / stock théorique)</label>
               <input type="number" value={form.quantite_theorique} onChange={e => setForm({ ...form, quantite_theorique: e.target.value })} className="w-full p-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block font-semibold mb-1">Qté constatée</label>
+              <label className="block font-semibold mb-1">Qté officielle / constatée</label>
               <input type="number" value={form.quantite_constatee} onChange={e => setForm({ ...form, quantite_constatee: e.target.value })} className="w-full p-2 border rounded-lg" />
             </div>
           </div>
@@ -105,7 +103,7 @@ export default function StockError() {
           <div key={h.id} className="bg-white p-4 rounded-lg border mb-3 text-sm">
             <div className="flex justify-between">
               <span className="font-bold">{h.medicament}</span>
-              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{STATUS_LABELS[h.status] || h.status}</span>
+              <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{STOCK_STATUS_LABELS[h.status] || h.status}</span>
             </div>
             {(h.quantite_theorique != null || h.quantite_constatee != null) && (
               <p className="text-slate-600 mt-1">Théo: {h.quantite_theorique ?? '—'} / Constaté: {h.quantite_constatee ?? '—'}</p>

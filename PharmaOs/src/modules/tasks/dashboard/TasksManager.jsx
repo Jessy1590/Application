@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { fetchTasks, fetchTeamProfiles, createTask, completeTaskGlobal, uncompleteTaskGlobal, updateTask } from '../services/taskService.js';
 import {
@@ -9,6 +9,7 @@ import {
   plainTaskText,
 } from '../shared/taskDisplay.js';
 import { CheckSquare, Plus, ArrowLeft, Check, Filter, Edit2, RotateCcw, Save, X } from 'lucide-react';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 function renderTaskBody(task) {
   const details = parseTaskDetails(task.description);
@@ -32,10 +33,20 @@ function renderTaskBody(task) {
       </div>
     );
   }
-  if (details.type === 'stock_error' || details.type === 'stock_recompte') {
+  if (details.type === 'stock_error' || details.type === 'stock_recompte' || details.type === 'stock_recompte_result') {
+    const title = details.type === 'stock_recompte'
+      ? 'Recomptage'
+      : details.type === 'stock_recompte_result'
+        ? 'Corriger stock'
+        : 'Erreur stock';
     return (
       <div className="text-sm text-violet-700 space-y-0.5 mt-1 bg-violet-50 p-2 rounded border border-violet-100">
-        <p><strong>{details.type === 'stock_recompte' ? 'Recomptage' : 'Erreur stock'} :</strong> {details.medicament}</p>
+        <p><strong>{title} :</strong> {details.medicament}</p>
+        {(details.quantite_theorique != null || details.quantite_constatee != null) && (
+          <p>Théo {details.quantite_theorique ?? '—'} / Officiel {details.quantite_constatee ?? '—'}</p>
+        )}
+        {details.quantite_finale != null && <p><strong>Qté finale :</strong> {details.quantite_finale}</p>}
+        {details.instruction && <p className="font-medium">{details.instruction}</p>}
         {details.description && <p>{details.description}</p>}
       </div>
     );
@@ -202,12 +213,13 @@ export default function TasksManager({ onNavigate }) {
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTaskForm, setEditTaskForm] = useState({ titre: '', description: '' });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setTasks(await fetchTasks());
     setProfiles(await fetchTeamProfiles());
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['tasks', 'task_assignments'] });
 
   const handleCreate = async (e) => {
     e.preventDefault();

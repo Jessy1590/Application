@@ -17,6 +17,7 @@ import {
   PERIME_STATUS_LABELS,
 } from '../services/perimesService.js';
 import { openModuleWindow } from '../../../shared/windowService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 const FILTERS = [
   { id: 'a_decider', label: 'À décider' },
@@ -117,6 +118,7 @@ export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
+  useRealtimeRefresh(load, { tables: ['perimes', 'perime_emplacements', 'perime_trackings'] });
 
   useEffect(() => {
     if (!focusPerimeId || loading || !items.length) return;

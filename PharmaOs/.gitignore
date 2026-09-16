@@ -30,3 +30,6 @@ Desktop.ini
 
 # Electron
 *.asar
+
+# BDPM download / import scratch
+tmp/

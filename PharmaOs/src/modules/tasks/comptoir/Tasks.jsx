@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import {
   fetchMyOpenAssignments,
@@ -14,9 +14,11 @@ import {
 } from '../shared/taskDisplay.js';
 import {
   CheckCircle, MessageSquare, CheckSquare, User, Calendar, Tag, FileText,
-  ShoppingBag, AlertOctagon, Filter, LayoutDashboard,
+  ShoppingBag, AlertOctagon, Filter, LayoutDashboard, PackageX,
 } from 'lucide-react';
 import { openDashboardWindow, closeModuleWindow } from '../../../shared/windowService.js';
+import { submitRecountResult } from '../../stock/services/stockService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function Tasks() {
   const { user, profile } = useAuth();
@@ -24,17 +26,18 @@ export default function Tasks() {
   const [comments, setComments] = useState({});
   const [quantites, setQuantites] = useState({});
   const [retraitModal, setRetraitModal] = useState(null);
+  const [recompteModal, setRecompteModal] = useState(null);
   const [typeFilter, setTypeFilter] = useState('all');
   const [dueFilter, setDueFilter] = useState('dues'); // dues | futures | all
 
-  useEffect(() => {
-    if (user?.id) fetchMyTasks();
-  }, [user?.id]);
-
-  const fetchMyTasks = async () => {
+  const fetchMyTasks = useCallback(async () => {
+    if (!user?.id) return;
     const { data, error } = await fetchMyOpenAssignments(user.id);
     if (!error && data) setAssignments(data);
-  };
+  }, [user?.id]);
+
+  useEffect(() => { fetchMyTasks(); }, [fetchMyTasks]);
+  useRealtimeRefresh(fetchMyTasks, { tables: ['tasks', 'task_assignments'], enabled: !!user?.id });
 
   const filteredAssignments = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -81,7 +84,41 @@ export default function Tasks() {
       setRetraitModal(assignment);
       return;
     }
+    if (details.type === 'stock_recompte') {
+      setRecompteModal(assignment);
+      return;
+    }
+    if (details.type === 'stock_recompte_result') {
+      openDashboardWindow({ page: 'stock' });
+      closeModuleWindow();
+      return;
+    }
     completeTask(assignment);
+  };
+
+  const handleRecompteConfirm = async () => {
+    const assignment = recompteModal;
+    if (!assignment) return;
+    const details = parseTaskDetails(assignment.tasks?.description);
+    const qty = quantites[assignment.id];
+    if (qty === '' || qty === undefined || qty === null) {
+      alert('Indiquez obligatoirement le nombre final de boîtes comptées.');
+      return;
+    }
+    try {
+      await submitRecountResult({
+        stockErrorId: details.stock_error_id,
+        taskId: assignment.task_id,
+        quantiteFinale: qty,
+        note: comments[assignment.id] || '',
+        userId: user.id,
+        displayName: profile?.display_name,
+      });
+      setRecompteModal(null);
+      fetchMyTasks();
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   const openPerimeDecisionOnDashboard = async (assignment) => {
@@ -137,12 +174,28 @@ export default function Tasks() {
         </div>
       );
     }
-    if (data.type === 'stock_error' || data.type === 'stock_recompte') {
+    if (data.type === 'stock_error' || data.type === 'stock_recompte' || data.type === 'stock_recompte_result') {
+      const title = data.type === 'stock_recompte'
+        ? 'RECOMPTAGE DEMANDÉ'
+        : data.type === 'stock_recompte_result'
+          ? 'CORRIGER LE STOCK (après recomptage)'
+          : 'ERREUR DE STOCK';
       return (
         <div className="mt-3 p-4 bg-violet-50 border border-violet-200 rounded-lg space-y-1 text-sm">
-          <p className="font-bold text-violet-700">{data.type === 'stock_recompte' ? 'RECOMPTAGE DEMANDÉ' : 'ERREUR DE STOCK'}</p>
+          <p className="font-bold text-violet-700">{title}</p>
           <p><span className="font-semibold">Médicament:</span> {data.medicament}</p>
           {data.cip && <p><span className="font-semibold">CIP:</span> {data.cip}</p>}
+          {(data.quantite_theorique != null || data.quantite_constatee != null) && (
+            <p>
+              <span className="font-semibold">Stock théorique (logiciel):</span> {data.quantite_theorique ?? '—'}
+              {' · '}
+              <span className="font-semibold">Stock officiel / constaté:</span> {data.quantite_constatee ?? '—'}
+            </p>
+          )}
+          {data.quantite_finale != null && (
+            <p><span className="font-semibold">Qté finale recomptée:</span> {data.quantite_finale}</p>
+          )}
+          {data.instruction && <p className="text-violet-800 font-medium mt-1">{data.instruction}</p>}
           {data.description && <p className="text-slate-600">{data.description}</p>}
         </div>
       );
@@ -401,12 +454,24 @@ export default function Tasks() {
                   >
                     <LayoutDashboard size={18} /> Ouvrir RH dashboard
                   </button>
+                ) : parseTaskDetails(assignment.tasks?.description).type === 'stock_recompte_result' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleCompleteTask(assignment)}
+                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-violet-600 hover:bg-violet-700"
+                  >
+                    <LayoutDashboard size={18} /> Ouvrir stock dashboard
+                  </button>
                 ) : (
                   <>
                     <MessageSquare size={18} className="text-slate-400 shrink-0" />
                     <input
                       type="text"
-                      placeholder="Ajouter une note ou visa de clôture..."
+                      placeholder={
+                        parseTaskDetails(assignment.tasks?.description).type === 'stock_recompte'
+                          ? 'Note optionnelle (qté finale demandée à la clôture)'
+                          : 'Ajouter une note ou visa de clôture...'
+                      }
                       value={comments[assignment.id] || ''}
                       onChange={(e) => setComments({ ...comments, [assignment.id]: e.target.value })}
                       className="flex-1 text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500"
@@ -444,6 +509,46 @@ export default function Tasks() {
             <div className="flex gap-2">
               <button type="button" onClick={() => setRetraitModal(null)} className="flex-1 p-2 border rounded-lg">Annuler</button>
               <button type="button" onClick={handleRetraitConfirm} className="flex-1 p-2 bg-red-600 text-white rounded-lg font-bold">Valider</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {recompteModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <h2 className="font-bold text-lg text-violet-700 flex items-center gap-2 mb-4">
+              <PackageX size={20} /> Clôture recomptage
+            </h2>
+            <p className="text-sm text-slate-600 mb-2">
+              Indiquez <strong>obligatoirement</strong> le nombre final de boîtes comptées. L&apos;admin sera notifié pour corriger le stock logiciel.
+            </p>
+            {(() => {
+              const d = parseTaskDetails(recompteModal.tasks?.description);
+              return (
+                <p className="text-xs text-slate-500 mb-4">
+                  Théorique : {d.quantite_theorique ?? '—'} · Officiel/constaté : {d.quantite_constatee ?? '—'}
+                </p>
+              );
+            })()}
+            <input
+              type="number"
+              min="0"
+              required
+              placeholder="Nombre final de boîtes *"
+              value={quantites[recompteModal.id] ?? ''}
+              onChange={(e) => setQuantites({ ...quantites, [recompteModal.id]: e.target.value })}
+              className="w-full p-3 border rounded-lg mb-3 text-lg font-bold"
+            />
+            <input
+              type="text"
+              placeholder="Note optionnelle"
+              value={comments[recompteModal.id] || ''}
+              onChange={(e) => setComments({ ...comments, [recompteModal.id]: e.target.value })}
+              className="w-full p-2 border rounded-lg mb-4 text-sm"
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setRecompteModal(null)} className="flex-1 p-2 border rounded-lg">Annuler</button>
+              <button type="button" onClick={handleRecompteConfirm} className="flex-1 p-2 bg-violet-600 text-white rounded-lg font-bold">Valider recomptage</button>
             </div>
           </div>
         </div>

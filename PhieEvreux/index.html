@@ -6,7 +6,7 @@
 <title>Phie Evreux</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0E1C24">
+<meta name="theme-color" content="#0a0a0f">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -18,19 +18,28 @@
 <style>body{display:none}</style>
 <script src="../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
+<<<<<<< Updated upstream
 <link rel="stylesheet" href="style.css?v=20260912b">
+=======
+<link rel="stylesheet" href="hub.css">
+<link rel="stylesheet" href="shared/fab.css">
+>>>>>>> Stashed changes
 </head>
 <body>
-  <div id="toast" class="toast" hidden></div>
+  <div id="hubToast" class="hub-toast" hidden></div>
 
-  <header class="topbar">
+  <header class="hub-header">
     <div>
-      <p class="eyebrow">Locations</p>
+      <p class="hub-eyebrow">Pharmacie</p>
       <h1>Phie Evreux</h1>
+      <p class="hub-sub">Choisissez une application</p>
     </div>
-    <span class="pill" id="queuePill">—</span>
+    <button type="button" class="hub-gear" id="hubGearBtn" hidden title="Administration" aria-label="Administration">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </header>
 
+<<<<<<< Updated upstream
   <main class="views">
     <section class="view active" id="view-form" data-view="form">
       <form id="newForm" class="card form-card" autocomplete="off">
@@ -134,27 +143,64 @@
       </div>
       <p class="hint" id="callsHint"></p>
     </section>
+=======
+  <main class="hub-grid">
+    <a class="hub-card" href="app/anciennelocation/">
+      <p class="hub-card-kicker">App</p>
+      <h2>Ancienne Location</h2>
+      <p class="hub-card-desc">Suivi locations existant (comptes, appels, fiches).</p>
+      <span class="hub-card-arrow" aria-hidden="true">→</span>
+    </a>
+    <a class="hub-card" href="app/location/">
+      <p class="hub-card-kicker">App</p>
+      <h2>Location</h2>
+      <p class="hub-card-desc">Création, suivi et contact — nouvelle application.</p>
+      <span class="hub-card-arrow" aria-hidden="true">→</span>
+    </a>
+>>>>>>> Stashed changes
   </main>
 
-  <div class="sheet" id="aiFillSheet" hidden>
-    <div class="sheet-backdrop" data-close-ai-fill></div>
-    <div class="sheet-panel" role="dialog" aria-labelledby="aiFillTitle">
-      <div class="sheet-head">
-        <h2 id="aiFillTitle">Remplir depuis une photo</h2>
-        <button type="button" class="icon-btn" data-close-ai-fill aria-label="Fermer">✕</button>
+  <div class="hub-admin-sheet" id="hubAdminSheet" hidden>
+    <div class="hub-admin-backdrop" data-close-admin></div>
+    <div class="hub-admin-panel" role="dialog" aria-labelledby="hubAdminTitle">
+      <div class="hub-admin-head">
+        <h2 id="hubAdminTitle">Administration</h2>
+        <button type="button" class="phie-icon-btn" data-close-admin aria-label="Fermer">✕</button>
       </div>
-      <p class="hint-edit">1) Copie le prompt · 2) Envoie-le à une IA avec la photo de la fiche manuscrite · 3) Colle ici la réponse · 4) Remplis le formulaire · 5) Vérifie puis appuie sur « Créer la fiche ».</p>
-      <label class="inline-field">Prompt à donner à l’IA
-        <textarea id="aiPromptText" rows="8" readonly></textarea>
-      </label>
-      <button type="button" class="btn secondary block" id="copyAiPromptBtn">Copier le prompt</button>
-      <label class="inline-field" style="margin-top:12px">Réponse de l’IA (à coller)
-        <textarea id="aiPasteText" rows="8" placeholder="Colle ici le texte renvoyé par l’IA…"></textarea>
-      </label>
-      <button type="button" class="btn primary block" id="applyAiFillBtn">Remplir le formulaire</button>
+      <div class="hub-admin-tabs">
+        <button type="button" class="hub-admin-tab active" data-admin-tab="equipe">Équipe</button>
+        <button type="button" class="hub-admin-tab" data-admin-tab="invite">Inviter</button>
+        <button type="button" class="hub-admin-tab" data-admin-tab="bugs">Bugs</button>
+      </div>
+
+      <div class="hub-admin-pane" id="adminPane-equipe">
+        <div id="hubEquipeList" class="hub-equipe-list"></div>
+      </div>
+
+      <div class="hub-admin-pane" id="adminPane-invite" hidden>
+        <form id="hubInviteForm" class="hub-form" autocomplete="off">
+          <label>Nom affiché
+            <input name="display_name" placeholder="Prénom Nom">
+          </label>
+          <label>E-mail
+            <input name="email" type="email" required autocomplete="off">
+          </label>
+          <label>Mot de passe temporaire
+            <input name="password" type="password" required minlength="8" autocomplete="new-password">
+          </label>
+          <button type="submit" class="hub-btn hub-btn-primary" id="hubInviteBtn">Créer le compte</button>
+          <p class="hub-msg" id="hubInviteMsg" hidden></p>
+        </form>
+      </div>
+
+      <div class="hub-admin-pane" id="adminPane-bugs" hidden>
+        <p class="hub-sub" style="margin:0 0 12px">Gestion des signalements (admin).</p>
+        <button type="button" class="hub-btn hub-btn-primary" id="hubOpenBugsBtn">Ouvrir la gestion des bugs</button>
+      </div>
     </div>
   </div>
 
+<<<<<<< Updated upstream
   <div class="sheet" id="editSheet" hidden>
     <div class="sheet-backdrop" data-close-sheet></div>
     <div class="sheet-panel" role="dialog" aria-labelledby="editTitle">
@@ -363,5 +409,14 @@
   </nav>
 
   <script src="app.js?v=20260912b"></script>
+=======
+  <script src="shared/supabase-apps.js"></script>
+  <script src="shared/theme.js"></script>
+  <script src="shared/equipe.js"></script>
+  <script src="shared/invite.js"></script>
+  <script src="shared/bugs.js"></script>
+  <script src="shared/fab.js"></script>
+  <script src="hub.js"></script>
+>>>>>>> Stashed changes
 </body>
 </html>

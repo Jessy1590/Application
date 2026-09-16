@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   fetchCallLogsWithProfiles,
   submitCallLog,
@@ -17,6 +17,7 @@ import {
 import CallForm from '../shared/CallForm.jsx';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { Phone, Filter, ArrowLeft, Edit2, Save, X, Plus, CheckCircle, Clock } from 'lucide-react';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 const EMPTY = { ...CALL_FORM_DEFAULTS };
 
@@ -45,15 +46,16 @@ export default function CallTracking({ onNavigate }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ statut_traitement: '', notes_appel: '' });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLogs(await fetchCallLogsWithProfiles());
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['call_logs'] });
 
   const people = useMemo(() => {
     const map = new Map();

@@ -36,7 +36,7 @@ Conserver / appliquer séparément si besoin (fichiers historiques, non versionn
 
 ## 3. Schémas exposés (Data API)
 
-Vérifier que **Exposed schemas** inclut : `portail`, `PharmaOs`, `autres`, `valorisation`, `public`.
+Vérifier que **Exposed schemas** inclut : `portail`, `PharmaOs`, `autres`, `valorisation`, `phieevreux`, `public`.
 
 ## 4. Secrets GitHub Actions
 

@@ -103,3 +103,24 @@ export async function setClickThrough(ignore) {
   }
   return null;
 }
+
+/** Démarre le bus contexte texte (UIA Bloc-notes + presse-papiers). */
+export async function startContextWatch() {
+  if (window.electronAPI?.startContextWatch) {
+    return window.electronAPI.startContextWatch();
+  }
+  return { ok: false, error: 'unavailable' };
+}
+
+export async function stopContextWatch() {
+  if (window.electronAPI?.stopContextWatch) {
+    return window.electronAPI.stopContextWatch();
+  }
+  return { ok: false, error: 'unavailable' };
+}
+
+/** @param {(payload: object) => void} callback @returns {() => void} */
+export function onContextText(callback) {
+  if (!window.electronAPI?.onContextText) return () => {};
+  return window.electronAPI.onContextText(callback);
+}

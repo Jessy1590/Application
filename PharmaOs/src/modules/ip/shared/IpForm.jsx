@@ -1,4 +1,5 @@
 import React from 'react';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 const PROBLEMES = [
   '1- Contre-indication/Non-conformité',
@@ -169,14 +170,16 @@ export default function IpForm({
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
         <h3 className="font-bold text-slate-700 mb-3 border-b pb-2">3. Problème et intervention (SFPC)</h3>
         <div className="mb-4">
-          <label className="block font-semibold mb-1">Médicament en cause</label>
-          <input
-            type="text"
+          <MedicamentFields
+            mode="name-only"
+            medicament={form.medicament_en_cause || ''}
             required={requireCore}
-            placeholder="Ex: Doliprane 1000 mg"
-            value={form.medicament_en_cause || ''}
-            onChange={set('medicament_en_cause')}
-            className={input}
+            medicamentLabel="Médicament en cause"
+            medicamentPlaceholder="Ex: Doliprane 1000 mg"
+            inputClassName={input}
+            onChange={(patch) => {
+              if (patch.medicament != null) onChange({ medicament_en_cause: patch.medicament });
+            }}
           />
         </div>
         <div className="mb-4">

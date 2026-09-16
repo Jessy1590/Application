@@ -19,14 +19,20 @@ alwaysApply: true
 - `src/shared/` — supabaseClient, windowService (seul pont IPC), utilitaires
 - `src/modules/<domaine>/` — **module vertical** : `comptoir/` + `dashboard/` + `services/` + `sql/`
 
+## Modules métier notables
+- `conseil/` — conseils associés (substance / spécialité / CIP) : CRUD dashboard, panneau live taskbar, match cache local, traçabilité `conseil_events`
+- `bdm/` — référentiel BDPM + explorateur dashboard
+
 ## Electron
 - `electron/main.js` + `preload.cjs` — `contextIsolation: true`, `nodeIntegration: false`
-- IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`, `window:openBug`, `bug:submit`
+- IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`, `window:openBug`, `bug:submit`, `context:startWatch`, `context:stopWatch`, event `context:text`
+- Bus contexte texte : `electron/contextText/` — `FocusedTextSource` (UIA / Bloc-notes), `ClipboardSource`, stub `WinPharmaSource`
 - Surfaces : Taskbar (`index.html`), Module (`module.html`), Dashboard (`dashboard.html`), Bug (`bug.html`)
 - Bouton Dashboard Taskbar **uniquement si** `portail.profiles.role === 'admin'`
 
 ## Données
-- Schéma métier `PharmaOs`, profils `portail.profiles` (`admin` | `équipe`)
+- Schéma métier `PharmaOs` (`conseils`, `conseil_events`, …), profils `portail.profiles` (`admin` | `équipe`)
+- Schéma `bdm` — référentiel BDPM (spécialités / CIP / compositions / génériques) ; sync via Edge Function `sync-bdpm`
 - Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role`.
 
 ## Legacy

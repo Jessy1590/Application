@@ -11,6 +11,7 @@ import {
   expandWindow, reduceWindow, openModuleWindow, openDashboardWindow, openBugWindow,
 } from '../shared/windowService.js';
 import { logTaskbarToggle } from '../shared/dbServices.js';
+import ConseilPanel from '../modules/conseil/comptoir/ConseilPanel.jsx';
 
 function TbBtn({ title, onClick, className = '', children }) {
   return (
@@ -165,9 +166,7 @@ export default function Taskbar() {
       </div>
 
       <div className="flex items-center gap-2 shrink-0 pl-2">
-        <span className="text-xs text-slate-300 truncate max-w-[160px] hidden lg:inline" title="Conseil du jour">
-          Conseil : proposez un produit associé.
-        </span>
+        <ConseilPanel />
         <TbBtn
           title="Signaler un bug au développeur"
           onClick={() => openBugWindow()}

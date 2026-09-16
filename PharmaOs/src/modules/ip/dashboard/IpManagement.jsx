@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   fetchIpsWithProfiles,
   updateIp,
@@ -13,6 +13,8 @@ import {
 import IpForm, { IP_FORM_DEFAULTS } from '../shared/IpForm.jsx';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { Activity, Edit2, AlertTriangle, CheckCircle, Check, Copy, ArrowLeft, X, Save, FileJson, Plus, Clock } from 'lucide-react';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 function formatDateTime(iso) {
   if (!iso) return '—';
@@ -33,7 +35,7 @@ export default function IpManagement({ onNavigate }) {
   const [doctors, setDoctors] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setIps(await fetchIpsWithProfiles());
       const { data } = await fetchHealthProfessionals();
@@ -43,9 +45,10 @@ export default function IpManagement({ onNavigate }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['act_ip_logs'] });
 
   // --- FILTRES ---
   const filteredIps = ips.filter(ip => statusFilter === 'all' || ip.statut_ip === statusFilter);
@@ -394,8 +397,18 @@ export default function IpManagement({ onNavigate }) {
               {/* Section Médicament & Problème */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Médicament en cause</label>
-                  <input className="w-full p-2 border rounded" value={editingIp.medicament_en_cause || ''} onChange={e => setEditingIp({...editingIp, medicament_en_cause: e.target.value})} />
+                  <MedicamentFields
+                    mode="name-only"
+                    medicament={editingIp.medicament_en_cause || ''}
+                    medicamentLabel="Médicament en cause"
+                    labelClassName="block text-xs font-semibold text-slate-500 mb-1"
+                    inputClassName="w-full p-2 border rounded"
+                    onChange={(patch) => {
+                      if (patch.medicament != null) {
+                        setEditingIp((prev) => ({ ...prev, medicament_en_cause: patch.medicament }));
+                      }
+                    }}
+                  />
                 </div>
 
                 <div>

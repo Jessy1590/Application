@@ -28,6 +28,7 @@ import {
   fetchSpecialWeeks,
 } from '../services/hrService.js';
 import HrPlanningCalendar from './HrPlanningCalendar.jsx';
+import { openPrintWindow, writePrintWindow } from '../../../shared/printHtml.js';
 
 const emptyAbs = { user_id: '', absence_type: 'conge', date_debut: '', date_fin: '', motif: '' };
 const emptyChg = {
@@ -116,6 +117,8 @@ export default function HrManager({ onNavigate }) {
 
   const printPayroll = async () => {
     const [y, m] = month.split('-').map(Number);
+    // Ouvrir synchrone au clic (avant await), sinon Electron / Chromium bloque.
+    const printWin = openPrintWindow();
     try {
       const [people, daily] = await Promise.all([
         fetchMonthlyHoursRecap(y, m),
@@ -202,14 +205,10 @@ export default function HrManager({ onNavigate }) {
         <script>window.onload=function(){window.print();}</script>
         </body></html>`;
 
-      const w = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
-      if (!w) {
-        setErr('Autorisez les pop-ups pour imprimer.');
-        return;
-      }
-      w.document.write(html);
-      w.document.close();
+      const ok = writePrintWindow(printWin, html);
+      if (!ok) setErr('Impossible d’ouvrir la boîte d’impression.');
     } catch (e) {
+      try { printWin?.close(); } catch { /* ignore */ }
       setErr(e.message);
     }
   };

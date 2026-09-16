@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { AlertOctagon, CheckCircle2 } from 'lucide-react';
 import { fetchOpenLotAlerts, fetchMyAcks, acknowledgeLotAlert } from '../services/lotAlertService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function LotAlerts() {
   const { user } = useAuth();
@@ -10,7 +11,7 @@ export default function LotAlerts() {
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user?.id) return;
     try {
       const [list, myAcks] = await Promise.all([fetchOpenLotAlerts(), fetchMyAcks(user.id)]);
@@ -19,8 +20,10 @@ export default function LotAlerts() {
       myAcks.forEach((a) => { map[a.alert_id] = a.read_at; });
       setAcks(map);
     } catch (e) { setErr(e.message); }
-  };
-  useEffect(() => { load(); }, [user?.id]);
+  }, [user?.id]);
+
+  useEffect(() => { load(); }, [load]);
+  useRealtimeRefresh(load, { tables: ['lot_alerts', 'lot_alert_acks'], enabled: !!user?.id });
 
   const handleAck = async (alertId) => {
     try {

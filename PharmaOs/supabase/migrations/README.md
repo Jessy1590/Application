@@ -15,6 +15,8 @@ Ordre :
 11. `011_drop_unused_advice_magistral_tables.sql` — drop `advice_events`, `magistral_providers`, `magistral_price_rules` (+ colonnes FK sur `magistral_orders`)
 12. `012`–`015` — litiges / qualité / périmés workflow
 13. `016_hr_workflow.sql` — absences `statut` + revue ; `change_type` retards
+14. `017`–`019` — RH planning / semaines spéciales / job_title
+15. `020_mds_registry_seq_grants.sql` — séquence registre MDS + GRANT (fix permission denied)
 
 Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
 

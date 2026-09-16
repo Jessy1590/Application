@@ -1,0 +1,227 @@
+/* FABs Accueil + Bug + feuilles bugs partagées */
+.phie-fabs {
+  position: fixed;
+  right: 14px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.phie-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #1a1a22;
+  color: #f2f2f7;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+}
+
+.phie-fab:active {
+  transform: scale(0.96);
+}
+
+.phie-fab-bug {
+  background: linear-gradient(135deg, #2a1f3d, #1a2438);
+  border-color: rgba(180, 120, 255, 0.35);
+}
+
+/* Remonte au-dessus du bouton portail protect.js */
+body > a[title="Retour au portail"] {
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 128px) !important;
+  right: 14px !important;
+}
+
+.phie-sheet[hidden] {
+  display: none;
+}
+
+.phie-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.phie-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.phie-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 88dvh;
+  background: #14141c;
+  border-radius: 20px 20px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  color: #f2f2f7;
+}
+
+.phie-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.phie-sheet-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.phie-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1e1e28;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.phie-bugs-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.phie-bugs-tab {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #1e1e28;
+  color: #aaa;
+  border-radius: 999px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.phie-bugs-tab.active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.phie-bugs-form label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #9a9aab;
+}
+
+.phie-bugs-form input,
+.phie-bugs-form textarea,
+.phie-bugs-form select,
+.phie-bug-card select,
+.phie-bug-card textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  box-sizing: border-box;
+  background: #0e0e14;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 16px;
+  color: #f2f2f7;
+}
+
+.phie-btn {
+  border: none;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+}
+
+.phie-btn-primary {
+  background: #f2f2f7;
+  color: #0e0e14;
+}
+
+.phie-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f2f2f7;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  margin-top: 8px;
+}
+
+.phie-bugs-msg {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.phie-bugs-msg.ok {
+  color: #7ed4b5;
+}
+
+.phie-bugs-msg.error {
+  color: #f0a89e;
+}
+
+.phie-muted {
+  color: #8a8a9a;
+  font-size: 14px;
+}
+
+.phie-muted.tiny {
+  font-size: 12px;
+}
+
+.phie-bugs-list {
+  display: grid;
+  gap: 10px;
+}
+
+.phie-bug-card {
+  background: #1a1a24;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.phie-bug-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.phie-bug-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.phie-bug-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  margin: 8px 0 12px;
+}
+
+.phie-bug-card label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #9a9aab;
+}

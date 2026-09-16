@@ -1,5 +1,6 @@
 import React from 'react';
 import { PERIME_FORM_DEFAULTS } from '../services/perimesService.js';
+import MedicamentFields from '../../../shared/MedicamentFields.jsx';
 
 /**
  * Formulaire de déclaration périmé.
@@ -10,35 +11,27 @@ export default function PerimeForm({ form, onChange, requireCore = true }) {
     const value = e.target.value;
     onChange({ [key]: value });
   };
-  const setCip = (e) => {
-    const value = e.target.value;
-    // Code CIP = code produit
-    onChange({ cip: value, code: value });
-  };
   const input = 'w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-orange-500';
 
   return (
     <div className="space-y-3 text-sm">
-      <div>
-        <label className="block font-semibold mb-1">Nom du produit *</label>
-        <input
-          required={requireCore}
-          value={form.medicament || ''}
-          onChange={set('medicament')}
-          className={input}
-          placeholder="Dénomination"
-        />
-      </div>
-      <div>
-        <label className="block font-semibold mb-1">Code CIP (code produit) *</label>
-        <input
-          required={requireCore}
-          value={form.cip || form.code || ''}
-          onChange={setCip}
-          className={input}
-          placeholder="Code CIP / code produit"
-        />
-      </div>
+      <MedicamentFields
+        mode="name+cip"
+        medicament={form.medicament || ''}
+        cip={form.cip || form.code || ''}
+        required={requireCore}
+        cipRequired={requireCore}
+        medicamentLabel="Nom du produit"
+        cipLabel="Code CIP (code produit)"
+        medicamentPlaceholder="Dénomination"
+        cipPlaceholder="Code CIP / code produit"
+        inputClassName={input}
+        onChange={(patch) => {
+          const next = { ...patch };
+          if (patch.cip != null) next.code = patch.cip;
+          onChange(next);
+        }}
+      />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block font-semibold mb-1">Lot *</label>

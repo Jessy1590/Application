@@ -54,3 +54,8 @@ CREATE TABLE IF NOT EXISTS "PharmaOs".psl_movements (
   FOREIGN KEY (user_id) REFERENCES portail.profiles(id) ON DELETE SET NULL,
   PRIMARY KEY ("id")
 );
+
+-- Séquence n° d'ordre registre MDS (délivrances) — voir migration 020
+CREATE SEQUENCE IF NOT EXISTS "PharmaOs".mds_registry_seq;
+-- Trigger assign_mds_registry_number() BEFORE INSERT sur delivrance
+-- GRANT USAGE, SELECT ON SEQUENCE "PharmaOs".mds_registry_seq TO authenticated;

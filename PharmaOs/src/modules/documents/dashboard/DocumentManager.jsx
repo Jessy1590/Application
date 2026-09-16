@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, FileText, Plus, Edit2, Save, X, Users } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import {
@@ -7,6 +7,7 @@ import {
   updateDocument,
   fetchDocumentSignatures,
 } from '../services/documentService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function DocumentManager({ onNavigate }) {
   const { user } = useAuth();
@@ -19,11 +20,12 @@ export default function DocumentManager({ onNavigate }) {
     title: '', content: '', version: '1.0', category: 'procedure', requires_signature: true,
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setDocuments(await fetchDocuments());
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useRealtimeRefresh(loadData, { tables: ['documents', 'document_signatures'] });
 
   const handleSubmit = async (e) => {
     e.preventDefault();

@@ -30,6 +30,7 @@ import {
   timeToMinutes,
   snapMinutes,
 } from '../services/hrService.js';
+import { printHtmlDocument } from '../../../shared/printHtml.js';
 
 const DAYS = [1, 2, 3, 4, 5, 6, 0];
 const CELL_H = 96;
@@ -137,11 +138,7 @@ function printMonthPlanning({ year, month, profiles, schedules, minStaff }) {
     <script>window.onload=function(){window.print();}</script>
     </body></html>`;
 
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=1000,height=800');
-  if (!w) return false;
-  w.document.write(html);
-  w.document.close();
-  return true;
+  return printHtmlDocument(html);
 }
 
 export default function HrPlanningCalendar({
@@ -247,7 +244,7 @@ export default function HrPlanningCalendar({
     const y = Number(monday.slice(0, 4));
     const m = Number(monday.slice(5, 7));
     const ok = printMonthPlanning({ year: y, month: m, profiles, schedules, minStaff });
-    if (!ok) onError?.('Autorisez les pop-ups pour imprimer.');
+    if (!ok) onError?.('Impossible d’ouvrir la boîte d’impression.');
   };
 
   const saveSettings = async () => {

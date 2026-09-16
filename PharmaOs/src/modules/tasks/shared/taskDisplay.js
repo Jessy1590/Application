@@ -32,7 +32,7 @@ export function isPlainTaskDetails(details) {
 export function getTaskCategory(description, titre = '') {
   const d = parseTaskDetails(description);
   if (d.type === 'retrait_lot') return 'retrait_lot';
-  if (d.type === 'stock_error' || d.type === 'stock_recompte') return 'stock';
+  if (d.type === 'stock_error' || d.type === 'stock_recompte' || d.type === 'stock_recompte_result') return 'stock';
   if (d.type === 'perimes_mensuel') return 'perimes';
   if (d.type === 'perime_decision') return 'perime_decision';
   if (d.type === 'perime_challenge') return 'perime_challenge';

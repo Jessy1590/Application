@@ -20,6 +20,8 @@ import StockErrorManager from '../modules/stock/dashboard/StockErrorManager.jsx'
 import RetraitLotManager from '../modules/lot-alerts/dashboard/RetraitLotManager.jsx';
 import HomeDashboard from '../modules/home/dashboard/HomeDashboard.jsx';
 import HrManager from '../modules/hr/dashboard/HrManager.jsx';
+import BdmExplorer from '../modules/bdm/dashboard/BdmExplorer.jsx';
+import ConseilManager from '../modules/conseil/dashboard/ConseilManager.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -34,28 +36,8 @@ function PlaceholderPage({ label }) {
 
 function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
   switch (pageId) {
-    case 'dashboard':
-      return <HomeDashboard onNavigate={onNavigate} />;
-    case 'calls':
-      return <CallTracking onNavigate={onNavigate} />;
-    case 'agenda':
-      return <AgendaManager onNavigate={onNavigate} />;
-    case 'tasks':
-      return <TasksManager onNavigate={onNavigate} />;
-    case 'ip':
-      return <IpManagement onNavigate={onNavigate} />;
-    case 'directory':
-      return <DirectoryManager onNavigate={onNavigate} />;
-    case 'rental':
-      return <RentalManager />;
-    case 'magistral':
-      return <MagistralManager />;
-    case 'psl':
-      return <PslManager />;
-    case 'cash':
-      return <CashManager />;
     case 'disputes':
-      return <DisputesManager />;
+      return <DisputesManager onNavigate={onNavigate} />;
     case 'quality':
       return <QualityManager onNavigate={onNavigate} />;
     case 'documents':
@@ -68,6 +50,30 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <RetraitLotManager onNavigate={onNavigate} />;
     case 'hr':
       return <HrManager onNavigate={onNavigate} />;
+    case 'bdm':
+      return <BdmExplorer />;
+    case 'conseil':
+      return <ConseilManager />;
+    case 'psl':
+      return <PslManager />;
+    case 'cash':
+      return <CashManager />;
+    case 'rental':
+      return <RentalManager />;
+    case 'magistral':
+      return <MagistralManager />;
+    case 'directory':
+      return <DirectoryManager onNavigate={onNavigate} />;
+    case 'agenda':
+      return <AgendaManager onNavigate={onNavigate} />;
+    case 'tasks':
+      return <TasksManager onNavigate={onNavigate} />;
+    case 'ip':
+      return <IpManagement onNavigate={onNavigate} />;
+    case 'calls':
+      return <CallTracking onNavigate={onNavigate} />;
+    case 'dashboard':
+      return <HomeDashboard onNavigate={onNavigate} />;
     default:
       return <PlaceholderPage label={activeLabel} />;
   }

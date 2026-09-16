@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import AdviceStatsCard from './components/AdviceStatsCard.jsx';
 import TaskbarUsageCard from './components/TaskbarUsageCard.jsx';
 import TaskStatsCard from './components/TaskStatsCard.jsx';
@@ -8,13 +8,19 @@ import QualityStatsCard from './components/QualityStatsCard.jsx';
 import StaffEfficiencyCard from './components/StaffEfficiencyCard.jsx';
 import RecurringIssuesCard from './components/RecurringIssuesCard.jsx';
 import { fetchDashboardInsights } from '../services/statsService.js';
+import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 export default function HomeDashboard({ onNavigate }) {
   const [insights, setInsights] = useState(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetchDashboardInsights(30).then(setInsights).catch(console.error);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useRealtimeRefresh(load, {
+    tables: ['call_logs', 'act_ip_logs', 'tasks', 'task_assignments', 'quality_events', 'supplier_disputes', 'stock_errors'],
+  });
 
   return (
     <div>
@@ -33,7 +39,7 @@ export default function HomeDashboard({ onNavigate }) {
         <TaskStatsCard onNavigate={onNavigate} />
         <QualityStatsCard onNavigate={onNavigate} />
         <TaskbarUsageCard />
-        <AdviceStatsCard />
+        <AdviceStatsCard onNavigate={onNavigate} />
       </div>
     </div>
   );
