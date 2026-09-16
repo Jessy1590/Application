@@ -7,7 +7,6 @@
     suivi: 'Suivi',
     contact: 'Contact',
     facture: 'Facture',
-    parametres: 'Paramètres',
   };
 
   let snap = null;
@@ -50,7 +49,6 @@
         await LocationSuivi.mount(content, c);
       } else if (view === 'contact') await LocationContact.mount(content, c);
       else if (view === 'facture') await LocationFacture.mount(content, c);
-      else if (view === 'parametres') await LocationAdmin.mount(content, c);
     } catch (e) {
       content.innerHTML = `<p class="loc-msg loc-msg-err">${String(e.message || e)}</p>`;
     }
@@ -78,6 +76,11 @@
 
     document.getElementById('locHome').querySelectorAll('[data-view]').forEach((btn) => {
       btn.addEventListener('click', () => showView(btn.dataset.view));
+    });
+    document.getElementById('locHome').querySelectorAll('[data-href]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        window.location.href = btn.dataset.href;
+      });
     });
 
     document.getElementById('locBackBtn').addEventListener('click', showHome);

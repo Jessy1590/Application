@@ -487,12 +487,20 @@
     let q = sb()
       .from('location_champs_creation')
       .select('*')
-      .order('ordre', { ascending: true });
+      .order('type_appareil', { ascending: true })
+      .order('code', { ascending: true });
     if (typeAppareil) q = q.eq('type_appareil', typeAppareil);
     if (actifsOnly) q = q.eq('actif', true);
     const { data, error } = await q;
     if (error) throw error;
-    return data || [];
+    const rows = data || [];
+    rows.sort((a, b) => {
+      const ta = String(a.type_appareil || '');
+      const tb = String(b.type_appareil || '');
+      if (ta !== tb) return ta.localeCompare(tb, 'fr');
+      return String(a.code || '').localeCompare(String(b.code || ''), 'fr');
+    });
+    return rows;
   }
 
   async function upsertChampCreation(row) {

@@ -128,15 +128,6 @@ body {
   background: color-mix(in srgb, var(--loc-accent) 18%, var(--loc-elev));
 }
 
-.loc-motif-count {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--loc-muted);
-  background: var(--loc-bg);
-  border-radius: 999px;
-  padding: 2px 7px;
-}
-
 .loc-autosave-hint {
   font-size: 13px;
   margin: 8px 0 0;
@@ -191,14 +182,81 @@ body {
   gap: 10px;
 }
 
-.loc-cond-form {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr 1fr;
+.loc-params-page-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 16px 80px;
 }
 
-.loc-cond-form .loc-check {
-  grid-column: 1 / -1;
+.loc-attention-stack {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.loc-attention-box {
+  border: 2px solid #c00;
+  background: color-mix(in srgb, #c00 10%, var(--loc-elev));
+  color: var(--loc-text);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.loc-attention-box strong {
+  display: block;
+  color: #c00;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.loc-attention-box p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.loc-cond-form {
+  display: grid;
+  gap: 10px;
+}
+
+.loc-cond-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.loc-cond-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(100px, 1.2fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--loc-line);
+  border-radius: 10px;
+}
+
+.loc-cond-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--loc-muted);
+}
+
+.loc-cond-control input,
+.loc-cond-control select {
+  width: 100%;
+}
+
+.loc-cond-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.loc-cond-add select {
+  flex: 1;
+  min-width: 180px;
 }
 
 .loc-choix-list { display: grid; gap: 6px; margin: 6px 0; }

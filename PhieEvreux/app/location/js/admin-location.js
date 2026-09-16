@@ -29,6 +29,13 @@
     ['oui_non', 'Oui / Non'],
     ['nombre', 'Nombre'],
     ['liste', 'Liste'],
+    ['attention', 'Attention (encart rouge)'],
+  ];
+
+  const ACTION_OPTS = [
+    ['alerte_contact', 'Alerte contact'],
+    ['bloquer_ou_alerter', 'Bloquer ou alerter'],
+    ['bascule_facture', 'Bascule facturation'],
   ];
 
   const UNITE_OPTS = [
@@ -77,40 +84,106 @@
 
   function readConditionsFromForm(root) {
     const out = {};
-    CONDITION_FIELDS.forEach((f) => {
-      const el = root.querySelector(`[data-cond="${f.key}"]`);
+    root.querySelectorAll('[data-cond-row]').forEach((row) => {
+      const key = row.dataset.condRow;
+      const def = CONDITION_FIELDS.find((f) => f.key === key);
+      if (!def) return;
+      const el = row.querySelector('[data-cond-val]');
       if (!el) return;
-      if (f.type === 'bool') {
-        if (el.checked) out[f.key] = true;
-      } else if (f.type === 'number') {
+      if (def.type === 'bool') {
+        if (el.checked) out[key] = true;
+      } else if (def.type === 'number') {
         const v = el.value.trim();
-        if (v !== '') out[f.key] = Number(v);
+        if (v !== '') out[key] = Number(v);
       } else {
         const v = el.value;
-        if (v) out[f.key] = v;
+        if (v) out[key] = v;
       }
     });
     return out;
   }
 
-  function conditionsFormHtml(cond) {
-    const c = cond || {};
-    return `<div class="loc-cond-form" data-conditions-form>
-      ${CONDITION_FIELDS.map((f) => {
-        if (f.type === 'bool') {
-          return `<label class="loc-check"><input type="checkbox" data-cond="${f.key}"${c[f.key] ? ' checked' : ''}> ${esc(f.label)}</label>`;
-        }
-        if (f.type === 'select') {
-          return `<label class="loc-field">${esc(f.label)}<select data-cond="${f.key}">
-            <option value="">—</option>
-            ${(f.options || [])
-              .map(([k, v]) => `<option value="${k}"${c[f.key] === k ? ' selected' : ''}>${esc(v)}</option>`)
-              .join('')}
-          </select></label>`;
-        }
-        return `<label class="loc-field">${esc(f.label)}<input type="number" data-cond="${f.key}" value="${esc(numOrEmpty(c[f.key]))}"></label>`;
-      }).join('')}
+  function oneConditionRowHtml(f, value) {
+    let control = '';
+    if (f.type === 'bool') {
+      control = `<label class="loc-check"><input type="checkbox" data-cond-val${value ? ' checked' : ''}> Activé</label>`;
+    } else if (f.type === 'select') {
+      control = `<select data-cond-val>
+        <option value="">—</option>
+        ${(f.options || [])
+          .map(([k, v]) => `<option value="${k}"${value === k ? ' selected' : ''}>${esc(v)}</option>`)
+          .join('')}
+      </select>`;
+    } else {
+      control = `<input type="number" data-cond-val value="${esc(numOrEmpty(value))}">`;
+    }
+    return `<div class="loc-cond-row" data-cond-row="${esc(f.key)}">
+      <span class="loc-cond-label">${esc(f.label)}</span>
+      <div class="loc-cond-control">${control}</div>
+      <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-rm-cond aria-label="Retirer">✕</button>
     </div>`;
+  }
+
+  function conditionsFormHtml(cond) {
+    const c = cond && typeof cond === 'object' ? cond : {};
+    const keys = Object.keys(c).filter((k) => CONDITION_FIELDS.some((f) => f.key === k));
+    const rows = keys
+      .map((k) => {
+        const f = CONDITION_FIELDS.find((x) => x.key === k);
+        return oneConditionRowHtml(f, c[k]);
+      })
+      .join('');
+    const unused = CONDITION_FIELDS.filter((f) => !keys.includes(f.key));
+    return `<div class="loc-cond-form" data-conditions-form>
+      <div class="loc-cond-rows">${rows || '<p class="loc-muted">Aucune condition. Ajoutez-en une ci-dessous.</p>'}</div>
+      <div class="loc-cond-add">
+        <select id="adAddCondKey"${unused.length ? '' : ' disabled'}>
+          <option value="">Ajouter une condition…</option>
+          ${unused.map((f) => `<option value="${esc(f.key)}">${esc(f.label)}</option>`).join('')}
+        </select>
+        <button type="button" class="loc-btn loc-btn-ghost" id="adAddCondBtn" ${unused.length ? '' : 'disabled'}>Ajouter</button>
+      </div>
+    </div>`;
+  }
+
+  function bindConditionsForm(root) {
+    const form = root.querySelector('[data-conditions-form]');
+    if (!form) return;
+    const refreshAddOptions = () => {
+      const used = new Set([...form.querySelectorAll('[data-cond-row]')].map((r) => r.dataset.condRow));
+      const sel = form.querySelector('#adAddCondKey');
+      if (!sel) return;
+      const unused = CONDITION_FIELDS.filter((f) => !used.has(f.key));
+      sel.innerHTML =
+        '<option value="">Ajouter une condition…</option>' +
+        unused.map((f) => `<option value="${esc(f.key)}">${esc(f.label)}</option>`).join('');
+      sel.disabled = !unused.length;
+      const btn = form.querySelector('#adAddCondBtn');
+      if (btn) btn.disabled = !unused.length;
+    };
+    form.querySelector('#adAddCondBtn')?.addEventListener('click', () => {
+      const sel = form.querySelector('#adAddCondKey');
+      const key = sel?.value;
+      if (!key) return;
+      const def = CONDITION_FIELDS.find((f) => f.key === key);
+      if (!def) return;
+      const wrap = form.querySelector('.loc-cond-rows');
+      if (wrap.querySelector('.loc-muted')) wrap.innerHTML = '';
+      wrap.insertAdjacentHTML('beforeend', oneConditionRowHtml(def, def.type === 'bool' ? true : ''));
+      const row = wrap.querySelector(`[data-cond-row="${key}"]`);
+      row?.querySelector('[data-rm-cond]')?.addEventListener('click', () => {
+        row.remove();
+        refreshAddOptions();
+      });
+      sel.value = '';
+      refreshAddOptions();
+    });
+    form.querySelectorAll('[data-rm-cond]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        btn.closest('[data-cond-row]')?.remove();
+        refreshAddOptions();
+      });
+    });
   }
 
   function readOptionsFromForm(root, dataType) {
@@ -227,8 +300,8 @@
       const params = await LocationData.loadParams();
       const champs = params.champs_obligatoires || {};
       const seuil = params.seuil_contact_jours ?? 7;
-      const fauteuil = params.fauteuil_bascule_prestataire_mois ?? 2;
       const qui = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
+      const delaiFacture = params.facture_delai_cloture_jours ?? 30;
 
       body.innerHTML = `
         <h3>Champs obligatoires à la création</h3>
@@ -242,7 +315,7 @@
         <h3>Seuils</h3>
         <div class="loc-grid-2">
           <label class="loc-field">Seuil contact (J-n)<input type="number" min="0" id="adSeuil" value="${Number(seuil)}"></label>
-          <label class="loc-field">Fauteuil bascule prestataire (mois)<input type="number" min="1" id="adFauteuil" value="${Number(fauteuil)}"></label>
+          <label class="loc-field">Délai clôture facture (jours)<input type="number" min="0" id="adDelaiFacture" value="${Number(delaiFacture)}"></label>
           <label class="loc-field">Qui facture (défaut)<select id="adQui">
             <option value="pharmacie"${qui === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
             <option value="prestataire"${qui === 'prestataire' ? ' selected' : ''}>Prestataire</option>
@@ -260,8 +333,8 @@
           await LocationData.setParam('champs_obligatoires', nextChamps, ctx.userId);
           await LocationData.setParam('seuil_contact_jours', Number(body.querySelector('#adSeuil').value), ctx.userId);
           await LocationData.setParam(
-            'fauteuil_bascule_prestataire_mois',
-            Number(body.querySelector('#adFauteuil').value),
+            'facture_delai_cloture_jours',
+            Number(body.querySelector('#adDelaiFacture').value),
             ctx.userId
           );
           await LocationData.setParam('qui_facture_defaut', body.querySelector('#adQui').value, ctx.userId);
@@ -343,14 +416,14 @@
       });
     }
 
-    function collectRuleFromEditor(editor, id) {
+    function collectRuleFromEditor(editor, id, prioriteAuto) {
       return {
         id,
         code: editor.querySelector('[data-f=code]').value.trim(),
         nom: editor.querySelector('[data-f=nom]').value.trim(),
         type_appareil: editor.querySelector('[data-f=type_appareil]').value || null,
         action: editor.querySelector('[data-f=action]').value.trim(),
-        priorite: Number(editor.querySelector('[data-f=priorite]').value),
+        priorite: prioriteAuto,
         message: editor.querySelector('[data-f=message]').value,
         conditions: readConditionsFromForm(editor),
         actif: editor.querySelector('[data-f=actif]').checked,
@@ -361,7 +434,13 @@
       const editor = body.querySelector('[data-rule-editor]');
       if (!editor || !selectedRuleId) return true;
       try {
-        await LocationRules.upsertRule(LocationData.sb(), collectRuleFromEditor(editor, selectedRuleId));
+        const rules = await LocationRules.listRules(LocationData.sb());
+        const idx = Math.max(0, rules.findIndex((r) => r.id === selectedRuleId));
+        const prioriteAuto = (idx + 1) * 10;
+        await LocationRules.upsertRule(
+          LocationData.sb(),
+          collectRuleFromEditor(editor, selectedRuleId, prioriteAuto)
+        );
         LocationData.invalidateCache();
         if (!silent) showMsg('Règle enregistrée.');
         return true;
@@ -381,7 +460,7 @@
 
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle.</p>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle. Priorité calculée automatiquement.</p>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
             ${
@@ -413,8 +492,17 @@
                     )
                     .join('')}
                 </select></label>
-                <label class="loc-field">Action<input data-f="action" value="${esc(current.action)}"></label>
-                <label class="loc-field">Priorité<input type="number" data-f="priorite" value="${current.priorite ?? 100}"></label>
+                <label class="loc-field">Action<select data-f="action">
+                  ${ACTION_OPTS.map(
+                    ([k, v]) =>
+                      `<option value="${k}"${current.action === k ? ' selected' : ''}>${esc(v)}</option>`
+                  ).join('')}
+                  ${
+                    ACTION_OPTS.some(([k]) => k === current.action)
+                      ? ''
+                      : `<option value="${esc(current.action)}" selected>${esc(current.action)}</option>`
+                  }
+                </select></label>
               </div>
               <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
               <h3>Conditions</h3>
@@ -425,6 +513,9 @@
           </div>
         </div>
       `;
+
+      const editor = body.querySelector('[data-rule-editor]');
+      if (editor) bindConditionsForm(editor);
 
       body.querySelectorAll('[data-pick-rule]').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -461,7 +552,6 @@
                 (m) => `
             <button type="button" class="loc-motif-chip${m === selectedMotif ? ' active' : ''}" data-motif="${esc(m)}">
               ${esc(motifLabel(m))}
-              <span class="loc-motif-count">${rows.filter((r) => r.motif === m).length}</span>
             </button>`
               )
               .join('') || '<p class="loc-muted">Aucun motif.</p>'
@@ -524,15 +614,16 @@
 
     function collectChampFromEditor(editor, id) {
       const dataType = editor.querySelector('[data-f=data_type]').value;
+      const isAttention = dataType === 'attention';
       return {
         id,
         type_appareil: editor.querySelector('[data-f=type_appareil]').value,
         code: editor.querySelector('[data-f=code]').value.trim(),
         libelle: editor.querySelector('[data-f=libelle]').value.trim(),
         data_type: dataType,
-        options: readOptionsFromForm(editor, dataType),
+        options: isAttention ? {} : readOptionsFromForm(editor, dataType),
         ordre: Number(editor.querySelector('[data-f=ordre]').value),
-        obligatoire: editor.querySelector('[data-f=obligatoire]').checked,
+        obligatoire: isAttention ? false : editor.querySelector('[data-f=obligatoire]')?.checked === true,
         actif: editor.querySelector('[data-f=actif]').checked,
       };
     }
@@ -600,7 +691,11 @@
                 </select></label>
                 <label class="loc-field">Ordre<input type="number" data-f="ordre" value="${current.ordre ?? 0}"></label>
               </div>
-              <label class="loc-check"><input type="checkbox" data-f="obligatoire"${current.obligatoire ? ' checked' : ''}> Obligatoire</label>
+              ${
+                current.data_type === 'attention'
+                  ? ''
+                  : `<label class="loc-check"><input type="checkbox" data-f="obligatoire"${current.obligatoire ? ' checked' : ''}> Obligatoire</label>`
+              }
               <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
               <h3>Options</h3>
               ${optionsFormHtml(current.options, current.data_type)}

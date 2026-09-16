@@ -25,6 +25,7 @@
   }
 
   function champInputHtml(champ, value) {
+    if (champ.data_type === 'attention') return '';
     const code = champ.code;
     const name = `ce_${code}`;
     const val = value == null ? '' : value;
@@ -51,6 +52,19 @@
       );
     }
     return field(champ.libelle, `<input type="text" name="${name}" value="${escStatic(val)}">`, champ.obligatoire);
+  }
+
+  function attentionBoxesHtml(champs) {
+    const items = (champs || []).filter((c) => c.data_type === 'attention' && c.libelle);
+    if (!items.length) return '';
+    return `<div class="loc-attention-stack">
+      ${items
+        .map(
+          (c) =>
+            `<div class="loc-attention-box" role="note"><strong>Attention</strong><p>${escStatic(c.libelle)}</p></div>`
+        )
+        .join('')}
+    </div>`;
   }
 
   async function mount(root, ctx) {
@@ -84,7 +98,7 @@
         mode_obtention: 'depot',
         livraison: 'pharmacie',
         desinfection: false,
-        encart_texte: LocationRules.encartDefaut('aerosol'),
+        encart_texte: '',
         champs_extra: {},
       },
       date_debut: LocationRules.todayISO(),
@@ -178,6 +192,7 @@
     function collectChampsExtra(type) {
       const extra = { ...(state.appareil.champs_extra || {}) };
       for (const champ of champsForType(type)) {
+        if (champ.data_type === 'attention') continue;
         const elIn = formEl.querySelector(`[name="ce_${champ.code}"]`);
         if (!elIn) continue;
         if (champ.data_type === 'oui_non') {
@@ -196,7 +211,6 @@
     function collectAppareil() {
       if (!formEl.querySelector('[name=type_appareil]')) return;
       const type = formEl.querySelector('[name=type_appareil]')?.value || 'aerosol';
-      const prevType = state.appareil.type_appareil;
       const source = formEl.querySelector('[name=source]')?.value || 'parc';
       const next = {
         type_appareil: type,
@@ -222,9 +236,6 @@
         next.desinfection = false;
       }
       state.appareil = next;
-      if (type !== prevType && !formEl.querySelector('[name=encart_texte]')?.dataset.touched) {
-        state.appareil.encart_texte = LocationRules.encartDefaut(type);
-      }
     }
 
     function collectOrdo() {
@@ -267,6 +278,7 @@
           if (!champ.obligatoire) continue;
           const v = state.appareil.champs_extra?.[champ.code];
           if (champ.data_type === 'oui_non') continue;
+          if (champ.data_type === 'attention') continue;
           if (v == null || v === '') {
             return showMsg(`Champ obligatoire : ${champ.libelle}.`, true), false;
           }
@@ -364,12 +376,16 @@
       const prest = state.appareil.source === 'prestataire';
       const parc = state.appareil.source === 'parc';
       const extra = state.appareil.champs_extra || {};
-      const dynamiques = champsForType(state.appareil.type_appareil)
+      const typeChamps = champsForType(state.appareil.type_appareil);
+      const dynamiques = typeChamps
+        .filter((c) => c.data_type !== 'attention')
         .map((c) => champInputHtml(c, extra[c.code]))
         .join('');
+      const attentions = attentionBoxesHtml(typeChamps);
 
       formEl.innerHTML = `
         ${infoHtml}
+        ${attentions}
         ${field('Type d’appareil', `<select name="type_appareil">
           ${TYPES.map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
         </select>`, req('type_appareil'))}
@@ -398,14 +414,13 @@
           <label class="loc-check"><input type="checkbox" name="desinfection"${state.appareil.desinfection ? ' checked' : ''}> Désinfection faite</label>
         ` : ''}
         ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
-        ${field('Encart (texte libre)', `<textarea name="encart_texte" rows="4" data-touched="${state.appareil.encart_texte !== LocationRules.encartDefaut(state.appareil.type_appareil) ? '1' : ''}">${esc(state.appareil.encart_texte || '')}</textarea>`, false)}
+        ${field('Commentaire', `<textarea name="encart_texte" rows="3" placeholder="Notes libres…">${esc(state.appareil.encart_texte || '')}</textarea>`, false)}
       `;
 
       formEl.querySelector('[name=type_appareil]').addEventListener('change', (e) => {
         collectAppareil();
         const t = e.target.value;
         state.appareil.type_appareil = t;
-        state.appareil.encart_texte = LocationRules.encartDefaut(t);
         state.appareil.champs_extra = {};
         if (t === 'tire_lait') {
           state.duree = 10;
@@ -417,8 +432,6 @@
         collectAppareil();
         render();
       });
-      const enc = formEl.querySelector('[name=encart_texte]');
-      enc?.addEventListener('input', () => { enc.dataset.touched = '1'; });
     }
 
     function renderOrdo() {
@@ -552,7 +565,7 @@
         mode_obtention: 'depot',
         livraison: 'pharmacie',
         desinfection: false,
-        encart_texte: LocationRules.encartDefaut('aerosol'),
+        encart_texte: '',
         champs_extra: {},
       };
       state.date_debut = LocationRules.todayISO();
