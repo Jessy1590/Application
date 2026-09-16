@@ -87,6 +87,10 @@
         b.addEventListener('click', () => {
           const s = Number(b.dataset.step);
           if (s <= step) {
+            if (step === 0) collectPatient();
+            if (step === 1) collectPersonnel();
+            if (step === 2) collectAppareil();
+            if (step === 3) collectOrdo();
             step = s;
             render();
           }
@@ -95,6 +99,8 @@
     }
 
     function collectPatient() {
+      // Étapes suivantes : champs absents du DOM — ne pas écraser state.patient
+      if (!formEl.querySelector('[name=nom]')) return;
       const nom = formEl.querySelector('[name=nom]')?.value.trim() || '';
       const prenom = formEl.querySelector('[name=prenom]')?.value.trim() || '';
       const date_naissance = formEl.querySelector('[name=date_naissance]')?.value || '';
@@ -118,6 +124,8 @@
     }
 
     function collectPersonnel() {
+      // Étapes suivantes : champs absents du DOM — ne pas écraser code_op / caution / notes
+      if (!formEl.querySelector('[name=code_op]')) return;
       state.code_op = formEl.querySelector('[name=code_op]')?.value.trim() || '';
       const caution = formEl.querySelector('[name=caution]')?.value;
       state.caution = caution || '';

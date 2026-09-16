@@ -125,6 +125,7 @@
           <div class="loc-detail-actions">
             <button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>
             <button type="button" class="loc-btn" id="suSave">Enregistrer</button>
+            ${canDelete ? '<button type="button" class="loc-btn loc-btn-ghost" id="suDelete">Supprimer</button>' : ''}
           </div>
         </div>
 
@@ -272,6 +273,7 @@
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suAddLigne').addEventListener('click', () => addLigne(d));
+      detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelectorAll('[data-del]').forEach((b) => {
         b.addEventListener('click', async () => {
           if (!canDelete) {
@@ -287,6 +289,26 @@
         });
       });
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
+    }
+
+    async function deleteFiche(d) {
+      const canDelete = ctx.isAdmin || ctx.isGestionnaire;
+      if (!canDelete) {
+        showMsg('Suppression réservée aux gestionnaires / administrateurs.', true);
+        return;
+      }
+      const p = d.patient || {};
+      const label = `${p.nom || ''} ${p.prenom || ''}`.trim() || 'cette fiche';
+      if (!window.confirm(`Supprimer définitivement la fiche de ${label} ?`)) return;
+      try {
+        await LocationData.deleteDossier(d.id);
+        selectedId = null;
+        detailEl.innerHTML = '<p class="loc-muted">Sélectionnez une fiche.</p>';
+        await refresh();
+        showMsg('Fiche supprimée.');
+      } catch (e) {
+        showMsg(e.message || 'Erreur suppression', true);
+      }
     }
 
     function showNewAppForm(d) {

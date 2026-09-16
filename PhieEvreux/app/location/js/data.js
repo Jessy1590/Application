@@ -309,6 +309,12 @@
     return data;
   }
 
+  /** Supprime un dossier ; appareils / prolongations / suivi_lignes / contacts via CASCADE. */
+  async function deleteDossier(id) {
+    const { error } = await sb().from('location_dossiers').delete().eq('id', id);
+    if (error) throw error;
+  }
+
   async function changerAppareil(dossierId, newApp, userId) {
     const today = global.LocationRules.todayISO();
     await sb()
@@ -525,6 +531,7 @@
     dossierContext,
     createDossierComplet,
     updateDossier,
+    deleteDossier,
     updateAppareil,
     changerAppareil,
     addProlongation,
