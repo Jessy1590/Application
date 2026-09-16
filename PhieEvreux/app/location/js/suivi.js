@@ -639,7 +639,9 @@
     wrap.querySelector('#suStatut').addEventListener('change', refresh);
     wrap.querySelector('#suType').addEventListener('change', refresh);
     wrap.querySelector('#suContact').addEventListener('change', refresh);
-    wrap.querySelector('#suPrintTable').addEventListener('click', () => LocationPrint.printTableau(rows));
+    wrap.querySelector('#suPrintTable').addEventListener('click', () => {
+      void LocationPrint.printTableau(rows);
+    });
 
     await refresh();
     if (selectedId) await openDetail(selectedId);

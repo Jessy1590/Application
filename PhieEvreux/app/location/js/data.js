@@ -584,7 +584,9 @@
   async function listOpenContacts() {
     const { data, error } = await sb()
       .from('location_contacts')
-      .select('*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*))')
+      .select(
+        '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))'
+      )
       .in('statut', ['a_contacter', 'en_cours', 'reporte'])
       .order('created_at', { ascending: true });
     if (error) throw error;

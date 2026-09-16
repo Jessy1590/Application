@@ -169,6 +169,30 @@
     }
   }
 
+  function resolveAppareilType(dossier) {
+    const a = dossier?.appareil_actif;
+    if (a?.type_appareil) return a.type_appareil;
+    const apps = dossier?.appareils || [];
+    const actif = apps.find((x) => x.actif);
+    return (actif || apps[0])?.type_appareil || null;
+  }
+
+  async function loadAttentionLines(dossier) {
+    const type = resolveAppareilType(dossier);
+    if (!type || !global.LocationData?.listChampsCreation) return [];
+    // Même requête que Création (tous les champs actifs), filtre côté client —
+    // plus fiable que .eq(type) + double order selon les versions PostgREST.
+    const champs = await LocationData.listChampsCreation(null, true);
+    return (champs || [])
+      .filter(
+        (c) =>
+          c.type_appareil === type &&
+          String(c.data_type || '').toLowerCase() === 'attention' &&
+          String(c.libelle || '').trim()
+      )
+      .map((c) => String(c.libelle).trim());
+  }
+
   function buildFicheHtml(dossier, attentionLines) {
     const p = dossier.patient || {};
     const a = dossier.appareil_actif || {};
@@ -209,7 +233,9 @@
     });
     const commentaire = String(a.encart_texte || '').trim();
     if (commentaire) attentionParts.push(commentaire);
-    const attentionBody = attentionParts.join('\n');
+    const attentionInner = attentionParts.length
+      ? attentionParts.map((t) => `<p>${esc(t)}</p>`).join('')
+      : '<p>&nbsp;</p>';
 
     const headerBlock = `<section class="print-zone print-top">
   <div class="print-banner">
@@ -242,7 +268,7 @@
       ].join('')}
     </div>
   </div>
-  <div class="print-attention"><strong>Attention</strong><pre>${esc(attentionBody)}</pre></div>
+  <div class="print-attention"><strong>Attention</strong>${attentionInner}</div>
   <p class="print-note">Joindre copie d’ordonnance.</p>
 </section>`;
 
@@ -307,9 +333,10 @@
   .print-line{display:flex;gap:6px;border-bottom:1px dotted #bbb;padding:0;min-height:12px}
   .print-label{width:110px;flex-shrink:0;color:#444}
   .print-val{flex:1}
-  .print-attention{margin-top:3px;border:1.5px solid #c00;padding:3px 5px;min-height:22px;color:#900}
-  .print-attention strong{color:#c00}
-  .print-attention pre{margin:2px 0 0;white-space:pre-wrap;font:inherit;color:#111}
+  .print-attention{margin-top:3px;border:1.5px solid #c00;padding:3px 5px;min-height:22px;color:#111}
+  .print-attention strong{display:block;color:#c00;margin-bottom:2px;font-size:9px;text-transform:uppercase;letter-spacing:.04em}
+  .print-attention p{margin:0 0 2px;white-space:pre-wrap;font:inherit;color:#111}
+  .print-attention p:last-child{margin-bottom:0}
   .print-note{font-style:italic;margin:2px 0 0;color:#333;font-size:9px}
   .print-blank{border-bottom:1px solid #ddd;height:14px;margin:1px 0}
   .print-suivi{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;page-break-inside:avoid}
@@ -342,80 +369,297 @@
       alert('Aucune fiche à imprimer.');
       return;
     }
-    const a = dossier.appareil_actif || {};
     let attentionLines = [];
     try {
-      if (a.type_appareil && global.LocationData?.listChampsCreation) {
-        const champs = await LocationData.listChampsCreation(a.type_appareil, true);
-        attentionLines = (champs || [])
-          .filter((c) => c.data_type === 'attention' && c.libelle)
-          .map((c) => c.libelle);
-      }
+      attentionLines = await loadAttentionLines(dossier);
     } catch (_) {
       attentionLines = [];
     }
     printHtml(buildFicheHtml(dossier, attentionLines));
   }
 
-  function printTableau(dossiers) {
-    const rows = (dossiers || [])
+  function statutLabel(s) {
+    if (s === 'actif') return 'Actif';
+    if (s === 'cloture') return 'Clôturé';
+    return s || '—';
+  }
+
+  function sourceLabel(s) {
+    if (s === 'prestataire') return 'Prestataire';
+    if (s === 'parc') return 'Parc';
+    return s || '—';
+  }
+
+  function modeObtentionLabel(m) {
+    if (m === 'depot') return 'Dépôt';
+    if (m === 'appel') return 'Appel';
+    return m || '';
+  }
+
+  function livraisonLabel(l) {
+    if (l === 'pharmacie') return 'Pharmacie';
+    if (l === 'patient') return 'Patient';
+    return l || '';
+  }
+
+  function quiFactureLabel(q) {
+    if (q === 'prestataire') return 'Prestataire';
+    if (q === 'pharmacie') return 'Pharmacie';
+    return q || '—';
+  }
+
+  function joinParts(parts, sep) {
+    return (parts || []).map((p) => String(p ?? '').trim()).filter(Boolean).join(sep || ' · ');
+  }
+
+  function multilines(parts) {
+    return (parts || [])
+      .map((p) => String(p ?? '').trim())
+      .filter(Boolean)
+      .map((p) => esc(p))
+      .join('<br>');
+  }
+
+  function champsExtraText(extra) {
+    if (!extra || typeof extra !== 'object') return '';
+    return Object.entries(extra)
+      .filter(([, v]) => v != null && v !== '' && v !== false)
+      .map(([k, v]) => (v === true ? k : `${k}=${v}`))
+      .join(' · ');
+  }
+
+  function prolongationsSorted(d) {
+    return (d.prolongations || []).slice().sort((a, b) =>
+      String(a.date_ordo || a.created_at || '').localeCompare(String(b.date_ordo || b.created_at || ''))
+    );
+  }
+
+  async function printTableau(dossiers) {
+    let prestMap = {};
+    try {
+      const prests = await LocationData.listPrestataires(false);
+      (prests || []).forEach((p) => {
+        prestMap[p.id] = p.nom || p.id;
+      });
+    } catch (_) {
+      prestMap = {};
+    }
+
+    const list = dossiers || [];
+    const rows = list
       .map((d) => {
         const p = d.patient || {};
         const a = d.appareil_actif || {};
+        const prolongs = prolongationsSorted(d);
+        const init = prolongs[0];
+        const nbProlong = Math.max(0, prolongs.length - 1);
+
+        const patientCell = multilines([
+          joinParts([p.nom, p.prenom], ' '),
+          p.date_naissance ? `Né(e) ${p.date_naissance}` : '',
+          p.adresse || '',
+          (p.telephones || []).length ? `Tél. ${(p.telephones || []).join(', ')}` : '',
+          (p.mails || []).length ? `Mail ${(p.mails || []).join(', ')}` : '',
+        ]);
+
+        const dossierCell = multilines([
+          joinParts([`OP ${d.code_op || '—'}`, `Caution ${cautionLabel(d.caution)}`], ' · '),
+          joinParts([statutLabel(d.statut), `Facture ${quiFactureLabel(d.qui_facture)}`], ' · '),
+        ]);
+
+        const typeTxt = joinParts([
+          R().typeLabel(a.type_appareil),
+          a.type_libelle || '',
+        ], ' ');
+        const refApp =
+          a.source === 'prestataire'
+            ? joinParts([
+                a.matricule ? `Mat. ${a.matricule}` : '',
+                a.prestataire_id ? prestMap[a.prestataire_id] || a.prestataire_id : '',
+                modeObtentionLabel(a.mode_obtention),
+                livraisonLabel(a.livraison),
+                a.facturation_prestataire ? 'Fact. prestataire' : '',
+              ])
+            : joinParts([
+                a.numero_pharmacie ? `N° ${a.numero_pharmacie}` : '',
+                a.desinfection ? 'Désinfecté' : '',
+              ]);
+        const appareilCell = multilines([
+          joinParts([typeTxt, sourceLabel(a.source)], ' · '),
+          refApp,
+          a.date_accouchement ? `Accouchement ${a.date_accouchement}` : '',
+          a.pese_bebe_regler_avance != null
+            ? `Régler avance ${a.pese_bebe_regler_avance ? 'oui' : 'non'}${a.pese_bebe_periode ? ` (${a.pese_bebe_periode})` : ''}`
+            : '',
+          champsExtraText(a.champs_extra),
+        ]);
+
+        const periodeCell = multilines([
+          joinParts([d.date_debut || a.date_debut || '—', '→', d.date_fin || '—'], ' '),
+          init
+            ? joinParts([
+                init.date_ordo ? `Ordo ${init.date_ordo}` : '',
+                init.duree != null ? `${init.duree} ${init.unite || ''}` : '',
+              ])
+            : '',
+          nbProlong > 0 ? `${nbProlong} prolongation(s)` : 'Sans prolongation',
+        ]);
+
+        const clotureCell = multilines([
+          d.appareil_rendu
+            ? joinParts([
+                'Appareil rendu',
+                d.appareil_rendu_le || '',
+                d.appareil_rendu_op ? `par ${d.appareil_rendu_op}` : '',
+              ])
+            : 'Appareil non rendu',
+          d.caution_rendue
+            ? joinParts([
+                'Caution rendue',
+                d.caution_rendue_le || '',
+                d.caution_rendue_op ? `par ${d.caution_rendue_op}` : '',
+              ])
+            : '',
+          d.statut === 'cloture'
+            ? joinParts([
+                'Clôturé',
+                d.date_cloture || '',
+                d.cloture_op ? `par ${d.cloture_op}` : '',
+              ])
+            : '',
+        ]);
+
+        const notesCell = multilines([a.encart_texte || '', d.notes || '']);
+
         return `<tr>
-          <td>${esc(p.nom)}</td><td>${esc(p.prenom)}</td>
-          <td>${esc(R().typeLabel(a.type_appareil))}</td>
-          <td>${esc(d.date_debut)}</td><td>${esc(d.date_fin)}</td>
-          <td>${esc(d.statut)}</td><td>${esc(d.code_op)}</td>
-          <td>${esc(d.qui_facture)}</td>
+          <td>${patientCell || '—'}</td>
+          <td>${dossierCell || '—'}</td>
+          <td>${appareilCell || '—'}</td>
+          <td>${periodeCell || '—'}</td>
+          <td>${clotureCell || '—'}</td>
+          <td>${notesCell || '—'}</td>
         </tr>`;
       })
       .join('');
+
     printHtml(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Tableau locations</title>
 <style>
-  body{font-family:system-ui,sans-serif;font-size:11px;margin:12px}
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #333;padding:4px 6px;text-align:left}
-  th{background:#eee}
+  @page{size:A4 landscape;margin:7mm}
+  html,body{margin:0}
+  body{font-family:system-ui,Segoe UI,sans-serif;font-size:8px;line-height:1.25;color:#111}
+  h1{font-size:12px;margin:0 0 2px}
+  .print-meta{margin:0 0 6px;color:#555;font-size:7.5px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid #444;padding:3px 4px;text-align:left;vertical-align:top;overflow-wrap:anywhere;word-break:break-word}
+  th{background:#e8e8e8;font-size:7.5px;text-transform:uppercase;letter-spacing:.02em}
+  col.c-patient{width:22%}
+  col.c-dossier{width:14%}
+  col.c-appareil{width:22%}
+  col.c-periode{width:14%}
+  col.c-cloture{width:16%}
+  col.c-notes{width:12%}
+  @media print{
+    body{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  }
 </style></head><body>
-  <h1>Tableau général — locations</h1>
-  <table><thead><tr>
-    <th>Nom</th><th>Prénom</th><th>Type</th><th>Début</th><th>Fin</th><th>Statut</th><th>OP</th><th>Facture</th>
-  </tr></thead><tbody>${rows}</tbody></table>
+  <h1>Tableau des locations — Phie Evreux</h1>
+  <p class="print-meta">${list.length} dossier(s) · Imprimé le ${esc(new Date().toLocaleString('fr-FR'))} · Format A4 paysage</p>
+  <table>
+    <colgroup>
+      <col class="c-patient"><col class="c-dossier"><col class="c-appareil">
+      <col class="c-periode"><col class="c-cloture"><col class="c-notes">
+    </colgroup>
+    <thead><tr>
+      <th>Patient</th>
+      <th>Dossier</th>
+      <th>Appareil</th>
+      <th>Période</th>
+      <th>Clôture</th>
+      <th>Notes</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="6">Aucun dossier.</td></tr>'}</tbody>
+  </table>
 </body></html>`);
   }
 
   function printContactList(items) {
+    const RESULTAT_LABELS = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    const STATUT_LABELS = global.LocationContact?.APPEL_STATUT_LABELS || {};
+
     const rows = (items || [])
       .map((it) => {
         const d = it.dossier || {};
         const p = d.patient || {};
-        const tels = (p.telephones || []).join(', ');
-        const phase = it.phase === 'appel' ? 'Appel' : 'Commentaire';
+        const a = d.appareil_actif || {};
+        const tels = (p.telephones || []).join(' · ') || '—';
+        const compte = it.commentaire_fait_at || it.phase === 'appel' ? 'ECRIS' : 'com. à faire';
+        const statut = STATUT_LABELS[it.statut] || it.statut || '—';
+        const resultat = it.resultat
+          ? RESULTAT_LABELS[it.resultat] || it.resultat
+          : '—';
+        const typeTxt =
+          R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '');
+
+        const identite = `
+          <strong>${esc([p.nom, p.prenom].filter(Boolean).join(' '))}</strong>
+          <span>Né(e) le ${esc(p.date_naissance || '—')}</span>
+          <span>Tél. : ${esc(tels)}</span>`;
+        const location = `
+          <strong>${esc(typeTxt || '—')}</strong>
+          <span>Début : ${esc(d.date_debut || '—')}</span>
+          <span>Fin : ${esc(d.date_fin || '—')}</span>
+          <span>Motif : ${esc(it.motif || '—')}</span>`;
+        const appel = `
+          <strong>${esc(statut)}</strong>
+          <span>Résultat : ${esc(resultat)}</span>
+          <span>Phase : ${esc(it.phase === 'appel' ? 'Appel' : 'Compte')}</span>`;
+
         return `<tr>
-          <td>${esc(phase)}</td>
-          <td>${esc(p.nom)} ${esc(p.prenom)}</td>
-          <td>${esc(tels)}</td>
-          <td>${esc(R().typeLabel(d.appareil_actif?.type_appareil))}</td>
-          <td>${esc(it.motif)}</td>
-          <td>${esc(it.commentaire)}</td>
-          <td>${esc(d.date_fin)}</td>
+          <td class="print-identity">${identite}</td>
+          <td class="print-location">${location}</td>
+          <td>${esc(it.commentaire || '')}</td>
+          <td>${esc(compte)}</td>
+          <td class="print-call">${appel}</td>
+          <td class="print-followup">${esc(d.notes || '')}</td>
         </tr>`;
       })
       .join('');
+
     printHtml(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Patients à contacter</title>
 <style>
-  body{font-family:system-ui,sans-serif;font-size:11px;margin:12px}
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #333;padding:4px 6px;text-align:left;vertical-align:top}
-  th{background:#eee}
-  .consigne{margin:8px 0 16px;padding:8px;border:1px solid #999}
+  @page{size:A4 landscape;margin:8mm}
+  html,body{margin:0}
+  body{font-family:Arial,sans-serif;font-size:9px;line-height:1.25;color:#111}
+  h1{font-size:15px;margin:0 0 3px}
+  .print-date{margin:0 0 8px;color:#444;font-size:8px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:0.5pt solid #8a8a8a;padding:4px 5px;text-align:left;vertical-align:top;line-height:1.25;overflow-wrap:anywhere}
+  th{background:#dfe3e6;font-weight:700;font-size:8.5px;text-transform:uppercase}
+  tbody tr:nth-child(even) td{background:#f3f4f5}
+  th:nth-child(1){width:19%}
+  th:nth-child(2){width:12%}
+  th:nth-child(3){width:17%}
+  th:nth-child(4){width:7%}
+  th:nth-child(5){width:18%}
+  th:nth-child(6){width:27%}
+  .print-identity strong,.print-location strong,.print-call strong{display:block;margin-bottom:2px;font-size:9.5px}
+  .print-identity span,.print-location span,.print-call span{display:block;margin-top:1px}
+  .print-followup{white-space:pre-wrap}
+  @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
 </style></head><body>
-  <h1>Liste patients à contacter</h1>
-  <div class="consigne"><strong>Consignes comptoir :</strong> phase Commentaire (compte patient), puis Appel — noter le résultat, prolonger ou organiser le rendu.</div>
-  <table><thead><tr>
-    <th>Phase</th><th>Patient</th><th>Tél.</th><th>Type</th><th>Motif</th><th>Commentaire / consignes</th><th>Fin</th>
-  </tr></thead><tbody>${rows}</tbody></table>
+  <h1>Phie Evreux — Locations (Contact)</h1>
+  <p class="print-date">Imprimé le ${esc(new Date().toLocaleString('fr-FR'))}</p>
+  <table>
+    <thead><tr>
+      <th>Identité</th>
+      <th>Location</th>
+      <th>Commentaire</th>
+      <th>Compte</th>
+      <th>Appel</th>
+      <th>Suivi</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="6">Aucune ligne</td></tr>'}</tbody>
+  </table>
 </body></html>`);
   }
 
