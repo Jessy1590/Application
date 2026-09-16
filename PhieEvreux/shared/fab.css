@@ -28,6 +28,13 @@
   transform: scale(0.96);
 }
 
+.phie-fab-home {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
 .phie-fab-bug {
   background: linear-gradient(135deg, #2a1f3d, #1a2438);
   border-color: rgba(180, 120, 255, 0.35);

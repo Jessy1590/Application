@@ -116,6 +116,8 @@
       const p = d.patient || {};
       const a = d.appareil_actif || {};
       const canDelete = ctx.isAdmin || ctx.isGestionnaire;
+      const prest = a.source === 'prestataire';
+      const parc = !prest;
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -132,9 +134,11 @@
             <label class="loc-field">Nom<input name="p_nom" value="${esc(p.nom)}"></label>
             <label class="loc-field">Prénom<input name="p_prenom" value="${esc(p.prenom)}"></label>
             <label class="loc-field">Naissance<input type="date" name="p_dn" value="${esc(p.date_naissance || '')}"></label>
-            <label class="loc-field">Adresse<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
-            <label class="loc-field">Tél.<input name="p_tel" value="${esc(LocationData.joinList(p.telephones))}"></label>
-            <label class="loc-field">Mails<input name="p_mail" value="${esc(LocationData.joinList(p.mails))}"></label>
+            <label class="loc-field loc-span-2">Adresse<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
+          </div>
+          <div class="loc-grid-2" style="margin-top:10px">
+            <div class="loc-span-2">${LocationFields.blockHtml('phones', 'Téléphones')}</div>
+            <div class="loc-span-2">${LocationFields.blockHtml('mails', 'Mails')}</div>
           </div>
         </details>
 
@@ -143,9 +147,9 @@
           <div class="loc-grid-2">
             <label class="loc-field">Code OP<input name="code_op" value="${esc(d.code_op || '')}"></label>
             <label class="loc-field">Caution<select name="caution">
+              <option value=""${!d.caution ? ' selected' : ''}>Rien</option>
               <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
               <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
-              <option value="autre"${d.caution === 'autre' ? ' selected' : ''}>Autre</option>
             </select></label>
             <label class="loc-field">Statut<select name="statut">
               <option value="actif"${d.statut === 'actif' ? ' selected' : ''}>Actif</option>
@@ -170,17 +174,41 @@
 
         <details open class="loc-card">
           <summary>Appareil actif · historique</summary>
-          <div class="loc-appareil-actif">
-            <p><strong>${esc(LocationRules.typeLabel(a.type_appareil))}</strong>
-              ${a.matricule ? ' · ' + esc(a.matricule) : ''}
-              ${a.facturation_prestataire ? ' · fact. prestataire' : ''}
-            </p>
-            <label class="loc-field">Encart<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
-            <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire</label>
+          <div class="loc-appareil-actif loc-grid-2">
+            <label class="loc-field">Type<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
+            <label class="loc-field">Source<select name="a_source">
+              <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
+              <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
+            </select></label>
+            <label class="loc-field">Matricule<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
+            <label class="loc-field">N° pharmacie<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
+            <label class="loc-field">Obtention<select name="a_obtention">
+              <option value="">—</option>
+              <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
+              <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel</option>
+            </select></label>
+            <label class="loc-field">Livraison<select name="a_livraison">
+              <option value="">—</option>
+              <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
+              <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Patient</option>
+            </select></label>
+            <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite</label>
+            <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
+            ${a.type_appareil === 'pese_bebe' ? `
+              <label class="loc-check"><input type="checkbox" name="a_pese_avance"${a.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
+              <label class="loc-field">Période<select name="a_pese_periode">
+                <option value="semaine"${a.pese_bebe_periode === 'semaine' ? ' selected' : ''}>Semaine</option>
+                <option value="mois"${a.pese_bebe_periode === 'mois' ? ' selected' : ''}>Mois</option>
+              </select></label>
+            ` : ''}
+            ${a.type_appareil === 'tire_lait' ? `
+              <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
+            ` : ''}
+            <label class="loc-field loc-span-2">Encart<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
           </div>
           <h4>Historique</h4>
           <ul class="loc-history">
-            ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.actif ? 'actif' : 'inactif'} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
+            ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.source || ''} · ${x.actif ? 'actif' : 'inactif'} · n° ${esc(x.numero_pharmacie || x.matricule || '—')} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
           </ul>
           <button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button>
           <div id="suNewAppForm" hidden></div>
@@ -226,7 +254,21 @@
         </details>
       `;
 
-      detailEl.querySelector('#suPrint').addEventListener('click', () => LocationPrint.printFiche(d));
+      LocationFields.mountPhones(
+        detailEl.querySelector('#phonesList'),
+        detailEl.querySelector('#addPhoneBtn'),
+        p.telephones || []
+      );
+      LocationFields.mountMails(
+        detailEl.querySelector('#mailsList'),
+        detailEl.querySelector('#addMailBtn'),
+        p.mails || []
+      );
+
+      detailEl.querySelector('#suPrint').addEventListener('click', () => {
+        // d déjà chargé via getDossier dans openDetail — print synchrone (geste utilisateur)
+        LocationPrint.printFiche(d);
+      });
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suAddLigne').addEventListener('click', () => addLigne(d));
@@ -291,13 +333,14 @@
           prenom: g('p_prenom').value.trim(),
           date_naissance: g('p_dn').value || null,
           adresse: g('p_adresse').value.trim() || null,
-          telephones: LocationData.splitList(g('p_tel').value),
-          mails: LocationData.splitList(g('p_mail').value),
+          telephones: LocationFields.collectPhones(detailEl.querySelector('#phonesList')),
+          mails: LocationFields.collectMails(detailEl.querySelector('#mailsList')),
         });
         const statut = g('statut').value;
+        const cautionVal = g('caution').value;
         await LocationData.updateDossier(d.id, {
           code_op: g('code_op').value.trim() || null,
-          caution: g('caution').value,
+          caution: cautionVal || null,
           statut,
           qui_facture: g('qui_facture').value,
           date_debut: g('date_debut').value || null,
@@ -310,16 +353,25 @@
           notes: g('notes').value.trim() || null,
         });
         if (d.appareil_actif) {
-          await LocationData.sb()
-            .from('location_appareils')
-            .update({
-              encart_texte: g('encart_texte').value,
-              facturation_prestataire: g('facturation_prestataire').checked,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', d.appareil_actif.id);
+          const appPatch = {
+            source: g('a_source').value,
+            matricule: g('a_matricule').value.trim() || null,
+            numero_pharmacie: g('a_numero').value.trim() || null,
+            mode_obtention: g('a_obtention').value || null,
+            livraison: g('a_livraison').value || null,
+            desinfection: !!g('a_desinfection')?.checked,
+            encart_texte: g('encart_texte').value,
+            facturation_prestataire: g('facturation_prestataire').checked,
+          };
+          if (g('a_pese_avance')) {
+            appPatch.pese_bebe_regler_avance = g('a_pese_avance').checked;
+            appPatch.pese_bebe_periode = g('a_pese_periode')?.value || null;
+          }
+          if (g('a_accouchement')) {
+            appPatch.date_accouchement = g('a_accouchement').value || null;
+          }
+          await LocationData.updateAppareil(d.appareil_actif.id, appPatch);
         }
-        // save suivi lines
         const trs = detailEl.querySelectorAll('#suSuiviTable tbody tr[data-id]');
         for (const tr of trs) {
           await LocationData.upsertSuiviLigne({

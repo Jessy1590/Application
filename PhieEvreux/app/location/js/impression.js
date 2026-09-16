@@ -1,5 +1,6 @@
 /**
- * Impression fiche Location — nouvelle mise en page (encarts).
+ * Impression Location — fiche / tableau / contacts.
+ * Uniquement via iframe caché dans le document (jamais window.open).
  */
 (function (global) {
   const R = () => global.LocationRules;
@@ -13,10 +14,11 @@
   }
 
   function cautionLabel(c) {
+    if (!c) return 'Rien';
     if (c === 'cheque_150') return 'Chèque 150 €';
     if (c === 'especes') return 'Espèces';
     if (c === 'autre') return 'Autre';
-    return c || '—';
+    return c;
   }
 
   function zone(title, bodyHtml) {
@@ -31,6 +33,58 @@
     let h = '';
     for (let i = 0; i < n; i++) h += '<div class="print-blank"></div>';
     return h;
+  }
+
+  /** Impression same-document — pas de pop-up, pas d’alerte « Autorisez les pop-ups ». */
+  function printHtml(html) {
+    const prev = document.getElementById('loc-print-frame');
+    if (prev) prev.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'loc-print-frame';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('title', 'Impression');
+    iframe.style.cssText =
+      'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(iframe);
+
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument || win.document;
+    if (!doc || !win) {
+      iframe.remove();
+      alert('Impression impossible.');
+      return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const cleanup = () => {
+      try {
+        iframe.remove();
+      } catch (_) {
+        /* ignore */
+      }
+    };
+
+    const trigger = () => {
+      try {
+        win.focus();
+        win.print();
+      } catch (e) {
+        alert('Impression impossible : ' + (e.message || e));
+      } finally {
+        setTimeout(cleanup, 2000);
+      }
+    };
+
+    // Laisser le navigateur peindre le document iframe avant print()
+    if (doc.readyState === 'complete') {
+      setTimeout(trigger, 50);
+    } else {
+      iframe.onload = () => setTimeout(trigger, 50);
+    }
   }
 
   function buildFicheHtml(dossier) {
@@ -52,27 +106,43 @@
         line('Mail(s)', mails),
         line('Code OP', dossier.code_op),
         line('Caution', cautionLabel(dossier.caution)),
-        line('Qui facture', dossier.qui_facture),
         line('Date début', dossier.date_debut),
       ].join('')
     );
 
-    const appareilBlock = zone(
-      'Appareil',
-      [
-        line('Type', R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '')),
-        line('Source', a.source),
+    const appareilLines = [
+      line('Type', R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '')),
+      line('Source', a.source === 'prestataire' ? 'Prestataire' : 'Parc pharmacie'),
+    ];
+    if (a.source === 'prestataire') {
+      appareilLines.push(
         line('Matricule', a.matricule),
-        line('N° pharmacie', a.numero_pharmacie),
         line('Obtention', a.mode_obtention),
-        line('Livraison', a.livraison),
-        line('Désinfection', a.desinfection ? 'Oui' : 'Non'),
-        line('Ordo / durée', prolong ? `${prolong.date_ordo || '—'} · ${prolong.duree} ${prolong.unite}` : ''),
-        line('Fin prévue', dateFin),
-        `<div class="print-encart"><strong>Encart</strong><pre>${esc(a.encart_texte || '')}</pre></div>`,
-        '<p class="print-note">Joindre copie d’ordonnance.</p>',
-      ].join('')
+        line('Livraison', a.livraison)
+      );
+    } else {
+      appareilLines.push(
+        line('N° pharmacie', a.numero_pharmacie),
+        line('Désinfection', a.desinfection ? 'Oui' : 'Non')
+      );
+    }
+    if (a.type_appareil === 'pese_bebe') {
+      appareilLines.push(
+        line('Régler d’avance', a.pese_bebe_regler_avance ? 'Oui' : 'Non'),
+        line('Période', a.pese_bebe_periode)
+      );
+    }
+    if (a.type_appareil === 'tire_lait') {
+      appareilLines.push(line('Date accouchement', a.date_accouchement));
+    }
+    appareilLines.push(
+      line('Ordo / durée', prolong ? `${prolong.date_ordo || '—'} · ${prolong.duree} ${prolong.unite}` : ''),
+      line('Fin prévue', dateFin),
+      `<div class="print-encart"><strong>Encart</strong><pre>${esc(a.encart_texte || '')}</pre></div>`,
+      '<p class="print-note">Joindre copie d’ordonnance.</p>'
     );
+
+    const appareilBlock = zone('Appareil', appareilLines.join(''));
 
     const suiviRows = (dossier.suivi || [])
       .map(
@@ -83,7 +153,8 @@
     const suiviBlock = zone(
       'Suivi matériel',
       `<table class="print-table"><thead><tr><th>Date</th><th>Libellé</th><th>Détails</th></tr></thead><tbody>${
-        suiviRows || '<tr><td colspan="3">&nbsp;</td></tr><tr><td colspan="3">&nbsp;</td></tr><tr><td colspan="3">&nbsp;</td></tr>'
+        suiviRows ||
+        '<tr><td colspan="3">&nbsp;</td></tr><tr><td colspan="3">&nbsp;</td></tr><tr><td colspan="3">&nbsp;</td></tr>'
       }</tbody></table>${blankLines(suiviRows ? 1 : 0)}`
     );
 
@@ -91,9 +162,19 @@
       'Clôture',
       [
         line('Appareil rendu', dossier.appareil_rendu ? 'Oui' : ''),
-        line('Caution rendue', dossier.caution_rendue ? `Oui${dossier.caution_rendue_le ? ' le ' + dossier.caution_rendue_le : ''}` : ''),
+        line(
+          'Caution rendue',
+          dossier.caution_rendue
+            ? `Oui${dossier.caution_rendue_le ? ' le ' + dossier.caution_rendue_le : ''}`
+            : ''
+        ),
         line('OP caution rendue', dossier.caution_rendue_op || ''),
-        line('Dossier clôturé', dossier.statut === 'cloture' ? `Oui${dossier.date_cloture ? ' le ' + dossier.date_cloture : ''}` : ''),
+        line(
+          'Dossier clôturé',
+          dossier.statut === 'cloture'
+            ? `Oui${dossier.date_cloture ? ' le ' + dossier.date_cloture : ''}`
+            : ''
+        ),
         line('OP clôture', dossier.cloture_op || ''),
         blankLines(3),
       ].join('')
@@ -124,19 +205,11 @@
   }
 
   function printFiche(dossier) {
-    const html = buildFicheHtml(dossier);
-    const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1000');
-    if (!w) {
-      alert('Autorisez les pop-ups pour imprimer.');
+    if (!dossier) {
+      alert('Aucune fiche à imprimer.');
       return;
     }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      try { w.print(); } catch (_) { /* ignore */ }
-    }, 250);
+    printHtml(buildFicheHtml(dossier));
   }
 
   function printTableau(dossiers) {
@@ -153,7 +226,7 @@
         </tr>`;
       })
       .join('');
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Tableau locations</title>
+    printHtml(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Tableau locations</title>
 <style>
   body{font-family:system-ui,sans-serif;font-size:11px;margin:12px}
   table{width:100%;border-collapse:collapse}
@@ -164,13 +237,7 @@
   <table><thead><tr>
     <th>Nom</th><th>Prénom</th><th>Type</th><th>Début</th><th>Fin</th><th>Statut</th><th>OP</th><th>Facture</th>
   </tr></thead><tbody>${rows}</tbody></table>
-</body></html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
-    if (!w) return alert('Autorisez les pop-ups pour imprimer.');
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { try { w.print(); } catch (_) {} }, 250);
+</body></html>`);
   }
 
   function printContactList(items) {
@@ -189,7 +256,7 @@
         </tr>`;
       })
       .join('');
-    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Patients à contacter</title>
+    printHtml(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Patients à contacter</title>
 <style>
   body{font-family:system-ui,sans-serif;font-size:11px;margin:12px}
   table{width:100%;border-collapse:collapse}
@@ -202,13 +269,7 @@
   <table><thead><tr>
     <th>Patient</th><th>Tél.</th><th>Type</th><th>Motif</th><th>Commentaire / consignes</th><th>Fin</th>
   </tr></thead><tbody>${rows}</tbody></table>
-</body></html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800');
-    if (!w) return alert('Autorisez les pop-ups pour imprimer.');
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { try { w.print(); } catch (_) {} }, 250);
+</body></html>`);
   }
 
   global.LocationPrint = { printFiche, printTableau, printContactList, buildFicheHtml };

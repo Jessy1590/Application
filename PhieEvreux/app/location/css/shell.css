@@ -232,6 +232,49 @@ body {
 
 .loc-check-inline { white-space: nowrap; }
 
+.loc-multi-block { margin-bottom: 4px; }
+.loc-multi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--loc-muted);
+}
+.loc-multi-list { display: grid; gap: 8px; }
+.loc-multi-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.loc-multi-row .loc-multi-input {
+  flex: 1;
+  width: 100%;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-bg);
+  color: var(--loc-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+.loc-btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.loc-icon-btn {
+  border: 1px solid var(--loc-line);
+  background: transparent;
+  color: var(--loc-text);
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .loc-form-actions,
 .loc-toolbar {
   display: flex;

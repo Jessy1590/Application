@@ -82,15 +82,26 @@
   }
 
   async function createPatient(row) {
-    const { data, error } = await sb().from('location_patients').insert(row).select().single();
+    const payload = {
+      ...row,
+      telephones: Array.isArray(row.telephones) ? row.telephones : [],
+      mails: Array.isArray(row.mails) ? row.mails : [],
+    };
+    const { data, error } = await sb().from('location_patients').insert(payload).select().single();
     if (error) throw error;
     return data;
   }
 
   async function updatePatient(id, row) {
+    const payload = {
+      ...row,
+      telephones: Array.isArray(row.telephones) ? row.telephones : [],
+      mails: Array.isArray(row.mails) ? row.mails : [],
+      updated_at: new Date().toISOString(),
+    };
     const { data, error } = await sb()
       .from('location_patients')
-      .update({ ...row, updated_at: new Date().toISOString() })
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
@@ -162,6 +173,7 @@
 
   function enrichDossier(d) {
     if (!d) return d;
+    const patient = Array.isArray(d.patient) ? d.patient[0] || null : d.patient;
     const appareils = (d.appareils || []).slice().sort((a, b) =>
       String(b.created_at || '').localeCompare(String(a.created_at || ''))
     );
@@ -178,6 +190,7 @@
     }, null);
     return {
       ...d,
+      patient,
       appareils,
       prolongations,
       suivi,
@@ -272,6 +285,17 @@
     if (pErr) throw pErr;
 
     return getDossier(dossier.id);
+  }
+
+  async function updateAppareil(id, row) {
+    const { data, error } = await sb()
+      .from('location_appareils')
+      .update({ ...row, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
   async function updateDossier(id, row) {
@@ -501,6 +525,7 @@
     dossierContext,
     createDossierComplet,
     updateDossier,
+    updateAppareil,
     changerAppareil,
     addProlongation,
     upsertSuiviLigne,
