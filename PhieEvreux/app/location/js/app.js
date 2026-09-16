@@ -7,6 +7,7 @@
     suivi: 'Suivi',
     contact: 'Contact',
     facture: 'Facture',
+    parametres: 'Paramètres',
   };
 
   let snap = null;
@@ -49,6 +50,7 @@
         await LocationSuivi.mount(content, c);
       } else if (view === 'contact') await LocationContact.mount(content, c);
       else if (view === 'facture') await LocationFacture.mount(content, c);
+      else if (view === 'parametres') await LocationAdmin.mount(content, c);
     } catch (e) {
       content.innerHTML = `<p class="loc-msg loc-msg-err">${String(e.message || e)}</p>`;
     }
@@ -67,11 +69,8 @@
       snap = null;
     }
 
-    const gear = document.getElementById('locGearBtn');
-    if (snap?.isAdmin) gear.hidden = false;
-    gear.addEventListener('click', () => {
-      LocationAdmin.open(ctx());
-    });
+    const tileParams = document.getElementById('locTileParametres');
+    if (snap?.isAdmin && tileParams) tileParams.hidden = false;
 
     document.getElementById('locThemeBtn').addEventListener('click', () => {
       PhieTheme.toggle();

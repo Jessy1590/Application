@@ -320,11 +320,18 @@
 
   /**
    * Clôture un dossier avec les réponses du formulaire dédié.
+   * Pour chaque « oui », date ( *_le ) et OP ( *_op ) sont enregistrés.
    * @param {string} id
    * @param {{
    *   appareil_rendu: boolean,
+   *   appareil_rendu_le?: string|null,
+   *   appareil_rendu_op?: string|null,
    *   caution_rendue: boolean,
+   *   caution_rendue_le?: string|null,
+   *   caution_rendue_op?: string|null,
    *   facturation_ok: boolean,
+   *   facturation_ok_le?: string|null,
+   *   facturation_ok_op?: string|null,
    *   commentaire?: string|null,
    *   notes?: string|null,
    *   code_op?: string|null,
@@ -347,12 +354,26 @@
       notes: notes.trim() || null,
       cloture_op: answers.code_op || null,
     };
+    if (answers.appareil_rendu) {
+      patch.appareil_rendu_le = answers.appareil_rendu_le || today;
+      patch.appareil_rendu_op = answers.appareil_rendu_op || answers.code_op || null;
+    } else {
+      patch.appareil_rendu_le = null;
+      patch.appareil_rendu_op = null;
+    }
     if (answers.caution_rendue) {
-      patch.caution_rendue_le = today;
-      patch.caution_rendue_op = answers.code_op || null;
+      patch.caution_rendue_le = answers.caution_rendue_le || today;
+      patch.caution_rendue_op = answers.caution_rendue_op || answers.code_op || null;
     } else {
       patch.caution_rendue_le = null;
       patch.caution_rendue_op = null;
+    }
+    if (answers.facturation_ok) {
+      patch.facturation_ok_le = answers.facturation_ok_le || today;
+      patch.facturation_ok_op = answers.facturation_ok_op || answers.code_op || null;
+    } else {
+      patch.facturation_ok_le = null;
+      patch.facturation_ok_op = null;
     }
     return updateDossier(id, patch);
   }

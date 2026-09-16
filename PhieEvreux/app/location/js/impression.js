@@ -74,8 +74,10 @@
 
     if (dossier.appareil_rendu) {
       rows.push({
-        date: null,
-        libelle: "Rendu d'appareil",
+        date: dossier.appareil_rendu_le || null,
+        libelle:
+          "Rendu d'appareil" +
+          (dossier.appareil_rendu_op ? ` · OP ${dossier.appareil_rendu_op}` : ''),
       });
     }
     if (dossier.caution_rendue) {
@@ -239,13 +241,16 @@
     const statutCell = '<td class="col-statut">□</td>';
     const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${statutCell}</tr>`;
     const eventRows = buildSuiviEventRows(dossier);
-    const suiviFilled = eventRows
+    /** Plafond A4 : peu de lignes vides pour tenir sur une seule feuille. */
+    const MAX_SUIVI_ROWS = 8;
+    const shownEvents = eventRows.slice(0, MAX_SUIVI_ROWS);
+    const suiviFilled = shownEvents
       .map((s) => {
         const dateCell = s.date ? esc(s.date) : datePh;
         return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${statutCell}</tr>`;
       })
       .join('');
-    const padCount = Math.max(0, 18 - eventRows.length);
+    const padCount = Math.max(0, MAX_SUIVI_ROWS - shownEvents.length);
     const suiviRows = suiviFilled + emptySuiviRow.repeat(padCount);
     const suiviBlock = `<section class="print-zone print-suivi"><h2>Suivi matériel</h2>
       <table class="print-table print-table-suivi"><thead><tr>
@@ -261,7 +266,11 @@
       return `<div class="print-cloture-line">${esc(label)} le ${lePart} par ${parPart}</div>`;
     }
     const clotureBlock = `<section class="print-zone print-cloture"><h2>Clôture</h2>${[
-      clotureHand('Appareil rendu', null, null),
+      clotureHand(
+        'Appareil rendu',
+        dossier.appareil_rendu && dossier.appareil_rendu_le ? dossier.appareil_rendu_le : null,
+        dossier.appareil_rendu_op || null
+      ),
       clotureHand(
         'Caution rendue',
         dossier.caution_rendue && dossier.caution_rendue_le ? dossier.caution_rendue_le : null,
@@ -276,39 +285,40 @@
 
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche location</title>
 <style>
+  @page{size:A4;margin:8mm}
   html,body{height:100%}
-  body{font-family:Georgia,serif;color:#111;margin:8px;font-size:10.5px;line-height:1.25;display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
-  h1{font-size:14px;margin:0 0 2px;flex-shrink:0}
-  .print-meta{color:#555;margin:0 0 6px;font-size:9px;flex-shrink:0}
-  .print-zone{border:1px solid #222;padding:5px 7px;margin-bottom:6px}
+  body{font-family:Georgia,serif;color:#111;margin:0;font-size:10px;line-height:1.2;display:flex;flex-direction:column;box-sizing:border-box;height:277mm;max-height:277mm;overflow:hidden}
+  h1{font-size:13px;margin:0 0 2px;flex-shrink:0}
+  .print-meta{color:#555;margin:0 0 4px;font-size:8.5px;flex-shrink:0}
+  .print-zone{border:1px solid #222;padding:4px 6px;margin-bottom:4px}
   .print-top{flex-shrink:0;page-break-inside:avoid}
-  .print-zone h2,.print-col h2{margin:0 0 3px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
-  .print-banner{display:flex;flex-wrap:wrap;gap:4px 14px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid #222;font-size:10.5px}
-  .print-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:4px}
-  .print-line{display:flex;gap:6px;border-bottom:1px dotted #bbb;padding:1px 0;min-height:14px}
-  .print-label{width:118px;flex-shrink:0;color:#444}
+  .print-zone h2,.print-col h2{margin:0 0 2px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
+  .print-banner{display:flex;flex-wrap:wrap;gap:3px 12px;margin-bottom:3px;padding-bottom:3px;border-bottom:1px solid #222;font-size:10px}
+  .print-cols{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;margin-bottom:3px}
+  .print-line{display:flex;gap:6px;border-bottom:1px dotted #bbb;padding:0;min-height:12px}
+  .print-label{width:110px;flex-shrink:0;color:#444}
   .print-val{flex:1}
-  .print-attention{margin-top:4px;border:1.5px solid #c00;padding:4px 6px;min-height:28px;color:#900}
+  .print-attention{margin-top:3px;border:1.5px solid #c00;padding:3px 5px;min-height:22px;color:#900}
   .print-attention strong{color:#c00}
   .print-attention pre{margin:2px 0 0;white-space:pre-wrap;font:inherit;color:#111}
-  .print-note{font-style:italic;margin:3px 0 0;color:#333;font-size:9.5px}
-  .print-blank{border-bottom:1px solid #ddd;height:16px;margin:2px 0}
-  .print-suivi{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;page-break-inside:auto}
-  .print-suivi .print-table-suivi{flex:1 1 auto;width:100%;height:100%}
-  .print-table{width:100%;border-collapse:collapse;font-size:10px}
-  .print-table th,.print-table td{border:1px solid #999;padding:4px 4px;text-align:left;vertical-align:middle}
-  .print-table-suivi th,.print-table-suivi td{height:22px;padding:5px 4px}
-  .print-table-suivi tbody tr.print-row-fill td{height:26px}
-  .print-table th{background:#f3f3f3;font-size:9px}
+  .print-note{font-style:italic;margin:2px 0 0;color:#333;font-size:9px}
+  .print-blank{border-bottom:1px solid #ddd;height:14px;margin:1px 0}
+  .print-suivi{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;page-break-inside:avoid}
+  .print-suivi .print-table-suivi{width:100%}
+  .print-table{width:100%;border-collapse:collapse;font-size:9.5px}
+  .print-table th,.print-table td{border:1px solid #999;padding:2px 3px;text-align:left;vertical-align:middle}
+  .print-table-suivi th,.print-table-suivi td{height:18px;padding:2px 3px}
+  .print-table-suivi tbody tr.print-row-fill td{height:20px}
+  .print-table th{background:#f3f3f3;font-size:8.5px}
   .print-table .col-date{width:4.2em;max-width:4.8em;white-space:pre;font-variant-numeric:tabular-nums}
-  .print-table .col-statut{width:2.6em;text-align:center;font-size:12px}
+  .print-table .col-statut{width:2.4em;text-align:center;font-size:11px}
   .print-table .col-lib{width:auto}
   .print-date-ph{white-space:pre;letter-spacing:.02em;color:#666}
   .print-cloture{flex-shrink:0;margin-top:auto;page-break-inside:avoid}
-  .print-cloture-line{padding:6px 0;min-height:22px;line-height:1.7;border-bottom:1px dotted #bbb}
+  .print-cloture-line{padding:3px 0;min-height:16px;line-height:1.4;border-bottom:1px dotted #bbb}
   .print-cloture-line:last-child{border-bottom:none}
   @media print{
-    body{margin:5mm;min-height:100vh}
+    body{margin:0;height:277mm;max-height:277mm;overflow:hidden}
     .print-suivi{flex:1 1 auto}
   }
 </style></head><body>

@@ -1,5 +1,5 @@
 /**
- * Admin Location — paramètres, prestataires, règles, templates, champs création.
+ * Module Paramètres Location — formulaires (pas de JSON brut), auto-save.
  */
 (function (global) {
   function esc(s) {
@@ -8,12 +8,6 @@
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
-  }
-
-  function el(html) {
-    const t = document.createElement('template');
-    t.innerHTML = html.trim();
-    return t.content.firstChild;
   }
 
   const CHAMP_KEYS = [
@@ -37,48 +31,161 @@
     ['liste', 'Liste'],
   ];
 
+  const UNITE_OPTS = [
+    ['jours', 'Jours'],
+    ['semaines', 'Semaines'],
+    ['mois', 'Mois'],
+  ];
+
   const BUG_HINT =
     'Pour ajouter une règle, un template ou un champ de création, signalez-le via le bouton Bug.';
 
-  async function open(ctx) {
+  const CONDITION_FIELDS = [
+    { key: 'unite', label: 'Unité de durée', type: 'select', options: UNITE_OPTS },
+    { key: 'max_duree', label: 'Durée max', type: 'number' },
+    { key: 'max_duree_prolongation', label: 'Durée max prolongation', type: 'number' },
+    { key: 'duree_initiale', label: 'Durée initiale', type: 'number' },
+    { key: 'bascule_apres_mois', label: 'Bascule après (mois)', type: 'number' },
+    {
+      key: 'qui_facture',
+      label: 'Qui facture',
+      type: 'select',
+      options: [
+        ['pharmacie', 'Pharmacie'],
+        ['prestataire', 'Prestataire'],
+      ],
+    },
+    { key: 'rappel_electrodes', label: 'Rappel électrodes', type: 'bool' },
+    { key: 'facturer_masque', label: 'Facturer masque', type: 'bool' },
+    { key: 'regler_avance', label: 'Régler d’avance', type: 'bool' },
+  ];
+
+  function numOrEmpty(v) {
+    if (v == null || v === '') return '';
+    return Number(v);
+  }
+
+  function readConditionsFromForm(root) {
+    const out = {};
+    CONDITION_FIELDS.forEach((f) => {
+      const el = root.querySelector(`[data-cond="${f.key}"]`);
+      if (!el) return;
+      if (f.type === 'bool') {
+        if (el.checked) out[f.key] = true;
+      } else if (f.type === 'number') {
+        const v = el.value.trim();
+        if (v !== '') out[f.key] = Number(v);
+      } else {
+        const v = el.value;
+        if (v) out[f.key] = v;
+      }
+    });
+    return out;
+  }
+
+  function conditionsFormHtml(cond) {
+    const c = cond || {};
+    return `<div class="loc-cond-form" data-conditions-form>
+      ${CONDITION_FIELDS.map((f) => {
+        if (f.type === 'bool') {
+          return `<label class="loc-check"><input type="checkbox" data-cond="${f.key}"${c[f.key] ? ' checked' : ''}> ${esc(f.label)}</label>`;
+        }
+        if (f.type === 'select') {
+          return `<label class="loc-field">${esc(f.label)}<select data-cond="${f.key}">
+            <option value="">—</option>
+            ${(f.options || [])
+              .map(([k, v]) => `<option value="${k}"${c[f.key] === k ? ' selected' : ''}>${esc(v)}</option>`)
+              .join('')}
+          </select></label>`;
+        }
+        return `<label class="loc-field">${esc(f.label)}<input type="number" data-cond="${f.key}" value="${esc(numOrEmpty(c[f.key]))}"></label>`;
+      }).join('')}
+    </div>`;
+  }
+
+  function readOptionsFromForm(root, dataType) {
+    if (dataType !== 'liste') return {};
+    const choix = [];
+    root.querySelectorAll('[data-choix]').forEach((inp) => {
+      const v = inp.value.trim();
+      if (v) choix.push(v);
+    });
+    return choix.length ? { choix } : {};
+  }
+
+  function optionsFormHtml(options, dataType) {
+    const choix = Array.isArray(options?.choix) ? options.choix : [''];
+    const rows = (choix.length ? choix : ['']).map(
+      (v, i) =>
+        `<div class="loc-choix-row">
+          <input data-choix value="${esc(v)}" placeholder="Option ${i + 1}">
+          <button type="button" class="loc-btn loc-btn-ghost" data-rm-choix aria-label="Retirer">✕</button>
+        </div>`
+    );
+    if (dataType !== 'liste') {
+      return `<p class="loc-muted">Pas d’options pour ce type de champ.</p>`;
+    }
+    return `<div class="loc-options-form" data-options-form>
+      <p class="loc-muted">Choix de la liste</p>
+      <div class="loc-choix-list">${rows.join('')}</div>
+      <button type="button" class="loc-btn loc-btn-ghost" data-add-choix>Ajouter un choix</button>
+    </div>`;
+  }
+
+  function bindOptionsForm(root) {
+    root.querySelector('[data-add-choix]')?.addEventListener('click', () => {
+      const list = root.querySelector('.loc-choix-list');
+      const row = document.createElement('div');
+      row.className = 'loc-choix-row';
+      row.innerHTML = `<input data-choix placeholder="Nouvelle option"><button type="button" class="loc-btn loc-btn-ghost" data-rm-choix aria-label="Retirer">✕</button>`;
+      list.appendChild(row);
+      row.querySelector('[data-rm-choix]').addEventListener('click', () => row.remove());
+    });
+    root.querySelectorAll('[data-rm-choix]').forEach((btn) => {
+      btn.addEventListener('click', () => btn.closest('.loc-choix-row')?.remove());
+    });
+  }
+
+  async function mount(container, ctx) {
     if (!ctx?.isAdmin) {
-      alert('Réservé aux administrateurs.');
+      container.innerHTML = '<p class="loc-msg loc-msg-err">Réservé aux administrateurs.</p>';
       return;
     }
 
-    const existing = document.getElementById('locAdminSheet');
-    if (existing) existing.remove();
-
-    const sheet = el(`<div class="loc-admin-sheet" id="locAdminSheet">
-      <div class="loc-admin-backdrop" data-close></div>
-      <div class="loc-admin-panel" role="dialog" aria-labelledby="locAdminTitle">
-        <div class="loc-admin-head">
-          <h2 id="locAdminTitle">Paramètres Location</h2>
-          <button type="button" class="loc-icon-btn" data-close aria-label="Fermer">✕</button>
-        </div>
-        <div class="loc-admin-tabs">
-          <button type="button" class="loc-admin-tab active" data-tab="params">Champs & seuils</button>
+    container.innerHTML = `
+      <div class="loc-params">
+        <nav class="loc-params-tabs" role="tablist">
+          <button type="button" class="loc-admin-tab active" data-tab="params">Champs &amp; seuils</button>
           <button type="button" class="loc-admin-tab" data-tab="prestataires">Prestataires</button>
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
           <button type="button" class="loc-admin-tab" data-tab="champs">Champs création</button>
-        </div>
-        <div class="loc-admin-body" id="locAdminBody"></div>
-        <p class="loc-msg" id="locAdminMsg" hidden></p>
+        </nav>
+        <div class="loc-params-body" id="locParamsBody"></div>
+        <p class="loc-msg" id="locParamsMsg" hidden></p>
       </div>
-    </div>`);
-    document.body.appendChild(sheet);
+    `;
 
-    const body = sheet.querySelector('#locAdminBody');
-    const msg = sheet.querySelector('#locAdminMsg');
+    const body = container.querySelector('#locParamsBody');
+    const msg = container.querySelector('#locParamsMsg');
     let tab = 'params';
+    /** @type {string|null} */
+    let selectedRuleId = null;
+    /** @type {string|null} */
+    let selectedChampId = null;
 
-    const close = () => sheet.remove();
-    sheet.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
-    sheet.querySelectorAll('[data-tab]').forEach((b) => {
-      b.addEventListener('click', () => {
+    container.querySelectorAll('[data-tab]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        if (tab === 'regles' && selectedRuleId) {
+          await saveCurrentRule(false);
+        }
+        if (tab === 'champs' && selectedChampId) {
+          await saveCurrentChamp(false);
+        }
         tab = b.dataset.tab;
-        sheet.querySelectorAll('.loc-admin-tab').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
+        container.querySelectorAll('.loc-admin-tab').forEach((x) =>
+          x.classList.toggle('active', x.dataset.tab === tab)
+        );
         render();
       });
     });
@@ -114,9 +221,11 @@
       body.innerHTML = `
         <h3>Champs obligatoires à la création</h3>
         <div class="loc-checks">
-          ${CHAMP_KEYS.map(([k, label]) => `
+          ${CHAMP_KEYS.map(
+            ([k, label]) => `
             <label class="loc-check"><input type="checkbox" data-champ="${k}"${champs[k] !== false ? ' checked' : ''}> ${esc(label)}</label>
-          `).join('')}
+          `
+          ).join('')}
         </div>
         <h3>Seuils</h3>
         <div class="loc-grid-2">
@@ -127,9 +236,10 @@
             <option value="prestataire"${qui === 'prestataire' ? ' selected' : ''}>Prestataire</option>
           </select></label>
         </div>
-        <button type="button" class="loc-btn" id="adSaveParams">Enregistrer</button>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
-      body.querySelector('#adSaveParams').addEventListener('click', async () => {
+
+      const persist = async () => {
         const nextChamps = {};
         body.querySelectorAll('[data-champ]').forEach((c) => {
           nextChamps[c.dataset.champ] = c.checked;
@@ -137,12 +247,20 @@
         try {
           await LocationData.setParam('champs_obligatoires', nextChamps, ctx.userId);
           await LocationData.setParam('seuil_contact_jours', Number(body.querySelector('#adSeuil').value), ctx.userId);
-          await LocationData.setParam('fauteuil_bascule_prestataire_mois', Number(body.querySelector('#adFauteuil').value), ctx.userId);
+          await LocationData.setParam(
+            'fauteuil_bascule_prestataire_mois',
+            Number(body.querySelector('#adFauteuil').value),
+            ctx.userId
+          );
           await LocationData.setParam('qui_facture_defaut', body.querySelector('#adQui').value, ctx.userId);
           showMsg('Paramètres enregistrés.');
         } catch (e) {
           showMsg(e.message, true);
         }
+      };
+
+      body.querySelectorAll('input, select').forEach((el) => {
+        el.addEventListener('change', persist);
       });
     }
 
@@ -150,14 +268,19 @@
       const rows = await LocationData.listPrestataires(false);
       body.innerHTML = `
         <div class="loc-admin-list">
-          ${rows.map((r) => `
+          ${
+            rows
+              .map(
+                (r) => `
             <div class="loc-admin-row" data-id="${r.id}">
-              <input data-f="nom" value="${esc(r.nom)}" placeholder="Nom">
-              <input data-f="telephone" value="${esc(r.telephone || '')}" placeholder="Tél.">
-              <input data-f="email" value="${esc(r.email || '')}" placeholder="E-mail">
+              <label class="loc-field">Nom<input data-f="nom" value="${esc(r.nom)}"></label>
+              <label class="loc-field">Tél.<input data-f="telephone" value="${esc(r.telephone || '')}"></label>
+              <label class="loc-field">E-mail<input data-f="email" value="${esc(r.email || '')}"></label>
               <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
-              <button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button>
-            </div>`).join('') || '<p class="loc-muted">Aucun prestataire.</p>'}
+            </div>`
+              )
+              .join('') || '<p class="loc-muted">Aucun prestataire.</p>'
+          }
         </div>
         <h3>Nouveau</h3>
         <div class="loc-grid-2" id="adNewPrest">
@@ -167,10 +290,11 @@
           <label class="loc-field">Contact<input data-n="contact"></label>
         </div>
         <button type="button" class="loc-btn" id="adAddPrest">Ajouter</button>
+        <p class="loc-muted loc-autosave-hint">Les prestataires existants s’enregistrent automatiquement.</p>
       `;
-      body.querySelectorAll('[data-save]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const row = btn.closest('[data-id]');
+
+      body.querySelectorAll('.loc-admin-row').forEach((row) => {
+        const save = async () => {
           try {
             await LocationData.upsertPrestataire({
               id: row.dataset.id,
@@ -180,12 +304,13 @@
               actif: row.querySelector('[data-f=actif]').checked,
             });
             showMsg('Prestataire enregistré.');
-            render();
           } catch (e) {
             showMsg(e.message, true);
           }
-        });
+        };
+        row.querySelectorAll('input').forEach((inp) => inp.addEventListener('change', save));
       });
+
       body.querySelector('#adAddPrest').addEventListener('click', async () => {
         const box = body.querySelector('#adNewPrest');
         const nom = box.querySelector('[data-n=nom]').value.trim();
@@ -206,75 +331,98 @@
       });
     }
 
+    function collectRuleFromEditor(editor, id) {
+      return {
+        id,
+        code: editor.querySelector('[data-f=code]').value.trim(),
+        nom: editor.querySelector('[data-f=nom]').value.trim(),
+        type_appareil: editor.querySelector('[data-f=type_appareil]').value || null,
+        action: editor.querySelector('[data-f=action]').value.trim(),
+        priorite: Number(editor.querySelector('[data-f=priorite]').value),
+        message: editor.querySelector('[data-f=message]').value,
+        conditions: readConditionsFromForm(editor),
+        actif: editor.querySelector('[data-f=actif]').checked,
+      };
+    }
+
+    async function saveCurrentRule(silent) {
+      const editor = body.querySelector('[data-rule-editor]');
+      if (!editor || !selectedRuleId) return true;
+      try {
+        await LocationRules.upsertRule(LocationData.sb(), collectRuleFromEditor(editor, selectedRuleId));
+        LocationData.invalidateCache();
+        if (!silent) showMsg('Règle enregistrée.');
+        return true;
+      } catch (e) {
+        showMsg(e.message, true);
+        return false;
+      }
+    }
+
     async function renderRegles() {
       const rules = await LocationRules.listRules(LocationData.sb());
+      if (!selectedRuleId && rules[0]) selectedRuleId = rules[0].id;
+      if (selectedRuleId && !rules.some((r) => r.id === selectedRuleId)) {
+        selectedRuleId = rules[0]?.id || null;
+      }
+      const current = rules.find((r) => r.id === selectedRuleId) || null;
+
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <div class="loc-admin-table-wrap">
-          <table class="loc-admin-table">
-            <thead>
-              <tr>
-                <th>Actif</th>
-                <th>Code</th>
-                <th>Nom</th>
-                <th>Type</th>
-                <th>Action</th>
-                <th>Priorité</th>
-                <th>Message</th>
-                <th>Conditions</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rules.map((r) => `
-                <tr data-id="${r.id}">
-                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
-                  <td><input data-f="code" value="${esc(r.code)}"></td>
-                  <td><input data-f="nom" value="${esc(r.nom)}"></td>
-                  <td><select data-f="type_appareil">
-                    <option value="">Tous</option>
-                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
-                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
-                  </select></td>
-                  <td><input data-f="action" value="${esc(r.action)}"></td>
-                  <td><input type="number" data-f="priorite" value="${r.priorite ?? 100}"></td>
-                  <td><textarea data-f="message" rows="2">${esc(r.message || '')}</textarea></td>
-                  <td><textarea data-f="conditions" rows="2">${esc(JSON.stringify(r.conditions || {}))}</textarea></td>
-                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
-                </tr>`).join('') || '<tr><td colspan="9" class="loc-muted">Aucune règle.</td></tr>'}
-            </tbody>
-          </table>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle.</p>
+        <div class="loc-params-split">
+          <div class="loc-params-nav" role="list">
+            ${
+              rules
+                .map(
+                  (r) => `
+              <button type="button" class="loc-params-nav-item${r.id === selectedRuleId ? ' active' : ''}" data-pick-rule="${r.id}">
+                <strong>${esc(r.nom || r.code)}</strong>
+                <span>${esc(r.code)}${r.actif ? '' : ' · inactif'}</span>
+              </button>`
+                )
+                .join('') || '<p class="loc-muted">Aucune règle.</p>'
+            }
+          </div>
+          <div class="loc-params-editor" data-rule-editor>
+            ${
+              current
+                ? `
+              <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
+              <div class="loc-grid-2">
+                <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}"></label>
+                <label class="loc-field">Nom<input data-f="nom" value="${esc(current.nom)}"></label>
+                <label class="loc-field">Type appareil<select data-f="type_appareil">
+                  <option value="">Tous</option>
+                  ${Object.entries(LocationRules.TYPE_LABELS)
+                    .map(
+                      ([k, v]) =>
+                        `<option value="${k}"${current.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
+                    )
+                    .join('')}
+                </select></label>
+                <label class="loc-field">Action<input data-f="action" value="${esc(current.action)}"></label>
+                <label class="loc-field">Priorité<input type="number" data-f="priorite" value="${current.priorite ?? 100}"></label>
+              </div>
+              <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
+              <h3>Conditions</h3>
+              ${conditionsFormHtml(current.conditions)}
+            `
+                : '<p class="loc-muted">Sélectionnez une règle.</p>'
+            }
+          </div>
         </div>
       `;
 
-      body.querySelectorAll('[data-save]').forEach((btn) => {
+      body.querySelectorAll('[data-pick-rule]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          const box = btn.closest('[data-id]');
-          let conditions = {};
-          try {
-            conditions = JSON.parse(box.querySelector('[data-f=conditions]').value || '{}');
-          } catch (_) {
-            return showMsg('JSON conditions invalide', true);
-          }
-          try {
-            await LocationRules.upsertRule(LocationData.sb(), {
-              id: box.dataset.id,
-              code: box.querySelector('[data-f=code]').value.trim(),
-              nom: box.querySelector('[data-f=nom]').value.trim(),
-              type_appareil: box.querySelector('[data-f=type_appareil]').value || null,
-              action: box.querySelector('[data-f=action]').value.trim(),
-              priorite: Number(box.querySelector('[data-f=priorite]').value),
-              message: box.querySelector('[data-f=message]').value,
-              conditions,
-              actif: box.querySelector('[data-f=actif]').checked,
-            });
-            LocationData.invalidateCache();
-            showMsg('Règle enregistrée.');
-            render();
-          } catch (e) {
-            showMsg(e.message, true);
-          }
+          const nextId = btn.dataset.pickRule;
+          if (nextId === selectedRuleId) return;
+          const ok = await saveCurrentRule(true);
+          if (!ok) return;
+          selectedRuleId = nextId;
+          showMsg('Règle enregistrée.');
+          await renderRegles();
         });
       });
     }
@@ -283,130 +431,159 @@
       const rows = await LocationData.listTemplates();
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <div class="loc-admin-table-wrap">
-          <table class="loc-admin-table">
-            <thead>
-              <tr>
-                <th>Motif</th>
-                <th>Type</th>
-                <th>Titre</th>
-                <th>Corps</th>
-                <th>Actif</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map((r) => `
-                <tr data-id="${r.id}">
-                  <td><input data-f="motif" value="${esc(r.motif)}"></td>
-                  <td><select data-f="type_appareil">
-                    <option value="">Tous</option>
-                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
-                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
-                  </select></td>
-                  <td><input data-f="titre" value="${esc(r.titre)}"></td>
-                  <td><textarea data-f="corps" rows="2">${esc(r.corps || '')}</textarea></td>
-                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
-                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
-                </tr>`).join('') || '<tr><td colspan="6" class="loc-muted">Aucun template.</td></tr>'}
-            </tbody>
-          </table>
+        <div class="loc-admin-list">
+          ${
+            rows
+              .map(
+                (r) => `
+            <div class="loc-admin-row" data-id="${r.id}">
+              <label class="loc-field">Motif<input data-f="motif" value="${esc(r.motif)}"></label>
+              <label class="loc-field">Type<select data-f="type_appareil">
+                <option value="">Tous</option>
+                ${Object.entries(LocationRules.TYPE_LABELS)
+                  .map(
+                    ([k, v]) =>
+                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
+                  )
+                  .join('')}
+              </select></label>
+              <label class="loc-field">Titre<input data-f="titre" value="${esc(r.titre)}"></label>
+              <label class="loc-field loc-span-2">Corps<textarea data-f="corps" rows="3">${esc(r.corps || '')}</textarea></label>
+              <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
+            </div>`
+              )
+              .join('') || '<p class="loc-muted">Aucun template.</p>'
+          }
         </div>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
 
-      body.querySelectorAll('[data-save]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const box = btn.closest('[data-id]');
+      body.querySelectorAll('.loc-admin-row').forEach((row) => {
+        const save = async () => {
           try {
             await LocationData.upsertTemplate({
-              id: box.dataset.id,
-              titre: box.querySelector('[data-f=titre]').value.trim(),
-              motif: box.querySelector('[data-f=motif]').value.trim(),
-              type_appareil: box.querySelector('[data-f=type_appareil]').value || null,
-              corps: box.querySelector('[data-f=corps]').value,
-              actif: box.querySelector('[data-f=actif]').checked,
+              id: row.dataset.id,
+              titre: row.querySelector('[data-f=titre]').value.trim(),
+              motif: row.querySelector('[data-f=motif]').value.trim(),
+              type_appareil: row.querySelector('[data-f=type_appareil]').value || null,
+              corps: row.querySelector('[data-f=corps]').value,
+              actif: row.querySelector('[data-f=actif]').checked,
             });
             showMsg('Template enregistré.');
-            render();
           } catch (e) {
             showMsg(e.message, true);
           }
+        };
+        row.querySelectorAll('input, select, textarea').forEach((el) => {
+          el.addEventListener('change', save);
         });
       });
     }
 
+    function collectChampFromEditor(editor, id) {
+      const dataType = editor.querySelector('[data-f=data_type]').value;
+      return {
+        id,
+        type_appareil: editor.querySelector('[data-f=type_appareil]').value,
+        code: editor.querySelector('[data-f=code]').value.trim(),
+        libelle: editor.querySelector('[data-f=libelle]').value.trim(),
+        data_type: dataType,
+        options: readOptionsFromForm(editor, dataType),
+        ordre: Number(editor.querySelector('[data-f=ordre]').value),
+        obligatoire: editor.querySelector('[data-f=obligatoire]').checked,
+        actif: editor.querySelector('[data-f=actif]').checked,
+      };
+    }
+
+    async function saveCurrentChamp(silent) {
+      const editor = body.querySelector('[data-champ-editor]');
+      if (!editor || !selectedChampId) return true;
+      try {
+        await LocationData.upsertChampCreation(collectChampFromEditor(editor, selectedChampId));
+        if (!silent) showMsg('Champ enregistré.');
+        return true;
+      } catch (e) {
+        showMsg(e.message, true);
+        return false;
+      }
+    }
+
     async function renderChampsCreation() {
       const rows = await LocationData.listChampsCreation(null, false);
+      if (!selectedChampId && rows[0]) selectedChampId = rows[0].id;
+      if (selectedChampId && !rows.some((r) => r.id === selectedChampId)) {
+        selectedChampId = rows[0]?.id || null;
+      }
+      const current = rows.find((r) => r.id === selectedChampId) || null;
+
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <div class="loc-admin-table-wrap">
-          <table class="loc-admin-table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Code</th>
-                <th>Libellé</th>
-                <th>Data type</th>
-                <th>Options</th>
-                <th>Ordre</th>
-                <th>Oblig.</th>
-                <th>Actif</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map((r) => `
-                <tr data-id="${r.id}">
-                  <td><select data-f="type_appareil">
-                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
-                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
-                  </select></td>
-                  <td><input data-f="code" value="${esc(r.code)}"></td>
-                  <td><input data-f="libelle" value="${esc(r.libelle)}"></td>
-                  <td><select data-f="data_type">
-                    ${DATA_TYPES.map(([k, v]) =>
-                      `<option value="${k}"${r.data_type === k ? ' selected' : ''}>${v}</option>`
-                    ).join('')}
-                  </select></td>
-                  <td><textarea data-f="options" rows="2">${esc(JSON.stringify(r.options || {}))}</textarea></td>
-                  <td><input type="number" data-f="ordre" value="${r.ordre ?? 0}"></td>
-                  <td><input type="checkbox" data-f="obligatoire"${r.obligatoire ? ' checked' : ''}></td>
-                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
-                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
-                </tr>`).join('') || '<tr><td colspan="9" class="loc-muted">Aucun champ.</td></tr>'}
-            </tbody>
-          </table>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de champ.</p>
+        <div class="loc-params-split">
+          <div class="loc-params-nav" role="list">
+            ${
+              rows
+                .map(
+                  (r) => `
+              <button type="button" class="loc-params-nav-item${r.id === selectedChampId ? ' active' : ''}" data-pick-champ="${r.id}">
+                <strong>${esc(r.libelle || r.code)}</strong>
+                <span>${esc(LocationRules.typeLabel(r.type_appareil))} · ${esc(r.code)}</span>
+              </button>`
+                )
+                .join('') || '<p class="loc-muted">Aucun champ.</p>'
+            }
+          </div>
+          <div class="loc-params-editor" data-champ-editor>
+            ${
+              current
+                ? `
+              <div class="loc-grid-2">
+                <label class="loc-field">Type appareil<select data-f="type_appareil">
+                  ${Object.entries(LocationRules.TYPE_LABELS)
+                    .map(
+                      ([k, v]) =>
+                        `<option value="${k}"${current.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
+                    )
+                    .join('')}
+                </select></label>
+                <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}"></label>
+                <label class="loc-field">Libellé<input data-f="libelle" value="${esc(current.libelle)}"></label>
+                <label class="loc-field">Type de données<select data-f="data_type">
+                  ${DATA_TYPES.map(
+                    ([k, v]) =>
+                      `<option value="${k}"${current.data_type === k ? ' selected' : ''}>${esc(v)}</option>`
+                  ).join('')}
+                </select></label>
+                <label class="loc-field">Ordre<input type="number" data-f="ordre" value="${current.ordre ?? 0}"></label>
+              </div>
+              <label class="loc-check"><input type="checkbox" data-f="obligatoire"${current.obligatoire ? ' checked' : ''}> Obligatoire</label>
+              <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
+              <h3>Options</h3>
+              ${optionsFormHtml(current.options, current.data_type)}
+            `
+                : '<p class="loc-muted">Sélectionnez un champ.</p>'
+            }
+          </div>
         </div>
       `;
 
-      body.querySelectorAll('[data-save]').forEach((btn) => {
+      const editor = body.querySelector('[data-champ-editor]');
+      if (editor) bindOptionsForm(editor);
+
+      editor?.querySelector('[data-f=data_type]')?.addEventListener('change', async () => {
+        await saveCurrentChamp(true);
+        await renderChampsCreation();
+      });
+
+      body.querySelectorAll('[data-pick-champ]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          const box = btn.closest('[data-id]');
-          let options = {};
-          try {
-            options = JSON.parse(box.querySelector('[data-f=options]').value || '{}');
-          } catch (_) {
-            return showMsg('JSON options invalide', true);
-          }
-          try {
-            await LocationData.upsertChampCreation({
-              id: box.dataset.id,
-              type_appareil: box.querySelector('[data-f=type_appareil]').value,
-              code: box.querySelector('[data-f=code]').value.trim(),
-              libelle: box.querySelector('[data-f=libelle]').value.trim(),
-              data_type: box.querySelector('[data-f=data_type]').value,
-              options,
-              ordre: Number(box.querySelector('[data-f=ordre]').value),
-              obligatoire: box.querySelector('[data-f=obligatoire]').checked,
-              actif: box.querySelector('[data-f=actif]').checked,
-            });
-            showMsg('Champ enregistré.');
-            render();
-          } catch (e) {
-            showMsg(e.message, true);
-          }
+          const nextId = btn.dataset.pickChamp;
+          if (nextId === selectedChampId) return;
+          const ok = await saveCurrentChamp(true);
+          if (!ok) return;
+          selectedChampId = nextId;
+          showMsg('Champ enregistré.');
+          await renderChampsCreation();
         });
       });
     }
@@ -414,5 +591,15 @@
     await render();
   }
 
-  global.LocationAdmin = { open };
+  /** @deprecated utiliser mount — conservé pour compat éventuelle */
+  async function open(ctx) {
+    if (!ctx?.isAdmin) {
+      alert('Réservé aux administrateurs.');
+      return;
+    }
+    const host = document.getElementById('locViewContent') || document.body;
+    await mount(host, ctx);
+  }
+
+  global.LocationAdmin = { mount, open };
 })(window);

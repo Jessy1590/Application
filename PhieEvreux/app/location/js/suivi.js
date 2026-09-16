@@ -369,35 +369,61 @@
       return 'Caution rendue ?';
     }
 
+    function clotureOuiMeta(prefix, defaultDate, defaultOp) {
+      return `<div class="loc-cloture-meta loc-grid-2" data-meta-for="${prefix}" hidden>
+            <label class="loc-field">Quand ?<input type="date" name="${prefix}_le" value="${esc(defaultDate || '')}"></label>
+            <label class="loc-field">Par qui (OP)<input name="${prefix}_op" value="${esc(defaultOp || '')}" placeholder="Code OP"></label>
+          </div>`;
+    }
+
+    function bindClotureOuiMeta(modal, selectName, prefix) {
+      const sel = modal.querySelector(`[name=${selectName}]`);
+      const box = modal.querySelector(`[data-meta-for="${prefix}"]`);
+      const sync = () => {
+        const oui = sel.value === 'oui';
+        box.hidden = !oui;
+        box.querySelectorAll('input').forEach((inp) => {
+          inp.required = oui;
+        });
+      };
+      sel.addEventListener('change', sync);
+      sync();
+    }
+
     function openClotureModal(d) {
       const cautionLabel = cautionClotureLabel(d.caution);
+      const today = LocationRules.todayISO();
+      const defaultOp = (detailEl.querySelector('[name=code_op]')?.value.trim() || d.code_op || '');
       const modal = el(`<div class="loc-modal" role="dialog" aria-labelledby="suClotureTitle">
         <div class="loc-modal-backdrop" data-close></div>
         <div class="loc-modal-panel">
           <h3 id="suClotureTitle">Clôturer le dossier</h3>
-          <p class="loc-muted">Confirmez les éléments de clôture avant validation.</p>
+          <p class="loc-muted">Confirmez les éléments de clôture. Pour chaque « Oui », indiquez la date et qui l’a fait.</p>
           <div class="loc-grid-2" style="margin-top:10px">
-            <label class="loc-field">Appareil rendu ?
+            <label class="loc-field loc-span-2">Appareil rendu ?
               <select name="cl_appareil" required>
                 <option value="">—</option>
                 <option value="oui">Oui</option>
                 <option value="non">Non</option>
               </select>
             </label>
-            <label class="loc-field">${esc(cautionLabel)}
+            ${clotureOuiMeta('cl_appareil', today, defaultOp)}
+            <label class="loc-field loc-span-2">${esc(cautionLabel)}
               <select name="cl_caution" required>
                 <option value="">—</option>
                 <option value="oui">Oui</option>
                 <option value="non">Non</option>
               </select>
             </label>
-            <label class="loc-field">Facturation OK ?
+            ${clotureOuiMeta('cl_caution', today, defaultOp)}
+            <label class="loc-field loc-span-2">Facturation OK ?
               <select name="cl_factu" required>
                 <option value="">—</option>
                 <option value="oui">Oui</option>
                 <option value="non">Non</option>
               </select>
             </label>
+            ${clotureOuiMeta('cl_factu', today, defaultOp)}
             <label class="loc-field loc-span-2">Commentaire à ajouter au dossier (optionnel)
               <textarea name="cl_commentaire" rows="3" placeholder="Optionnel"></textarea>
             </label>
@@ -409,6 +435,9 @@
         </div>
       </div>`);
       document.body.appendChild(modal);
+      bindClotureOuiMeta(modal, 'cl_appareil', 'cl_appareil');
+      bindClotureOuiMeta(modal, 'cl_caution', 'cl_caution');
+      bindClotureOuiMeta(modal, 'cl_factu', 'cl_factu');
       const close = () => modal.remove();
       modal.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
       modal.querySelector('#suClotureConfirm').addEventListener('click', async () => {
@@ -419,16 +448,42 @@
           showMsg('Répondez aux trois questions Oui/Non.', true);
           return;
         }
+        const readMeta = (prefix, isOui) => {
+          if (!isOui) return { le: null, op: null };
+          const le = modal.querySelector(`[name=${prefix}_le]`).value;
+          const op = modal.querySelector(`[name=${prefix}_op]`).value.trim();
+          return { le: le || null, op: op || null };
+        };
+        const metaApp = readMeta('cl_appareil', appareil === 'oui');
+        const metaCaut = readMeta('cl_caution', caution === 'oui');
+        const metaFact = readMeta('cl_factu', factu === 'oui');
+        if (appareil === 'oui' && (!metaApp.le || !metaApp.op)) {
+          showMsg('Indiquez quand et par qui pour « Appareil rendu ».', true);
+          return;
+        }
+        if (caution === 'oui' && (!metaCaut.le || !metaCaut.op)) {
+          showMsg('Indiquez quand et par qui pour la caution.', true);
+          return;
+        }
+        if (factu === 'oui' && (!metaFact.le || !metaFact.op)) {
+          showMsg('Indiquez quand et par qui pour « Facturation OK ».', true);
+          return;
+        }
         try {
           const notesField = detailEl.querySelector('[name=notes]');
-          const opField = detailEl.querySelector('[name=code_op]');
           await LocationData.cloturerDossier(d.id, {
             appareil_rendu: appareil === 'oui',
+            appareil_rendu_le: metaApp.le,
+            appareil_rendu_op: metaApp.op,
             caution_rendue: caution === 'oui',
+            caution_rendue_le: metaCaut.le,
+            caution_rendue_op: metaCaut.op,
             facturation_ok: factu === 'oui',
+            facturation_ok_le: metaFact.le,
+            facturation_ok_op: metaFact.op,
             commentaire: modal.querySelector('[name=cl_commentaire]').value,
             notes: notesField ? notesField.value : d.notes || null,
-            code_op: (opField?.value.trim() || d.code_op || null),
+            code_op: defaultOp || null,
           });
           close();
           showMsg('Dossier clôturé.');
