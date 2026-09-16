@@ -22,6 +22,8 @@
       <div class="loc-bar">
         <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="suToggleFilters" aria-expanded="false" aria-controls="suFilters">Filtres</button>
         <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="suToggleList" aria-expanded="true" aria-controls="suListPanel">Dossiers</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="suPrev" aria-label="Dossier précédent" disabled>←</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="suNext" aria-label="Dossier suivant" disabled>→</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="suRefresh">Actualiser</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="suPrintTable">Imprimer tableau</button>
       </div>
@@ -59,6 +61,44 @@
     const btnList = wrap.querySelector('#suToggleList');
     const detailEl = wrap.querySelector('#suDetail');
     const msgEl = wrap.querySelector('#suMsg');
+    const btnPrev = wrap.querySelector('#suPrev');
+    const btnNext = wrap.querySelector('#suNext');
+
+    function currentIndex() {
+      if (!selectedId) return -1;
+      return rows.findIndex((r) => r.id === selectedId);
+    }
+
+    function updateNav() {
+      const n = rows.length;
+      if (!n) {
+        btnPrev.disabled = true;
+        btnNext.disabled = true;
+        return;
+      }
+      const i = currentIndex();
+      if (i < 0) {
+        btnPrev.disabled = false;
+        btnNext.disabled = false;
+        return;
+      }
+      btnPrev.disabled = i <= 0;
+      btnNext.disabled = i >= n - 1;
+    }
+
+    function goPrev() {
+      if (!rows.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? rows[rows.length - 1] : rows[i - 1];
+      if (target) void openDetail(target.id);
+    }
+
+    function goNext() {
+      if (!rows.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? rows[0] : rows[i + 1];
+      if (target) void openDetail(target.id);
+    }
 
     function setToggle(btn, panel, open) {
       panel.hidden = !open;
@@ -111,6 +151,7 @@
     function renderList() {
       if (!rows.length) {
         listEl.innerHTML = '<p class="loc-muted">Aucune fiche.</p>';
+        updateNav();
         return;
       }
       listEl.innerHTML = rows
@@ -127,6 +168,7 @@
       listEl.querySelectorAll('[data-id]').forEach((b) => {
         b.addEventListener('click', () => openDetail(b.dataset.id));
       });
+      updateNav();
     }
 
     async function openDetail(id) {
@@ -661,6 +703,8 @@
       }
     }
 
+    btnPrev.addEventListener('click', goPrev);
+    btnNext.addEventListener('click', goNext);
     wrap.querySelector('#suRefresh').addEventListener('click', refresh);
     wrap.querySelector('#suSearch').addEventListener('change', refresh);
     wrap.querySelector('#suStatut').addEventListener('change', refresh);

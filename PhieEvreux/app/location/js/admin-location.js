@@ -659,6 +659,7 @@
           }
         </div>
         <p class="loc-muted loc-autosave-hint">Motif sélectionné : <strong>${esc(motifLabel(selectedMotif))}</strong> — enregistrement auto à chaque modification.</p>
+        <p class="loc-hint">Placeholders dans le corps : <code>{date_min}</code> (date de fin JJ/MM/AAAA), <code>{max_duree}</code>, <code>{unite}</code> (jours/semaines/mois), <code>{max_duree_prolongation}</code>, <code>{bascule_apres_mois}</code>, <code>{type_appareil}</code> (libellé FR).</p>
         <div class="loc-admin-list" id="adTplList">
           ${
             filtered

@@ -501,8 +501,10 @@
     const rule = (rules || []).find((r) => r.code === motif);
     const cond = global.LocationRules.parseJson(rule?.conditions, {});
     const dateRaw = dossier?.date_fin || '';
+    const typeCode = dossier?.appareil_actif?.type_appareil;
     return global.LocationRules.varsFromConditions(cond, {
       date_min: global.LocationRules.formatDateFr(dateRaw) || dateRaw,
+      type_appareil: typeCode ? global.LocationRules.typeLabel(typeCode) : '',
     });
   }
 

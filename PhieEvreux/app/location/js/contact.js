@@ -44,6 +44,14 @@
     message_laisse: 'Message laissé',
   };
 
+  /** Libellés motifs template (mêmes que admin-location). */
+  const MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
   function contactPhase(it) {
     return it?.phase === PHASE_APPEL ? PHASE_APPEL : PHASE_COMMENTAIRE;
   }
@@ -63,6 +71,19 @@
 
   function phonesOf(dossier) {
     return dossier?.patient?.telephones || [];
+  }
+
+  function mailsOf(dossier) {
+    return dossier?.patient?.mails || [];
+  }
+
+  /** Libellé humain du motif contact, sinon code motif. */
+  function motifCommentLabel(motif) {
+    if (!motif) return '—';
+    if (MOTIF_LABELS[motif]) return MOTIF_LABELS[motif];
+    const tpl = global.LocationRules?.templateMotifFor?.(motif);
+    if (tpl && MOTIF_LABELS[tpl]) return MOTIF_LABELS[tpl];
+    return motif;
   }
 
   function patientLabel(d) {
@@ -462,25 +483,35 @@
     function renderCommentFlow(d, p) {
       const lgo = current.commentaire || '';
       const phones = phonesOf(d);
+      const mails = mailsOf(d);
+      const identity = [p.nom || '—', p.prenom || '—', p.date_naissance || '—'].join(' - ');
+      const appareilFin = [
+        LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
+        d.date_fin || '—',
+      ].join(' - ');
       return `
         <div class="loc-detail-head">
           <div>
             <p class="loc-badge">Phase A — Commentaire (LGO)</p>
-            <h3>${esc(patientLabel(d))}</h3>
-            <p class="loc-muted">${esc(LocationRules.typeLabel(d.appareil_actif?.type_appareil))} · fin ${esc(d.date_fin || '—')}</p>
-            <p class="loc-muted">Né(e) ${esc(p.date_naissance || '—')}</p>
+            <h3>${esc(identity)}</h3>
+            <div class="loc-phones-inline">${
+              phones.length
+                ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
+                : '<p class="loc-muted">Aucun téléphone</p>'
+            }</div>
+            <p class="loc-muted">${
+              mails.length
+                ? mails.map((m) => esc(m)).join(' · ')
+                : 'Aucun mail'
+            }</p>
+            <p class="loc-muted">${esc(appareilFin)}</p>
+            <p class="loc-muted">${esc(motifCommentLabel(current.motif))}</p>
           </div>
         </div>
         <div class="loc-step-card">
           <h4>Message à mettre sur le LGO</h4>
-          <p class="loc-hint">Motif : ${esc(current.motif || '—')}</p>
           <div class="loc-lgo-box" id="coLgoText">${esc(lgo) || '<span class="loc-muted">Aucun texte template.</span>'}</div>
           <button type="button" class="loc-btn loc-btn-ghost" id="coCopyLgo" ${lgo ? '' : 'disabled'}>Copier le message</button>
-          <div class="loc-phones-inline">${
-            phones.length
-              ? phones.map((n) => `<a class="loc-btn loc-btn-ghost loc-btn-sm" href="tel:${esc(n)}">${esc(n)}</a>`).join('')
-              : '<p class="loc-muted">Aucun téléphone</p>'
-          }</div>
           <label class="loc-check"><input type="checkbox" id="coCommentDone"> Commentaire mis sur le compte du patient</label>
           <label class="loc-check"><input type="checkbox" id="coMailAlready"> Mail déjà envoyé</label>
           <button type="button" class="loc-btn" id="coValidateComment" disabled>Valider comme effectué</button>

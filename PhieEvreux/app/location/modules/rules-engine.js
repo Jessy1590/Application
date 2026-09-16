@@ -171,6 +171,7 @@
       max_duree_prolongation: c.max_duree_prolongation != null ? c.max_duree_prolongation : '',
       bascule_apres_mois: c.bascule_apres_mois != null ? c.bascule_apres_mois : '',
       date_min: '',
+      type_appareil: '',
       ...(extra || {}),
     };
   }
@@ -197,6 +198,7 @@
       const hit = matchConditions(cond, ctx, rule);
       const msgVars = varsFromConditions(cond, {
         date_min: formatDateFr(ctx.date_fin) || ctx.date_fin || '',
+        type_appareil: ctx.type_appareil ? typeLabel(ctx.type_appareil) : '',
       });
       const rawMsg = rule.message || rule.nom;
       const message = interpolate(rawMsg, msgVars);
