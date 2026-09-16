@@ -16,12 +16,50 @@
     </label>`;
   }
 
+  function escStatic(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function champInputHtml(champ, value) {
+    const code = champ.code;
+    const name = `ce_${code}`;
+    const val = value == null ? '' : value;
+    const opts = LocationRules.parseJson(champ.options, {});
+    const choix = Array.isArray(opts.choix) ? opts.choix : [];
+    if (champ.data_type === 'oui_non') {
+      const checked = val === true || val === 'oui' || val === 'true';
+      return `<label class="loc-check"><input type="checkbox" name="${name}"${checked ? ' checked' : ''}> ${escStatic(champ.libelle)}${champ.obligatoire ? ' *' : ''}</label>`;
+    }
+    if (champ.data_type === 'date') {
+      return field(champ.libelle, `<input type="date" name="${name}" value="${escStatic(val)}">`, champ.obligatoire);
+    }
+    if (champ.data_type === 'nombre') {
+      return field(champ.libelle, `<input type="number" name="${name}" value="${escStatic(val)}">`, champ.obligatoire);
+    }
+    if (champ.data_type === 'liste') {
+      return field(
+        champ.libelle,
+        `<select name="${name}">
+          <option value="">—</option>
+          ${choix.map((c) => `<option value="${escStatic(c)}"${String(val) === String(c) ? ' selected' : ''}>${escStatic(c)}</option>`).join('')}
+        </select>`,
+        champ.obligatoire
+      );
+    }
+    return field(champ.libelle, `<input type="text" name="${name}" value="${escStatic(val)}">`, champ.obligatoire);
+  }
+
   async function mount(root, ctx) {
     const params = await LocationData.loadParams();
     const rules = await LocationData.loadRules();
     const prestataires = await LocationData.listPrestataires(true);
     const req = (k) => LocationData.isRequired(params, k);
     const quiFactureDefaut = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
+    const champsDef = await LocationData.listChampsCreation(null, true);
 
     let step = 0;
     const state = {
@@ -47,9 +85,7 @@
         livraison: 'pharmacie',
         desinfection: false,
         encart_texte: LocationRules.encartDefaut('aerosol'),
-        pese_bebe_regler_avance: true,
-        pese_bebe_periode: 'semaine',
-        date_accouchement: '',
+        champs_extra: {},
       },
       date_debut: LocationRules.todayISO(),
       date_ordo: LocationRules.todayISO(),
@@ -76,6 +112,13 @@
       msgEl.hidden = !text;
       msgEl.textContent = text || '';
       msgEl.classList.toggle('loc-msg-err', !!isErr);
+    }
+
+    function champsForType(type) {
+      return (champsDef || [])
+        .filter((c) => c.type_appareil === type && c.actif !== false)
+        .slice()
+        .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     }
 
     function renderSteps() {
@@ -132,6 +175,24 @@
       state.notes = formEl.querySelector('[name=notes]')?.value.trim() || '';
     }
 
+    function collectChampsExtra(type) {
+      const extra = { ...(state.appareil.champs_extra || {}) };
+      for (const champ of champsForType(type)) {
+        const elIn = formEl.querySelector(`[name="ce_${champ.code}"]`);
+        if (!elIn) continue;
+        if (champ.data_type === 'oui_non') {
+          extra[champ.code] = !!elIn.checked;
+        } else if (champ.data_type === 'nombre') {
+          const n = elIn.value === '' ? null : Number(elIn.value);
+          extra[champ.code] = Number.isFinite(n) ? n : null;
+        } else {
+          const v = elIn.value;
+          extra[champ.code] = v === '' ? null : v;
+        }
+      }
+      return extra;
+    }
+
     function collectAppareil() {
       if (!formEl.querySelector('[name=type_appareil]')) return;
       const type = formEl.querySelector('[name=type_appareil]')?.value || 'aerosol';
@@ -148,14 +209,7 @@
         livraison: formEl.querySelector('[name=livraison]')?.value || null,
         desinfection: !!formEl.querySelector('[name=desinfection]')?.checked,
         encart_texte: formEl.querySelector('[name=encart_texte]')?.value ?? state.appareil.encart_texte,
-        pese_bebe_regler_avance: formEl.querySelector('[name=pese_bebe_regler_avance]')
-          ? !!formEl.querySelector('[name=pese_bebe_regler_avance]').checked
-          : state.appareil.pese_bebe_regler_avance,
-        pese_bebe_periode: formEl.querySelector('[name=pese_bebe_periode]')?.value
-          || state.appareil.pese_bebe_periode,
-        date_accouchement: formEl.querySelector('[name=date_accouchement]')?.value
-          || state.appareil.date_accouchement
-          || null,
+        champs_extra: collectChampsExtra(type),
       };
       if (!next.prestataire_id) next.prestataire_id = null;
       if (source === 'parc') {
@@ -207,10 +261,15 @@
           if (!state.appareil.livraison) return showMsg('Livraison obligatoire.', true), false;
         }
         if (state.appareil.source === 'parc') {
-          if (req('numero_pharmacie') !== false && !state.appareil.numero_pharmacie) {
-            /* numéro recommandé mais on laisse params décider — si pas de clé, on exige */
-          }
           if (!state.appareil.numero_pharmacie) return showMsg('N° pharmacie obligatoire pour un appareil du parc.', true), false;
+        }
+        for (const champ of champsForType(state.appareil.type_appareil)) {
+          if (!champ.obligatoire) continue;
+          const v = state.appareil.champs_extra?.[champ.code];
+          if (champ.data_type === 'oui_non') continue;
+          if (v == null || v === '') {
+            return showMsg(`Champ obligatoire : ${champ.libelle}.`, true), false;
+          }
         }
       }
       if (step === 3) {
@@ -301,11 +360,13 @@
       const infoHtml = typeInfos.length
         ? `<div class="loc-info-box">${typeInfos.map((i) => `<p>${esc(i.message)}</p>`).join('')}</div>`
         : '';
-      const pese = state.appareil.type_appareil === 'pese_bebe';
-      const tire = state.appareil.type_appareil === 'tire_lait';
       const autre = state.appareil.type_appareil === 'autre';
       const prest = state.appareil.source === 'prestataire';
       const parc = state.appareil.source === 'parc';
+      const extra = state.appareil.champs_extra || {};
+      const dynamiques = champsForType(state.appareil.type_appareil)
+        .map((c) => champInputHtml(c, extra[c.code]))
+        .join('');
 
       formEl.innerHTML = `
         ${infoHtml}
@@ -336,14 +397,7 @@
           ${field('N° appareil pharmacie', `<input name="numero_pharmacie" value="${esc(state.appareil.numero_pharmacie || '')}">`, true)}
           <label class="loc-check"><input type="checkbox" name="desinfection"${state.appareil.desinfection ? ' checked' : ''}> Désinfection faite</label>
         ` : ''}
-        ${pese ? `
-          <label class="loc-check"><input type="checkbox" name="pese_bebe_regler_avance"${state.appareil.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
-          ${field('Période pèse-bébé', `<select name="pese_bebe_periode">
-            <option value="semaine"${state.appareil.pese_bebe_periode === 'semaine' ? ' selected' : ''}>Semaine</option>
-            <option value="mois"${state.appareil.pese_bebe_periode === 'mois' ? ' selected' : ''}>Mois</option>
-          </select>`, false)}
-        ` : ''}
-        ${tire ? field('Date d’accouchement', `<input type="date" name="date_accouchement" value="${esc(state.appareil.date_accouchement || '')}">`, false) : ''}
+        ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
         ${field('Encart (texte libre)', `<textarea name="encart_texte" rows="4" data-touched="${state.appareil.encart_texte !== LocationRules.encartDefaut(state.appareil.type_appareil) ? '1' : ''}">${esc(state.appareil.encart_texte || '')}</textarea>`, false)}
       `;
 
@@ -352,6 +406,7 @@
         const t = e.target.value;
         state.appareil.type_appareil = t;
         state.appareil.encart_texte = LocationRules.encartDefaut(t);
+        state.appareil.champs_extra = {};
         if (t === 'tire_lait') {
           state.duree = 10;
           state.unite = 'semaines';
@@ -498,9 +553,7 @@
         livraison: 'pharmacie',
         desinfection: false,
         encart_texte: LocationRules.encartDefaut('aerosol'),
-        pese_bebe_regler_avance: true,
-        pese_bebe_periode: 'semaine',
-        date_accouchement: '',
+        champs_extra: {},
       };
       state.date_debut = LocationRules.todayISO();
       state.date_ordo = LocationRules.todayISO();
@@ -511,11 +564,7 @@
     }
 
     function esc(s) {
-      return String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return escStatic(s);
     }
 
     function render() {

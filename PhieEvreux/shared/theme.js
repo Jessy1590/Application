@@ -14,6 +14,8 @@
     const t = theme === 'light' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', t);
     localStorage.setItem(KEY, t);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t === 'light' ? '#f4f5f8' : '#0a0a0f');
     return t;
   }
 
@@ -25,11 +27,8 @@
     apply(current());
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  /* Appliquer tout de suite (html existe) — ne pas attendre DOMContentLoaded */
+  init();
 
   global.PhieTheme = { current, apply, toggle, init };
 })(window);

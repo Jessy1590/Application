@@ -232,3 +232,82 @@ body > a[title="Retour au portail"] {
   font-size: 12px;
   color: #9a9aab;
 }
+
+/* Mode clair (Location / pages avec data-theme) */
+html[data-theme="light"] .phie-fab {
+  background: #ffffff;
+  color: #121218;
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="light"] .phie-fab-bug {
+  background: linear-gradient(135deg, #f3eef8, #eef2f8);
+  border-color: rgba(120, 80, 180, 0.35);
+}
+
+html[data-theme="light"] .phie-sheet-panel {
+  background: #ffffff;
+  color: #121218;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="light"] .phie-icon-btn,
+html[data-theme="light"] .phie-bugs-tab {
+  background: #f4f5f8;
+  color: #5c5c6a;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+html[data-theme="light"] .phie-bugs-tab.active {
+  color: #121218;
+  border-color: rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="light"] .phie-bugs-form label,
+html[data-theme="light"] .phie-bug-card label {
+  color: #5c5c6a;
+}
+
+html[data-theme="light"] .phie-bugs-form input,
+html[data-theme="light"] .phie-bugs-form textarea,
+html[data-theme="light"] .phie-bugs-form select,
+html[data-theme="light"] .phie-bug-card select,
+html[data-theme="light"] .phie-bug-card textarea {
+  background: #f4f5f8;
+  color: #121218;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme="light"] .phie-btn-primary {
+  background: #1a7ab8;
+  color: #ffffff;
+}
+
+html[data-theme="light"] .phie-btn-secondary {
+  background: transparent;
+  color: #121218;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+html[data-theme="light"] .phie-muted {
+  color: #5c5c6a;
+}
+
+html[data-theme="light"] .phie-bug-card {
+  background: #f4f5f8;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+html[data-theme="light"] .phie-bug-tag {
+  background: rgba(0, 0, 0, 0.06);
+  color: #121218;
+}
+
+html[data-theme="light"] .phie-bugs-msg.ok {
+  color: #2e7d32;
+}
+
+html[data-theme="light"] .phie-bugs-msg.error {
+  color: #c62828;
+}

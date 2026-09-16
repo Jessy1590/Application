@@ -1,5 +1,5 @@
 /**
- * Admin Location — paramètres, prestataires, règles, templates.
+ * Admin Location — paramètres, prestataires, règles, templates, champs création.
  */
 (function (global) {
   function esc(s) {
@@ -29,6 +29,17 @@
     ['date_ordo', 'Date ordonnance'],
   ];
 
+  const DATA_TYPES = [
+    ['texte', 'Texte'],
+    ['date', 'Date'],
+    ['oui_non', 'Oui / Non'],
+    ['nombre', 'Nombre'],
+    ['liste', 'Liste'],
+  ];
+
+  const BUG_HINT =
+    'Pour ajouter une règle, un template ou un champ de création, signalez-le via le bouton Bug.';
+
   async function open(ctx) {
     if (!ctx?.isAdmin) {
       alert('Réservé aux administrateurs.');
@@ -50,6 +61,7 @@
           <button type="button" class="loc-admin-tab" data-tab="prestataires">Prestataires</button>
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
+          <button type="button" class="loc-admin-tab" data-tab="champs">Champs création</button>
         </div>
         <div class="loc-admin-body" id="locAdminBody"></div>
         <p class="loc-msg" id="locAdminMsg" hidden></p>
@@ -84,7 +96,8 @@
         if (tab === 'params') await renderParams();
         else if (tab === 'prestataires') await renderPrestataires();
         else if (tab === 'regles') await renderRegles();
-        else await renderTemplates();
+        else if (tab === 'templates') await renderTemplates();
+        else await renderChampsCreation();
       } catch (e) {
         body.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
@@ -196,46 +209,46 @@
     async function renderRegles() {
       const rules = await LocationRules.listRules(LocationData.sb());
       body.innerHTML = `
-        <div class="loc-admin-list">
-          ${rules.map((r) => `
-            <div class="loc-admin-rule" data-id="${r.id}">
-              <div class="loc-admin-rule-head">
-                <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
-              </div>
-              <label class="loc-field">Nom<input data-f="nom" value="${esc(r.nom)}"></label>
-              <label class="loc-field">Code<input data-f="code" value="${esc(r.code)}"></label>
-              <label class="loc-field">Type<select data-f="type_appareil">
-                <option value="">Tous</option>
-                ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
-                  `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
-                ).join('')}
-              </select></label>
-              <label class="loc-field">Action<input data-f="action" value="${esc(r.action)}"></label>
-              <label class="loc-field">Priorité<input type="number" data-f="priorite" value="${r.priorite ?? 100}"></label>
-              <label class="loc-field">Message<textarea data-f="message" rows="2">${esc(r.message || '')}</textarea></label>
-              <label class="loc-field">Conditions (JSON)<textarea data-f="conditions" rows="2">${esc(JSON.stringify(r.conditions || {}))}</textarea></label>
-              <div class="loc-row-actions">
-                <button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button>
-                <button type="button" class="loc-btn loc-btn-ghost" data-del>Supprimer</button>
-              </div>
-            </div>`).join('')}
+        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
+        <div class="loc-admin-table-wrap">
+          <table class="loc-admin-table">
+            <thead>
+              <tr>
+                <th>Actif</th>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Type</th>
+                <th>Action</th>
+                <th>Priorité</th>
+                <th>Message</th>
+                <th>Conditions</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rules.map((r) => `
+                <tr data-id="${r.id}">
+                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
+                  <td><input data-f="code" value="${esc(r.code)}"></td>
+                  <td><input data-f="nom" value="${esc(r.nom)}"></td>
+                  <td><select data-f="type_appareil">
+                    <option value="">Tous</option>
+                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
+                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                  </select></td>
+                  <td><input data-f="action" value="${esc(r.action)}"></td>
+                  <td><input type="number" data-f="priorite" value="${r.priorite ?? 100}"></td>
+                  <td><textarea data-f="message" rows="2">${esc(r.message || '')}</textarea></td>
+                  <td><textarea data-f="conditions" rows="2">${esc(JSON.stringify(r.conditions || {}))}</textarea></td>
+                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
+                </tr>`).join('') || '<tr><td colspan="9" class="loc-muted">Aucune règle.</td></tr>'}
+            </tbody>
+          </table>
         </div>
-        <h3>Nouvelle règle</h3>
-        <div class="loc-grid-2" id="adNewRule">
-          <label class="loc-field">Code<input data-n="code"></label>
-          <label class="loc-field">Nom<input data-n="nom"></label>
-          <label class="loc-field">Type<select data-n="type_appareil">
-            <option value="">Tous</option>
-            ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
-          </select></label>
-          <label class="loc-field">Action<input data-n="action" value="alerte_contact"></label>
-          <label class="loc-field loc-span-2">Message<textarea data-n="message" rows="2"></textarea></label>
-          <label class="loc-field loc-span-2">Conditions JSON<textarea data-n="conditions" rows="2">{}</textarea></label>
-        </div>
-        <button type="button" class="loc-btn" id="adAddRule">Ajouter</button>
       `;
 
-      body.querySelectorAll('.loc-admin-rule [data-save]').forEach((btn) => {
+      body.querySelectorAll('[data-save]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const box = btn.closest('[data-id]');
           let conditions = {};
@@ -264,84 +277,42 @@
           }
         });
       });
-
-      body.querySelectorAll('.loc-admin-rule [data-del]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Supprimer cette règle ?')) return;
-          try {
-            await LocationRules.deleteRule(LocationData.sb(), btn.closest('[data-id]').dataset.id);
-            LocationData.invalidateCache();
-            render();
-          } catch (e) {
-            showMsg(e.message, true);
-          }
-        });
-      });
-
-      body.querySelector('#adAddRule').addEventListener('click', async () => {
-        const box = body.querySelector('#adNewRule');
-        let conditions = {};
-        try {
-          conditions = JSON.parse(box.querySelector('[data-n=conditions]').value || '{}');
-        } catch (_) {
-          return showMsg('JSON invalide', true);
-        }
-        const code = box.querySelector('[data-n=code]').value.trim();
-        const nom = box.querySelector('[data-n=nom]').value.trim();
-        if (!code || !nom) return showMsg('Code et nom requis', true);
-        try {
-          await LocationRules.upsertRule(LocationData.sb(), {
-            code,
-            nom,
-            type_appareil: box.querySelector('[data-n=type_appareil]').value || null,
-            action: box.querySelector('[data-n=action]').value.trim() || 'alerte_contact',
-            message: box.querySelector('[data-n=message]').value,
-            conditions,
-            actif: true,
-            priorite: 100,
-          });
-          LocationData.invalidateCache();
-          showMsg('Règle ajoutée.');
-          render();
-        } catch (e) {
-          showMsg(e.message, true);
-        }
-      });
     }
 
     async function renderTemplates() {
       const rows = await LocationData.listTemplates();
       body.innerHTML = `
-        <div class="loc-admin-list">
-          ${rows.map((r) => `
-            <div class="loc-admin-rule" data-id="${r.id}">
-              <label class="loc-field">Titre<input data-f="titre" value="${esc(r.titre)}"></label>
-              <label class="loc-field">Motif<input data-f="motif" value="${esc(r.motif)}"></label>
-              <label class="loc-field">Type<select data-f="type_appareil">
-                <option value="">Tous</option>
-                ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
-                  `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
-                ).join('')}
-              </select></label>
-              <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
-              <label class="loc-field">Corps<textarea data-f="corps" rows="3">${esc(r.corps || '')}</textarea></label>
-              <div class="loc-row-actions">
-                <button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button>
-                <button type="button" class="loc-btn loc-btn-ghost" data-del>Supprimer</button>
-              </div>
-            </div>`).join('') || '<p class="loc-muted">Aucun template.</p>'}
+        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
+        <div class="loc-admin-table-wrap">
+          <table class="loc-admin-table">
+            <thead>
+              <tr>
+                <th>Motif</th>
+                <th>Type</th>
+                <th>Titre</th>
+                <th>Corps</th>
+                <th>Actif</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r) => `
+                <tr data-id="${r.id}">
+                  <td><input data-f="motif" value="${esc(r.motif)}"></td>
+                  <td><select data-f="type_appareil">
+                    <option value="">Tous</option>
+                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
+                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                  </select></td>
+                  <td><input data-f="titre" value="${esc(r.titre)}"></td>
+                  <td><textarea data-f="corps" rows="2">${esc(r.corps || '')}</textarea></td>
+                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
+                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
+                </tr>`).join('') || '<tr><td colspan="6" class="loc-muted">Aucun template.</td></tr>'}
+            </tbody>
+          </table>
         </div>
-        <h3>Nouveau template</h3>
-        <div class="loc-grid-2" id="adNewTpl">
-          <label class="loc-field">Titre<input data-n="titre"></label>
-          <label class="loc-field">Motif<input data-n="motif" placeholder="fin_location"></label>
-          <label class="loc-field">Type<select data-n="type_appareil">
-            <option value="">Tous</option>
-            ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
-          </select></label>
-          <label class="loc-field loc-span-2">Corps<textarea data-n="corps" rows="3"></textarea></label>
-        </div>
-        <button type="button" class="loc-btn" id="adAddTpl">Ajouter</button>
       `;
 
       body.querySelectorAll('[data-save]').forEach((btn) => {
@@ -363,35 +334,80 @@
           }
         });
       });
-      body.querySelectorAll('[data-del]').forEach((btn) => {
+    }
+
+    async function renderChampsCreation() {
+      const rows = await LocationData.listChampsCreation(null, false);
+      body.innerHTML = `
+        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
+        <div class="loc-admin-table-wrap">
+          <table class="loc-admin-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Code</th>
+                <th>Libellé</th>
+                <th>Data type</th>
+                <th>Options</th>
+                <th>Ordre</th>
+                <th>Oblig.</th>
+                <th>Actif</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r) => `
+                <tr data-id="${r.id}">
+                  <td><select data-f="type_appareil">
+                    ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) =>
+                      `<option value="${k}"${r.type_appareil === k ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                  </select></td>
+                  <td><input data-f="code" value="${esc(r.code)}"></td>
+                  <td><input data-f="libelle" value="${esc(r.libelle)}"></td>
+                  <td><select data-f="data_type">
+                    ${DATA_TYPES.map(([k, v]) =>
+                      `<option value="${k}"${r.data_type === k ? ' selected' : ''}>${v}</option>`
+                    ).join('')}
+                  </select></td>
+                  <td><textarea data-f="options" rows="2">${esc(JSON.stringify(r.options || {}))}</textarea></td>
+                  <td><input type="number" data-f="ordre" value="${r.ordre ?? 0}"></td>
+                  <td><input type="checkbox" data-f="obligatoire"${r.obligatoire ? ' checked' : ''}></td>
+                  <td><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}></td>
+                  <td><button type="button" class="loc-btn loc-btn-ghost" data-save>Sauver</button></td>
+                </tr>`).join('') || '<tr><td colspan="9" class="loc-muted">Aucun champ.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      body.querySelectorAll('[data-save]').forEach((btn) => {
         btn.addEventListener('click', async () => {
-          if (!confirm('Supprimer ?')) return;
+          const box = btn.closest('[data-id]');
+          let options = {};
           try {
-            await LocationData.deleteTemplate(btn.closest('[data-id]').dataset.id);
+            options = JSON.parse(box.querySelector('[data-f=options]').value || '{}');
+          } catch (_) {
+            return showMsg('JSON options invalide', true);
+          }
+          try {
+            await LocationData.upsertChampCreation({
+              id: box.dataset.id,
+              type_appareil: box.querySelector('[data-f=type_appareil]').value,
+              code: box.querySelector('[data-f=code]').value.trim(),
+              libelle: box.querySelector('[data-f=libelle]').value.trim(),
+              data_type: box.querySelector('[data-f=data_type]').value,
+              options,
+              ordre: Number(box.querySelector('[data-f=ordre]').value),
+              obligatoire: box.querySelector('[data-f=obligatoire]').checked,
+              actif: box.querySelector('[data-f=actif]').checked,
+            });
+            showMsg('Champ enregistré.');
             render();
           } catch (e) {
             showMsg(e.message, true);
           }
         });
-      });
-      body.querySelector('#adAddTpl').addEventListener('click', async () => {
-        const box = body.querySelector('#adNewTpl');
-        const titre = box.querySelector('[data-n=titre]').value.trim();
-        const motif = box.querySelector('[data-n=motif]').value.trim();
-        if (!titre || !motif) return showMsg('Titre et motif requis', true);
-        try {
-          await LocationData.upsertTemplate({
-            titre,
-            motif,
-            type_appareil: box.querySelector('[data-n=type_appareil]').value || null,
-            corps: box.querySelector('[data-n=corps]').value,
-            actif: true,
-          });
-          showMsg('Ajouté.');
-          render();
-        } catch (e) {
-          showMsg(e.message, true);
-        }
       });
     }
 

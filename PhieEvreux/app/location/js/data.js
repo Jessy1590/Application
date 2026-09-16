@@ -257,6 +257,9 @@
       pese_bebe_periode: payload.appareil.pese_bebe_periode || null,
       facturation_prestataire: !!payload.appareil.facturation_prestataire,
       date_accouchement: payload.appareil.date_accouchement || null,
+      champs_extra: payload.appareil.champs_extra && typeof payload.appareil.champs_extra === 'object'
+        ? payload.appareil.champs_extra
+        : {},
       actif: true,
       date_debut: payload.date_debut || null,
     };
@@ -313,6 +316,45 @@
       .single();
     if (error) throw error;
     return data;
+  }
+
+  /**
+   * Clôture un dossier avec les réponses du formulaire dédié.
+   * @param {string} id
+   * @param {{
+   *   appareil_rendu: boolean,
+   *   caution_rendue: boolean,
+   *   facturation_ok: boolean,
+   *   commentaire?: string|null,
+   *   notes?: string|null,
+   *   code_op?: string|null,
+   * }} answers
+   */
+  async function cloturerDossier(id, answers) {
+    const today = global.LocationRules.todayISO();
+    const commentaire = String(answers.commentaire || '').trim();
+    let notes = answers.notes != null ? String(answers.notes) : '';
+    if (commentaire) {
+      const line = `[Clôture ${today}] ${commentaire}`;
+      notes = notes.trim() ? `${notes.trim()}\n${line}` : line;
+    }
+    const patch = {
+      statut: 'cloture',
+      date_cloture: today,
+      appareil_rendu: !!answers.appareil_rendu,
+      caution_rendue: !!answers.caution_rendue,
+      facturation_ok: !!answers.facturation_ok,
+      notes: notes.trim() || null,
+      cloture_op: answers.code_op || null,
+    };
+    if (answers.caution_rendue) {
+      patch.caution_rendue_le = today;
+      patch.caution_rendue_op = answers.code_op || null;
+    } else {
+      patch.caution_rendue_le = null;
+      patch.caution_rendue_op = null;
+    }
+    return updateDossier(id, patch);
   }
 
   /** Supprime un dossier ; appareils / prolongations / suivi_lignes / contacts via CASCADE. */
@@ -396,15 +438,63 @@
     return data || [];
   }
 
+  /**
+   * Résout un template Contact : mapping motif règle → motif template + fallback prolongation.
+   */
   async function findTemplate(typeAppareil, motif) {
+    const tplMotif = global.LocationRules.templateMotifFor(motif);
     const all = await listTemplates();
     const actifs = all.filter((t) => t.actif !== false);
     return (
-      actifs.find((t) => t.motif === motif && t.type_appareil === typeAppareil) ||
-      actifs.find((t) => t.motif === motif && !t.type_appareil) ||
-      actifs.find((t) => t.motif === 'fin_location' && !t.type_appareil) ||
+      actifs.find((t) => t.motif === tplMotif && t.type_appareil === typeAppareil) ||
+      actifs.find((t) => t.motif === tplMotif && !t.type_appareil) ||
+      actifs.find((t) => t.motif === 'prolongation' && !t.type_appareil) ||
+      actifs.find((t) => t.motif === 'prolongation') ||
       null
     );
+  }
+
+  function contactInterpVars(motif, rules, dossier) {
+    const rule = (rules || []).find((r) => r.code === motif);
+    const cond = global.LocationRules.parseJson(rule?.conditions, {});
+    return global.LocationRules.varsFromConditions(cond, {
+      date_min: dossier?.date_fin || '',
+    });
+  }
+
+  async function listChampsCreation(typeAppareil, actifsOnly) {
+    let q = sb()
+      .from('location_champs_creation')
+      .select('*')
+      .order('ordre', { ascending: true });
+    if (typeAppareil) q = q.eq('type_appareil', typeAppareil);
+    if (actifsOnly) q = q.eq('actif', true);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function upsertChampCreation(row) {
+    if (!row.id) throw new Error('Identifiant champ requis');
+    const payload = {
+      type_appareil: row.type_appareil,
+      code: row.code,
+      libelle: row.libelle,
+      data_type: row.data_type,
+      options: row.options || {},
+      obligatoire: !!row.obligatoire,
+      ordre: Number(row.ordre) || 0,
+      actif: row.actif !== false,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await sb()
+      .from('location_champs_creation')
+      .update(payload)
+      .eq('id', row.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   }
 
   async function upsertTemplate(row) {
@@ -479,7 +569,21 @@
   }
 
   /**
+   * Nouveau cycle commentaire si, après passage en phase appel, la date_fin
+   * a avancé (prolongation) et les règles redemandent un contact (manque ordo).
+   */
+  function shouldResetContactToCommentaire(contact, dossier) {
+    if (!contact || contact.phase !== 'appel') return false;
+    const newFin = dossier.date_fin || null;
+    const cycleFin = contact.phase_date_fin || null;
+    return !!(newFin && cycleFin && newFin > cycleFin);
+  }
+
+  /**
    * Synchronise la file contact à partir des dossiers actifs + règles.
+   * Crée en phase « commentaire » ; réouvre un cycle commentaire si manque ordo
+   * après une prolongation post-phase-appel (contact ouvert) ou après résolution
+   * (plus de contact ouvert → nouvelle ligne).
    */
   async function syncContactQueue(userId) {
     const params = await loadParams();
@@ -488,25 +592,59 @@
     const existing = await listOpenContacts();
     const byDossier = new Map(existing.map((c) => [c.dossier_id, c]));
     const created = [];
+    const reset = [];
 
     for (const d of dossiers) {
       const a = d.appareil_actif;
       if (d.qui_facture === 'prestataire' || a?.facturation_prestataire) continue;
       const evalRes = global.LocationRules.evaluate(dossierContext(d), rules, params);
       if (!evalRes.shouldContact) continue;
-      if (byDossier.has(d.id)) continue;
+
       const motif = evalRes.contactReasons[0]?.motif || 'fin_location';
       const tpl = await findTemplate(a?.type_appareil, motif);
+      const vars = contactInterpVars(motif, rules, d);
+      const rawCorps =
+        tpl?.corps || evalRes.contactReasons.map((r) => r.message).join('\n');
+      const commentaire = global.LocationRules.interpolate(rawCorps, vars);
+      const open = byDossier.get(d.id);
+
+      if (open) {
+        if (!shouldResetContactToCommentaire(open, d)) continue;
+        const row = await upsertContact({
+          id: open.id,
+          dossier_id: d.id,
+          motif,
+          statut: 'a_contacter',
+          phase: 'commentaire',
+          commentaire,
+          resultat: null,
+          canal: null,
+          contacted_at: null,
+          commentaire_fait_at: null,
+          phase_date_fin: d.date_fin || null,
+        });
+        reset.push(row);
+        byDossier.set(d.id, row);
+        continue;
+      }
+
       const row = await upsertContact({
         dossier_id: d.id,
         motif,
         statut: 'a_contacter',
-        commentaire: tpl?.corps || evalRes.contactReasons.map((r) => r.message).join('\n'),
+        phase: 'commentaire',
+        commentaire,
+        phase_date_fin: d.date_fin || null,
         created_by: userId || null,
       });
       created.push(row);
+      byDossier.set(d.id, row);
     }
-    return { created, totalOpen: existing.length + created.length };
+    return {
+      created,
+      reset,
+      totalOpen: byDossier.size,
+    };
   }
 
   function splitList(str) {
@@ -537,6 +675,7 @@
     dossierContext,
     createDossierComplet,
     updateDossier,
+    cloturerDossier,
     deleteDossier,
     updateAppareil,
     changerAppareil,
@@ -545,6 +684,9 @@
     deleteSuiviLigne,
     listTemplates,
     findTemplate,
+    contactInterpVars,
+    listChampsCreation,
+    upsertChampCreation,
     upsertTemplate,
     deleteTemplate,
     upsertPrestataire,

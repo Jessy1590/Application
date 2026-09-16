@@ -35,18 +35,8 @@
     if (name === 'equipe') renderEquipe();
   }
 
-  async function resolveDisplayNames(userIds) {
-    const map = {};
-    if (!userIds.length) return map;
-    const portail = PhieEvreuxApps.createPortailClient();
-    const { data } = await portail
-      .from('profiles')
-      .select('id, display_name, email')
-      .in('id', userIds);
-    (data || []).forEach((p) => {
-      map[p.id] = p.display_name || p.email || p.id;
-    });
-    return map;
+  function memberLabel(m) {
+    return m.display_name || m.email || m.user_id;
   }
 
   async function renderEquipe() {
@@ -54,22 +44,24 @@
     list.innerHTML = '<p class="hub-sub">Chargement…</p>';
     try {
       const members = await PhieEquipe.listMembers();
-      const names = await resolveDisplayNames(members.map((m) => m.user_id));
       if (!members.length) {
-        list.innerHTML = '<p class="hub-sub">Aucun membre dans l’équipe.</p>';
+        list.innerHTML = '<p class="hub-sub">Aucun accès site pour Phie Evreux.</p>';
         return;
       }
       list.innerHTML = members.map((m) => `
         <div class="hub-equipe-row" data-user="${escapeHtml(m.user_id)}">
-          <strong>${escapeHtml(names[m.user_id] || m.user_id)}</strong>
-          <div class="meta">${escapeHtml(m.user_id)}</div>
+          <strong>${escapeHtml(memberLabel(m))}</strong>
+          <div class="meta">${escapeHtml(m.email || m.user_id)}</div>
           <div class="hub-equipe-actions">
             <select data-role>
+              ${m.role ? '' : '<option value="" selected disabled>Attribuer un rôle…</option>'}
               ${['administrateur', 'gestionnaire', 'personnel'].map((r) =>
                 `<option value="${r}" ${m.role === r ? 'selected' : ''}>${ROLE_LABELS[r]}</option>`
               ).join('')}
             </select>
-            <button type="button" data-remove title="Retirer">Retirer</button>
+            ${m.role
+              ? '<button type="button" data-remove title="Retirer le rôle équipe">Retirer</button>'
+              : ''}
           </div>
         </div>
       `).join('');
@@ -77,9 +69,11 @@
       list.querySelectorAll('[data-role]').forEach((sel) => {
         sel.addEventListener('change', async () => {
           const row = sel.closest('.hub-equipe-row');
+          if (!sel.value) return;
           try {
             await PhieEquipe.setRole(row.dataset.user, sel.value);
             toast('Rôle mis à jour');
+            renderEquipe();
           } catch (err) {
             toast(err.message || String(err), 'error');
             renderEquipe();
@@ -90,10 +84,10 @@
       list.querySelectorAll('[data-remove]').forEach((btn) => {
         btn.addEventListener('click', async () => {
           const row = btn.closest('.hub-equipe-row');
-          if (!confirm('Retirer ce membre de l’équipe ?')) return;
+          if (!confirm('Retirer le rôle équipe de ce membre ?')) return;
           try {
             await PhieEquipe.removeMember(row.dataset.user);
-            toast('Membre retiré');
+            toast('Rôle équipe retiré');
             renderEquipe();
           } catch (err) {
             toast(err.message || String(err), 'error');

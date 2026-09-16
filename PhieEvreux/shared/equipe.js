@@ -92,15 +92,50 @@
     return isAdmin();
   }
 
-  /** Liste équipe (admin). */
+  /**
+   * Liste admin : tous les utilisateurs avec accès site PhieEvreux
+   * (portail.site_access), enrichis profil + rôle equipe (peut être null).
+   */
   async function listMembers() {
-    const sb = global.PhieEvreuxApps.createAppsClient();
-    const { data, error } = await sb
-      .from('equipe')
-      .select('user_id, role, created_at')
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data || [];
+    const apps = global.PhieEvreuxApps;
+    const portail = apps.createPortailClient();
+    const sb = apps.createAppsClient();
+
+    const { data: accessRows, error: accessErr } = await portail
+      .from('site_access')
+      .select('user_id, granted_at')
+      .eq('site_id', apps.SITE_ID)
+      .order('granted_at', { ascending: true });
+    if (accessErr) throw accessErr;
+
+    const userIds = (accessRows || []).map((r) => r.user_id);
+    if (!userIds.length) return [];
+
+    const [
+      { data: profiles, error: profErr },
+      { data: equipeRows, error: eqErr },
+    ] = await Promise.all([
+      portail.from('profiles').select('id, display_name, email').in('id', userIds),
+      sb.from('equipe').select('user_id, role, created_at').in('user_id', userIds),
+    ]);
+    if (profErr) throw profErr;
+    if (eqErr) throw eqErr;
+
+    const profileById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+    const equipeById = Object.fromEntries((equipeRows || []).map((e) => [e.user_id, e]));
+
+    return (accessRows || []).map((a) => {
+      const p = profileById[a.user_id];
+      const e = equipeById[a.user_id];
+      return {
+        user_id: a.user_id,
+        role: e?.role || null,
+        created_at: e?.created_at || a.granted_at,
+        granted_at: a.granted_at,
+        display_name: p?.display_name || null,
+        email: p?.email || null,
+      };
+    });
   }
 
   async function setRole(userId, role) {

@@ -135,7 +135,11 @@
       detailEl.innerHTML = '<p class="loc-muted">Chargement…</p>';
       try {
         const d = await LocationData.getDossier(id);
-        renderDetail(d);
+        const [rules, params] = await Promise.all([
+          LocationData.loadRules(),
+          LocationData.loadParams(),
+        ]);
+        renderDetail(d, rules, params);
       } catch (e) {
         detailEl.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
@@ -153,7 +157,18 @@
       });
     }
 
-    function renderDetail(d) {
+    function fauteuilBasculeNote(d, rules, params) {
+      const a = d.appareil_actif || {};
+      if (a.type_appareil !== 'fauteuil') return null;
+      if (d.qui_facture === 'prestataire' || a.facturation_prestataire) return null;
+      const rule = (rules || []).find((r) => r.code === 'fauteuil_bascule' && r.actif !== false);
+      if (!rule) return null;
+      const cond = LocationRules.parseJson(rule.conditions, {});
+      const n = cond.bascule_apres_mois ?? params?.fauteuil_bascule_prestataire_mois ?? 2;
+      return `Attention après ${n} mois faire passer l'appareil chez le prestataire`;
+    }
+
+    function renderDetail(d, rules, params) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
       const canDelete = ctx.isAdmin || ctx.isGestionnaire;
@@ -162,6 +177,8 @@
       const prolongCount = (d.prolongations || []).length;
       const appCount = (d.appareils || []).length;
       const contactCount = (d.contacts || []).length;
+      const canCloturer = d.statut === 'actif';
+      const fauteuilNote = fauteuilBasculeNote(d, rules, params);
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -169,9 +186,11 @@
           <div class="loc-detail-actions">
             <button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>
             <button type="button" class="loc-btn" id="suSave">Enregistrer</button>
+            ${canCloturer ? '<button type="button" class="loc-btn" id="suCloturer">Clôturer le dossier</button>' : ''}
             ${canDelete ? '<button type="button" class="loc-btn loc-btn-ghost" id="suDelete">Supprimer</button>' : ''}
           </div>
         </div>
+        ${fauteuilNote ? `<div class="loc-attention" role="status">${esc(fauteuilNote)}</div>` : ''}
 
         <div class="loc-accordion">
         <details class="loc-card">
@@ -301,8 +320,11 @@
                   contacte: 'Contacté',
                   resolu: 'Résolu',
                 };
+                const phaseLabel =
+                  c.phase === 'appel' ? 'appel' : c.phase === 'commentaire' ? 'commentaire' : '';
                 const bits = [
                   when || '—',
+                  phaseLabel,
                   c.motif || '',
                   stMap[c.statut] || c.statut || '',
                   c.resultat || '',
@@ -334,9 +356,88 @@
         LocationPrint.printFiche(d);
       });
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
+      detailEl.querySelector('#suCloturer')?.addEventListener('click', () => openClotureModal(d));
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
+    }
+
+    function cautionClotureLabel(caution) {
+      if (caution === 'especes') return 'Espèces rendues ?';
+      if (caution === 'cheque_150') return 'Chèque / caution rendue ?';
+      if (!caution) return 'Aucune caution (rien) — OK ?';
+      return 'Caution rendue ?';
+    }
+
+    function openClotureModal(d) {
+      const cautionLabel = cautionClotureLabel(d.caution);
+      const modal = el(`<div class="loc-modal" role="dialog" aria-labelledby="suClotureTitle">
+        <div class="loc-modal-backdrop" data-close></div>
+        <div class="loc-modal-panel">
+          <h3 id="suClotureTitle">Clôturer le dossier</h3>
+          <p class="loc-muted">Confirmez les éléments de clôture avant validation.</p>
+          <div class="loc-grid-2" style="margin-top:10px">
+            <label class="loc-field">Appareil rendu ?
+              <select name="cl_appareil" required>
+                <option value="">—</option>
+                <option value="oui">Oui</option>
+                <option value="non">Non</option>
+              </select>
+            </label>
+            <label class="loc-field">${esc(cautionLabel)}
+              <select name="cl_caution" required>
+                <option value="">—</option>
+                <option value="oui">Oui</option>
+                <option value="non">Non</option>
+              </select>
+            </label>
+            <label class="loc-field">Facturation OK ?
+              <select name="cl_factu" required>
+                <option value="">—</option>
+                <option value="oui">Oui</option>
+                <option value="non">Non</option>
+              </select>
+            </label>
+            <label class="loc-field loc-span-2">Commentaire à ajouter au dossier (optionnel)
+              <textarea name="cl_commentaire" rows="3" placeholder="Optionnel"></textarea>
+            </label>
+          </div>
+          <div class="loc-modal-actions">
+            <button type="button" class="loc-btn" id="suClotureConfirm">Confirmer la clôture</button>
+            <button type="button" class="loc-btn loc-btn-ghost" data-close>Annuler</button>
+          </div>
+        </div>
+      </div>`);
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      modal.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
+      modal.querySelector('#suClotureConfirm').addEventListener('click', async () => {
+        const appareil = modal.querySelector('[name=cl_appareil]').value;
+        const caution = modal.querySelector('[name=cl_caution]').value;
+        const factu = modal.querySelector('[name=cl_factu]').value;
+        if (!appareil || !caution || !factu) {
+          showMsg('Répondez aux trois questions Oui/Non.', true);
+          return;
+        }
+        try {
+          const notesField = detailEl.querySelector('[name=notes]');
+          const opField = detailEl.querySelector('[name=code_op]');
+          await LocationData.cloturerDossier(d.id, {
+            appareil_rendu: appareil === 'oui',
+            caution_rendue: caution === 'oui',
+            facturation_ok: factu === 'oui',
+            commentaire: modal.querySelector('[name=cl_commentaire]').value,
+            notes: notesField ? notesField.value : d.notes || null,
+            code_op: (opField?.value.trim() || d.code_op || null),
+          });
+          close();
+          showMsg('Dossier clôturé.');
+          await refresh();
+          await openDetail(d.id);
+        } catch (e) {
+          showMsg(e.message || 'Erreur clôture', true);
+        }
+      });
     }
 
     async function deleteFiche(d) {

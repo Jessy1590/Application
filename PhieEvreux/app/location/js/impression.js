@@ -360,7 +360,9 @@
         const d = it.dossier || {};
         const p = d.patient || {};
         const tels = (p.telephones || []).join(', ');
+        const phase = it.phase === 'appel' ? 'Appel' : 'Commentaire';
         return `<tr>
+          <td>${esc(phase)}</td>
           <td>${esc(p.nom)} ${esc(p.prenom)}</td>
           <td>${esc(tels)}</td>
           <td>${esc(R().typeLabel(d.appareil_actif?.type_appareil))}</td>
@@ -379,9 +381,9 @@
   .consigne{margin:8px 0 16px;padding:8px;border:1px solid #999}
 </style></head><body>
   <h1>Liste patients à contacter</h1>
-  <div class="consigne"><strong>Consignes comptoir :</strong> vérifier commentaire prérempli, appeler, noter le résultat, prolonger ou organiser le rendu.</div>
+  <div class="consigne"><strong>Consignes comptoir :</strong> phase Commentaire (compte patient), puis Appel — noter le résultat, prolonger ou organiser le rendu.</div>
   <table><thead><tr>
-    <th>Patient</th><th>Tél.</th><th>Type</th><th>Motif</th><th>Commentaire / consignes</th><th>Fin</th>
+    <th>Phase</th><th>Patient</th><th>Tél.</th><th>Type</th><th>Motif</th><th>Commentaire / consignes</th><th>Fin</th>
   </tr></thead><tbody>${rows}</tbody></table>
 </body></html>`);
   }

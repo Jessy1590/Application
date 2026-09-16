@@ -1,11 +1,12 @@
 /**
- * Shell Location — navigation 3 cases + thème + admin.
+ * Shell Location — navigation modules + thème + admin.
  */
 (function () {
   const TITLES = {
     creation: 'Création',
     suivi: 'Suivi',
     contact: 'Contact',
+    facture: 'Facture',
   };
 
   let snap = null;
@@ -47,6 +48,7 @@
         pendingSuiviId = null;
         await LocationSuivi.mount(content, c);
       } else if (view === 'contact') await LocationContact.mount(content, c);
+      else if (view === 'facture') await LocationFacture.mount(content, c);
     } catch (e) {
       content.innerHTML = `<p class="loc-msg loc-msg-err">${String(e.message || e)}</p>`;
     }

@@ -65,6 +65,38 @@
     return days / 7;
   }
 
+  /** Motif file Contact (code règle / seuil) → motif template. */
+  const MOTIF_TO_TEMPLATE = {
+    tens_max: 'reclame_appareil_tens',
+    tire_lait_prolong_max: 'prolongation_tire_lait',
+    pas_de_rendu: 'reclame_appareil',
+  };
+
+  function templateMotifFor(motif) {
+    return MOTIF_TO_TEMPLATE[motif] || 'prolongation';
+  }
+
+  function interpolate(text, vars) {
+    if (text == null || text === '') return text;
+    const map = vars || {};
+    return String(text).replace(/\{(\w+)\}/g, (_, key) => {
+      if (map[key] == null || map[key] === '') return `{${key}}`;
+      return String(map[key]);
+    });
+  }
+
+  function varsFromConditions(cond, extra) {
+    const c = cond || {};
+    return {
+      max_duree: c.max_duree != null ? c.max_duree : '',
+      unite: c.unite || '',
+      max_duree_prolongation: c.max_duree_prolongation != null ? c.max_duree_prolongation : '',
+      bascule_apres_mois: c.bascule_apres_mois != null ? c.bascule_apres_mois : '',
+      date_min: '',
+      ...(extra || {}),
+    };
+  }
+
   /**
    * @param {object} ctx
    * @param {string} [ctx.type_appareil]
@@ -94,17 +126,20 @@
       }
       const cond = parseJson(rule.conditions, {});
       const hit = matchConditions(cond, ctx, rule);
+      const msgVars = varsFromConditions(cond, { date_min: ctx.date_fin || '' });
+      const rawMsg = rule.message || rule.nom;
+      const message = interpolate(rawMsg, msgVars);
 
       if (rule.action === 'info_creation') {
         if (!ctx.type_appareil || !rule.type_appareil || rule.type_appareil === ctx.type_appareil) {
-          infos.push({ code: rule.code, message: rule.message || rule.nom, rule });
+          infos.push({ code: rule.code, message, rule });
         }
         continue;
       }
 
       if (!hit) continue;
 
-      const item = { code: rule.code, message: rule.message || rule.nom, action: rule.action, rule };
+      const item = { code: rule.code, message, action: rule.action, rule };
       if (rule.action === 'alerte_contact' || rule.action === 'bloquer_ou_alerter') {
         alerts.push(item);
         contactReasons.push({ motif: rule.code, message: item.message });
@@ -241,10 +276,14 @@
   global.LocationRules = {
     TYPE_LABELS,
     ENCART_DEFAUT,
+    MOTIF_TO_TEMPLATE,
     parseJson,
     addDuration,
     daysBetween,
     todayISO,
+    interpolate,
+    varsFromConditions,
+    templateMotifFor,
     evaluate,
     infosForType,
     encartDefaut,
