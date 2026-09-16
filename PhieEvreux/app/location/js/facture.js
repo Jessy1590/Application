@@ -1,5 +1,11 @@
 /**
  * Module Facture — vérification matricules facture prestataire vs dossiers.
+ * Uniquement les appareils source = prestataire.
+ *
+ * Normal : matricule sur facture + dossier non clôturé
+ * Anomalie : matricule sur facture + dossier clôturé depuis moins du délai
+ * Anomalie : dossier non clôturé dont le matricule n’est pas sur la facture
+ * Anomalie : matricule sur facture sans dossier prestataire correspondant
  */
 (function (global) {
   function esc(s) {
@@ -36,14 +42,15 @@
     return String(s || '').trim().toLowerCase();
   }
 
-  /** Matricules d’un appareil (matricule + n° pharmacie si renseignés). */
+  function isPrestataire(a) {
+    return a?.source === 'prestataire';
+  }
+
+  /** Matricule prestataire uniquement. */
   function appareilKeys(a) {
-    const keys = [];
+    if (!isPrestataire(a)) return [];
     const m = norm(a?.matricule);
-    const n = norm(a?.numero_pharmacie);
-    if (m) keys.push(m);
-    if (n && n !== m) keys.push(n);
-    return keys;
+    return m ? [m] : [];
   }
 
   function patientLabel(d) {
@@ -64,75 +71,129 @@
 
   function displayMatricule(a, matchedKey) {
     const m = String(a?.matricule || '').trim();
-    const n = String(a?.numero_pharmacie || '').trim();
     if (matchedKey && norm(m) === matchedKey) return m || matchedKey;
-    if (matchedKey && norm(n) === matchedKey) return n || matchedKey;
-    return m || n || '—';
+    return m || matchedKey || '—';
   }
 
-  /**
-   * Pour chaque matricule facture, trouve les dossiers dont un appareil matche.
-   * @returns {{ nonClotures: object[], valides: object[], delaiJours: number }}
-   */
-  function classify(dossiers, invoiceMats, delaiJours) {
-    const invoiceSet = new Set(invoiceMats.map(norm));
-    const nonClotures = [];
-    const valides = [];
-    const seenA = new Set();
-    const seenB = new Set();
-
-    for (const d of dossiers || []) {
-      const apps = d.appareils || [];
-      let hitKey = null;
-      let hitApp = null;
-      for (const a of apps) {
-        for (const k of appareilKeys(a)) {
-          if (invoiceSet.has(k)) {
-            hitKey = k;
-            hitApp = a;
-            break;
-          }
-        }
-        if (hitKey) break;
-      }
-      if (!hitKey) continue;
-
-      const row = {
-        dossier: d,
-        matchedKey: hitKey,
-        matchedApp: hitApp,
-        matriculeAffiche: displayMatricule(hitApp, hitKey),
-      };
-
-      if (d.statut !== 'cloture') {
-        if (!seenA.has(d.id)) {
-          seenA.add(d.id);
-          nonClotures.push(row);
-        }
-      } else {
-        const days = daysSinceDate(d.date_cloture);
-        if (days != null && days >= delaiJours) {
-          if (!seenB.has(d.id)) {
-            seenB.add(d.id);
-            valides.push(row);
-          }
+  function findInvoiceHit(d, invoiceSet) {
+    for (const a of d.appareils || []) {
+      for (const k of appareilKeys(a)) {
+        if (invoiceSet.has(k)) {
+          return { hitKey: k, hitApp: a };
         }
       }
     }
+    return null;
+  }
 
-    nonClotures.sort((a, b) => patientLabel(a.dossier).localeCompare(patientLabel(b.dossier), 'fr'));
-    valides.sort((a, b) => patientLabel(a.dossier).localeCompare(patientLabel(b.dossier), 'fr'));
-    return { nonClotures, valides, delaiJours };
+  function firstPrestataireApp(d) {
+    const prest = (d.appareils || []).filter((a) => appareilKeys(a).length);
+    const actif = prest.find((a) => a.actif);
+    return actif || prest[0] || null;
+  }
+
+  /**
+   * @returns {{
+   *   normaux: object[],
+   *   factureMaisClotures: object[],
+   *   ouvertsAbsents: object[],
+   *   sansDossier: object[],
+   *   delaiJours: number
+   * }}
+   */
+  function classify(dossiers, invoiceMats, delaiJours) {
+    const delai = Number.isFinite(Number(delaiJours)) && Number(delaiJours) >= 0 ? Number(delaiJours) : 30;
+    const invoiceList = invoiceMats || [];
+    const invoiceSet = new Set(invoiceList.map(norm));
+    const matchedKeys = new Set();
+    const normaux = [];
+    const factureMaisClotures = [];
+    const ouvertsAbsents = [];
+    const seenOk = new Set();
+    const seenClosed = new Set();
+    const seenAbsent = new Set();
+
+    for (const d of dossiers || []) {
+      const cloture = d.statut === 'cloture';
+      const hit = findInvoiceHit(d, invoiceSet);
+
+      if (hit) {
+        matchedKeys.add(hit.hitKey);
+        const row = {
+          dossier: d,
+          matchedKey: hit.hitKey,
+          matchedApp: hit.hitApp,
+          matriculeAffiche: displayMatricule(hit.hitApp, hit.hitKey),
+        };
+        if (!cloture) {
+          if (!seenOk.has(d.id)) {
+            seenOk.add(d.id);
+            normaux.push(row);
+          }
+        } else {
+          const days = daysSinceDate(d.date_cloture);
+          const tropRecent = days == null || days < delai;
+          if (tropRecent && !seenClosed.has(d.id)) {
+            seenClosed.add(d.id);
+            factureMaisClotures.push(row);
+          }
+        }
+        continue;
+      }
+
+      if (!cloture) {
+        const app = firstPrestataireApp(d);
+        if (!app) continue;
+        const keys = appareilKeys(app);
+        if (keys.some((k) => invoiceSet.has(k))) continue;
+        if (seenAbsent.has(d.id)) continue;
+        seenAbsent.add(d.id);
+        ouvertsAbsents.push({
+          dossier: d,
+          matchedKey: keys[0] || null,
+          matchedApp: app,
+          matriculeAffiche: displayMatricule(app, keys[0] || null),
+        });
+      }
+    }
+
+    const sansDossier = invoiceList
+      .filter((m) => !matchedKeys.has(norm(m)))
+      .map((m) => ({
+        matriculeAffiche: m,
+        matchedKey: norm(m),
+        dossier: null,
+      }));
+
+    const byPatient = (a, b) => patientLabel(a.dossier).localeCompare(patientLabel(b.dossier), 'fr');
+    normaux.sort(byPatient);
+    factureMaisClotures.sort(byPatient);
+    ouvertsAbsents.sort(byPatient);
+    sansDossier.sort((a, b) =>
+      String(a.matriculeAffiche).localeCompare(String(b.matriculeAffiche), 'fr')
+    );
+    return { normaux, factureMaisClotures, ouvertsAbsents, sansDossier, delaiJours: delai };
   }
 
   function renderRow(item, { warn } = {}) {
     const d = item.dossier;
+    if (!d) {
+      return `<li class="loc-facture-item${warn ? ' loc-facture-item-warn' : ' loc-facture-item-ok'}">
+        <strong>Aucun dossier</strong>
+        <span>Matricule : ${esc(item.matriculeAffiche)}</span>
+      </li>`;
+    }
     return `<li class="loc-facture-item${warn ? ' loc-facture-item-warn' : ' loc-facture-item-ok'}">
       <strong>${esc(patientLabel(d))}</strong>
       <span>Dossier ${esc(d.id || '—')} · ${esc(d.statut || '—')}</span>
       <span>Matricule : ${esc(item.matriculeAffiche)}</span>
       <span>Date clôture : ${esc(d.date_cloture || '—')}</span>
     </li>`;
+  }
+
+  function fillList(listEl, emptyEl, rows, warn) {
+    listEl.innerHTML = rows.map((r) => renderRow(r, { warn })).join('');
+    emptyEl.hidden = rows.length > 0;
   }
 
   async function mount(root) {
@@ -147,7 +208,7 @@
     }
 
     const wrap = el(`<div class="loc-module loc-facture">
-      <p class="loc-muted">Collez les matricules présents sur la facture (un par ligne, ou séparés par virgule / espace). Délai de clôture requis : <strong id="faDelai">${delaiJours}</strong> j.</p>
+      <p class="loc-muted">Collez les matricules présents sur la facture (un par ligne, ou séparés par virgule / espace). Uniquement les dossiers prestataire. Délai de clôture : <strong id="faDelai">${delaiJours}</strong> j.</p>
       <label class="loc-field">Matricules facture
         <textarea id="faMats" rows="8" placeholder="Ex.&#10;ABC123&#10;PH-0042&#10;XYZ789"></textarea>
       </label>
@@ -157,16 +218,28 @@
       <p class="loc-msg" id="faMsg" hidden></p>
       <div class="loc-facture-results" id="faResults" hidden>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-warn">Dossiers non clôturés</h3>
-          <p class="loc-muted loc-facture-hint">Matricule sur la facture alors que le dossier est encore ouvert.</p>
-          <ul class="loc-facture-list" id="faListA"></ul>
-          <p class="loc-muted" id="faEmptyA" hidden>Aucun.</p>
+          <h3 class="loc-facture-title loc-facture-title-ok">Normaux</h3>
+          <p class="loc-muted loc-facture-hint">Matricule sur la facture et dossier prestataire non clôturé.</p>
+          <ul class="loc-facture-list" id="faListOk"></ul>
+          <p class="loc-muted" id="faEmptyOk" hidden>Aucun.</p>
         </section>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-ok">Dossiers valides pour facture</h3>
-          <p class="loc-muted loc-facture-hint" id="faHintB">Matricule présent, dossier clôturé depuis au moins ${delaiJours} j.</p>
-          <ul class="loc-facture-list" id="faListB"></ul>
-          <p class="loc-muted" id="faEmptyB" hidden>Aucun.</p>
+          <h3 class="loc-facture-title loc-facture-title-warn">Sur facture mais clôturés</h3>
+          <p class="loc-muted loc-facture-hint" id="faHintClosed">Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delaiJours} j.</p>
+          <ul class="loc-facture-list" id="faListClosed"></ul>
+          <p class="loc-muted" id="faEmptyClosed" hidden>Aucun.</p>
+        </section>
+        <section class="loc-facture-block">
+          <h3 class="loc-facture-title loc-facture-title-warn">Ouverts absents de la facture</h3>
+          <p class="loc-muted loc-facture-hint">Dossier prestataire non clôturé dont le matricule n’apparaît pas sur la facture.</p>
+          <ul class="loc-facture-list" id="faListAbsent"></ul>
+          <p class="loc-muted" id="faEmptyAbsent" hidden>Aucun.</p>
+        </section>
+        <section class="loc-facture-block">
+          <h3 class="loc-facture-title loc-facture-title-warn">Matricules sans dossier</h3>
+          <p class="loc-muted loc-facture-hint">Matricule sur la facture sans dossier prestataire correspondant.</p>
+          <ul class="loc-facture-list" id="faListOrphan"></ul>
+          <p class="loc-muted" id="faEmptyOrphan" hidden>Aucun.</p>
         </section>
       </div>
     </div>`);
@@ -174,10 +247,6 @@
 
     const msgEl = wrap.querySelector('#faMsg');
     const results = wrap.querySelector('#faResults');
-    const listA = wrap.querySelector('#faListA');
-    const listB = wrap.querySelector('#faListB');
-    const emptyA = wrap.querySelector('#faEmptyA');
-    const emptyB = wrap.querySelector('#faEmptyB');
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -199,21 +268,41 @@
         if (!Number.isFinite(delai) || delai < 0) delai = 30;
         delaiJours = delai;
         wrap.querySelector('#faDelai').textContent = String(delai);
-        const hintB = wrap.querySelector('#faHintB');
-        if (hintB) {
-          hintB.textContent = `Matricule présent, dossier clôturé depuis au moins ${delai} j.`;
+        const hintClosed = wrap.querySelector('#faHintClosed');
+        if (hintClosed) {
+          hintClosed.textContent = `Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delai} j.`;
         }
 
         const dossiers = await LocationData.listDossiers({});
-        const { nonClotures, valides } = classify(dossiers, mats, delai);
+        const { normaux, factureMaisClotures, ouvertsAbsents, sansDossier } = classify(
+          dossiers,
+          mats,
+          delai
+        );
 
-        listA.innerHTML = nonClotures.map((r) => renderRow(r, { warn: true })).join('');
-        listB.innerHTML = valides.map((r) => renderRow(r, { warn: false })).join('');
-        emptyA.hidden = nonClotures.length > 0;
-        emptyB.hidden = valides.length > 0;
+        fillList(wrap.querySelector('#faListOk'), wrap.querySelector('#faEmptyOk'), normaux, false);
+        fillList(
+          wrap.querySelector('#faListClosed'),
+          wrap.querySelector('#faEmptyClosed'),
+          factureMaisClotures,
+          true
+        );
+        fillList(
+          wrap.querySelector('#faListAbsent'),
+          wrap.querySelector('#faEmptyAbsent'),
+          ouvertsAbsents,
+          true
+        );
+        fillList(
+          wrap.querySelector('#faListOrphan'),
+          wrap.querySelector('#faEmptyOrphan'),
+          sansDossier,
+          true
+        );
+
         results.hidden = false;
         showMsg(
-          `${mats.length} matricule(s) · ${nonClotures.length} non clôturé(s) · ${valides.length} valide(s).`
+          `${mats.length} matricule(s) · ${normaux.length} normal(aux) · ${factureMaisClotures.length} clôturé(s) < ${delai} j · ${ouvertsAbsents.length} ouvert(s) absent(s) · ${sansDossier.length} sans dossier.`
         );
       } catch (e) {
         showMsg(e.message || 'Erreur', true);

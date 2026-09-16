@@ -274,7 +274,7 @@
               ${a.type_appareil === 'tire_lait' ? `
                 <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
               ` : ''}
-              <label class="loc-field loc-span-2">Encart<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
+              <label class="loc-field loc-span-2">Commentaire<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
             </div>
             <h4>Historique</h4>
             <ul class="loc-history">
@@ -353,7 +353,7 @@
 
       detailEl.querySelector('#suPrint').addEventListener('click', () => {
         // d déjà chargé via getDossier dans openDetail — print synchrone (geste utilisateur)
-        LocationPrint.printFiche(d);
+        void LocationPrint.printFiche(d);
       });
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suCloturer')?.addEventListener('click', () => openClotureModal(d));
@@ -526,14 +526,12 @@
           <label class="loc-field">Matricule<input name="na_mat"></label>
           <label class="loc-field">N° pharmacie<input name="na_num"></label>
           <label class="loc-field">Source<select name="na_src"><option value="parc">Parc</option><option value="prestataire">Prestataire</option></select></label>
-          <label class="loc-field loc-span-2">Encart<textarea name="na_enc" rows="2"></textarea></label>
+          <label class="loc-field loc-span-2">Commentaire<textarea name="na_enc" rows="2"></textarea></label>
         </div>
         <button type="button" class="loc-btn" id="suConfirmApp">Confirmer le changement</button>
       `;
       const typeSel = box.querySelector('[name=na_type]');
       const enc = box.querySelector('[name=na_enc]');
-      enc.value = LocationRules.encartDefaut(typeSel.value);
-      typeSel.addEventListener('change', () => { enc.value = LocationRules.encartDefaut(typeSel.value); });
       box.querySelector('#suConfirmApp').addEventListener('click', async () => {
         try {
           await LocationData.changerAppareil(d.id, {

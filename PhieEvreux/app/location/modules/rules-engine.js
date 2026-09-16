@@ -13,11 +13,11 @@
   };
 
   const ENCART_DEFAUT = {
-    aerosol: 'Aérosolthérapie — préciser masque (facturé / offert). Joindre copie d’ordonnance.',
-    tire_lait: 'Tire-lait — modèle / MUT à jour / date d’accouchement. Location initiale 10 semaines.',
-    pese_bebe: 'Pèse-bébé — à faire régler d’avance. Location à la semaine ou au mois.',
-    tens: 'Neurostimulateur (TENS) — électrodes (offerts / facturés / non délivrés) et modèle. Max 6 mois.',
-    fauteuil: 'Fauteuil — bascule facturation prestataire après 2 mois (paramétrable).',
+    aerosol: '',
+    tire_lait: '',
+    pese_bebe: '',
+    tens: '',
+    fauteuil: '',
     autre: '',
   };
 

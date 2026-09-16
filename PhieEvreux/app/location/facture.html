@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>Location — Phie Evreux</title>
+<title>Facture — Location Phie Evreux</title>
 <meta name="theme-color" content="#0a0a0f">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <script>
@@ -29,43 +29,20 @@
 <link rel="stylesheet" href="css/shell.css">
 <link rel="stylesheet" href="../../shared/fab.css">
 </head>
-<body>
+<body class="loc-module-page" data-module="facture">
   <header class="loc-top">
     <div>
-      <p class="loc-eyebrow">Phie Evreux</p>
-      <h1>Location</h1>
+      <p class="loc-eyebrow">Location</p>
+      <h1 id="locModuleTitle">Facture</h1>
     </div>
     <div class="loc-top-actions">
+      <a class="loc-btn loc-btn-ghost" href="index.html">← Modules</a>
       <button type="button" class="loc-theme-btn" id="locThemeBtn" title="Thème" aria-label="Basculer le thème">◐</button>
     </div>
   </header>
 
-  <main class="loc-tiles" id="locHome">
-    <a class="loc-tile" href="creation.html">
-      <span class="loc-tile-kicker">Module</span>
-      <strong>Création</strong>
-      <span class="loc-tile-desc">Nouvelle fiche location</span>
-    </a>
-    <a class="loc-tile" href="suivi.html">
-      <span class="loc-tile-kicker">Module</span>
-      <strong>Suivi</strong>
-      <span class="loc-tile-desc">Fiches et prolongations</span>
-    </a>
-    <a class="loc-tile" href="contact.html">
-      <span class="loc-tile-kicker">Module</span>
-      <strong>Contact</strong>
-      <span class="loc-tile-desc">Patients à contacter</span>
-    </a>
-    <a class="loc-tile" href="facture.html">
-      <span class="loc-tile-kicker">Module</span>
-      <strong>Facture</strong>
-      <span class="loc-tile-desc">Vérification dossier prestataire</span>
-    </a>
-    <a class="loc-tile" href="parametres.html" id="locTileParametres" hidden>
-      <span class="loc-tile-kicker">Module</span>
-      <strong>Paramètres</strong>
-      <span class="loc-tile-desc">Règles, prestataires, seuils</span>
-    </a>
+  <main class="loc-module-page-main" id="locModuleRoot">
+    <p class="loc-muted">Chargement…</p>
   </main>
 
   <script src="../../shared/supabase-apps.js"></script>
@@ -73,6 +50,9 @@
   <script src="../../shared/equipe.js"></script>
   <script src="../../shared/bugs.js"></script>
   <script src="../../shared/fab.js"></script>
-  <script src="js/app.js"></script>
+  <script src="modules/rules-engine.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/facture.js"></script>
+  <script src="js/module-page.js"></script>
 </body>
 </html>

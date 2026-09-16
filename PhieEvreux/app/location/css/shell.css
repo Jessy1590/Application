@@ -100,6 +100,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  margin-bottom: 14px;
 }
 
 .loc-motif-chips {
@@ -182,10 +183,41 @@ body {
   gap: 10px;
 }
 
-.loc-params-page-main {
+.loc-params-page-main,
+.loc-module-page-main {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 16px 16px 80px;
+  padding: 0 0 80px;
+}
+
+body.loc-params-page,
+body.loc-module-page {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.loc-params-body h3,
+.loc-params-editor h3 {
+  margin: 16px 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--loc-text);
+}
+
+.loc-params-body > h3:first-child {
+  margin-top: 0;
+}
+
+.loc-params-editor > h3:first-child {
+  margin-top: 0;
+}
+
+a.loc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .loc-attention-stack {
@@ -245,6 +277,7 @@ body {
 .loc-cond-control input,
 .loc-cond-control select {
   width: 100%;
+  min-width: 0;
 }
 
 .loc-cond-add {
@@ -267,7 +300,17 @@ body {
   align-items: center;
 }
 
-.loc-choix-row input { flex: 1; }
+.loc-choix-row input {
+  flex: 1;
+  width: auto;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-bg);
+  color: var(--loc-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 400;
+}
 
 .loc-tiles {
   max-width: 640px;
@@ -293,6 +336,7 @@ body {
   display: grid;
   align-content: start;
   gap: 6px;
+  text-decoration: none;
 }
 
 .loc-tile:hover { border-color: var(--loc-accent); }
@@ -408,7 +452,14 @@ body {
 .loc-toolbar input,
 .loc-toolbar select,
 .loc-admin-row input,
-.loc-table input {
+.loc-admin-row select,
+.loc-admin-row textarea,
+.loc-table input,
+.loc-cond-control input,
+.loc-cond-control select,
+.loc-params-editor input:not([type="checkbox"]),
+.loc-params-editor select,
+.loc-params-editor textarea {
   width: 100%;
   border: 1px solid var(--loc-line);
   background: var(--loc-bg);

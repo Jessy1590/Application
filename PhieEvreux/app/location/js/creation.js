@@ -544,8 +544,8 @@
         ctx.openSuivi?.(dossier.id);
       });
       modal.querySelector('[data-act=print]').addEventListener('click', () => {
-        // dossier déjà enrichi par createDossierComplet → getDossier (pas d’await ici)
-        LocationPrint.printFiche(dossier);
+        // dossier déjà enrichi par createDossierComplet → getDossier
+        void LocationPrint.printFiche(dossier);
       });
     }
 

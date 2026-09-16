@@ -169,7 +169,7 @@
     }
   }
 
-  function buildFicheHtml(dossier) {
+  function buildFicheHtml(dossier, attentionLines) {
     const p = dossier.patient || {};
     const a = dossier.appareil_actif || {};
     const tels = (p.telephones || []).join(' · ');
@@ -202,6 +202,15 @@
       appareilExtra.push(line('Date accouchement', a.date_accouchement));
     }
 
+    const attentionParts = [];
+    (attentionLines || []).forEach((t) => {
+      const s = String(t || '').trim();
+      if (s) attentionParts.push(s);
+    });
+    const commentaire = String(a.encart_texte || '').trim();
+    if (commentaire) attentionParts.push(commentaire);
+    const attentionBody = attentionParts.join('\n');
+
     const headerBlock = `<section class="print-zone print-top">
   <div class="print-banner">
     <span><strong>OP</strong> ${esc(dossier.code_op || '')}</span>
@@ -233,7 +242,7 @@
       ].join('')}
     </div>
   </div>
-  <div class="print-attention"><strong>Attention</strong><pre>${esc(a.encart_texte || '')}</pre></div>
+  <div class="print-attention"><strong>Attention</strong><pre>${esc(attentionBody)}</pre></div>
   <p class="print-note">Joindre copie d’ordonnance.</p>
 </section>`;
 
@@ -328,12 +337,24 @@
 </body></html>`;
   }
 
-  function printFiche(dossier) {
+  async function printFiche(dossier) {
     if (!dossier) {
       alert('Aucune fiche à imprimer.');
       return;
     }
-    printHtml(buildFicheHtml(dossier));
+    const a = dossier.appareil_actif || {};
+    let attentionLines = [];
+    try {
+      if (a.type_appareil && global.LocationData?.listChampsCreation) {
+        const champs = await LocationData.listChampsCreation(a.type_appareil, true);
+        attentionLines = (champs || [])
+          .filter((c) => c.data_type === 'attention' && c.libelle)
+          .map((c) => c.libelle);
+      }
+    } catch (_) {
+      attentionLines = [];
+    }
+    printHtml(buildFicheHtml(dossier, attentionLines));
   }
 
   function printTableau(dossiers) {
