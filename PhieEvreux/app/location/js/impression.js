@@ -35,6 +35,86 @@
     return h;
   }
 
+  const CONTACT_STATUT_LABELS = {
+    a_contacter: 'À contacter',
+    en_cours: 'En cours',
+    reporte: 'À rappeler',
+    contacte: 'Contacté',
+    resolu: 'Résolu',
+  };
+
+  /** Lignes « Suivi matériel » depuis les événements dossier (pas location_suivi_lignes). */
+  function buildSuiviEventRows(dossier) {
+    const rows = [];
+    const prolongations = (dossier.prolongations || []).slice().sort((a, b) =>
+      String(a.date_ordo || a.created_at || '').localeCompare(String(b.date_ordo || b.created_at || ''))
+    );
+    prolongations.forEach((pr, idx) => {
+      const duree = [pr.duree, pr.unite].filter((x) => x != null && x !== '').join(' ');
+      const label =
+        (idx === 0 ? 'Ordonnance initiale' : 'Prolongation') +
+        (duree ? ` · ${duree}` : '') +
+        (pr.date_fin ? ` → fin ${pr.date_fin}` : '') +
+        (pr.notes ? ` · ${pr.notes}` : '');
+      rows.push({ date: pr.date_ordo || null, libelle: label });
+    });
+
+    const appareils = (dossier.appareils || []).slice().sort((a, b) =>
+      String(a.date_debut || a.created_at || '').localeCompare(String(b.date_debut || b.created_at || ''))
+    );
+    appareils.forEach((ap, idx) => {
+      if (idx === 0) return; // premier = mise en service, pas un changement
+      const typeTxt = R().typeLabel(ap.type_appareil) + (ap.type_libelle ? ` (${ap.type_libelle})` : '');
+      const num = ap.numero_pharmacie || ap.matricule || '—';
+      rows.push({
+        date: ap.date_debut || ap.created_at?.slice?.(0, 10) || null,
+        libelle: `Changement d'appareil · ${typeTxt} · n° ${num}`,
+      });
+    });
+
+    if (dossier.appareil_rendu) {
+      rows.push({
+        date: null,
+        libelle: "Rendu d'appareil",
+      });
+    }
+    if (dossier.caution_rendue) {
+      rows.push({
+        date: dossier.caution_rendue_le || null,
+        libelle:
+          'Caution rendue' +
+          (dossier.caution_rendue_op ? ` · OP ${dossier.caution_rendue_op}` : ''),
+      });
+    }
+    if (dossier.statut === 'cloture' || dossier.date_cloture) {
+      rows.push({
+        date: dossier.date_cloture || null,
+        libelle: 'Clôture du dossier' + (dossier.cloture_op ? ` · OP ${dossier.cloture_op}` : ''),
+      });
+    }
+
+    const contacts = (dossier.contacts || []).slice().sort((a, b) =>
+      String(a.contacted_at || a.created_at || '').localeCompare(
+        String(b.contacted_at || b.created_at || '')
+      )
+    );
+    contacts.forEach((c) => {
+      const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10) || null;
+      const st = CONTACT_STATUT_LABELS[c.statut] || c.statut || '';
+      const parts = [
+        'Appel / contact',
+        c.motif || '',
+        st,
+        c.resultat || '',
+        c.commentaire || '',
+      ].filter(Boolean);
+      rows.push({ date: when, libelle: parts.join(' · ') });
+    });
+
+    rows.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    return rows;
+  }
+
   /** Impression same-document — pas de pop-up, pas d’alerte « Autorisez les pop-ups ». */
   function printHtml(html) {
     const prev = document.getElementById('loc-print-frame');
@@ -158,16 +238,14 @@
     const datePh = '<span class="print-date-ph">   /    /       </span>';
     const statutCell = '<td class="col-statut">□</td>';
     const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${statutCell}</tr>`;
-    const suiviList = dossier.suivi || [];
-    const suiviFilled = suiviList
+    const eventRows = buildSuiviEventRows(dossier);
+    const suiviFilled = eventRows
       .map((s) => {
-        const dateCell = s.date_ligne
-          ? esc(s.date_ligne)
-          : datePh;
+        const dateCell = s.date ? esc(s.date) : datePh;
         return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${statutCell}</tr>`;
       })
       .join('');
-    const padCount = Math.max(0, 18 - suiviList.length);
+    const padCount = Math.max(0, 18 - eventRows.length);
     const suiviRows = suiviFilled + emptySuiviRow.repeat(padCount);
     const suiviBlock = `<section class="print-zone print-suivi"><h2>Suivi matériel</h2>
       <table class="print-table print-table-suivi"><thead><tr>

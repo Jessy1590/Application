@@ -1,5 +1,5 @@
 /**
- * Module Suivi — liste, édition, appareils, prolongations, tableau, impression.
+ * Module Suivi — liste, édition, appareils, prolongations, contacts, impression.
  */
 (function (global) {
   function esc(s) {
@@ -18,8 +18,14 @@
 
   async function mount(root, ctx) {
     root.innerHTML = '';
-    const wrap = el(`<div class="loc-module">
-      <div class="loc-toolbar">
+    const wrap = el(`<div class="loc-module loc-suivi">
+      <div class="loc-bar">
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="suToggleFilters" aria-expanded="false" aria-controls="suFilters">Filtres</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="suToggleList" aria-expanded="true" aria-controls="suListPanel">Dossiers</button>
+        <button type="button" class="loc-btn loc-btn-ghost" id="suRefresh">Actualiser</button>
+        <button type="button" class="loc-btn loc-btn-ghost" id="suPrintTable">Imprimer tableau</button>
+      </div>
+      <div class="loc-toolbar loc-filters" id="suFilters" hidden>
         <input type="search" id="suSearch" placeholder="Recherche nom / prénom">
         <select id="suStatut">
           <option value="">Tous statuts</option>
@@ -32,11 +38,11 @@
           ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
         </select>
         <label class="loc-check loc-check-inline"><input type="checkbox" id="suContact"> À contacter</label>
-        <button type="button" class="loc-btn loc-btn-ghost" id="suRefresh">Actualiser</button>
-        <button type="button" class="loc-btn loc-btn-ghost" id="suPrintTable">Imprimer tableau</button>
       </div>
-      <div class="loc-split">
-        <div class="loc-list" id="suList"></div>
+      <div class="loc-split" id="suSplit">
+        <div class="loc-list-panel" id="suListPanel">
+          <div class="loc-list" id="suList"></div>
+        </div>
         <div class="loc-detail" id="suDetail"><p class="loc-muted">Sélectionnez une fiche.</p></div>
       </div>
       <p class="loc-msg" id="suMsg" hidden></p>
@@ -46,8 +52,31 @@
     let rows = [];
     let selectedId = ctx.initialDossierId || null;
     const listEl = wrap.querySelector('#suList');
+    const listPanel = wrap.querySelector('#suListPanel');
+    const splitEl = wrap.querySelector('#suSplit');
+    const filtersEl = wrap.querySelector('#suFilters');
+    const btnFilters = wrap.querySelector('#suToggleFilters');
+    const btnList = wrap.querySelector('#suToggleList');
     const detailEl = wrap.querySelector('#suDetail');
     const msgEl = wrap.querySelector('#suMsg');
+
+    function setToggle(btn, panel, open) {
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-active', open);
+    }
+
+    btnFilters.addEventListener('click', () => {
+      setToggle(btnFilters, filtersEl, filtersEl.hidden);
+    });
+    btnList.addEventListener('click', () => {
+      const open = listPanel.hidden;
+      setToggle(btnList, listPanel, open);
+      splitEl.classList.toggle('is-list-collapsed', !open);
+    });
+    setToggle(btnFilters, filtersEl, false);
+    setToggle(btnList, listPanel, true);
+    splitEl.classList.remove('is-list-collapsed');
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -112,12 +141,27 @@
       }
     }
 
+    function wireAccordion(container) {
+      const items = [...container.querySelectorAll('details.loc-card')];
+      items.forEach((item) => {
+        item.addEventListener('toggle', () => {
+          if (!item.open) return;
+          items.forEach((other) => {
+            if (other !== item) other.open = false;
+          });
+        });
+      });
+    }
+
     function renderDetail(d) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
       const canDelete = ctx.isAdmin || ctx.isGestionnaire;
       const prest = a.source === 'prestataire';
       const parc = !prest;
+      const prolongCount = (d.prolongations || []).length;
+      const appCount = (d.appareils || []).length;
+      const contactCount = (d.contacts || []).length;
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -129,131 +173,150 @@
           </div>
         </div>
 
-        <details open class="loc-card">
+        <div class="loc-accordion">
+        <details class="loc-card">
           <summary>Patient</summary>
-          <div class="loc-grid-2">
-            <label class="loc-field">Nom<input name="p_nom" value="${esc(p.nom)}"></label>
-            <label class="loc-field">Prénom<input name="p_prenom" value="${esc(p.prenom)}"></label>
-            <label class="loc-field">Naissance<input type="date" name="p_dn" value="${esc(p.date_naissance || '')}"></label>
-            <label class="loc-field loc-span-2">Adresse<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
-          </div>
-          <div class="loc-grid-2" style="margin-top:10px">
-            <div class="loc-span-2">${LocationFields.blockHtml('phones', 'Téléphones')}</div>
-            <div class="loc-span-2">${LocationFields.blockHtml('mails', 'Mails')}</div>
-          </div>
-        </details>
-
-        <details open class="loc-card">
-          <summary>Dossier</summary>
-          <div class="loc-grid-2">
-            <label class="loc-field">Code OP<input name="code_op" value="${esc(d.code_op || '')}"></label>
-            <label class="loc-field">Caution<select name="caution">
-              <option value=""${!d.caution ? ' selected' : ''}>Rien</option>
-              <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
-              <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
-            </select></label>
-            <label class="loc-field">Statut<select name="statut">
-              <option value="actif"${d.statut === 'actif' ? ' selected' : ''}>Actif</option>
-              <option value="cloture"${d.statut === 'cloture' ? ' selected' : ''}>Clôturé</option>
-              <option value="annule"${d.statut === 'annule' ? ' selected' : ''}>Annulé</option>
-            </select></label>
-            <label class="loc-field">Qui facture<select name="qui_facture">
-              <option value="pharmacie"${d.qui_facture === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
-              <option value="prestataire"${d.qui_facture === 'prestataire' ? ' selected' : ''}>Prestataire</option>
-            </select></label>
-            <label class="loc-field">Date début<input type="date" name="date_debut" value="${esc(d.date_debut || '')}"></label>
-            <label class="loc-field">Fin courante<input type="text" value="${esc(d.date_fin || '')}" disabled></label>
-            <label class="loc-check"><input type="checkbox" name="appareil_rendu"${d.appareil_rendu ? ' checked' : ''}> Appareil rendu</label>
-            <label class="loc-check"><input type="checkbox" name="caution_rendue"${d.caution_rendue ? ' checked' : ''}> Caution rendue</label>
-            <label class="loc-field">Caution rendue le<input type="date" name="caution_rendue_le" value="${esc(d.caution_rendue_le || '')}"></label>
-            <label class="loc-field">OP caution<input name="caution_rendue_op" value="${esc(d.caution_rendue_op || '')}"></label>
-            <label class="loc-field">Date clôture<input type="date" name="date_cloture" value="${esc(d.date_cloture || '')}"></label>
-            <label class="loc-field">OP clôture<input name="cloture_op" value="${esc(d.cloture_op || '')}"></label>
-            <label class="loc-field loc-span-2">Notes<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
+          <div class="loc-card-body">
+            <div class="loc-grid-2">
+              <label class="loc-field">Nom<input name="p_nom" value="${esc(p.nom)}"></label>
+              <label class="loc-field">Prénom<input name="p_prenom" value="${esc(p.prenom)}"></label>
+              <label class="loc-field">Naissance<input type="date" name="p_dn" value="${esc(p.date_naissance || '')}"></label>
+              <label class="loc-field loc-span-2">Adresse<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
+            </div>
+            <div class="loc-grid-2" style="margin-top:10px">
+              <div class="loc-span-2">${LocationFields.blockHtml('phones', 'Téléphones')}</div>
+              <div class="loc-span-2">${LocationFields.blockHtml('mails', 'Mails')}</div>
+            </div>
           </div>
         </details>
 
-        <details open class="loc-card">
-          <summary>Appareil actif · historique</summary>
-          <div class="loc-appareil-actif loc-grid-2">
-            <label class="loc-field">Type<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
-            <label class="loc-field">Source<select name="a_source">
-              <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
-              <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
-            </select></label>
-            <label class="loc-field">Matricule<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
-            <label class="loc-field">N° pharmacie<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
-            <label class="loc-field">Obtention<select name="a_obtention">
-              <option value="">—</option>
-              <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
-              <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel</option>
-            </select></label>
-            <label class="loc-field">Livraison<select name="a_livraison">
-              <option value="">—</option>
-              <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
-              <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Patient</option>
-            </select></label>
-            <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite</label>
-            <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
-            ${a.type_appareil === 'pese_bebe' ? `
-              <label class="loc-check"><input type="checkbox" name="a_pese_avance"${a.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
-              <label class="loc-field">Période<select name="a_pese_periode">
-                <option value="semaine"${a.pese_bebe_periode === 'semaine' ? ' selected' : ''}>Semaine</option>
-                <option value="mois"${a.pese_bebe_periode === 'mois' ? ' selected' : ''}>Mois</option>
+        <details class="loc-card">
+          <summary>Dossier · ${esc(d.statut || '—')} · fin ${esc(d.date_fin || '—')}</summary>
+          <div class="loc-card-body">
+            <div class="loc-grid-2">
+              <label class="loc-field">Code OP<input name="code_op" value="${esc(d.code_op || '')}"></label>
+              <label class="loc-field">Caution<select name="caution">
+                <option value=""${!d.caution ? ' selected' : ''}>Rien</option>
+                <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
+                <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
               </select></label>
-            ` : ''}
-            ${a.type_appareil === 'tire_lait' ? `
-              <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
-            ` : ''}
-            <label class="loc-field loc-span-2">Encart<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
+              <label class="loc-field">Statut<select name="statut">
+                <option value="actif"${d.statut === 'actif' ? ' selected' : ''}>Actif</option>
+                <option value="cloture"${d.statut === 'cloture' ? ' selected' : ''}>Clôturé</option>
+                <option value="annule"${d.statut === 'annule' ? ' selected' : ''}>Annulé</option>
+              </select></label>
+              <label class="loc-field">Qui facture<select name="qui_facture">
+                <option value="pharmacie"${d.qui_facture === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
+                <option value="prestataire"${d.qui_facture === 'prestataire' ? ' selected' : ''}>Prestataire</option>
+              </select></label>
+              <label class="loc-field">Date début<input type="date" name="date_debut" value="${esc(d.date_debut || '')}"></label>
+              <label class="loc-field">Fin courante<input type="text" value="${esc(d.date_fin || '')}" disabled></label>
+              <label class="loc-check"><input type="checkbox" name="appareil_rendu"${d.appareil_rendu ? ' checked' : ''}> Appareil rendu</label>
+              <label class="loc-check"><input type="checkbox" name="caution_rendue"${d.caution_rendue ? ' checked' : ''}> Caution rendue</label>
+              <label class="loc-field">Caution rendue le<input type="date" name="caution_rendue_le" value="${esc(d.caution_rendue_le || '')}"></label>
+              <label class="loc-field">OP caution<input name="caution_rendue_op" value="${esc(d.caution_rendue_op || '')}"></label>
+              <label class="loc-field">Date clôture<input type="date" name="date_cloture" value="${esc(d.date_cloture || '')}"></label>
+              <label class="loc-field">OP clôture<input name="cloture_op" value="${esc(d.cloture_op || '')}"></label>
+              <label class="loc-field loc-span-2">Notes<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
+            </div>
           </div>
-          <h4>Historique</h4>
-          <ul class="loc-history">
-            ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.source || ''} · ${x.actif ? 'actif' : 'inactif'} · n° ${esc(x.numero_pharmacie || x.matricule || '—')} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
-          </ul>
-          <button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button>
-          <div id="suNewAppForm" hidden></div>
         </details>
 
-        <details open class="loc-card">
-          <summary>Prolongations</summary>
-          <ul class="loc-history">
-            ${(d.prolongations || []).map((pr) =>
-              `<li>${esc(pr.date_ordo || '')} · ${pr.duree} ${esc(pr.unite)} → fin ${esc(pr.date_fin || '')}${pr.notes ? ' · ' + esc(pr.notes) : ''}</li>`
-            ).join('') || '<li>Aucune</li>'}
-          </ul>
-          <div class="loc-grid-2" id="suProlongForm">
-            <label class="loc-field">Date ordo<input type="date" name="pr_ordo" value="${LocationRules.todayISO()}"></label>
-            <label class="loc-field">Durée<input type="number" min="1" name="pr_duree" value="1"></label>
-            <label class="loc-field">Unité<select name="pr_unite">
-              <option value="jours">Jours</option>
-              <option value="semaines" selected>Semaines</option>
-              <option value="mois">Mois</option>
-            </select></label>
-            <label class="loc-field">Notes<input name="pr_notes"></label>
+        <details class="loc-card">
+          <summary>Appareil · ${esc(LocationRules.typeLabel(a.type_appareil) || '—')}${appCount ? ` · ${appCount} hist.` : ''}</summary>
+          <div class="loc-card-body">
+            <div class="loc-appareil-actif loc-grid-2">
+              <label class="loc-field">Type<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
+              <label class="loc-field">Source<select name="a_source">
+                <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
+                <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
+              </select></label>
+              <label class="loc-field">Matricule<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
+              <label class="loc-field">N° pharmacie<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
+              <label class="loc-field">Obtention<select name="a_obtention">
+                <option value="">—</option>
+                <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
+                <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel</option>
+              </select></label>
+              <label class="loc-field">Livraison<select name="a_livraison">
+                <option value="">—</option>
+                <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
+                <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Patient</option>
+              </select></label>
+              <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite</label>
+              <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
+              ${a.type_appareil === 'pese_bebe' ? `
+                <label class="loc-check"><input type="checkbox" name="a_pese_avance"${a.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
+                <label class="loc-field">Période<select name="a_pese_periode">
+                  <option value="semaine"${a.pese_bebe_periode === 'semaine' ? ' selected' : ''}>Semaine</option>
+                  <option value="mois"${a.pese_bebe_periode === 'mois' ? ' selected' : ''}>Mois</option>
+                </select></label>
+              ` : ''}
+              ${a.type_appareil === 'tire_lait' ? `
+                <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
+              ` : ''}
+              <label class="loc-field loc-span-2">Encart<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
+            </div>
+            <h4>Historique</h4>
+            <ul class="loc-history">
+              ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.source || ''} · ${x.actif ? 'actif' : 'inactif'} · n° ${esc(x.numero_pharmacie || x.matricule || '—')} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
+            </ul>
+            <button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button>
+            <div id="suNewAppForm" hidden></div>
           </div>
-          <button type="button" class="loc-btn loc-btn-ghost" id="suAddProlong">Ajouter prolongation</button>
         </details>
 
-        <details open class="loc-card">
-          <summary>Tableau de suivi (éditable)</summary>
-          <div class="loc-table-wrap">
-            <table class="loc-table" id="suSuiviTable">
-              <thead><tr><th>Date</th><th>Libellé</th><th>Détails</th><th></th></tr></thead>
-              <tbody>
-                ${(d.suivi || []).map((s) => `
-                  <tr data-id="${s.id}">
-                    <td><input type="date" value="${esc(s.date_ligne || '')}" data-f="date_ligne"></td>
-                    <td><input value="${esc(s.libelle || '')}" data-f="libelle"></td>
-                    <td><input value="${esc(s.details || '')}" data-f="details"></td>
-                    <td><button type="button" class="loc-icon-btn" data-del="${s.id}" title="Supprimer">✕</button></td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
+        <details class="loc-card">
+          <summary>Prolongations${prolongCount ? ` · ${prolongCount}` : ''}</summary>
+          <div class="loc-card-body">
+            <ul class="loc-history">
+              ${(d.prolongations || []).map((pr) =>
+                `<li>${esc(pr.date_ordo || '')} · ${pr.duree} ${esc(pr.unite)} → fin ${esc(pr.date_fin || '')}${pr.notes ? ' · ' + esc(pr.notes) : ''}</li>`
+              ).join('') || '<li>Aucune</li>'}
+            </ul>
+            <div class="loc-grid-2" id="suProlongForm">
+              <label class="loc-field">Date ordo<input type="date" name="pr_ordo" value="${LocationRules.todayISO()}"></label>
+              <label class="loc-field">Durée<input type="number" min="1" name="pr_duree" value="1"></label>
+              <label class="loc-field">Unité<select name="pr_unite">
+                <option value="jours">Jours</option>
+                <option value="semaines" selected>Semaines</option>
+                <option value="mois">Mois</option>
+              </select></label>
+              <label class="loc-field">Notes<input name="pr_notes"></label>
+            </div>
+            <button type="button" class="loc-btn loc-btn-ghost" id="suAddProlong">Ajouter prolongation</button>
           </div>
-          <button type="button" class="loc-btn loc-btn-ghost" id="suAddLigne">Ajouter une ligne</button>
         </details>
+
+        <details class="loc-card">
+          <summary>Contacts / appels${contactCount ? ` · ${contactCount}` : ''}</summary>
+          <div class="loc-card-body">
+            <ul class="loc-history">
+              ${(d.contacts || []).map((c) => {
+                const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
+                const stMap = {
+                  a_contacter: 'À contacter',
+                  en_cours: 'En cours',
+                  reporte: 'À rappeler',
+                  contacte: 'Contacté',
+                  resolu: 'Résolu',
+                };
+                const bits = [
+                  when || '—',
+                  c.motif || '',
+                  stMap[c.statut] || c.statut || '',
+                  c.resultat || '',
+                  c.commentaire || '',
+                ].filter(Boolean);
+                return `<li>${esc(bits.join(' · '))}</li>`;
+              }).join('') || '<li>Aucun</li>'}
+            </ul>
+          </div>
+        </details>
+        </div>
       `;
+
+      wireAccordion(detailEl.querySelector('.loc-accordion'));
 
       LocationFields.mountPhones(
         detailEl.querySelector('#phonesList'),
@@ -272,22 +335,7 @@
       });
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
-      detailEl.querySelector('#suAddLigne').addEventListener('click', () => addLigne(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
-      detailEl.querySelectorAll('[data-del]').forEach((b) => {
-        b.addEventListener('click', async () => {
-          if (!canDelete) {
-            showMsg('Suppression réservée aux gestionnaires / administrateurs.', true);
-            return;
-          }
-          try {
-            await LocationData.deleteSuiviLigne(b.dataset.del);
-            openDetail(d.id);
-          } catch (e) {
-            showMsg(e.message, true);
-          }
-        });
-      });
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
     }
 
@@ -394,16 +442,6 @@
           }
           await LocationData.updateAppareil(d.appareil_actif.id, appPatch);
         }
-        const trs = detailEl.querySelectorAll('#suSuiviTable tbody tr[data-id]');
-        for (const tr of trs) {
-          await LocationData.upsertSuiviLigne({
-            id: tr.dataset.id,
-            dossier_id: d.id,
-            date_ligne: tr.querySelector('[data-f=date_ligne]').value || null,
-            libelle: tr.querySelector('[data-f=libelle]').value.trim() || null,
-            details: tr.querySelector('[data-f=details]').value.trim() || null,
-          });
-        }
         showMsg('Enregistré.');
         await refresh();
         await openDetail(d.id);
@@ -436,22 +474,6 @@
           ctx.userId
         );
         showMsg('Prolongation ajoutée.');
-        openDetail(d.id);
-      } catch (e) {
-        showMsg(e.message, true);
-      }
-    }
-
-    async function addLigne(d) {
-      try {
-        await LocationData.upsertSuiviLigne({
-          dossier_id: d.id,
-          appareil_id: d.appareil_actif?.id || null,
-          date_ligne: LocationRules.todayISO(),
-          libelle: '',
-          details: '',
-          created_by: ctx.userId || null,
-        });
         openDetail(d.id);
       } catch (e) {
         showMsg(e.message, true);

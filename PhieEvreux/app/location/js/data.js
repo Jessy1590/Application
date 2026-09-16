@@ -183,6 +183,11 @@
     const suivi = (d.suivi || []).slice().sort((a, b) =>
       String(a.date_ligne || a.created_at || '').localeCompare(String(b.date_ligne || b.created_at || ''))
     );
+    const contacts = (d.contacts || []).slice().sort((a, b) =>
+      String(a.contacted_at || a.created_at || '').localeCompare(
+        String(b.contacted_at || b.created_at || '')
+      )
+    );
     const appareil_actif = appareils.find((a) => a.actif) || appareils[0] || null;
     const date_fin = prolongations.reduce((max, p) => {
       if (!p.date_fin) return max;
@@ -194,6 +199,7 @@
       appareils,
       prolongations,
       suivi,
+      contacts,
       appareil_actif,
       date_fin,
     };

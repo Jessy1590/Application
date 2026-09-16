@@ -276,12 +276,27 @@ body {
 }
 
 .loc-form-actions,
-.loc-toolbar {
+.loc-toolbar,
+.loc-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
+
+.loc-toggle-btn.is-active {
+  border-color: var(--loc-accent);
+  color: var(--loc-accent);
+}
+
+.loc-filters {
+  padding: 10px 12px;
+  border: 1px solid var(--loc-line);
+  border-radius: 12px;
+  background: var(--loc-elev);
+}
+
+.loc-filters[hidden] { display: none !important; }
 
 .loc-btn {
   border: none;
@@ -350,13 +365,20 @@ html[data-theme="light"] .loc-btn { color: #fff; }
 
 @media (min-width: 860px) {
   .loc-split { grid-template-columns: minmax(240px, 320px) 1fr; align-items: start; }
+  .loc-split.is-list-collapsed { grid-template-columns: 1fr; }
 }
+
+.loc-list-panel[hidden] { display: none !important; }
 
 .loc-list {
   display: grid;
   gap: 8px;
   max-height: min(70vh, 720px);
   overflow: auto;
+}
+
+@media (max-width: 859px) {
+  .loc-list { max-height: min(40vh, 320px); }
 }
 
 .loc-list-item {
@@ -408,16 +430,60 @@ html[data-theme="light"] .loc-btn { color: #fff; }
 
 .loc-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.loc-accordion {
+  display: grid;
+  gap: 8px;
+}
+
 .loc-card {
   border: 1px solid var(--loc-line);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 0;
+  background: color-mix(in srgb, var(--loc-bg) 55%, var(--loc-elev));
+  overflow: hidden;
 }
 
 .loc-card summary {
   cursor: pointer;
   font-weight: 700;
-  margin-bottom: 8px;
+  font-size: 14px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  user-select: none;
+}
+
+.loc-card summary::-webkit-details-marker { display: none; }
+
+.loc-card summary::after {
+  content: '▸';
+  flex-shrink: 0;
+  color: var(--loc-muted);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+
+.loc-card[open] summary::after { transform: rotate(90deg); }
+
+.loc-card[open] summary {
+  border-bottom: 1px solid var(--loc-line);
+  margin-bottom: 0;
+}
+
+.loc-card-body {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.loc-card-body > h4 {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--loc-muted);
 }
 
 .loc-grid-2 {
