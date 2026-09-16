@@ -131,9 +131,6 @@
       const message = interpolate(rawMsg, msgVars);
 
       if (rule.action === 'info_creation') {
-        if (!ctx.type_appareil || !rule.type_appareil || rule.type_appareil === ctx.type_appareil) {
-          infos.push({ code: rule.code, message, rule });
-        }
         continue;
       }
 
@@ -193,12 +190,6 @@
   }
 
   function matchConditions(cond, ctx, rule) {
-    if (cond.rappel_electrodes || cond.facturer_masque || cond.regler_avance) {
-      // info only — handled separately
-      return false;
-    }
-    if (cond.duree_initiale != null) return false;
-
     if (cond.max_duree != null && cond.unite) {
       const days = durationDays(ctx.date_debut, ctx.date_fin || todayISO());
       if (days == null) return false;
