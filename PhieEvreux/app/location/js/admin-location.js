@@ -676,7 +676,9 @@
               </select></label>
               <label class="loc-field">Titre<input data-f="titre" value="${esc(r.titre)}"></label>
               <label class="loc-field loc-span-2">Texte du commentaire<textarea data-f="corps" rows="4">${esc(r.corps || '')}</textarea></label>
-              <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
+              <div class="loc-row-actions">
+                <button type="button" class="loc-btn loc-btn-ghost" data-del-tpl>Supprimer</button>
+              </div>
             </div>`
               )
               .join('') || '<p class="loc-muted">Aucun template pour ce motif.</p>'
@@ -700,7 +702,6 @@
               motif: selectedMotif,
               type_appareil: row.querySelector('[data-f=type_appareil]').value || null,
               corps: row.querySelector('[data-f=corps]').value,
-              actif: row.querySelector('[data-f=actif]').checked,
             });
             showMsg('Template enregistré.');
           } catch (e) {
@@ -709,6 +710,16 @@
         };
         row.querySelectorAll('input, select, textarea').forEach((el) => {
           el.addEventListener('change', save);
+        });
+        row.querySelector('[data-del-tpl]')?.addEventListener('click', async () => {
+          if (!confirm('Supprimer définitivement ce template ?')) return;
+          try {
+            await LocationData.deleteTemplate(row.dataset.id);
+            showMsg('Template supprimé.');
+            await renderTemplates();
+          } catch (e) {
+            showMsg(e.message || 'Suppression impossible', true);
+          }
         });
       });
     }

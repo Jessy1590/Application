@@ -207,6 +207,10 @@
 
   function dossierContext(d) {
     const a = d.appareil_actif || {};
+    const prolongs = (d.prolongations || []).slice().sort((x, y) =>
+      String(y.date_fin || y.created_at || '').localeCompare(String(x.date_fin || x.created_at || ''))
+    );
+    const lastProlong = prolongs[0] || null;
     return {
       type_appareil: a.type_appareil,
       date_debut: d.date_debut || a.date_debut,
@@ -216,6 +220,8 @@
       facturation_prestataire: a.facturation_prestataire,
       statut: d.statut,
       has_prolongation: (d.prolongations || []).length > 1,
+      prolong_duree: lastProlong != null ? lastProlong.duree : null,
+      prolong_unite: lastProlong != null ? lastProlong.unite : null,
     };
   }
 
