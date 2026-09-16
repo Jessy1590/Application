@@ -18,12 +18,8 @@
 <style>body{display:none}</style>
 <script src="../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
-<<<<<<< Updated upstream
-<link rel="stylesheet" href="style.css?v=20260912b">
-=======
 <link rel="stylesheet" href="hub.css">
 <link rel="stylesheet" href="shared/fab.css">
->>>>>>> Stashed changes
 </head>
 <body>
   <div id="hubToast" class="hub-toast" hidden></div>
@@ -39,111 +35,6 @@
     </button>
   </header>
 
-<<<<<<< Updated upstream
-  <main class="views">
-    <section class="view active" id="view-form" data-view="form">
-      <form id="newForm" class="card form-card" autocomplete="off">
-        <div class="form-title-row">
-          <h2>Nouvelle fiche</h2>
-          <button type="button" class="btn add-btn" id="openAiFillBtn">Photo → IA</button>
-        </div>
-        <label>Nom
-          <input name="nom" required enterkeyhint="next" autocapitalize="characters">
-        </label>
-        <label>Prénom
-          <input name="prenom" required enterkeyhint="next" autocapitalize="words">
-        </label>
-        <label>Date de naissance
-          <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required autocomplete="bday">
-        </label>
-        <label>Type de location
-          <select name="type_location" id="newType" required></select>
-        </label>
-        <label class="hidden" id="newTypeAutreWrap">Nouveau type d’appareil
-          <input type="text" id="newTypeAutre" placeholder="Ex. Concentrateur d’oxygène" autocapitalize="sentences">
-        </label>
-        <label>Date nécessaire pour nouvelle ordonnance
-          <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10" required>
-        </label>
-        <div class="phones-block">
-          <div class="phones-head">
-            <span>Téléphones</span>
-            <button type="button" class="btn add-btn" id="addPhoneBtn">＋ Ajouter</button>
-          </div>
-          <div id="phonesList" class="phones-list"></div>
-        </div>
-        <label>Commentaire
-          <textarea name="commentaire" rows="3" placeholder="Notes utiles…"></textarea>
-        </label>
-        <button type="submit" class="btn primary block" id="submitFormBtn">Créer la fiche</button>
-      </form>
-    </section>
-
-    <section class="view" id="view-comments" data-view="comments">
-      <div id="commentsEmpty" class="empty hidden">
-        <p class="empty-title">Aucune fiche en attente</p>
-        <p class="empty-sub">Toutes les fiches ont le statut commentaire ECRIS.</p>
-      </div>
-      <div id="swipeStage" class="swipe-stage">
-        <article class="swipe-card" id="swipeCard">
-          <div class="swipe-type" id="cardType">—</div>
-          <h2 id="cardName">—</h2>
-          <dl class="meta">
-            <div><dt>Naissance</dt><dd id="cardBirth">—</dd></div>
-            <div><dt>Ordonnance</dt><dd id="cardOrdo">—</dd></div>
-          </dl>
-          <p class="card-comment" id="cardComment">—</p>
-          <div class="phones-block on-card">
-            <div class="phones-head">
-              <span>Téléphones</span>
-              <button type="button" class="btn add-btn" id="cardAddPhoneBtn">＋ Ajouter</button>
-            </div>
-            <div id="cardPhonesList" class="phones-list"></div>
-          </div>
-          <label class="check-row">
-            <input type="checkbox" id="commentDoneCheck">
-            <span>Commentaire mis sur le compte du patient</span>
-          </label>
-          <label class="check-row">
-            <input type="checkbox" id="mailAlreadyCheck">
-            <span>Mail déjà envoyé</span>
-          </label>
-          <button type="button" class="btn primary block" id="validateCommentBtn" disabled>Valider comme effectué</button>
-        </article>
-        <button type="button" class="skip-arrow" id="commentsSkipBtn" aria-label="Fiche suivante" title="Fiche suivante">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-        </button>
-      </div>
-      <p class="hint" id="commentsHint"></p>
-    </section>
-
-    <section class="view" id="view-calls" data-view="calls">
-      <div id="callsEmpty" class="empty hidden">
-        <p class="empty-title">Aucun appel en attente</p>
-        <p class="empty-sub">Seules les fiches avec commentaire ECRIS apparaissent ici.</p>
-      </div>
-      <div id="callSwipeStage" class="call-stage hidden">
-        <label class="patient-pick">
-          <span>Patient</span>
-          <select id="callPatientSelect" aria-label="Sélectionner le patient"></select>
-        </label>
-        <div class="swipe-stage">
-          <article class="swipe-card call-swipe-card" id="callSwipeCard">
-            <div class="swipe-type" id="callType">—</div>
-            <h2 id="callName">—</h2>
-            <p class="muted" id="callMeta">—</p>
-            <div id="callJournal" class="journal-box hidden"></div>
-            <div id="callPhones" class="phone-actions"></div>
-            <div id="callSteps" class="call-steps"></div>
-          </article>
-          <button type="button" class="skip-arrow" id="callsSkipBtn" aria-label="Appel suivant" title="Appel suivant">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-          </button>
-        </div>
-      </div>
-      <p class="hint" id="callsHint"></p>
-    </section>
-=======
   <main class="hub-grid">
     <a class="hub-card" href="app/anciennelocation/">
       <p class="hub-card-kicker">App</p>
@@ -157,7 +48,6 @@
       <p class="hub-card-desc">Création, suivi et contact — nouvelle application.</p>
       <span class="hub-card-arrow" aria-hidden="true">→</span>
     </a>
->>>>>>> Stashed changes
   </main>
 
   <div class="hub-admin-sheet" id="hubAdminSheet" hidden>
@@ -200,216 +90,6 @@
     </div>
   </div>
 
-<<<<<<< Updated upstream
-  <div class="sheet" id="editSheet" hidden>
-    <div class="sheet-backdrop" data-close-sheet></div>
-    <div class="sheet-panel" role="dialog" aria-labelledby="editTitle">
-      <div class="sheet-head">
-        <h2 id="editTitle">Fiches</h2>
-        <button type="button" class="icon-btn" data-close-sheet aria-label="Fermer">✕</button>
-      </div>
-      <div class="edit-filters">
-        <input type="search" id="filterSearch" placeholder="Rechercher nom / prénom…" autocomplete="off">
-        <div class="edit-filters-grid">
-          <select id="filterStatut">
-            <option value="">Statut — tous</option>
-            <option value="a_appeler">À appeler</option>
-            <option value="a_rappeler">À rappeler</option>
-            <option value="termine">Terminé</option>
-            <option value="PERTE">PERTE</option>
-          </select>
-          <select id="filterResultat">
-            <option value="">Résultat — tous</option>
-            <option value="__none__">Sans résultat</option>
-            <option value="ramene_semaine">Ramène semaine</option>
-            <option value="ordo_mail">Ordo mail</option>
-            <option value="ordo_mail_a_faire">Ordo mail — À faire</option>
-            <option value="message_repondeur">Message</option>
-            <option value="raccroche">Raccroché</option>
-            <option value="mauvais_numero">Mauvais n°</option>
-            <option value="pas_de_numero">Pas de n°</option>
-            <option value="autre_raison">Autre raison</option>
-          </select>
-          <select id="filterMail">
-            <option value="">Mail — tous</option>
-            <option value="oui">Mail envoyé</option>
-            <option value="non">Pas de mail</option>
-          </select>
-          <select id="filterType">
-            <option value="">Type — tous</option>
-          </select>
-        </div>
-      </div>
-      <p class="muted tiny" id="editCount"></p>
-      <div id="editList" class="edit-list"></div>
-    </div>
-  </div>
-
-  <div class="sheet" id="editFormSheet" hidden>
-    <div class="sheet-backdrop" data-close-edit-form></div>
-    <div class="sheet-panel" role="dialog" aria-labelledby="editFormTitle">
-      <div class="sheet-head">
-        <h2 id="editFormTitle">Modifier</h2>
-        <button type="button" class="icon-btn" data-close-edit-form aria-label="Fermer">✕</button>
-      </div>
-      <div class="edit-summary" id="editSummary"></div>
-      <form id="editForm" class="form-card flat">
-        <input type="hidden" name="id">
-        <label>Nom<input name="nom" required></label>
-        <label>Prénom<input name="prenom" required></label>
-        <label>Date de naissance
-          <input name="date_naissance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
-        </label>
-        <label>Type
-          <select name="type_location" id="editType" required></select>
-        </label>
-        <label class="hidden" id="editTypeAutreWrap">Nouveau type d’appareil
-          <input type="text" id="editTypeAutre" placeholder="Ex. Concentrateur d’oxygène" autocapitalize="sentences">
-        </label>
-        <label>Date ordonnance
-          <input name="date_ordonnance" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
-        </label>
-        <div class="phones-block">
-          <div class="phones-head">
-            <span>Téléphones</span>
-            <button type="button" class="btn add-btn" id="editAddPhoneBtn">＋ Ajouter</button>
-          </div>
-          <div id="editPhonesList" class="phones-list"></div>
-        </div>
-        <label>Commentaire<textarea name="commentaire" rows="3"></textarea></label>
-        <label>Statut commentaire
-          <select name="commentaire_statut">
-            <option value="">— (en attente)</option>
-            <option value="ECRIS">ECRIS</option>
-          </select>
-        </label>
-        <label>Statut appel / dossier
-          <select name="appel_statut" id="editAppelStatut">
-            <option value="a_appeler">À appeler</option>
-            <option value="a_rappeler">À rappeler</option>
-            <option value="termine">Terminé</option>
-            <option value="PERTE">PERTE</option>
-          </select>
-        </label>
-        <label>Résultat d’appel
-          <select name="appel_resultat" id="editAppelResultat">
-            <option value="">— (aucun / à recommencer)</option>
-            <option value="ramene_semaine">Ramène appareil dans la semaine</option>
-            <option value="ordo_mail">Envoie ordonnance par mail</option>
-            <option value="ordo_mail_a_faire">Envoie ordonnance par mail — À faire</option>
-            <option value="message_repondeur">Message sur le répondeur</option>
-            <option value="raccroche">Raccroché</option>
-            <option value="mauvais_numero">Mauvais numéro</option>
-            <option value="pas_de_numero">Pas de numéro</option>
-            <option value="autre_raison">Autre raison</option>
-          </select>
-        </label>
-        <p class="hint-edit">Pour recommencer un suivi (ex. pas venu après « ramène la semaine ») : résultat → — et statut → À rappeler. PERTE n’est pas proposé quand le patient ramène l’appareil ou envoie l’ordonnance.</p>
-        <label>Journal / suivi
-          <textarea name="journal" rows="4" placeholder="Historique appels, mails…"></textarea>
-        </label>
-        <label class="check-row compact">
-          <input type="checkbox" name="mail_envoye">
-          <span>Mail envoyé</span>
-        </label>
-        <button type="submit" class="btn primary block">Enregistrer</button>
-        <button type="button" class="btn danger ghost block" id="deleteFicheBtn">Supprimer</button>
-      </form>
-    </div>
-  </div>
-
-  <div class="sheet" id="printSheet" hidden>
-    <div class="sheet-backdrop" data-close-print></div>
-    <div class="sheet-panel" role="dialog" aria-labelledby="printTitle">
-      <div class="sheet-head">
-        <h2 id="printTitle">Imprimer</h2>
-        <button type="button" class="icon-btn" data-close-print aria-label="Fermer">✕</button>
-      </div>
-      <div class="edit-filters">
-        <div class="edit-filters-grid">
-          <select id="printStatut" aria-label="Filtrer par statut">
-            <option value="">Statut — tous</option>
-            <option value="a_appeler">À appeler</option>
-            <option value="a_rappeler">À rappeler</option>
-            <option value="termine">Terminé</option>
-            <option value="PERTE">PERTE</option>
-          </select>
-          <select id="printResultat" aria-label="Filtrer par résultat">
-            <option value="">Résultat — tous</option>
-            <option value="__none__">Sans résultat</option>
-            <option value="ramene_semaine">Ramène semaine</option>
-            <option value="ordo_mail">Ordo mail</option>
-            <option value="ordo_mail_a_faire">Ordo mail — À faire</option>
-            <option value="message_repondeur">Message</option>
-            <option value="raccroche">Raccroché</option>
-            <option value="mauvais_numero">Mauvais n°</option>
-            <option value="pas_de_numero">Pas de n°</option>
-            <option value="autre_raison">Autre raison</option>
-          </select>
-          <select id="printType" aria-label="Filtrer par type d’appareil">
-            <option value="">Type — tous</option>
-          </select>
-        </div>
-      </div>
-      <label class="inline-field">Date ordonnance — à partir du
-        <input id="printOrdoMin" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
-      </label>
-      <label class="inline-field">Date ordonnance — jusqu’au
-        <input id="printOrdoMax" class="date-mask" type="text" inputmode="numeric" placeholder="JJ/MM/AAAA" maxlength="10">
-      </label>
-      <p class="hint-edit">Laissez une date vide pour n’avoir qu’un minimum ou qu’un maximum.</p>
-      <p class="print-cols-title">Colonnes du tableau</p>
-      <div class="print-cols" id="printCols">
-        <label class="check-row compact"><input type="checkbox" data-print-col="identite" checked><span>Identité</span></label>
-        <label class="check-row compact"><input type="checkbox" data-print-col="location" checked><span>Location</span></label>
-        <label class="check-row compact"><input type="checkbox" data-print-col="commentaire" checked><span>Commentaire</span></label>
-        <label class="check-row compact"><input type="checkbox" data-print-col="compte" checked><span>Compte</span></label>
-        <label class="check-row compact"><input type="checkbox" data-print-col="appel" checked><span>Appel</span></label>
-        <label class="check-row compact"><input type="checkbox" data-print-col="suivi" checked><span>Suivi</span></label>
-      </div>
-      <p class="muted tiny" id="printCount"></p>
-      <button type="button" class="btn primary block" id="printRunBtn">Imprimer</button>
-    </div>
-  </div>
-
-  <div id="printRoot" class="print-root" hidden>
-    <h1>Phie Evreux — Locations</h1>
-    <p class="print-date" id="printDate"></p>
-    <p class="print-filters" id="printFilters"></p>
-    <table>
-      <thead>
-        <tr id="printHead"></tr>
-      </thead>
-      <tbody id="printBody"></tbody>
-    </table>
-  </div>
-
-  <div class="fabs">
-    <button type="button" class="fab" id="fabEdit" title="Revoir / modifier les fiches" aria-label="Modifier">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-    </button>
-    <button type="button" class="fab" id="fabPrint" title="Imprimer le tableau" aria-label="Imprimer">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-    </button>
-  </div>
-
-  <nav class="tabbar" aria-label="Modules">
-    <button type="button" class="tab active" data-tab="form">
-      <span class="tab-ico">＋</span>
-      <span>Nouveau</span>
-    </button>
-    <button type="button" class="tab" data-tab="comments">
-      <span class="tab-ico">✓</span>
-      <span>Comptes</span>
-    </button>
-    <button type="button" class="tab" data-tab="calls">
-      <span class="tab-ico">☎</span>
-      <span>Appels</span>
-    </button>
-  </nav>
-
-  <script src="app.js?v=20260912b"></script>
-=======
   <script src="shared/supabase-apps.js"></script>
   <script src="shared/theme.js"></script>
   <script src="shared/equipe.js"></script>
@@ -417,6 +97,5 @@
   <script src="shared/bugs.js"></script>
   <script src="shared/fab.js"></script>
   <script src="hub.js"></script>
->>>>>>> Stashed changes
 </body>
 </html>

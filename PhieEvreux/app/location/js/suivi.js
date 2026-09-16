@@ -226,19 +226,15 @@
         </details>
       `;
 
-      // Fix typo in mails input - I had a broken quote. Let me check...
-      // Actually looking at my write: `value="${esc(LocationData.joinList(p.mails))}"` - wait I wrote:
-      // `value="${esc(LocationData.joinList(p.mails))"` - MISSING closing }
-      // I need to fix that!
-
       detailEl.querySelector('#suPrint').addEventListener('click', () => LocationPrint.printFiche(d));
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suAddLigne').addEventListener('click', () => addLigne(d));
       detailEl.querySelectorAll('[data-del]').forEach((b) => {
         b.addEventListener('click', async () => {
-          if (!canDelete && !ctx.isAdmin) {
-            /* personnel can still edit suivi per plan - deletion of lignes: allow gestionnaire+ */
+          if (!canDelete) {
+            showMsg('Suppression réservée aux gestionnaires / administrateurs.', true);
+            return;
           }
           try {
             await LocationData.deleteSuiviLigne(b.dataset.del);
