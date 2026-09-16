@@ -213,20 +213,24 @@
     function renderDetail(d, rules, params) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
-      const canDelete = ctx.isAdmin || ctx.isGestionnaire;
+      const canDelete = typeof ctx.can === 'function'
+        ? ctx.can('suppression_dossier')
+        : !!(ctx.isAdmin || ctx.isGestionnaire);
+      const canPrint = typeof ctx.can === 'function' ? ctx.can('impression_fiche') : true;
+      const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
       const prest = a.source === 'prestataire';
       const parc = !prest;
       const prolongCount = (d.prolongations || []).length;
       const appCount = (d.appareils || []).length;
       const contactCount = (d.contacts || []).length;
-      const canCloturer = d.statut === 'actif';
+      const canCloturer = canCloturerRole && d.statut === 'actif';
       const fauteuilNote = fauteuilBasculeNote(d, rules, params);
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
           <h3>${esc(p.nom)} ${esc(p.prenom)}</h3>
           <div class="loc-detail-actions">
-            <button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>
+            ${canPrint ? '<button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>' : ''}
             <button type="button" class="loc-btn" id="suSave">Enregistrer</button>
             ${canCloturer ? '<button type="button" class="loc-btn" id="suCloturer">Clôturer le dossier</button>' : ''}
             ${canDelete ? '<button type="button" class="loc-btn loc-btn-ghost" id="suDelete">Supprimer</button>' : ''}
@@ -404,12 +408,22 @@
         p.mails || []
       );
 
-      detailEl.querySelector('#suPrint').addEventListener('click', () => {
+      detailEl.querySelector('#suPrint')?.addEventListener('click', () => {
+        if (typeof ctx.can === 'function' && !ctx.can('impression_fiche')) {
+          showMsg('Impression non autorisée pour votre rôle.', true);
+          return;
+        }
         // d déjà chargé via getDossier dans openDetail — print synchrone (geste utilisateur)
         void LocationPrint.printFiche(d);
       });
       detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
-      detailEl.querySelector('#suCloturer')?.addEventListener('click', () => openClotureModal(d));
+      detailEl.querySelector('#suCloturer')?.addEventListener('click', () => {
+        if (typeof ctx.can === 'function' && !ctx.can('cloture_dossier')) {
+          showMsg('Clôture non autorisée pour votre rôle.', true);
+          return;
+        }
+        openClotureModal(d);
+      });
       detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
@@ -565,9 +579,11 @@
     }
 
     async function deleteFiche(d) {
-      const canDelete = ctx.isAdmin || ctx.isGestionnaire;
+      const canDelete = typeof ctx.can === 'function'
+        ? ctx.can('suppression_dossier')
+        : !!(ctx.isAdmin || ctx.isGestionnaire);
       if (!canDelete) {
-        showMsg('Suppression réservée aux gestionnaires / administrateurs.', true);
+        showMsg('Suppression non autorisée pour votre rôle.', true);
         return;
       }
       const p = d.patient || {};

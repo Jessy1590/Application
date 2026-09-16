@@ -18,11 +18,17 @@
     }
   }
 
-  function ctxFromSnap(snap) {
+  function ctxFromSnap(snap, matrix) {
+    const role = LocationAccess.resolveRole(snap);
     return {
       userId: snap?.userId || null,
       isAdmin: !!snap?.isAdmin,
       isGestionnaire: !!snap?.isGestionnaire,
+      role,
+      matrix,
+      can(feature) {
+        return LocationAccess.can(role, feature, matrix);
+      },
       initialDossierId: null,
       openSuivi(dossierId) {
         const q = dossierId ? `?id=${encodeURIComponent(dossierId)}` : '';
@@ -64,7 +70,21 @@
       snap = null;
     }
 
-    const ctx = ctxFromSnap(snap);
+    let matrix = null;
+    try {
+      matrix = await LocationAccess.loadMatrix();
+    } catch (_) {
+      matrix = LocationAccess.cloneDefaults();
+    }
+
+    const moduleFeature = LocationAccess.featureForModule(name);
+    if (moduleFeature && !LocationAccess.can(LocationAccess.resolveRole(snap), moduleFeature, matrix)) {
+      root.innerHTML =
+        '<p class="loc-msg loc-msg-err">Accès refusé pour votre rôle. <a href="index.html">Retour</a></p>';
+      return;
+    }
+
+    const ctx = ctxFromSnap(snap, matrix);
     if (name === 'suivi') ctx.initialDossierId = queryId();
 
     root.innerHTML = '<p class="loc-muted">Chargement…</p>';

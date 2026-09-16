@@ -21,15 +21,27 @@
       snap = null;
     }
 
-    if (!snap?.isAdmin) {
-      root.innerHTML = '<p class="loc-msg loc-msg-err">Réservé aux administrateurs. <a href="index.html">Retour</a></p>';
+    let matrix = null;
+    try {
+      matrix = await LocationAccess.loadMatrix();
+    } catch (_) {
+      matrix = LocationAccess.cloneDefaults();
+    }
+
+    const role = LocationAccess.resolveRole(snap);
+    if (!LocationAccess.can(role, 'parametres_location', matrix)) {
+      root.innerHTML =
+        '<p class="loc-msg loc-msg-err">Réservé aux administrateurs. <a href="index.html">Retour</a></p>';
       return;
     }
 
     await LocationAdmin.mount(root, {
-      userId: snap.userId || null,
-      isAdmin: true,
-      isGestionnaire: !!snap.isGestionnaire,
+      userId: snap?.userId || null,
+      isAdmin: !!snap?.isAdmin,
+      isGestionnaire: !!snap?.isGestionnaire,
+      canAccessParams: true,
+      role,
+      matrix,
     });
   }
 

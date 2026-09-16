@@ -230,7 +230,7 @@
   }
 
   async function mount(container, ctx) {
-    if (!ctx?.isAdmin) {
+    if (!ctx?.isAdmin && !ctx?.canAccessParams) {
       container.innerHTML = '<p class="loc-msg loc-msg-err">Réservé aux administrateurs.</p>';
       return;
     }
@@ -290,41 +290,51 @@
         else if (tab === 'prestataires') await renderPrestataires();
         else if (tab === 'regles') await renderRegles();
         else if (tab === 'templates') await renderTemplates();
-        else if (tab === 'acces') renderAcces();
+        else if (tab === 'acces') await renderAcces();
         else await renderChampsCreation();
       } catch (e) {
         body.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
     }
 
-    /** Matrice lecture seule — droits réellement appliqués dans le code Location / PhieEquipe. */
-    function renderAcces() {
-      const YES = 'Oui';
-      const NO = 'Non';
-      const rows = [
-        { label: 'Module Création', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Module Suivi (consultation / édition)', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Module Contact', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Module Facture', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Impression fiche (Suivi)', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Clôture de dossier (Suivi)', personnel: YES, gestionnaire: YES, administrateur: YES },
-        { label: 'Suppression de dossier (Suivi)', personnel: NO, gestionnaire: YES, administrateur: YES },
-        { label: 'Paramètres Location (tuile + page)', personnel: NO, gestionnaire: NO, administrateur: YES },
-        {
-          label: 'Hub — équipe, invitations, gestion bugs',
-          personnel: NO,
-          gestionnaire: NO,
-          administrateur: YES,
-        },
-      ];
-      const cell = (v) =>
-        v === YES
-          ? `<td>${esc(YES)}</td>`
-          : `<td class="loc-muted">${esc(NO)}</td>`;
+    /** Matrice éditable — persistée dans location_parametres.acces_roles. */
+    async function renderAcces() {
+      LocationData.invalidateCache();
+      LocationAccess.invalidate();
+      const matrix = await LocationAccess.loadMatrix(true);
+      const roles = LocationAccess.ROLES;
+      const canEditAcces = !!ctx.isAdmin;
+
+      const cell = (featureKey, role, featureEditable) => {
+        const locked = LocationAccess.isLocked(featureKey, role);
+        const on = !!matrix[featureKey]?.[role];
+        const disabled = !canEditAcces || !featureEditable || locked;
+        const title = locked
+          ? 'Toujours autorisé pour l’administrateur (verrouillé)'
+          : !featureEditable
+            ? 'Géré par PhieEquipe sur le hub (hors matrice Location)'
+            : !canEditAcces
+              ? 'Modification réservée aux administrateurs'
+              : '';
+        return `<td class="loc-acces-cell">
+          <label class="loc-check-inline" title="${esc(title)}">
+            <input type="checkbox" data-acces-feature="${esc(featureKey)}" data-acces-role="${esc(role)}"${
+              on ? ' checked' : ''
+            }${disabled ? ' disabled' : ''}>
+          </label>
+        </td>`;
+      };
+
       body.innerHTML = `
         <h3>Accès par rôle</h3>
-        <p class="loc-muted">Lecture seule — comportement actuel de l’application (pas de modification ici).</p>
+        <p class="loc-muted">L’UI Location suit cette matrice ; la RLS reste la source de vérité serveur.</p>
         <p class="loc-muted">Administrateur = rôle équipe <code>administrateur</code> ou profil portail <code>admin</code>.</p>
+        <p class="loc-muted">Hub (équipe / invitations / bugs) : non piloté ici — reste <code>PhieEquipe</code> (admin uniquement).</p>
+        ${
+          canEditAcces
+            ? '<p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>'
+            : '<p class="loc-muted">Lecture seule — seule un administrateur peut modifier les accès.</p>'
+        }
         <div class="loc-admin-table-wrap">
           <table class="loc-admin-table">
             <thead>
@@ -336,20 +346,47 @@
               </tr>
             </thead>
             <tbody>
-              ${rows
-                .map(
-                  (r) => `<tr>
-                  <td>${esc(r.label)}</td>
-                  ${cell(r.personnel)}
-                  ${cell(r.gestionnaire)}
-                  ${cell(r.administrateur)}
-                </tr>`
-                )
-                .join('')}
+              ${LocationAccess.FEATURES.map((f) => {
+                const featureEditable = LocationAccess.isEditableFeature(f.key);
+                return `<tr>
+                  <td>${esc(f.label)}${featureEditable ? '' : ' <span class="loc-muted">(hub)</span>'}</td>
+                  ${roles.map((r) => cell(f.key, r, featureEditable)).join('')}
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
       `;
+
+      if (!canEditAcces) return;
+
+      const persist = async () => {
+        const next = LocationAccess.normalize(matrix);
+        body.querySelectorAll('[data-acces-feature]').forEach((inp) => {
+          const feature = inp.dataset.accesFeature;
+          const role = inp.dataset.accesRole;
+          if (!next[feature] || !LocationAccess.ROLES.includes(role)) return;
+          if (!LocationAccess.isEditableFeature(feature)) return;
+          if (LocationAccess.isLocked(feature, role)) {
+            next[feature][role] = true;
+            return;
+          }
+          next[feature][role] = inp.checked;
+        });
+        next.parametres_location.administrateur = true;
+        try {
+          await LocationData.setParam(LocationAccess.PARAM_KEY, next, ctx.userId);
+          LocationAccess.invalidate();
+          Object.assign(matrix, next);
+          showMsg('Accès enregistrés.');
+        } catch (e) {
+          showMsg(e.message, true);
+        }
+      };
+
+      body.querySelectorAll('[data-acces-feature]:not(:disabled)').forEach((el) => {
+        el.addEventListener('change', persist);
+      });
     }
 
     async function renderParams() {

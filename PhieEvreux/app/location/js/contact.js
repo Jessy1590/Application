@@ -378,15 +378,23 @@
       if (isAttenteContact(it)) phaseLabel = APPEL_RESULTAT_LABELS[it.resultat] || it.resultat || 'Attente';
       else if (isPerteContact(it)) phaseLabel = 'PERTE';
       else if (contactPhase(it) === PHASE_APPEL) phaseLabel = 'Appel';
-      const dossierId = it.dossier_id || d.id || '';
-      return `<div class="loc-list-row">
-        <button type="button" class="loc-list-item${current?.id === it.id ? ' active' : ''}" data-id="${esc(it.id)}">
-          <strong>${esc(patientLabel(d))}</strong>
-          <span>${esc(it.motif || '')} · ${esc(phaseLabel)}</span>
-          <span class="loc-badge">${esc(d.date_fin || '—')}</span>
-        </button>
-        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm loc-list-suivi" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>
-      </div>`;
+      return `<button type="button" class="loc-list-item${current?.id === it.id ? ' active' : ''}" data-id="${esc(it.id)}">
+        <strong>${esc(patientLabel(d))}</strong>
+        <span>${esc(it.motif || '')} · ${esc(phaseLabel)}</span>
+        <span class="loc-badge">${esc(d.date_fin || '—')}</span>
+      </button>`;
+    }
+
+    function suiviDetailBtn(d) {
+      const dossierId = d?.id || current?.dossier_id || '';
+      return `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>`;
+    }
+
+    function bindDetailSuivi() {
+      flowEl.querySelector('[data-suivi]')?.addEventListener('click', (ev) => {
+        const id = ev.currentTarget.dataset.suivi;
+        if (id) ctx.openSuivi?.(id);
+      });
     }
 
     function renderList() {
@@ -400,13 +408,6 @@
       listEl.innerHTML = `<h4 class="loc-queue-title">${esc(title)} (${queue.length})</h4>${queue.map(listButton).join('')}`;
       listEl.querySelectorAll('[data-id]').forEach((b) => {
         b.addEventListener('click', () => selectItem(b.dataset.id));
-      });
-      listEl.querySelectorAll('[data-suivi]').forEach((b) => {
-        b.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          const id = b.dataset.suivi;
-          if (id) ctx.openSuivi?.(id);
-        });
       });
       updateNav();
     }
@@ -712,6 +713,7 @@
             <p class="loc-muted">${esc(appareilFin)}</p>
             <p class="loc-muted">${esc(motifCommentLabel(current.motif))}</p>
           </div>
+          ${suiviDetailBtn(d)}
         </div>
         <div class="loc-step-card">
           <h4>Message à mettre sur le LGO</h4>
@@ -750,6 +752,7 @@
             <p class="loc-muted">${esc(appareilFin)}</p>
             <p class="loc-muted">${esc(current.commentaire || '—')}</p>
           </div>
+          ${suiviDetailBtn(d)}
         </div>
         ${
           journal
@@ -875,6 +878,7 @@
             <p class="loc-muted">Résultat : ${esc(resultatLabel)}</p>
             <p class="loc-muted">${esc(current.commentaire || '—')}</p>
           </div>
+          ${suiviDetailBtn(d)}
         </div>
         ${
           journal
@@ -883,7 +887,37 @@
                 <div class="loc-journal-body">${esc(journal)}</div>
               </div>`
             : ''
-        }`;
+        }
+        <div class="loc-row-actions" style="margin-top:12px; justify-content:flex-end">
+          <button type="button" class="loc-btn" id="coARappeler">À rappeler</button>
+        </div>`;
+    }
+
+    async function recallToAppel(contact) {
+      if (!contact) return;
+      try {
+        showMsg('Enregistrement…');
+        await LocationData.upsertContact({
+          id: contact.id,
+          dossier_id: contact.dossier_id,
+          motif: contact.motif,
+          commentaire: contact.commentaire || null,
+          phase: PHASE_APPEL,
+          statut: 'a_contacter',
+          resultat: null,
+          canal: contact.canal || null,
+          contacted_at: contact.contacted_at || null,
+          commentaire_fait_at: contact.commentaire_fait_at || null,
+          phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
+        });
+        showMsg('Remis en file Appels (à appeler).');
+        current = null;
+        resetDraft();
+        await refresh();
+        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
+      } catch (e) {
+        showMsg(e.message || 'Erreur', true);
+      }
     }
 
     function renderFlow() {
@@ -896,6 +930,8 @@
 
       if (isAttenteContact(current) || isPerteContact(current)) {
         flowEl.innerHTML = renderOutcomeFlow(d, p);
+        bindDetailSuivi();
+        flowEl.querySelector('#coARappeler')?.addEventListener('click', () => recallToAppel(current));
         return;
       }
 
@@ -903,6 +939,7 @@
 
       if (phase === PHASE_COMMENTAIRE) {
         flowEl.innerHTML = renderCommentFlow(d, p);
+        bindDetailSuivi();
         const done = flowEl.querySelector('#coCommentDone');
         const validate = flowEl.querySelector('#coValidateComment');
         done?.addEventListener('change', () => {
@@ -926,6 +963,7 @@
       }
 
       flowEl.innerHTML = renderCallFlowBody(d, p);
+      bindDetailSuivi();
 
       flowEl.querySelector('[data-call="yes"]')?.addEventListener('click', () => {
         draft.fromPatientRecall = false;
