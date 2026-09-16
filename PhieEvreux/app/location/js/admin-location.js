@@ -323,7 +323,7 @@
             <option value="prestataire"${qui === 'prestataire' ? ' selected' : ''}>Prestataire</option>
           </select></label>
         </div>
-        <p class="loc-muted">Sans règle spécifique : &lt; seuil mois → message prolongation ; ≥ seuil → réclamer l’appareil.</p>
+        <p class="loc-muted">Sans règle spécifique : mois depuis la fin de la dernière prolongation (&lt; seuil → prolongation ; ≥ seuil → réclamer l’appareil).</p>
         <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
 

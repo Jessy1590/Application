@@ -118,7 +118,8 @@
   /**
    * Résout le message LGO :
    * 1) règle dépassée → template_id de la règle (sinon motif template mappé) ;
-   * 2) sinon générique → âge location vs seuil_reclame_mois → prolongation | reclame_appareil.
+   * 2) sinon générique → mois écoulés depuis la fin de la dernière prolongation
+   *    (date_fin) vs seuil_reclame_mois → prolongation | reclame_appareil.
    */
   function resolveLgo(ctx, reasons, params) {
     const sorted = sortContactReasons(reasons);
@@ -132,7 +133,9 @@
     }
     const motif = sorted[0]?.motif || 'fin_location';
     const seuilMois = Number(params?.seuil_reclame_mois ?? 6);
-    const days = durationDays(ctx?.date_debut, todayISO());
+    // Âge = depuis la fin courante (dernière prolongation), pas depuis date_debut.
+    const fin = ctx?.date_fin || null;
+    const days = fin ? daysBetween(fin, todayISO()) : null;
     const ageMois = monthsApprox(days);
     const templateMotif =
       ageMois != null && ageMois >= seuilMois ? 'reclame_appareil' : 'prolongation';
