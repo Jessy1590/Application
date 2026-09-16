@@ -44,8 +44,8 @@
     ['mois', 'Mois'],
   ];
 
-  const BUG_HINT =
-    'Pour ajouter une règle ou un template, signalez-le via le bouton Bug.';
+  const BUG_HINT_TEMPLATES =
+    'Pour ajouter un template hors règle, signalez-le via le bouton Bug (ou « Nouveau… » depuis une règle).';
 
   const BUG_HINT_CHAMPS =
     'Vous pouvez ajouter ou supprimer des champs de création ci-dessous.';
@@ -424,16 +424,12 @@
       });
     }
 
-    function isContactAction(action) {
-      return action === 'alerte_contact' || action === 'bloquer_ou_alerter';
-    }
-
     function templateSelectHtml(templates, selectedId) {
       const actifs = (templates || []).filter((t) => t.actif !== false);
       return `<label class="loc-field" data-template-field>
-        Template (message LGO si règle dépassée)
+        Template (message LGO si la règle s’applique)
         <select data-f="template_id">
-          <option value="">— Aucun (fallback motif) —</option>
+          <option value="">— Aucun —</option>
           ${actifs
             .map(
               (t) =>
@@ -451,7 +447,7 @@
       const action = editor.querySelector('[data-f=action]').value.trim();
       const tplSel = editor.querySelector('[data-f=template_id]');
       let template_id = null;
-      if (isContactAction(action) && tplSel && tplSel.value && tplSel.value !== '__nouveau__') {
+      if (tplSel && tplSel.value && tplSel.value !== '__nouveau__') {
         template_id = tplSel.value;
       }
       return {
@@ -500,6 +496,33 @@
       });
     }
 
+    async function addNewRule() {
+      const ok = selectedRuleId ? await saveCurrentRule(true) : true;
+      if (!ok) return;
+      try {
+        const rules = await LocationRules.listRules(LocationData.sb());
+        const base = `regle_${Date.now().toString(36)}`;
+        const priorite = (rules.length + 1) * 10;
+        const created = await LocationRules.upsertRule(LocationData.sb(), {
+          code: base,
+          nom: 'Nouvelle règle',
+          type_appareil: null,
+          action: 'alerte_contact',
+          priorite,
+          message: '',
+          conditions: {},
+          actif: true,
+          template_id: null,
+        });
+        LocationData.invalidateCache();
+        selectedRuleId = created.id;
+        showMsg('Règle ajoutée — complétez code, conditions et template.');
+        await renderRegles();
+      } catch (e) {
+        showMsg(e.message || 'Ajout impossible', true);
+      }
+    }
+
     async function renderRegles() {
       const [rules, templates] = await Promise.all([
         LocationRules.listRules(LocationData.sb()),
@@ -510,11 +533,12 @@
         selectedRuleId = rules[0]?.id || null;
       }
       const current = rules.find((r) => r.id === selectedRuleId) || null;
-      const showTpl = current && isContactAction(current.action);
 
       body.innerHTML = `
-        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle. Priorité calculée automatiquement.</p>
+        <div class="loc-toolbar loc-admin-rule-toolbar">
+          <button type="button" class="loc-btn" id="adAddRule">Ajouter une règle</button>
+        </div>
+        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle. Priorité calculée automatiquement. Choisissez le template LGO sur chaque règle.</p>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
             ${
@@ -559,25 +583,20 @@
                 </select></label>
               </div>
               <label class="loc-field">Message<textarea data-f="message" rows="3">${esc(current.message || '')}</textarea></label>
-              ${showTpl ? templateSelectHtml(templates, current.template_id) : ''}
+              ${templateSelectHtml(templates, current.template_id)}
               <h3>Conditions</h3>
               ${conditionsFormHtml(current.conditions)}
             `
-                : '<p class="loc-muted">Sélectionnez une règle.</p>'
+                : '<p class="loc-muted">Sélectionnez une règle ou ajoutez-en une.</p>'
             }
           </div>
         </div>
       `;
 
+      body.querySelector('#adAddRule')?.addEventListener('click', () => addNewRule());
+
       const editor = body.querySelector('[data-rule-editor]');
       if (editor) bindConditionsForm(editor);
-
-      const actionSel = editor?.querySelector('[data-f=action]');
-      actionSel?.addEventListener('change', async () => {
-        const ok = await saveCurrentRule(true);
-        if (!ok) return;
-        await renderRegles();
-      });
 
       const tplSel = editor?.querySelector('[data-f=template_id]');
       tplSel?.addEventListener('change', async () => {
@@ -626,7 +645,7 @@
         : rows;
 
       body.innerHTML = `
-        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
+        <p class="loc-admin-hint">${esc(BUG_HINT_TEMPLATES)}</p>
         <div class="loc-motif-chips" role="tablist" aria-label="Motifs">
           ${
             motifs
