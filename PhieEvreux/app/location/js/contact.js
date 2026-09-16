@@ -102,10 +102,25 @@
   async function mount(root, ctx) {
     root.innerHTML = '';
     const wrap = el(`<div class="loc-module loc-contact">
-      <div class="loc-toolbar">
+      <div class="loc-bar">
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="coToggleFilters" aria-expanded="false" aria-controls="coFilters">Filtres</button>
         <button type="button" class="loc-btn" id="coSync">Synchroniser la file</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="coPrint">Imprimer la liste</button>
         <span class="loc-muted" id="coCount"></span>
+      </div>
+      <div class="loc-toolbar loc-filters" id="coFilters" hidden>
+        <input type="search" id="coSearch" placeholder="Recherche nom / prénom">
+        <select id="coStatut">
+          <option value="">Tous statuts</option>
+          <option value="actif" selected>Actifs</option>
+          <option value="cloture">Clôturés</option>
+          <option value="annule">Annulés</option>
+        </select>
+        <select id="coType">
+          <option value="">Tous types</option>
+          ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+        </select>
+        <label class="loc-check loc-check-inline"><input type="checkbox" id="coContact"> À contacter</label>
       </div>
       <div class="loc-contact-tabs" role="tablist">
         <button type="button" class="loc-admin-tab active" data-file="commentaire">Commentaire</button>
@@ -120,6 +135,7 @@
     root.appendChild(wrap);
 
     let items = [];
+    let filteredItems = [];
     let current = null;
     let file = 'commentaire';
     /** @type {string} */
@@ -130,6 +146,19 @@
     const flowEl = wrap.querySelector('#coFlow');
     const msgEl = wrap.querySelector('#coMsg');
     const countEl = wrap.querySelector('#coCount');
+    const filtersEl = wrap.querySelector('#coFilters');
+    const btnFilters = wrap.querySelector('#coToggleFilters');
+
+    function setToggle(btn, panel, open) {
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-active', open);
+    }
+
+    btnFilters.addEventListener('click', () => {
+      setToggle(btnFilters, filtersEl, filtersEl.hidden);
+    });
+    setToggle(btnFilters, filtersEl, false);
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -138,11 +167,52 @@
     }
 
     function commentQueue() {
-      return items.filter((i) => contactPhase(i) === PHASE_COMMENTAIRE);
+      return filteredItems.filter((i) => contactPhase(i) === PHASE_COMMENTAIRE);
     }
 
     function callQueue() {
-      return items.filter((i) => contactPhase(i) === PHASE_APPEL);
+      return filteredItems.filter((i) => contactPhase(i) === PHASE_APPEL);
+    }
+
+    function updateCount() {
+      countEl.textContent = `${commentQueue().length} com. · ${callQueue().length} appels`;
+    }
+
+    /** Filtrage dossier = mêmes critères que Suivi / listDossiers. */
+    async function applyFilters() {
+      let list = items.slice();
+      const q = wrap.querySelector('#coSearch').value;
+      const statut = wrap.querySelector('#coStatut').value || undefined;
+      const typeAppareil = wrap.querySelector('#coType').value || undefined;
+      const aContacter = wrap.querySelector('#coContact').checked || undefined;
+
+      if (statut) {
+        list = list.filter((i) => (i.dossier || {}).statut === statut);
+      }
+      if (q) {
+        const t = String(q).toLowerCase().trim();
+        list = list.filter((i) => {
+          const p = i.dossier?.patient || {};
+          return (
+            String(p.nom || '').toLowerCase().includes(t) ||
+            String(p.prenom || '').toLowerCase().includes(t)
+          );
+        });
+      }
+      if (typeAppareil) {
+        list = list.filter((i) => i.dossier?.appareil_actif?.type_appareil === typeAppareil);
+      }
+      if (aContacter) {
+        const params = await LocationData.loadParams();
+        const rules = await LocationData.loadRules();
+        list = list.filter((i) => {
+          const d = i.dossier;
+          if (!d) return false;
+          const ctx = LocationData.dossierContext(d);
+          return LocationRules.evaluate(ctx, rules, params).shouldContact;
+        });
+      }
+      filteredItems = list;
     }
 
     function resetDraft() {
@@ -154,11 +224,12 @@
       showMsg('Chargement…');
       try {
         items = await LocationData.listOpenContacts();
-        countEl.textContent = `${commentQueue().length} com. · ${callQueue().length} appels`;
+        await applyFilters();
+        updateCount();
         showMsg('');
         renderList();
         if (current) {
-          const still = items.find((i) => i.id === current.id);
+          const still = filteredItems.find((i) => i.id === current.id);
           if (still) {
             current = still;
             renderFlow();
@@ -172,8 +243,23 @@
       }
     }
 
+    async function onFiltersChange() {
+      try {
+        await applyFilters();
+        updateCount();
+        renderList();
+        if (current && !filteredItems.find((i) => i.id === current.id)) {
+          current = null;
+          resetDraft();
+          flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
+        }
+      } catch (e) {
+        showMsg(e.message || 'Erreur filtres', true);
+      }
+    }
+
     function selectItem(id) {
-      current = items.find((i) => i.id === id) || null;
+      current = filteredItems.find((i) => i.id === id) || null;
       resetDraft();
       if (current) {
         file = contactPhase(current) === PHASE_APPEL ? 'appel' : 'commentaire';
@@ -759,8 +845,12 @@
     });
 
     wrap.querySelector('#coPrint').addEventListener('click', () => {
-      LocationPrint.printContactList(items);
+      LocationPrint.printContactList(filteredItems);
     });
+    wrap.querySelector('#coSearch').addEventListener('change', () => void onFiltersChange());
+    wrap.querySelector('#coStatut').addEventListener('change', () => void onFiltersChange());
+    wrap.querySelector('#coType').addEventListener('change', () => void onFiltersChange());
+    wrap.querySelector('#coContact').addEventListener('change', () => void onFiltersChange());
 
     await refresh();
   }
