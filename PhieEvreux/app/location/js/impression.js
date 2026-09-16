@@ -145,7 +145,7 @@
         line('Source', a.source === 'prestataire' ? 'Prestataire' : 'Parc pharmacie'),
         ...appareilExtra,
         line(
-          'Ordo / durée',
+          'Ordo initial / durée',
           prolong ? `${prolong.date_ordo || '—'} · ${prolong.duree} ${prolong.unite}` : ''
         ),
       ].join('')}
@@ -155,67 +155,84 @@
   <p class="print-note">Joindre copie d’ordonnance.</p>
 </section>`;
 
+    const datePh = '<span class="print-date-ph">   /    /       </span>';
+    const statutCell = '<td class="col-statut">□</td>';
+    const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${statutCell}</tr>`;
     const suiviList = dossier.suivi || [];
-    const emptySuiviRow = '<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>';
     const suiviFilled = suiviList
-      .map(
-        (s) =>
-          `<tr><td>${esc(s.date_ligne || '')}</td><td>${esc(s.libelle || '')}</td><td>${esc(s.details || '')}</td></tr>`
-      )
+      .map((s) => {
+        const dateCell = s.date_ligne
+          ? esc(s.date_ligne)
+          : datePh;
+        return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${statutCell}</tr>`;
+      })
       .join('');
-    const padCount = Math.max(0, 10 - suiviList.length);
+    const padCount = Math.max(0, 18 - suiviList.length);
     const suiviRows = suiviFilled + emptySuiviRow.repeat(padCount);
-    const suiviBlock = zone(
-      'Suivi matériel',
-      `<table class="print-table"><thead><tr><th>Date</th><th>Libellé</th><th>Détails</th></tr></thead><tbody>${suiviRows}</tbody></table>`
-    );
+    const suiviBlock = `<section class="print-zone print-suivi"><h2>Suivi matériel</h2>
+      <table class="print-table print-table-suivi"><thead><tr>
+        <th class="col-date">Date</th>
+        <th class="col-lib">prolongation / rendu d'appareil / changement d'appareil ?</th>
+        <th class="col-statut">Statut</th>
+      </tr></thead><tbody>${suiviRows}</tbody></table>
+    </section>`;
 
-    const clotureLines = [
-      line('Appareil rendu', dossier.appareil_rendu ? 'Oui' : ''),
-      line(
+    function clotureHand(label, dateVal, parVal) {
+      const lePart = dateVal ? esc(dateVal) : '__________';
+      const parPart = parVal ? esc(parVal) : '___________';
+      return `<div class="print-cloture-line">${esc(label)} le ${lePart} par ${parPart}</div>`;
+    }
+    const clotureBlock = `<section class="print-zone print-cloture"><h2>Clôture</h2>${[
+      clotureHand('Appareil rendu', null, null),
+      clotureHand(
         'Caution rendue',
-        dossier.caution_rendue
-          ? `Oui${dossier.caution_rendue_le ? ' le ' + dossier.caution_rendue_le : ''}`
-          : ''
+        dossier.caution_rendue && dossier.caution_rendue_le ? dossier.caution_rendue_le : null,
+        dossier.caution_rendue_op || null
       ),
-    ];
-    if (dossier.caution_rendue_op) {
-      clotureLines.push(line('OP caution rendue', dossier.caution_rendue_op));
-    }
-    clotureLines.push(
-      line(
+      clotureHand(
         'Dossier clôturé',
-        dossier.statut === 'cloture'
-          ? `Oui${dossier.date_cloture ? ' le ' + dossier.date_cloture : ''}`
-          : ''
-      )
-    );
-    if (dossier.cloture_op) {
-      clotureLines.push(line('OP clôture', dossier.cloture_op));
-    }
-    const clotureBlock = zone('Clôture', clotureLines.join(''));
+        dossier.statut === 'cloture' && dossier.date_cloture ? dossier.date_cloture : null,
+        dossier.cloture_op || null
+      ),
+    ].join('')}</section>`;
 
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche location</title>
 <style>
-  body{font-family:Georgia,serif;color:#111;margin:8px;font-size:10.5px;line-height:1.25}
-  h1{font-size:14px;margin:0 0 2px}
-  .print-meta{color:#555;margin:0 0 6px;font-size:9px}
-  .print-zone{border:1px solid #222;padding:5px 7px;margin-bottom:6px;page-break-inside:avoid}
+  html,body{height:100%}
+  body{font-family:Georgia,serif;color:#111;margin:8px;font-size:10.5px;line-height:1.25;display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
+  h1{font-size:14px;margin:0 0 2px;flex-shrink:0}
+  .print-meta{color:#555;margin:0 0 6px;font-size:9px;flex-shrink:0}
+  .print-zone{border:1px solid #222;padding:5px 7px;margin-bottom:6px}
+  .print-top{flex-shrink:0;page-break-inside:avoid}
   .print-zone h2,.print-col h2{margin:0 0 3px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
   .print-banner{display:flex;flex-wrap:wrap;gap:4px 14px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid #222;font-size:10.5px}
   .print-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:4px}
   .print-line{display:flex;gap:6px;border-bottom:1px dotted #bbb;padding:1px 0;min-height:14px}
-  .print-label{width:108px;flex-shrink:0;color:#444}
+  .print-label{width:118px;flex-shrink:0;color:#444}
   .print-val{flex:1}
   .print-attention{margin-top:4px;border:1.5px solid #c00;padding:4px 6px;min-height:28px;color:#900}
   .print-attention strong{color:#c00}
   .print-attention pre{margin:2px 0 0;white-space:pre-wrap;font:inherit;color:#111}
   .print-note{font-style:italic;margin:3px 0 0;color:#333;font-size:9.5px}
   .print-blank{border-bottom:1px solid #ddd;height:16px;margin:2px 0}
+  .print-suivi{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;page-break-inside:auto}
+  .print-suivi .print-table-suivi{flex:1 1 auto;width:100%;height:100%}
   .print-table{width:100%;border-collapse:collapse;font-size:10px}
-  .print-table th,.print-table td{border:1px solid #999;padding:2px 4px;text-align:left;height:16px}
-  .print-table th{background:#f3f3f3;font-size:9.5px}
-  @media print{body{margin:5mm}}
+  .print-table th,.print-table td{border:1px solid #999;padding:4px 4px;text-align:left;vertical-align:middle}
+  .print-table-suivi th,.print-table-suivi td{height:22px;padding:5px 4px}
+  .print-table-suivi tbody tr.print-row-fill td{height:26px}
+  .print-table th{background:#f3f3f3;font-size:9px}
+  .print-table .col-date{width:4.2em;max-width:4.8em;white-space:pre;font-variant-numeric:tabular-nums}
+  .print-table .col-statut{width:2.6em;text-align:center;font-size:12px}
+  .print-table .col-lib{width:auto}
+  .print-date-ph{white-space:pre;letter-spacing:.02em;color:#666}
+  .print-cloture{flex-shrink:0;margin-top:auto;page-break-inside:avoid}
+  .print-cloture-line{padding:6px 0;min-height:22px;line-height:1.7;border-bottom:1px dotted #bbb}
+  .print-cloture-line:last-child{border-bottom:none}
+  @media print{
+    body{margin:5mm;min-height:100vh}
+    .print-suivi{flex:1 1 auto}
+  }
 </style></head><body>
   <h1>Fiche location — Phie Evreux</h1>
   <p class="print-meta">Imprimé le ${esc(new Date().toLocaleString('fr-FR'))}</p>
