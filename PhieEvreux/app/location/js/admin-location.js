@@ -38,13 +38,26 @@
   ];
 
   const BUG_HINT =
-    'Pour ajouter une règle, un template ou un champ de création, signalez-le via le bouton Bug.';
+    'Pour ajouter une règle ou un template, signalez-le via le bouton Bug.';
+
+  const BUG_HINT_CHAMPS =
+    'Vous pouvez ajouter ou supprimer des champs de création ci-dessous.';
+
+  const MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
+  function motifLabel(motif) {
+    return MOTIF_LABELS[motif] || motif || '—';
+  }
 
   const CONDITION_FIELDS = [
     { key: 'unite', label: 'Unité de durée', type: 'select', options: UNITE_OPTS },
     { key: 'max_duree', label: 'Durée max', type: 'number' },
     { key: 'max_duree_prolongation', label: 'Durée max prolongation', type: 'number' },
-    { key: 'duree_initiale', label: 'Durée initiale', type: 'number' },
     { key: 'bascule_apres_mois', label: 'Bascule après (mois)', type: 'number' },
     {
       key: 'qui_facture',
@@ -55,9 +68,6 @@
         ['prestataire', 'Prestataire'],
       ],
     },
-    { key: 'rappel_electrodes', label: 'Rappel électrodes', type: 'bool' },
-    { key: 'facturer_masque', label: 'Facturer masque', type: 'bool' },
-    { key: 'regler_avance', label: 'Régler d’avance', type: 'bool' },
   ];
 
   function numOrEmpty(v) {
@@ -173,6 +183,8 @@
     let selectedRuleId = null;
     /** @type {string|null} */
     let selectedChampId = null;
+    /** @type {string|null} */
+    let selectedMotif = null;
 
     container.querySelectorAll('[data-tab]').forEach((b) => {
       b.addEventListener('click', async () => {
@@ -429,16 +441,40 @@
 
     async function renderTemplates() {
       const rows = await LocationData.listTemplates();
+      const motifs = [...new Set(rows.map((r) => r.motif).filter(Boolean))].sort((a, b) =>
+        motifLabel(a).localeCompare(motifLabel(b), 'fr')
+      );
+      if (!selectedMotif && motifs[0]) selectedMotif = motifs[0];
+      if (selectedMotif && !motifs.includes(selectedMotif)) {
+        selectedMotif = motifs[0] || null;
+      }
+      const filtered = selectedMotif
+        ? rows.filter((r) => r.motif === selectedMotif)
+        : rows;
+
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
-        <div class="loc-admin-list">
+        <div class="loc-motif-chips" role="tablist" aria-label="Motifs">
           ${
-            rows
+            motifs
+              .map(
+                (m) => `
+            <button type="button" class="loc-motif-chip${m === selectedMotif ? ' active' : ''}" data-motif="${esc(m)}">
+              ${esc(motifLabel(m))}
+              <span class="loc-motif-count">${rows.filter((r) => r.motif === m).length}</span>
+            </button>`
+              )
+              .join('') || '<p class="loc-muted">Aucun motif.</p>'
+          }
+        </div>
+        <p class="loc-muted loc-autosave-hint">Motif sélectionné : <strong>${esc(motifLabel(selectedMotif))}</strong> — enregistrement auto à chaque modification.</p>
+        <div class="loc-admin-list" id="adTplList">
+          ${
+            filtered
               .map(
                 (r) => `
             <div class="loc-admin-row" data-id="${r.id}">
-              <label class="loc-field">Motif<input data-f="motif" value="${esc(r.motif)}"></label>
-              <label class="loc-field">Type<select data-f="type_appareil">
+              <label class="loc-field">Type appareil<select data-f="type_appareil">
                 <option value="">Tous</option>
                 ${Object.entries(LocationRules.TYPE_LABELS)
                   .map(
@@ -448,15 +484,21 @@
                   .join('')}
               </select></label>
               <label class="loc-field">Titre<input data-f="titre" value="${esc(r.titre)}"></label>
-              <label class="loc-field loc-span-2">Corps<textarea data-f="corps" rows="3">${esc(r.corps || '')}</textarea></label>
+              <label class="loc-field loc-span-2">Texte du commentaire<textarea data-f="corps" rows="4">${esc(r.corps || '')}</textarea></label>
               <label class="loc-check"><input type="checkbox" data-f="actif"${r.actif ? ' checked' : ''}> Actif</label>
             </div>`
               )
-              .join('') || '<p class="loc-muted">Aucun template.</p>'
+              .join('') || '<p class="loc-muted">Aucun template pour ce motif.</p>'
           }
         </div>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
+
+      body.querySelectorAll('[data-motif]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedMotif = btn.dataset.motif;
+          renderTemplates();
+        });
+      });
 
       body.querySelectorAll('.loc-admin-row').forEach((row) => {
         const save = async () => {
@@ -464,7 +506,7 @@
             await LocationData.upsertTemplate({
               id: row.dataset.id,
               titre: row.querySelector('[data-f=titre]').value.trim(),
-              motif: row.querySelector('[data-f=motif]').value.trim(),
+              motif: selectedMotif,
               type_appareil: row.querySelector('[data-f=type_appareil]').value || null,
               corps: row.querySelector('[data-f=corps]').value,
               actif: row.querySelector('[data-f=actif]').checked,
@@ -515,9 +557,10 @@
         selectedChampId = rows[0]?.id || null;
       }
       const current = rows.find((r) => r.id === selectedChampId) || null;
+      const nextOrdre = rows.reduce((m, r) => Math.max(m, Number(r.ordre) || 0), 0) + 10;
 
       body.innerHTML = `
-        <p class="loc-admin-hint">${esc(BUG_HINT)}</p>
+        <p class="loc-admin-hint">${esc(BUG_HINT_CHAMPS)}</p>
         <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de champ.</p>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
@@ -532,6 +575,7 @@
                 )
                 .join('') || '<p class="loc-muted">Aucun champ.</p>'
             }
+            <button type="button" class="loc-btn" id="adAddChamp" style="margin-top:8px">＋ Ajouter un champ</button>
           </div>
           <div class="loc-params-editor" data-champ-editor>
             ${
@@ -546,8 +590,8 @@
                     )
                     .join('')}
                 </select></label>
-                <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}"></label>
-                <label class="loc-field">Libellé<input data-f="libelle" value="${esc(current.libelle)}"></label>
+                <label class="loc-field">Code<input data-f="code" value="${esc(current.code)}" placeholder="ex. electrodes"></label>
+                <label class="loc-field">Libellé<input data-f="libelle" value="${esc(current.libelle)}" placeholder="Texte affiché"></label>
                 <label class="loc-field">Type de données<select data-f="data_type">
                   ${DATA_TYPES.map(
                     ([k, v]) =>
@@ -560,8 +604,11 @@
               <label class="loc-check"><input type="checkbox" data-f="actif"${current.actif ? ' checked' : ''}> Actif</label>
               <h3>Options</h3>
               ${optionsFormHtml(current.options, current.data_type)}
+              <div class="loc-row-actions" style="margin-top:12px">
+                <button type="button" class="loc-btn loc-btn-ghost" id="adDelChamp">Supprimer ce champ</button>
+              </div>
             `
-                : '<p class="loc-muted">Sélectionnez un champ.</p>'
+                : '<p class="loc-muted">Sélectionnez un champ ou ajoutez-en un.</p>'
             }
           </div>
         </div>
@@ -585,6 +632,43 @@
           showMsg('Champ enregistré.');
           await renderChampsCreation();
         });
+      });
+
+      body.querySelector('#adAddChamp')?.addEventListener('click', async () => {
+        if (selectedChampId) {
+          const ok = await saveCurrentChamp(true);
+          if (!ok) return;
+        }
+        try {
+          const created = await LocationData.upsertChampCreation({
+            type_appareil: 'tens',
+            code: `champ_${Date.now().toString(36)}`,
+            libelle: 'Nouveau champ',
+            data_type: 'texte',
+            options: {},
+            ordre: nextOrdre,
+            obligatoire: false,
+            actif: true,
+          });
+          selectedChampId = created.id;
+          showMsg('Champ ajouté.');
+          await renderChampsCreation();
+        } catch (e) {
+          showMsg(e.message || 'Ajout impossible', true);
+        }
+      });
+
+      body.querySelector('#adDelChamp')?.addEventListener('click', async () => {
+        if (!selectedChampId) return;
+        if (!confirm('Supprimer définitivement ce champ de création ?')) return;
+        try {
+          await LocationData.deleteChampCreation(selectedChampId);
+          selectedChampId = null;
+          showMsg('Champ supprimé.');
+          await renderChampsCreation();
+        } catch (e) {
+          showMsg(e.message || 'Suppression impossible', true);
+        }
       });
     }
 

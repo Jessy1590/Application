@@ -496,7 +496,6 @@
   }
 
   async function upsertChampCreation(row) {
-    if (!row.id) throw new Error('Identifiant champ requis');
     const payload = {
       type_appareil: row.type_appareil,
       code: row.code,
@@ -508,14 +507,28 @@
       actif: row.actif !== false,
       updated_at: new Date().toISOString(),
     };
+    if (row.id) {
+      const { data, error } = await sb()
+        .from('location_champs_creation')
+        .update(payload)
+        .eq('id', row.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
     const { data, error } = await sb()
       .from('location_champs_creation')
-      .update(payload)
-      .eq('id', row.id)
+      .insert(payload)
       .select()
       .single();
     if (error) throw error;
     return data;
+  }
+
+  async function deleteChampCreation(id) {
+    const { error } = await sb().from('location_champs_creation').delete().eq('id', id);
+    if (error) throw error;
   }
 
   async function upsertTemplate(row) {
@@ -708,6 +721,7 @@
     contactInterpVars,
     listChampsCreation,
     upsertChampCreation,
+    deleteChampCreation,
     upsertTemplate,
     deleteTemplate,
     upsertPrestataire,

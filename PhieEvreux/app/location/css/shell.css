@@ -102,6 +102,41 @@ body {
   gap: 6px;
 }
 
+.loc-motif-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.loc-motif-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-elev);
+  color: var(--loc-text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.loc-motif-chip.active {
+  border-color: var(--loc-accent);
+  background: color-mix(in srgb, var(--loc-accent) 18%, var(--loc-elev));
+}
+
+.loc-motif-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--loc-muted);
+  background: var(--loc-bg);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
 .loc-autosave-hint {
   font-size: 13px;
   margin: 8px 0 0;
