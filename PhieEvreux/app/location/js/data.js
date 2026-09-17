@@ -752,26 +752,20 @@
    *   facturation_ok: boolean,
    *   facturation_ok_le?: string|null,
    *   facturation_ok_op?: string|null,
-   *   commentaire?: string|null,
    *   notes?: string|null,
    *   code_op?: string|null,
    * }} answers
    */
   async function cloturerDossier(id, answers) {
     const today = global.LocationRules.todayISO();
-    const commentaire = String(answers.commentaire || '').trim();
-    let notes = answers.notes != null ? String(answers.notes) : '';
-    if (commentaire) {
-      const line = `[Clôture ${today}] ${commentaire}`;
-      notes = notes.trim() ? `${notes.trim()}\n${line}` : line;
-    }
+    const notes = answers.notes != null ? String(answers.notes).trim() || null : null;
     const patch = {
       statut: 'cloture',
       date_cloture: today,
       appareil_rendu: !!answers.appareil_rendu,
       caution_rendue: !!answers.caution_rendue,
       facturation_ok: !!answers.facturation_ok,
-      notes: notes.trim() || null,
+      notes,
       cloture_op: answers.code_op || null,
     };
     if (answers.appareil_rendu) {
