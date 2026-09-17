@@ -92,7 +92,7 @@ const OFFICINE_WHITELIST = [
   {
     re: /^pneumocoque$/i,
     label: 'Officine (≥18 ans)',
-    detail: 'Pneumocoque adultes (≥ 18 ans à risque / ≥ 65 ans : VPC20 / Capvaxive®). Primo nourrisson = hors âge officine.'
+    detail: 'Pneumocoque adultes (≥ 18 ans à risque / ≥ 65 ans : Capvaxive® VPC21 préférentiel ; Prevenar 20® VPC20 possible). Primo nourrisson VPC20 = hors âge officine.'
   },
   {
     re: /rougeole|oreillons|rub[eé]ole/i,
@@ -110,9 +110,9 @@ const OFFICINE_WHITELIST = [
     detail: 'Shingrix® : ≥ 65 ans immuno-compétents ; immunodéprimés ≥ 18 ans.'
   },
   {
-    re: /syncytial|\bvrs\b/i,
+    re: /^virus respiratoire syncytial/i,
     label: 'Officine (≥11 ans)',
-    detail: 'Vaccins VRS (Abrysvo® grossesse 32-36 SA ; Abrysvo® / Arexvy® / mRESVIA® seniors). Beyfortus® / Synagis® (anticorps) ≠ badge officine vaccin calendrier.'
+    detail: 'Vaccins VRS (Abrysvo® grossesse 32-36 SA ; Abrysvo® / Arexvy® / mRESVIA® seniors). IG (Beyfortus® / Enflonsia® / Synagis®) = fiche séparée, pas badge vaccin calendrier.'
   },
   {
     re: /enc[eé]phalite\s*[aà]\s*tiques/i,
@@ -148,7 +148,7 @@ const PATHO_VIS = [
   { re: /\bzona\b/i, label: 'Zona', slug: 'Zona' },
   { re: /grippe/i, label: 'Grippe', slug: 'Grippe-saisonniere' },
   { re: /covid/i, label: 'COVID-19', slug: 'COVID-19' },
-  { re: /\bvrs\b|syncytial|bronchiolite/i, label: 'VRS', slug: 'Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS' },
+  { re: /\bvrs\b|syncytial|bronchiolite|nirsévimab|beyfortus|enflonsia|clesrovimab|palivizumab|synagis|immunoglobuline/i, label: 'VRS', slug: 'Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS' },
   { re: /rotavirus/i, label: 'Rotavirus', slug: 'Gastro-enterite-a-rotavirus' },
   { re: /fi[eè]vre jaune/i, label: 'Fièvre jaune', slug: 'Fievre-jaune' },
   { re: /dengue/i, label: 'Dengue', slug: 'Dengue' },
@@ -311,7 +311,7 @@ function getFamily(patho) {
   if (/méningocoque/.test(p)) return 'men';
   if (/pneumocoque/.test(p)) return 'pneumo';
   if (/rougeole|oreillons|rubéole|varicelle|zona/.test(p)) return 'ror';
-  if (/grippe|covid|vrs|syncytial/.test(p)) return 'saison';
+  if (/grippe|covid|vrs|syncytial|immunoglobuline/.test(p)) return 'saison';
   if (/fièvre jaune|dengue|chikungunya|typhoïde|choléra|encéphalite|rage|leptospirose/.test(p)) return 'voyage';
   return 'autre';
 }
@@ -343,6 +343,7 @@ function getPharmacistInfo(v) {
   if (/fi[eè]vre jaune/.test(pl)) detail = 'Centres de vaccination agréés fièvre jaune — pas d’officine de droit commun.';
   else if (/typho[iï]de|chol[eé]ra|enc[eé]phalite japonaise/.test(pl)) detail = 'Vaccin voyageur hors calendrier général officine.';
   else if (/bcg|tuberculose|rotavirus/.test(pl)) detail = 'Schéma nourrisson — hors âge officine (< 11 ans).';
+  else if (/immunoglobuline|anti-vrs|\big\s*vrs\b/.test(pl)) detail = 'Anticorps monoclonaux (Beyfortus® / Enflonsia® / Synagis®) — immunisation passive, pas un vaccin calendrier officine.';
   else if (/haemophilus.*coqueluche|hexavalent|penta|hexa/.test(pl) || (pl.includes('haemophilus') && pl.includes('dipht'))) {
     detail = 'Combiné pédiatrique / nourrisson (< 11 ans).';
   } else if (/^haemophilus influenzae b/.test(pl) || pl === 'poliomyélite') {

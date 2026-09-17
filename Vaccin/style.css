@@ -726,66 +726,106 @@ tbody tr.row-hors-reco td.col-patho {
 
 .field-editor { margin-bottom: 16px; }
 
-/* Quill insère .ql-toolbar en frère AVANT .quill-host — cibler .field-editor, pas .quill-host .ql-toolbar */
+/*
+  Quill Snow : .ql-toolbar est un frère de .quill-host (pas un enfant).
+  Ne PAS mettre display:flex sur la toolbar : les boutons Quill sont en float,
+  et flex + float écrase la hauteur des .ql-formats → SVG height:100% = 0 (icônes invisibles).
+*/
+.admin-panel .ql-toolbar.ql-snow,
 .field-editor .ql-toolbar.ql-snow {
+  display: block;
   border: 1px solid var(--line);
   border-bottom: none;
   border-radius: 6px 6px 0 0;
-  background: #f4f7f9;
+  background: #eef2f5;
   padding: 8px 10px;
   font-family: var(--font);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 0;
-  color: #444;
+  color: #333;
+  overflow: hidden; /* contient les floats */
 }
-.field-editor .ql-toolbar.ql-snow .ql-formats { margin-right: 10px; }
+.admin-panel .ql-toolbar.ql-snow .ql-formats,
+.field-editor .ql-toolbar.ql-snow .ql-formats {
+  margin-right: 12px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.admin-panel .ql-toolbar.ql-snow button,
+.admin-panel .ql-toolbar.ql-snow .ql-picker-label,
 .field-editor .ql-toolbar.ql-snow button,
 .field-editor .ql-toolbar.ql-snow .ql-picker-label {
-  color: #444;
-  background: transparent;
-}
-.field-editor .ql-toolbar.ql-snow button svg {
   float: left;
-  height: 100%;
+  display: inline-block;
+  width: 28px;
+  height: 24px;
+  padding: 3px 5px;
+  color: #333 !important;
+  background: transparent !important;
+  border: none;
+  cursor: pointer;
+  opacity: 1 !important;
+  filter: none !important;
 }
+.admin-panel .ql-toolbar.ql-snow button svg,
+.field-editor .ql-toolbar.ql-snow button svg {
+  float: none;
+  display: block;
+  width: 18px !important;
+  height: 18px !important;
+}
+.admin-panel .ql-toolbar.ql-snow .ql-stroke,
 .field-editor .ql-toolbar.ql-snow .ql-stroke {
-  fill: none;
-  stroke: #444;
+  fill: none !important;
+  stroke: #333 !important;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2;
 }
+.admin-panel .ql-toolbar.ql-snow .ql-fill,
+.admin-panel .ql-toolbar.ql-snow .ql-stroke.ql-fill,
 .field-editor .ql-toolbar.ql-snow .ql-fill,
 .field-editor .ql-toolbar.ql-snow .ql-stroke.ql-fill {
-  fill: #444;
+  fill: #333 !important;
 }
+.admin-panel .ql-toolbar.ql-snow .ql-thin,
 .field-editor .ql-toolbar.ql-snow .ql-thin { stroke-width: 1; }
-.field-editor .ql-toolbar.ql-snow .ql-empty { fill: none; }
+.admin-panel .ql-toolbar.ql-snow .ql-empty,
+.field-editor .ql-toolbar.ql-snow .ql-empty { fill: none !important; }
+.admin-panel .ql-toolbar.ql-snow .ql-even,
 .field-editor .ql-toolbar.ql-snow .ql-even { fill-rule: evenodd; }
-.field-editor .ql-toolbar.ql-snow .ql-picker { color: #444; }
+.admin-panel .ql-toolbar.ql-snow .ql-picker,
+.field-editor .ql-toolbar.ql-snow .ql-picker { color: #333 !important; }
+.admin-panel .ql-toolbar.ql-snow .ql-picker-options,
 .field-editor .ql-toolbar.ql-snow .ql-picker-options {
   background: #fff;
-  color: #444;
+  color: #333;
 }
+.admin-panel .ql-toolbar.ql-snow button:hover,
+.admin-panel .ql-toolbar.ql-snow button.ql-active,
+.admin-panel .ql-toolbar.ql-snow .ql-picker-label:hover,
 .field-editor .ql-toolbar.ql-snow button:hover,
 .field-editor .ql-toolbar.ql-snow button.ql-active,
-.field-editor .ql-toolbar.ql-snow .ql-picker-label:hover,
-.field-editor .ql-toolbar.ql-snow .ql-picker-item:hover,
-.field-editor .ql-toolbar.ql-snow .ql-picker-item.ql-selected {
-  color: var(--accent);
+.field-editor .ql-toolbar.ql-snow .ql-picker-label:hover {
+  color: var(--accent) !important;
+  background: rgba(15, 107, 109, 0.1) !important;
+  border-radius: 3px;
 }
+.admin-panel .ql-toolbar.ql-snow button:hover .ql-stroke,
+.admin-panel .ql-toolbar.ql-snow button.ql-active .ql-stroke,
+.admin-panel .ql-toolbar.ql-snow .ql-picker-label:hover .ql-stroke,
 .field-editor .ql-toolbar.ql-snow button:hover .ql-stroke,
 .field-editor .ql-toolbar.ql-snow button.ql-active .ql-stroke,
 .field-editor .ql-toolbar.ql-snow .ql-picker-label:hover .ql-stroke {
-  stroke: var(--accent);
+  stroke: var(--accent) !important;
 }
+.admin-panel .ql-toolbar.ql-snow button:hover .ql-fill,
+.admin-panel .ql-toolbar.ql-snow button.ql-active .ql-fill,
+.admin-panel .ql-toolbar.ql-snow button:hover .ql-stroke.ql-fill,
+.admin-panel .ql-toolbar.ql-snow button.ql-active .ql-stroke.ql-fill,
 .field-editor .ql-toolbar.ql-snow button:hover .ql-fill,
 .field-editor .ql-toolbar.ql-snow button.ql-active .ql-fill,
 .field-editor .ql-toolbar.ql-snow button:hover .ql-stroke.ql-fill,
 .field-editor .ql-toolbar.ql-snow button.ql-active .ql-stroke.ql-fill {
-  fill: var(--accent);
+  fill: var(--accent) !important;
 }
 
 .quill-host {
@@ -1116,19 +1156,26 @@ body.is-admin .inline-admin-btns,
     min-height: 168px;
     max-width: 100%;
   }
+  .admin-panel .ql-toolbar.ql-snow,
   .field-editor .ql-toolbar.ql-snow {
-    flex-wrap: wrap;
     position: sticky;
     top: 0;
     z-index: 1;
     padding: 6px 8px;
   }
+  .admin-panel .ql-toolbar.ql-snow .ql-formats,
   .field-editor .ql-toolbar.ql-snow .ql-formats {
     margin-right: 6px;
   }
+  .admin-panel .ql-toolbar.ql-snow button,
   .field-editor .ql-toolbar.ql-snow button {
     width: 32px;
     height: 28px;
+  }
+  .admin-panel .ql-toolbar.ql-snow button svg,
+  .field-editor .ql-toolbar.ql-snow button svg {
+    width: 20px !important;
+    height: 20px !important;
   }
   .quill-host.ql-container.ql-snow,
   .quill-host .ql-editor {
