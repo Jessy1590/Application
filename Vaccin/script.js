@@ -432,6 +432,11 @@ function renderPathoLinks(links, compact = true) {
   ).join('');
 }
 
+function printCellHtml(text) {
+  return escapeHtml(text || '')
+    .replace(/\s*[—–]\s*/g, '<br>');
+}
+
 function printTableOnly() {
   const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
   const printable = filteredData.filter(v => !isHorsReco(v));
@@ -439,9 +444,9 @@ function printTableOnly() {
     ? printable.map(v => {
         const color = v.couleur || getFallbackColor(v.pathologie);
         return `<tr>
-      <td style="background-color:${color};color:#fff;font-weight:700;">${escapeHtml(v.pathologie || '')}</td>
-      <td>${escapeHtml(v.vaccins || '')}</td>
-      <td>${escapeHtml(v.calendrier || '')}</td>
+      <td class="c-patho" style="background-color:${color};color:#fff;font-weight:700;">${printCellHtml(v.pathologie)}</td>
+      <td>${printCellHtml(v.vaccins)}</td>
+      <td>${printCellHtml(v.calendrier)}</td>
     </tr>`;
       }).join('')
     : '<tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr>';
@@ -464,7 +469,8 @@ function printTableOnly() {
   table{width:100%;border-collapse:collapse;table-layout:fixed;}
   th,td{border:1px solid #999;padding:2px 4px;vertical-align:top;text-align:left;font-size:7.5pt;word-wrap:break-word;overflow-wrap:anywhere;}
   th{background:#e8e8e8;font-size:7pt;font-weight:700;}
-  col.c1{width:28%;} col.c2{width:32%;} col.c3{width:40%;}
+  .c-patho{font-size:7pt;}
+  col.c1{width:16%;} col.c2{width:36%;} col.c3{width:48%;}
   @page{size:A4 landscape;margin:0.35cm 0.2cm;}
 </style></head><body>
 <h1>Vaccins &amp; valences — France</h1>
