@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Vaccins France — Valences &amp; schémas</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.quilljs.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.quilljs.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
@@ -97,59 +97,78 @@
     </footer>
 
     <div class="admin-panel no-print" id="adminPanel">
-      <h3 id="adminFormTitle">Ajouter une fiche</h3>
-      <form id="addForm">
-        <input type="hidden" id="editId">
+      <header class="admin-panel-header">
+        <p class="admin-kicker">Mode administration</p>
+        <h2 class="admin-panel-title">Gestion des fiches</h2>
+      </header>
+
+      <section class="admin-section" aria-labelledby="adminFormTitle">
+        <h3 class="admin-section-title" id="adminFormTitle">Ajouter une fiche</h3>
+        <form id="addForm">
+          <input type="hidden" id="editId">
+          <div class="form-grid">
+            <div class="field"><label for="f_pathologie">Pathologies / valences</label><input type="text" id="f_pathologie" required></div>
+            <div class="field"><label for="f_vaccins">Noms commerciaux</label><input type="text" id="f_vaccins" required></div>
+          </div>
+          <div class="form-grid">
+            <div class="field"><label for="f_calendrier">Calendrier (colonne tableau)</label><input type="text" id="f_calendrier"></div>
+            <div class="field"><label for="f_lien">Liens VIS additionnels (optionnel)</label><textarea id="f_lien" rows="2" placeholder="Une URL par ligne, ou Libellé|URL&#10;Les fiches sont aussi générées auto depuis les valences"></textarea></div>
+          </div>
+          <div class="form-grid form-grid-color">
+            <div class="field field-color">
+              <label for="f_couleur">Couleur de la ligne</label>
+              <div class="color-picker-wrap">
+                <input type="color" id="f_couleur" value="#7F8C8D">
+                <span class="color-picker-hint">Aperçu dans le tableau</span>
+              </div>
+            </div>
+          </div>
+          <div class="field field-editor">
+            <label>Détails / correspondances</label>
+            <div id="f_details" class="quill-host"></div>
+          </div>
+          <div class="field field-editor">
+            <label>Rattrapage / cas particuliers</label>
+            <div id="f_rattrapage" class="quill-host"></div>
+          </div>
+          <div class="admin-actions">
+            <button type="submit" class="btn admin-btn" id="saveBtn">Ajouter</button>
+            <button type="button" class="btn ghost hidden" id="cancelEditBtn">Annuler l’édition</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-section" aria-labelledby="adminSettingsTitle">
+        <h3 class="admin-section-title" id="adminSettingsTitle">Paramètres généraux</h3>
         <div class="form-grid">
-          <div class="field"><label for="f_pathologie">Pathologies / valences</label><input type="text" id="f_pathologie" required></div>
-          <div class="field"><label for="f_vaccins">Noms commerciaux</label><input type="text" id="f_vaccins" required></div>
-        </div>
-        <div class="form-grid">
-          <div class="field"><label for="f_calendrier">Calendrier (colonne tableau)</label><input type="text" id="f_calendrier"></div>
-          <div class="field"><label for="f_lien">Liens VIS additionnels (optionnel)</label><textarea id="f_lien" rows="2" placeholder="Une URL par ligne, ou Libellé|URL&#10;Les fiches sont aussi générées auto depuis les valences"></textarea></div>
-        </div>
-        <div class="form-grid form-grid-color">
           <div class="field">
-            <label for="f_couleur">Couleur de la ligne</label>
-            <input type="color" id="f_couleur" value="#7F8C8D">
+            <label for="adminDateInput">Date de dernière mise à jour</label>
+            <input type="date" id="adminDateInput">
+          </div>
+          <div class="field">
+            <label for="adminLegendInput">Texte de la légende</label>
+            <textarea id="adminLegendInput" rows="3"></textarea>
+          </div>
+          <div class="field field-span-2">
+            <label for="adminSituationsInput">Filtres situations (<i>Mot-clé : Libellé</i>, une ligne)</label>
+            <textarea id="adminSituationsInput" rows="5" placeholder="Obligatoire : Vaccination obligatoire&#10;Grossesse : Femmes enceintes"></textarea>
           </div>
         </div>
-        <div class="field field-editor">
-          <label>Détails / correspondances</label>
-          <div id="f_details" class="quill-host"></div>
-        </div>
-        <div class="field field-editor">
-          <label>Rattrapage / cas particuliers</label>
-          <div id="f_rattrapage" class="quill-host"></div>
-        </div>
         <div class="admin-actions">
-          <button type="submit" class="btn admin-btn" id="saveBtn">Ajouter</button>
-          <button type="button" class="btn hidden" id="cancelEditBtn">Annuler l’édition</button>
+          <button type="button" class="btn admin-btn" id="saveSettingsBtn">Enregistrer les paramètres</button>
         </div>
-      </form>
+      </section>
 
-      <h3 class="admin-sub">Paramètres généraux</h3>
-      <div class="form-grid">
-        <div class="field">
-          <label for="adminDateInput">Date de dernière mise à jour</label>
-          <input type="date" id="adminDateInput">
+      <section class="admin-section admin-section-io" aria-labelledby="adminIoTitle">
+        <h3 class="admin-section-title" id="adminIoTitle">Import / export</h3>
+        <p class="admin-section-desc">Sauvegarde ou restauration des fiches au format JSON.</p>
+        <div class="admin-io">
+          <label class="btn file-btn">
+            Importer JSON <input type="file" id="importFile" accept=".json">
+          </label>
+          <button type="button" class="btn" id="exportBtn">Exporter JSON</button>
         </div>
-        <div class="field">
-          <label for="adminLegendInput">Texte de la légende</label>
-          <textarea id="adminLegendInput" rows="3"></textarea>
-        </div>
-        <div class="field field-span-2">
-          <label for="adminSituationsInput">Filtres situations (<i>Mot-clé : Libellé</i>, une ligne)</label>
-          <textarea id="adminSituationsInput" rows="5" placeholder="Obligatoire : Vaccination obligatoire&#10;Grossesse : Femmes enceintes"></textarea>
-        </div>
-      </div>
-      <button type="button" class="btn admin-btn" id="saveSettingsBtn">Enregistrer les paramètres</button>
-      <div class="admin-io">
-        <label class="btn file-btn">
-          Importer JSON <input type="file" id="importFile" accept=".json">
-        </label>
-        <button type="button" class="btn" id="exportBtn">Exporter JSON</button>
-      </div>
+      </section>
     </div>
   </div>
 
