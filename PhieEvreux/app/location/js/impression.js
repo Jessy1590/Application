@@ -43,20 +43,74 @@
     resolu: 'Résolu',
   };
 
-  /** Lignes Suivi fiche A4 : location initiale, prolongations, contacts (résumé), rendu. */
+  const CONTACT_MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
+  /** Ligne journal contact : `JJ/MM/AAAA — …`. */
+  const JOURNAL_LINE_RE = /^\d{2}\/\d{2}\/\d{4}\s*[—\-–]/u;
+  const JOURNAL_PARSE_RE = /^(\d{2})\/(\d{2})\/(\d{4})\s*[—\-–]\s*(.*)$/u;
+
+  function isJournalLine(line) {
+    return JOURNAL_LINE_RE.test(String(line || '').trim());
+  }
+
+  function parseJournalLine(line) {
+    const m = JOURNAL_PARSE_RE.exec(String(line || '').trim());
+    if (!m) return null;
+    return { date: `${m[3]}-${m[2]}-${m[1]}`, text: String(m[4] || '').trim() };
+  }
+
+  function isoDateOnly(iso) {
+    if (!iso) return null;
+    const s = String(iso).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  }
+
+  function detailLines(parts) {
+    return (parts || []).map((p) => String(p ?? '').trim()).filter(Boolean).join('\n');
+  }
+
+  function motifContactLabel(motif) {
+    if (!motif) return '';
+    if (CONTACT_MOTIF_LABELS[motif]) return CONTACT_MOTIF_LABELS[motif];
+    const tpl = global.LocationRules?.templateMotifFor?.(motif);
+    if (tpl && CONTACT_MOTIF_LABELS[tpl]) return CONTACT_MOTIF_LABELS[tpl];
+    return String(motif);
+  }
+
+  /**
+   * Lignes Suivi fiche A4 — résumé détaillé chronologique par module
+   * (création / prolongation / contact / appareil / clôture partielle).
+   */
   function buildSuiviEventRows(dossier) {
     const rows = [];
     const resultatLabels = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    const statutLabels = {
+      ...CONTACT_STATUT_LABELS,
+      ...(global.LocationContact?.APPEL_STATUT_LABELS || {}),
+    };
+
     const prolongations = (dossier.prolongations || []).slice().sort((a, b) =>
       String(a.date_ordo || a.created_at || '').localeCompare(String(b.date_ordo || b.created_at || ''))
     );
     prolongations.forEach((pr, idx) => {
+      const isInitiale = idx === 0 || pr.notes === 'Location initiale';
       const duree = [pr.duree, pr.unite].filter((x) => x != null && x !== '').join(' ');
-      const label =
-        (idx === 0 ? 'Location initiale' : `Prolongation ${idx}`) +
-        (duree ? ` · ${duree}` : '') +
-        (pr.date_fin ? ` → fin ${formatDateFrPrint(pr.date_fin) || pr.date_fin}` : '');
-      rows.push({ date: pr.date_ordo || null, libelle: label });
+      const lines = [
+        isInitiale ? 'Création · Location initiale créée' : 'Prolongation · Prolongation créée',
+      ];
+      if (pr.date_ordo) lines.push(`ordo : ${formatDateFrPrint(pr.date_ordo) || pr.date_ordo}`);
+      if (duree) lines.push(`durée : ${duree}`);
+      if (pr.date_fin) lines.push(`fin : ${formatDateFrPrint(pr.date_fin) || pr.date_fin}`);
+      if (pr.notes && pr.notes !== 'Location initiale') lines.push(`notes : ${pr.notes}`);
+      rows.push({
+        date: pr.date_ordo || isoDateOnly(pr.created_at) || null,
+        libelle: detailLines(lines),
+      });
     });
 
     const appareils = (dossier.appareils || []).slice().sort((a, b) =>
@@ -67,33 +121,81 @@
       const typeTxt = R().typeLabel(ap.type_appareil) + (ap.type_libelle ? ` (${ap.type_libelle})` : '');
       const num = ap.numero_pharmacie || ap.matricule || '—';
       rows.push({
-        date: ap.date_debut || ap.created_at?.slice?.(0, 10) || null,
-        libelle: `Changement d'appareil · ${typeTxt} · n° ${num}`,
+        date: ap.date_debut || isoDateOnly(ap.created_at) || null,
+        libelle: detailLines([
+          'Appareil · Changement d’appareil',
+          `type : ${typeTxt}`,
+          `n° : ${num}`,
+        ]),
       });
     });
 
     const contacts = (dossier.contacts || []).slice().sort((a, b) =>
-      String(a.contacted_at || a.created_at || '').localeCompare(
-        String(b.contacted_at || b.created_at || '')
+      String(a.contacted_at || a.commentaire_fait_at || a.created_at || '').localeCompare(
+        String(b.contacted_at || b.commentaire_fait_at || b.created_at || '')
       )
     );
-    let contactIdx = 0;
     contacts.forEach((c) => {
       if (c.statut === 'annule') return;
-      contactIdx += 1;
-      const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10) || null;
-      const res = c.resultat ? resultatLabels[c.resultat] || c.resultat : '';
-      const st = CONTACT_STATUT_LABELS[c.statut] || c.statut || '';
-      const parts = [`Contact ${contactIdx}`, st, res].filter(Boolean);
-      rows.push({ date: when, libelle: parts.join(' · ') });
+      const motif = motifContactLabel(c.motif);
+      const phaseLabel = c.phase === 'appel' ? 'Appel' : 'Commentaire';
+      const lines = [
+        `Contact · ${phaseLabel}${motif ? ` · ${motif}` : ''}`,
+      ];
+      if (c.commentaire_fait_at) {
+        lines.push(
+          `commentaire mis le ${formatDateFrPrint(c.commentaire_fait_at) || c.commentaire_fait_at.slice(0, 10)}`
+        );
+      }
+      if (c.contacted_at) {
+        lines.push(
+          `appel effectué le ${formatDateFrPrint(c.contacted_at) || c.contacted_at.slice(0, 10)}`
+        );
+      }
+      if (c.resultat) {
+        lines.push(`réponse : ${resultatLabels[c.resultat] || c.resultat}`);
+      }
+      if (c.statut) {
+        lines.push(`statut final : ${statutLabels[c.statut] || c.statut}`);
+      }
+      if (c.commentaire) {
+        lines.push(`commentaire : ${c.commentaire}`);
+      }
+      if (c.canal) {
+        lines.push(`canal : ${c.canal}`);
+      }
+      rows.push({
+        date:
+          isoDateOnly(c.contacted_at) ||
+          isoDateOnly(c.commentaire_fait_at) ||
+          isoDateOnly(c.updated_at) ||
+          isoDateOnly(c.created_at) ||
+          null,
+        libelle: detailLines(lines),
+      });
     });
+
+    // Notes de contact / décisions d’appel / mails (journal dossier) → Suivi, pas Notes initiales.
+    String(dossier.notes || '')
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter(isJournalLine)
+      .forEach((line) => {
+        const parsed = parseJournalLine(line);
+        if (!parsed || !parsed.text) return;
+        rows.push({
+          date: parsed.date,
+          libelle: detailLines([`Contact / appels · ${parsed.text}`]),
+        });
+      });
 
     if (dossier.appareil_rendu) {
       rows.push({
         date: dossier.appareil_rendu_le || null,
-        libelle:
-          'Appareil rendu' +
-          (dossier.appareil_rendu_op ? ` · OP ${dossier.appareil_rendu_op}` : ''),
+        libelle: detailLines([
+          'Clôture · Appareil rendu',
+          dossier.appareil_rendu_op ? `par : ${dossier.appareil_rendu_op}` : '',
+        ]),
       });
     }
 
@@ -106,7 +208,7 @@
     return String(notes || '')
       .split(/\n+/)
       .map((l) => l.trim())
-      .filter((l) => l && !/^\d{2}\/\d{2}\/\d{4}\s*[—\-–]/u.test(l))
+      .filter((l) => l && !isJournalLine(l))
       .join('\n');
   }
 
@@ -416,7 +518,7 @@
   .print-suivi-table th{background:#eee;font-size:8pt;text-transform:uppercase}
   .print-suivi-table .col-date{width:18mm;white-space:nowrap}
   .print-suivi-table .col-check{width:8mm;text-align:center}
-  .print-suivi-table .col-lib{word-break:break-word;white-space:normal}
+  .print-suivi-table .col-lib{word-break:break-word;white-space:pre-line}
   .print-date-ph{color:#666}
   .print-row-fill td{height:6mm}
   .print-cloture{border:1px solid #222;padding:2mm 2.5mm;font-size:9pt;margin-top:2mm}
