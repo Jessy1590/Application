@@ -1380,5 +1380,5 @@ body.is-admin .inline-admin-btns,
   .col-vaccin, .col-cal { background: #fff !important; }
   .row-badges .badge { border: 1px solid #999; font-size: 6.5pt !important; padding: 0 3px !important; }
   .hint-click { display: none !important; }
-  @page { margin: 0.35cm 0.2cm 0.7cm 0.2cm; size: A4 landscape; }
+  @page { margin: 0.35cm 0.2cm 0.7cm 0.2cm; size: A4 portrait; }
 }

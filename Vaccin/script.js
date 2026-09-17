@@ -454,8 +454,8 @@ const PRINT_CSS = `
   .meta{color:#444;margin:0 0 4px;font-size:7pt;}
   .sheet{
     position:relative;
-    width:296mm;
-    height:209mm;
+    width:210mm;
+    height:297mm;
     padding:3mm 2mm 8mm;
     page-break-after:always;
     break-after:page;
@@ -477,8 +477,8 @@ const PRINT_CSS = `
   th{background:#e8e8e8;font-size:7pt;font-weight:700;}
   .c-patho{font-size:7pt;}
   col.c1{width:16%;} col.c2{width:36%;} col.c3{width:48%;}
-  #measure{position:absolute;left:-9999px;top:0;width:292mm;visibility:hidden;}
-  @page{size:A4 landscape;margin:0;}
+  #measure{position:absolute;left:-9999px;top:0;width:206mm;visibility:hidden;}
+  @page{size:A4 portrait;margin:0;}
 `;
 
 function buildPrintSheet(rowsHtml, dateTxt, page, total) {
@@ -526,7 +526,7 @@ function printTableOnly() {
 
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1123px;height:794px;border:0;opacity:0;pointer-events:none;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
 
   const win = iframe.contentWindow;
@@ -585,7 +585,7 @@ function printTableOnly() {
       sheet.style.left = '0';
       sheet.style.top = '0';
       doc.body.appendChild(sheet);
-      const sheetH = sheet.getBoundingClientRect().height || (209 / 25.4 * 96);
+      const sheetH = sheet.getBoundingClientRect().height || (297 / 25.4 * 96);
       const padTop = 3 / 25.4 * 96;
       const padBottom = 8 / 25.4 * 96;
       sheet.remove();
