@@ -49,6 +49,18 @@
         const q = params.toString();
         window.location.href = `suivi.html${q ? `?${q}` : ''}`;
       },
+      openCloture(dossierId) {
+        const params = new URLSearchParams();
+        if (dossierId) params.set('id', String(dossierId));
+        const q = params.toString();
+        window.location.href = `cloture.html${q ? `?${q}` : ''}`;
+      },
+      openProlongation(dossierId) {
+        const params = new URLSearchParams();
+        if (dossierId) params.set('id', String(dossierId));
+        const q = params.toString();
+        window.location.href = `prolongation.html${q ? `?${q}` : ''}`;
+      },
       openCreation(fields) {
         const params = new URLSearchParams();
         if (fields && typeof fields === 'object') {
@@ -116,6 +128,9 @@
     if (name === 'suivi') {
       ctx.initialDossierId = queryId();
       ctx.initialCloture = queryParams().get('cloture') === '1';
+    }
+    if (name === 'prolongation' || name === 'cloture') {
+      ctx.initialDossierId = queryId();
     }
     if (name === 'creation') {
       const qp = queryParams();

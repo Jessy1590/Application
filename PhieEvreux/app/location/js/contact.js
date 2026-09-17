@@ -388,14 +388,48 @@
       </button>`;
     }
 
+    function canSuivi() {
+      return typeof ctx.can === 'function' ? ctx.can('module_suivi') : true;
+    }
+
+    function dossierActif(d) {
+      return !!(d && d.statut !== 'cloture' && d.statut !== 'annule' && d.statut !== 'en_attente');
+    }
+
+    function canCloture(d) {
+      if (!dossierActif(d)) return false;
+      return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
+    }
+
+    function canProlongation(d) {
+      if (!dossierActif(d)) return false;
+      return typeof ctx.can === 'function' ? ctx.can('module_prolongation') : true;
+    }
+
     function canInvalidateCommentaire(contact) {
       if (!contact || !isOpenContact(contact)) return false;
       return contactPhase(contact) === PHASE_APPEL || !!contact.commentaire_fait_at;
     }
 
-    function suiviDetailBtn(d) {
+    function dossierNavBtns(d) {
       const dossierId = d?.id || current?.dossier_id || '';
-      return `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>`;
+      const parts = [];
+      if (canSuivi()) {
+        parts.push(
+          `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>`
+        );
+      }
+      if (canCloture(d) && dossierId) {
+        parts.push(
+          `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(dossierId)}" title="Clôturer le dossier" aria-label="Clôturer le dossier">C</button>`
+        );
+      }
+      if (canProlongation(d) && dossierId) {
+        parts.push(
+          `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-prolong="${esc(dossierId)}" title="Prolongation" aria-label="Prolongation">P</button>`
+        );
+      }
+      return parts.join('');
     }
 
     function invalidateComBtn() {
@@ -407,13 +441,21 @@
     }
 
     function detailHeadActions(d) {
-      return `<div class="loc-detail-head-actions">${invalidateComBtn()}${suiviDetailBtn(d)}</div>`;
+      return `<div class="loc-detail-head-actions">${dossierNavBtns(d)}${invalidateComBtn()}</div>`;
     }
 
     function bindDetailHeadActions() {
       flowEl.querySelector('[data-suivi]')?.addEventListener('click', (ev) => {
         const id = ev.currentTarget.dataset.suivi;
         if (id) ctx.openSuivi?.(id);
+      });
+      flowEl.querySelector('[data-cloture]')?.addEventListener('click', (ev) => {
+        const id = ev.currentTarget.dataset.cloture;
+        if (id) ctx.openCloture?.(id);
+      });
+      flowEl.querySelector('[data-prolong]')?.addEventListener('click', (ev) => {
+        const id = ev.currentTarget.dataset.prolong;
+        if (id) ctx.openProlongation?.(id);
       });
       flowEl.querySelector('[data-invalidate-com]')?.addEventListener('click', () => {
         void invalidateCommentaire();
@@ -434,6 +476,7 @@
         showMsg('Enregistrement…');
         const d = await LocationData.getDossier(dossierId);
         await LocationData.invalidateDossierCommentaire(d.id, d.contacts || []);
+        await LocationData.syncContactQueue(ctx.userId);
         showMsg('Dossier remis en phase Commentaire.');
         current = null;
         resetDraft();
@@ -1123,6 +1166,11 @@
     wrap.querySelector('#coType').addEventListener('change', () => void onFiltersChange());
     wrap.querySelector('#coContact').addEventListener('change', () => void onFiltersChange());
 
+    try {
+      await LocationData.syncContactQueue(ctx.userId);
+    } catch (_) {
+      /* sync best-effort au chargement */
+    }
     await refresh();
   }
 

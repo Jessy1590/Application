@@ -829,7 +829,7 @@
       return LocationData.upsertTemplate({
         motif,
         titre: rule.nom || code,
-        corps: 'À compléter',
+        corps: '',
         type_appareil: rule.type_appareil || null,
         actif: true,
       });

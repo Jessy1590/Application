@@ -621,6 +621,7 @@
         }
         try {
           await LocationData.invalidateDossierCommentaire(d.id, d.contacts || []);
+          await LocationData.syncContactQueue(ctx.userId);
           showMsg('Dossier remis en phase Commentaire.');
           await openDetail(d.id);
         } catch (e) {

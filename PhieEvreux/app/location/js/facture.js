@@ -136,9 +136,18 @@
     return typeof ctx.can === 'function' ? ctx.can('module_suivi') : true;
   }
 
+  function dossierActif(d) {
+    return !!(d && d.statut !== 'cloture' && d.statut !== 'annule' && d.statut !== 'en_attente');
+  }
+
   function canCloture(ctx, d) {
-    if (!d || d.statut === 'cloture' || d.statut === 'annule' || d.statut === 'en_attente') return false;
+    if (!dossierActif(d)) return false;
     return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
+  }
+
+  function canProlongation(ctx, d) {
+    if (!dossierActif(d)) return false;
+    return typeof ctx.can === 'function' ? ctx.can('module_prolongation') : true;
   }
 
   function dossierActionsHtml(d, ctx) {
@@ -151,10 +160,14 @@
       );
     }
     if (canCloture(ctx, d)) {
-      parts.push(`<span class="loc-help-tip">
-        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" aria-label="Clôturer le dossier">C</button>
-        <span class="loc-help-tip__bubble" role="tooltip">Clôturer le dossier</span>
-      </span>`);
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" title="Clôturer le dossier" aria-label="Clôturer le dossier">C</button>`
+      );
+    }
+    if (canProlongation(ctx, d)) {
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-prolong="${esc(id)}" title="Prolongation" aria-label="Prolongation">P</button>`
+      );
     }
     if (!parts.length) return '';
     return `<div class="loc-dossier-actions">${parts.join('')}</div>`;
@@ -170,7 +183,13 @@
     root.querySelectorAll('[data-cloture]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-cloture');
-        if (id) ctx.openSuivi?.(id, { cloture: true });
+        if (id) ctx.openCloture?.(id);
+      });
+    });
+    root.querySelectorAll('[data-prolong]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-prolong');
+        if (id) ctx.openProlongation?.(id);
       });
     });
   }
@@ -284,13 +303,13 @@
       </li>`;
     }
     return `<li class="loc-facture-item${warn ? ' loc-facture-item-warn' : ' loc-facture-item-ok'}">
+      ${dossierActionsHtml(d, ctx || {})}
       <div class="loc-facture-item-main">
         <strong>${esc(patientLabel(d))}</strong>
         <span>Dossier ${esc(d.id || '—')} · ${esc(d.statut || '—')}</span>
         <span>Matricule : ${esc(item.matriculeAffiche)}</span>
         <span>Date clôture : ${esc(d.date_cloture || '—')}</span>
       </div>
-      ${dossierActionsHtml(d, ctx || {})}
     </li>`;
   }
 

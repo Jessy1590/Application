@@ -38,9 +38,18 @@
     return typeof ctx.can === 'function' ? ctx.can('module_suivi') : true;
   }
 
+  function dossierActif(d) {
+    return !!(d && d.statut !== 'cloture' && d.statut !== 'annule' && d.statut !== 'en_attente');
+  }
+
   function canCloture(ctx, d) {
-    if (!d || d.statut === 'cloture' || d.statut === 'annule' || d.statut === 'en_attente') return false;
+    if (!dossierActif(d)) return false;
     return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
+  }
+
+  function canProlongation(ctx, d) {
+    if (!dossierActif(d)) return false;
+    return typeof ctx.can === 'function' ? ctx.can('module_prolongation') : true;
   }
 
   function dossierActionsHtml(d, ctx) {
@@ -53,10 +62,14 @@
       );
     }
     if (canCloture(ctx, d)) {
-      parts.push(`<span class="loc-help-tip">
-        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" aria-label="Clôturer le dossier">C</button>
-        <span class="loc-help-tip__bubble" role="tooltip">Clôturer le dossier</span>
-      </span>`);
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" title="Clôturer le dossier" aria-label="Clôturer le dossier">C</button>`
+      );
+    }
+    if (canProlongation(ctx, d)) {
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-prolong="${esc(id)}" title="Prolongation" aria-label="Prolongation">P</button>`
+      );
     }
     if (!parts.length) return '';
     return `<div class="loc-dossier-actions">${parts.join('')}</div>`;
@@ -74,7 +87,14 @@
       btn.addEventListener('click', (ev) => {
         ev.stopPropagation();
         const id = btn.getAttribute('data-cloture');
-        if (id) ctx.openSuivi?.(id, { cloture: true });
+        if (id) ctx.openCloture?.(id);
+      });
+    });
+    root.querySelectorAll('[data-prolong]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-prolong');
+        if (id) ctx.openProlongation?.(id);
       });
     });
   }
@@ -240,11 +260,11 @@
               const a = d.appareil_actif || {};
               const ref = a.matricule || a.numero_pharmacie || '—';
               return `<div class="loc-list-item loc-parc-item">
+                ${dossierActionsHtml(d, ctx)}
                 <div class="loc-parc-item-main">
                   <strong>${esc(patientLabel(d))}</strong>
                   <span>${esc(ref)} · ${esc(fmtDate(d.date_debut))} → ${esc(fmtDate(d.date_fin))}</span>
                 </div>
-                ${dossierActionsHtml(d, ctx)}
               </div>`;
             })
             .join('')}</div>`
@@ -259,14 +279,13 @@
       if (side === 'right') {
         const d = entry.dossierActif;
         return `<div class="loc-parc-device">
+          <div class="loc-parc-device-actions">
+            ${dossierActionsHtml(d, ctx)}
+          </div>
           <div class="loc-parc-device-main">
             <strong>${esc(ref)}</strong>
             <span>${esc(patientLabel(d))}${esc(typeExtra)}</span>
             <span>${esc(fmtDate(d?.date_debut))} → ${esc(fmtDate(d?.date_fin))}</span>
-          </div>
-          <div class="loc-parc-device-actions">
-            <button type="button" class="loc-btn loc-btn-sm" data-modif="${esc(d?.id || '')}">Modifier le dossier</button>
-            ${dossierActionsHtml(d, ctx)}
           </div>
         </div>`;
       }
@@ -312,12 +331,6 @@
         </section>
       </div>`;
 
-      body.querySelectorAll('[data-modif]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-modif');
-          if (id) ctx.openSuivi?.(id);
-        });
-      });
       bindDossierActions(body, ctx);
       body.querySelectorAll('[data-creer]').forEach((btn) => {
         btn.addEventListener('click', () => {

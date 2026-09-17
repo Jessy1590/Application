@@ -1099,11 +1099,12 @@
       });
     }
 
+    // Commentaire vidé : le prochain syncContactQueue le remplit depuis le template admin.
     return upsertContact({
       id: keeper.id,
       dossier_id: dossierId,
       motif: keeper.motif,
-      commentaire: keeper.commentaire || null,
+      commentaire: null,
       phase: 'commentaire',
       statut: 'a_contacter',
       resultat: null,
@@ -1157,30 +1158,51 @@
       if (!tpl) {
         tpl = await findTemplateByMotif(a?.type_appareil, resolved.templateMotif);
       }
-      // Message LGO = corps du template admin uniquement (jamais les messages internes des raisons).
-      const rawCorps = tpl?.corps || '';
-      const commentaire = rawCorps
-        ? global.LocationRules.interpolate(rawCorps, vars)
-        : '';
+      // Message LGO = uniquement le corps du template admin (jamais raison.message ni texte inventé).
+      if (!tpl || !String(tpl.corps || '').trim()) continue;
+      const commentaire = global.LocationRules.interpolate(String(tpl.corps), vars);
       const open = byDossier.get(d.id);
 
       if (open) {
-        if (!shouldResetContactToCommentaire(open, d)) continue;
-        const row = await upsertContact({
-          id: open.id,
-          dossier_id: d.id,
-          motif,
-          statut: 'a_contacter',
-          phase: 'commentaire',
-          commentaire,
-          resultat: null,
-          canal: null,
-          contacted_at: null,
-          commentaire_fait_at: null,
-          phase_date_fin: d.date_fin || null,
-        });
-        reset.push(row);
-        byDossier.set(d.id, row);
+        if (shouldResetContactToCommentaire(open, d)) {
+          const row = await upsertContact({
+            id: open.id,
+            dossier_id: d.id,
+            motif,
+            statut: 'a_contacter',
+            phase: 'commentaire',
+            commentaire,
+            resultat: null,
+            canal: null,
+            contacted_at: null,
+            commentaire_fait_at: null,
+            phase_date_fin: d.date_fin || null,
+          });
+          reset.push(row);
+          byDossier.set(d.id, row);
+          continue;
+        }
+        // Contact encore en phase commentaire (LGO non validé) : recalculer le
+        // message depuis règles/templates admin (pas le texte seed / figé).
+        if (
+          open.phase === 'commentaire' &&
+          !open.commentaire_fait_at &&
+          open.statut === 'a_contacter'
+        ) {
+          const same =
+            (open.commentaire || '') === commentaire && (open.motif || '') === motif;
+          if (!same) {
+            const row = await upsertContact({
+              id: open.id,
+              dossier_id: d.id,
+              motif,
+              commentaire,
+              phase_date_fin: d.date_fin || open.phase_date_fin || null,
+            });
+            reset.push(row);
+            byDossier.set(d.id, row);
+          }
+        }
         continue;
       }
 

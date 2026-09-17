@@ -428,7 +428,11 @@
     btnNext.addEventListener('click', goNext);
 
     await load();
-    searchEl.focus();
+    if (ctx.initialDossierId) {
+      await selectDossier(ctx.initialDossierId);
+    } else {
+      searchEl.focus();
+    }
   }
 
   global.LocationCloture = { mount, openModal };

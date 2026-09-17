@@ -307,7 +307,23 @@
     btnNext.addEventListener('click', goNext);
 
     await load();
-    searchEl.focus();
+    if (ctx.initialDossierId) {
+      const initId = ctx.initialDossierId;
+      if (!allRows.some((r) => r.id === initId)) {
+        try {
+          const d = await LocationData.getDossier(initId);
+          if (d && d.statut === 'actif') {
+            allRows.unshift(d);
+            applyFilter();
+          }
+        } catch (_) {
+          /* ignore: selectDossier affichera l’erreur */
+        }
+      }
+      await selectDossier(initId);
+    } else {
+      searchEl.focus();
+    }
   }
 
   global.LocationProlongation = { mount };

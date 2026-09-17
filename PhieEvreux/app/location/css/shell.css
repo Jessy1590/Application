@@ -1103,7 +1103,7 @@ html[data-theme="light"] .loc-help-tip__bubble {
 }
 
 .loc-detail-head:has(.loc-detail-head-actions) {
-  padding-right: 5.5rem;
+  padding-right: 9.5rem;
 }
 
 .loc-detail-head h3 {
