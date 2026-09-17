@@ -5,7 +5,7 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 
 **Légende propositions :** `supprimer` | `bandeau information` | `tooltip ?` | `garder`
 
-**Statut :** attendre confirmation **ligne par ligne** avant toute autre modification (hors Seuils déjà appliqué).
+**Statut :** Seuils (S1–S3) + Paramètres Location admin (**1–22**) appliqués. Suite : confirmer **ligne par ligne** (23+) avant modification.
 
 **Style bandeau (si retenu plus tard) :** encadré jaune libellé **Information**, proche `.loc-journal-box--suivi` / warn → créer `.loc-info-banner` réutilisable si besoin.
 
@@ -17,36 +17,36 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 |---|---------|------------------------|-------------|--------------------------|--------|
 | S1 | `app/location/js/admin-location.js` | Enregistrement automatique à chaque modification. | `supprimer` | — | **fait** |
 | S2 | `app/location/js/admin-location.js` | Visibilité / obligation des champs création : onglet Création dossier. | `supprimer` | — | **fait** |
-| S3 | `app/location/js/admin-location.js` | Sans règle spécifique : mois depuis la fin de la dernière prolongation (< seuil → prolongation ; ≥ seuil → réclamer l’appareil). | `tooltip ?` à côté de « Seuil réclamer appareil (mois) » | Sans règle LGO spécifique : on compte les mois depuis la fin de la dernière prolongation. En dessous du seuil → prolongation ; au seuil ou au-delà → réclamer l’appareil. | **fait** (`title` + `.loc-help-tip`) |
+| S3 | `app/location/js/admin-location.js` | Sans règle spécifique : mois depuis la fin de la dernière prolongation (< seuil → prolongation ; ≥ seuil → réclamer l’appareil). | `tooltip ?` à côté de « Seuil réclamer appareil (mois) » | Sans règle LGO spécifique : on compte les mois depuis la fin de la dernière prolongation. En dessous du seuil → prolongation ; au seuil ou au-delà → réclamer l’appareil. | **fait** (popover `.loc-help-tip` hover/focus/clic) |
 
 ---
 
-## À confirmer — Paramètres Location (admin)
+## Appliqué — Paramètres Location (admin)
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 1 | `admin-location.js` (Accès) | L’UI Location suit cette matrice ; la RLS reste la source de vérité serveur. | `bandeau information` | L’interface Location applique cette matrice. Les droits réels restent ceux du serveur (RLS). |
-| 2 | `admin-location.js` (Accès) | Administrateur = rôle équipe `administrateur` ou profil portail `admin`. | `tooltip ?` (près du titre « Accès par rôle » ou colonne Administrateur) | Administrateur : rôle équipe « administrateur » ou profil portail « admin ». |
-| 3 | `admin-location.js` (Accès) | Hub (équipe / invitations / bugs) : non piloté ici — reste `PhieEquipe` (admin uniquement). | `bandeau information` | Équipe, invitations et bugs du hub ne se règlent pas ici (réservé aux admins via le hub). |
-| 4 | `admin-location.js` (Accès) | Enregistrement automatique à chaque modification. | `supprimer` | — |
-| 5 | `admin-location.js` (Accès) | Lecture seule — seule un administrateur peut modifier les accès. | `garder` | — |
-| 6 | `admin-location.js` (Accès, `title` case) | Toujours autorisé pour l’administrateur (verrouillé) | `garder` | — |
-| 7 | `admin-location.js` (Accès, `title` case) | Géré par PhieEquipe sur le hub (hors matrice Location) | `garder` | — |
-| 8 | `admin-location.js` (Accès, `title` case) | Modification réservée aux administrateurs | `garder` | — |
-| 9 | `admin-location.js` (Accès) | (hub) — suffixe libellé fonctionnalité | `garder` | — |
-| 10 | `admin-location.js` (Création dossier) | Visibilité et obligation des champs du formulaire Création (hors spécificités par type d’appareil). | `bandeau information` | Ici : afficher ou rendre obligatoire chaque champ du formulaire Création (hors champs propres à un type d’appareil). |
-| 11 | `admin-location.js` (Création dossier) | Étape : … — enregistrement auto. | `supprimer` (garder éventuellement le seul libellé d’étape via chips) | — |
-| 12 | `admin-location.js` (Création dossier) | Ajouter une information à cette étape (texte libre à la création / suivi). | `tooltip ?` près de « ＋ Ajouter » / bloc ajout | Ajoute un champ libre visible à la création et au suivi pour cette étape. |
-| 13 | `admin-location.js` (Prestataires) | Les prestataires existants s’enregistrent automatiquement. | `supprimer` | — |
-| 14 | `admin-location.js` (Règles) | Enregistrement automatique en changeant de règle. Priorité calculée automatiquement. Choisissez le template LGO sur chaque règle. | `supprimer` l’autosave ; `tooltip ?` pour priorité + template | Priorité calculée automatiquement. Associez un template LGO à chaque règle. |
-| 15 | `admin-location.js` (Templates) | Pour ajouter un template hors règle, signalez-le via le bouton Bug (ou « Nouveau… » depuis une règle). | `bandeau information` | Pour un template hors règle : signaler via Bug, ou créer via « Nouveau… » depuis une règle. |
-| 16 | `admin-location.js` (Templates) | Motif sélectionné : … — enregistrement auto à chaque modification. | `supprimer` (motif déjà dans les chips) | — |
-| 17 | `admin-location.js` (Templates) | Placeholders dans le corps : `{date_min}` … `{type_appareil}` … | `tooltip ?` près de « Texte du commentaire » / titre Templates | (même contenu, formulation courte FR inchangée sauf allègement typographique) |
-| 18 | `admin-location.js` (Spécificité appareil) | Champs spécifiques par type d’appareil (table location_champs_creation). | `supprimer` (nom de table technique) ou `tooltip ?` | Champs propres à chaque type d’appareil, affichés à la création. |
-| 19 | `admin-location.js` (Spécificité appareil) | Type : … — enregistrement auto en changeant de champ. | `supprimer` | — |
-| 20 | `admin-location.js` (options champ liste) | Pas d’options pour ce type de champ. | `garder` | — |
-| 21 | `admin-location.js` (options champ liste) | Choix de la liste | `garder` | — |
-| 22 | `admin-location.js` (conditions règle) | Aucune condition. Ajoutez-en une ci-dessous. | `garder` | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 1 | `admin-location.js` (Accès) | L’UI Location suit cette matrice ; la RLS reste la source de vérité serveur. | `supprimer` | — | **fait** |
+| 2 | `admin-location.js` (Accès) | Administrateur = rôle équipe `administrateur` ou profil portail `admin`. | `supprimer` | — | **fait** |
+| 3 | `admin-location.js` (Accès) | Hub (équipe / invitations / bugs) : non piloté ici — reste `PhieEquipe` (admin uniquement). | `supprimer` | — | **fait** |
+| 4 | `admin-location.js` (Accès) | Enregistrement automatique à chaque modification. | `supprimer` | — | **fait** |
+| 5 | `admin-location.js` (Accès) | Lecture seule — seule un administrateur peut modifier les accès. | `supprimer` | — | **fait** |
+| 6 | `admin-location.js` (Accès, `title` case) | Toujours autorisé pour l’administrateur (verrouillé) | `supprimer` (case sans title) | — | **fait** |
+| 7 | `admin-location.js` (Accès, `title` case) | Géré par PhieEquipe sur le hub (hors matrice Location) | `supprimer` (case sans title) | — | **fait** |
+| 8 | `admin-location.js` (Accès, `title` case) | Modification réservée aux administrateurs | `supprimer` (case sans title) | — | **fait** |
+| 9 | `admin-location.js` (Accès) | (hub) — suffixe libellé fonctionnalité | `supprimer` | — | **fait** |
+| 10 | `admin-location.js` (Création dossier) | Visibilité et obligation des champs du formulaire Création (hors spécificités par type d’appareil). | `bandeau information` | Ici : afficher ou rendre obligatoire chaque champ du formulaire Création (hors champs propres à un type d’appareil). | **fait** |
+| 11 | `admin-location.js` (Création dossier) | Étape : … — enregistrement auto. | `supprimer` | — | **fait** |
+| 12 | `admin-location.js` (Création dossier) | Ajouter une information à cette étape (texte libre à la création / suivi). | `tooltip ?` près de « ＋ Ajouter » | Ajoute un champ libre visible à la création et au suivi pour cette étape. | **fait** |
+| 13 | `admin-location.js` (Prestataires) | Les prestataires existants s’enregistrent automatiquement. | `supprimer` | — | **fait** |
+| 14 | `admin-location.js` (Règles) | Enregistrement automatique en changeant de règle. Priorité calculée automatiquement. Choisissez le template LGO sur chaque règle. | `supprimer` autosave ; `bandeau information` priorité + template | Priorité calculée automatiquement. Associez un template LGO à chaque règle. | **fait** |
+| 15 | `admin-location.js` (Templates) | Pour ajouter un template hors règle, signalez-le via le bouton Bug (ou « Nouveau… » depuis une règle). | `bandeau information` | Pour un template hors règle --> signaler une Amélioration via le bouton bug. | **fait** |
+| 16 | `admin-location.js` (Templates) | Motif sélectionné : … — enregistrement auto à chaque modification. | `supprimer` | — | **fait** |
+| 17 | `admin-location.js` (Templates) | Placeholders dans le corps : `{date_min}` … `{type_appareil}` … | `bandeau information` (liste complète + explications) | Placer `{…}` dans le corps pour un affichage avec les données du suivi ; légende par placeholder. | **fait** |
+| 18 | `admin-location.js` (Spécificité appareil) | Champs spécifiques par type d’appareil (table location_champs_creation). | `bandeau information` | Champs propres à chaque type d’appareil, affichés à la création et au suivi | **fait** |
+| 19 | `admin-location.js` (Spécificité appareil) | Type : … — enregistrement auto en changeant de champ. | `supprimer` | — | **fait** |
+| 20 | `admin-location.js` (options champ liste) | Pas d’options pour ce type de champ. | `garder` | — | **fait** |
+| 21 | `admin-location.js` (options champ liste) | Choix de la liste | `garder` | — | **fait** |
+| 22 | `admin-location.js` (conditions règle) | Aucune condition. Ajoutez-en une ci-dessous. | `garder` | — | **fait** |
 
 ---
 
@@ -164,5 +164,6 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 ## Rappel process
 
 1. Seuils : **déjà corrigé** (S1–S3).
-2. Pour chaque ligne **1–60** : confirmer ou ajuster la proposition.
-3. Ensuite seulement : appliquer les changements validés (et `.loc-info-banner` si au moins un `bandeau information` est retenu).
+2. Paramètres Location admin (**1–22**) : **appliqué**.
+3. Pour chaque ligne **23–60** : confirmer ou ajuster la proposition.
+4. Ensuite seulement : appliquer les changements validés.

@@ -10,6 +10,57 @@
       .replace(/"/g, '&quot;');
   }
 
+  let helpTipSeq = 0;
+
+  /** Bulle d’aide « ? » (hover / focus / clic) — ne pas se fier au seul title natif. */
+  function helpTipHtml(text, ariaLabel) {
+    helpTipSeq += 1;
+    const id = `loc-help-tip-${helpTipSeq}`;
+    return `<span class="loc-help-tip">
+      <button type="button" class="loc-help-tip__btn" aria-label="${esc(ariaLabel)}" aria-expanded="false" aria-controls="${id}">?</button>
+      <span class="loc-help-tip__bubble" role="tooltip" id="${id}">${esc(text)}</span>
+    </span>`;
+  }
+
+  function closeHelpTips(root, except) {
+    (root || document).querySelectorAll('.loc-help-tip.is-open').forEach((wrap) => {
+      if (except && wrap === except) return;
+      wrap.classList.remove('is-open');
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function bindHelpTips(root) {
+    if (!root) return;
+    root.querySelectorAll('.loc-help-tip').forEach((wrap) => {
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (!btn || btn.dataset.helpBound === '1') return;
+      btn.dataset.helpBound = '1';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !wrap.classList.contains('is-open');
+        closeHelpTips(root, wrap);
+        wrap.classList.toggle('is-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        if (!willOpen) btn.blur();
+      });
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeHelpTips(root);
+          btn.blur();
+        }
+      });
+    });
+    if (root.dataset.helpOutsideBound === '1') return;
+    root.dataset.helpOutsideBound = '1';
+    root.addEventListener('click', (e) => {
+      if (e.target.closest('.loc-help-tip')) return;
+      closeHelpTips(root);
+    });
+  }
+
   const DATA_TYPES = [
     ['texte', 'Texte'],
     ['date', 'Date'],
@@ -31,11 +82,20 @@
     ['mois', 'Mois'],
   ];
 
-  const BUG_HINT_TEMPLATES =
-    'Pour ajouter un template hors règle, signalez-le via le bouton Bug (ou « Nouveau… » depuis une règle).';
+  const INFO_CREATION_DOSSIER =
+    'Ici : afficher ou rendre obligatoire chaque champ du formulaire Création (hors champs propres à un type d’appareil).';
 
-  const BUG_HINT_CHAMPS =
-    'Champs spécifiques par type d’appareil (table location_champs_creation).';
+  const HELP_AJOUT_CHAMP_CREATION =
+    'Ajoute un champ libre visible à la création et au suivi pour cette étape.';
+
+  const INFO_REGLES =
+    'Priorité calculée automatiquement. Associez un template LGO à chaque règle.';
+
+  const INFO_TEMPLATES =
+    'Pour un template hors règle --> signaler une Amélioration via le bouton bug.';
+
+  const INFO_CHAMPS_APPAREIL =
+    'Champs propres à chaque type d’appareil, affichés à la création et au suivi';
 
   const MOTIF_LABELS = {
     prolongation: 'Prolongation',
@@ -46,6 +106,27 @@
 
   function motifLabel(motif) {
     return MOTIF_LABELS[motif] || motif || '—';
+  }
+
+  function infoBanner(bodyHtml) {
+    return `<div class="loc-info-banner" role="note">
+      <p class="loc-info-banner-title">Information</p>
+      <div class="loc-info-banner-body">${bodyHtml}</div>
+    </div>`;
+  }
+
+  function placeholdersInfoBanner() {
+    return infoBanner(`
+      <p>Placer <code>{…}</code> dans le corps pour un affichage avec les données du suivi :</p>
+      <ul>
+        <li><code>{date_min}</code> — date de fin (JJ/MM/AAAA)</li>
+        <li><code>{max_duree}</code> — durée maximale</li>
+        <li><code>{unite}</code> — unité (jours / semaines / mois)</li>
+        <li><code>{max_duree_prolongation}</code> — durée max de prolongation</li>
+        <li><code>{bascule_apres_mois}</code> — seuil de bascule (mois)</li>
+        <li><code>{type_appareil}</code> — libellé FR du type d’appareil</li>
+      </ul>
+    `);
   }
 
   const CONDITION_FIELDS = [
@@ -303,15 +384,8 @@
         const locked = LocationAccess.isLocked(featureKey, role);
         const on = !!matrix[featureKey]?.[role];
         const disabled = !canEditAcces || !featureEditable || locked;
-        const title = locked
-          ? 'Toujours autorisé pour l’administrateur (verrouillé)'
-          : !featureEditable
-            ? 'Géré par PhieEquipe sur le hub (hors matrice Location)'
-            : !canEditAcces
-              ? 'Modification réservée aux administrateurs'
-              : '';
         return `<td class="loc-acces-cell">
-          <label class="loc-check-inline" title="${esc(title)}">
+          <label class="loc-check-inline">
             <input type="checkbox" data-acces-feature="${esc(featureKey)}" data-acces-role="${esc(role)}"${
               on ? ' checked' : ''
             }${disabled ? ' disabled' : ''}>
@@ -321,14 +395,6 @@
 
       body.innerHTML = `
         <h3>Accès par rôle</h3>
-        <p class="loc-muted">L’UI Location suit cette matrice ; la RLS reste la source de vérité serveur.</p>
-        <p class="loc-muted">Administrateur = rôle équipe <code>administrateur</code> ou profil portail <code>admin</code>.</p>
-        <p class="loc-muted">Hub (équipe / invitations / bugs) : non piloté ici — reste <code>PhieEquipe</code> (admin uniquement).</p>
-        ${
-          canEditAcces
-            ? '<p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>'
-            : '<p class="loc-muted">Lecture seule — seule un administrateur peut modifier les accès.</p>'
-        }
         <div class="loc-admin-table-wrap">
           <table class="loc-admin-table">
             <thead>
@@ -343,7 +409,7 @@
               ${LocationAccess.FEATURES.map((f) => {
                 const featureEditable = LocationAccess.isEditableFeature(f.key);
                 return `<tr>
-                  <td>${esc(f.label)}${featureEditable ? '' : ' <span class="loc-muted">(hub)</span>'}</td>
+                  <td>${esc(f.label)}</td>
                   ${roles.map((r) => cell(f.key, r, featureEditable)).join('')}
                 </tr>`;
               }).join('')}
@@ -422,7 +488,7 @@
       };
 
       body.innerHTML = `
-        <p class="loc-admin-hint">Visibilité et obligation des champs du formulaire Création (hors spécificités par type d’appareil).</p>
+        ${infoBanner(esc(INFO_CREATION_DOSSIER))}
         <div class="loc-motif-chips" role="tablist" aria-label="Étapes création">
           ${etapes
             .map(
@@ -433,7 +499,6 @@
             )
             .join('')}
         </div>
-        <p class="loc-muted loc-autosave-hint">Étape : <strong>${esc(etape?.label || '')}</strong> — enregistrement auto.</p>
         <div class="loc-creation-panel">
           <div class="loc-admin-table-wrap">
             <table class="loc-admin-table loc-creation-table">
@@ -454,15 +519,19 @@
             </table>
           </div>
           <div class="loc-creation-add" id="adCreationAdd">
-            <p class="loc-muted">Ajouter une information à cette étape (texte libre à la création / suivi).</p>
             <div class="loc-creation-add-row">
               <label class="loc-field">Code<input data-n="code" placeholder="ex. info_complement" autocomplete="off"></label>
               <label class="loc-field">Libellé<input data-n="libelle" placeholder="Texte affiché" autocomplete="off"></label>
-              <button type="button" class="loc-btn" id="adAddCreationField">＋ Ajouter</button>
+              <span class="loc-field-label-row">
+                <button type="button" class="loc-btn" id="adAddCreationField">＋ Ajouter</button>
+                ${helpTipHtml(HELP_AJOUT_CHAMP_CREATION, 'Aide : ajouter un champ')}
+              </span>
             </div>
           </div>
         </div>
       `;
+
+      bindHelpTips(body);
 
       body.querySelectorAll('[data-creation-etape]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -589,7 +658,13 @@
         <h3>Seuils</h3>
         <div class="loc-grid-2">
           <label class="loc-field">Seuil contact (J-n)<input type="number" min="0" id="adSeuil" value="${Number(seuil)}"></label>
-          <label class="loc-field"><span class="loc-field-label-row">Seuil réclamer appareil (mois) <button type="button" class="loc-help-tip" title="${esc(seuilReclameHelp)}" aria-label="Aide : seuil réclamer appareil">?</button></span><input type="number" min="0" id="adSeuilReclame" value="${Number(seuilReclame)}"></label>
+          <div class="loc-field">
+            <span class="loc-field-label-row">
+              <label for="adSeuilReclame">Seuil réclamer appareil (mois)</label>
+              ${helpTipHtml(seuilReclameHelp, 'Aide : seuil réclamer appareil')}
+            </span>
+            <input type="number" min="0" id="adSeuilReclame" value="${Number(seuilReclame)}">
+          </div>
           <label class="loc-field">Délai clôture facture (jours)<input type="number" min="0" id="adDelaiFacture" value="${Number(delaiFacture)}"></label>
           <label class="loc-field">Qui facture (défaut)<select id="adQui">
             <option value="pharmacie"${qui === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
@@ -597,6 +672,8 @@
           </select></label>
         </div>
       `;
+
+      bindHelpTips(body);
 
       const persist = async () => {
         try {
@@ -649,7 +726,6 @@
           <label class="loc-field">Contact<input data-n="contact"></label>
         </div>
         <button type="button" class="loc-btn" id="adAddPrest">Ajouter</button>
-        <p class="loc-muted loc-autosave-hint">Les prestataires existants s’enregistrent automatiquement.</p>
       `;
 
       body.querySelectorAll('.loc-admin-row').forEach((row) => {
@@ -814,7 +890,7 @@
           }
           <button type="button" class="loc-btn" id="adAddRule">Ajouter une règle</button>
         </div>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de règle. Priorité calculée automatiquement. Choisissez le template LGO sur chaque règle.</p>
+        ${infoBanner(esc(INFO_REGLES))}
         <div class="loc-params-editor" data-rule-editor>
           ${
             current
@@ -923,7 +999,7 @@
         : rows;
 
       body.innerHTML = `
-        <p class="loc-admin-hint">${esc(BUG_HINT_TEMPLATES)}</p>
+        ${infoBanner(esc(INFO_TEMPLATES))}
         <div class="loc-motif-chips" role="tablist" aria-label="Motifs">
           ${
             motifs
@@ -936,8 +1012,7 @@
               .join('') || '<p class="loc-muted">Aucun motif.</p>'
           }
         </div>
-        <p class="loc-muted loc-autosave-hint">Motif sélectionné : <strong>${esc(motifLabel(selectedMotif))}</strong> — enregistrement auto à chaque modification.</p>
-        <p class="loc-hint">Placeholders dans le corps : <code>{date_min}</code> (date de fin JJ/MM/AAAA), <code>{max_duree}</code>, <code>{unite}</code> (jours/semaines/mois), <code>{max_duree_prolongation}</code>, <code>{bascule_apres_mois}</code>, <code>{type_appareil}</code> (libellé FR).</p>
+        ${placeholdersInfoBanner()}
         <div class="loc-admin-list" id="adTplList">
           ${
             filtered
@@ -1053,7 +1128,7 @@
           .reduce((m, r) => Math.max(m, Number(r.ordre) || 0), 0) + 10;
 
       body.innerHTML = `
-        <p class="loc-admin-hint">${esc(BUG_HINT_CHAMPS)}</p>
+        ${infoBanner(esc(INFO_CHAMPS_APPAREIL))}
         <div class="loc-motif-chips" role="tablist" aria-label="Types d’appareil">
           ${typeEntries
             .map(
@@ -1064,9 +1139,6 @@
             )
             .join('')}
         </div>
-        <p class="loc-muted loc-autosave-hint">Type : <strong>${esc(
-          LocationRules.typeLabel(selectedTypeAppareil)
-        )}</strong> — enregistrement auto en changeant de champ.</p>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
             ${
