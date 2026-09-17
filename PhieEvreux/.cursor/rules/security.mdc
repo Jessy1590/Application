@@ -10,13 +10,15 @@ alwaysApply: true
 - Clé **anon** uniquement côté client (`SUPABASE_CONFIG`) — **jamais** `service_role`.
 - Schéma métier : `phieevreux` via `shared/supabase-apps.js`.
 - Profils / `site_access` : schéma `portail`.
-- La RLS reste la source de vérité ; l’UI (protect.js, checks `PhieEquipe`) ne remplace pas les policies.
+- La RLS reste la source de vérité ; l’UI (`protect.js`, `PhieEquipe`, `LocationAccess`) ne remplace pas les policies.
 
 ## Auth & rôles
 - Lire `portail.profiles.role` / table `phieevreux.equipe` — **pas** `user_metadata` pour l’autorisation.
+- Hub admin : `PhieEquipe.isAdmin` (admin portail ∪ `equipe.role === 'administrateur'`).
+- Location : droits modules via `LocationAccess` + param `acces_roles` ; ne pas confondre avec les droits hub.
 - Invitation : Edge Function `invite-user` (admin portail côté serveur) + écriture `site_access` + `equipe` depuis le client admin.
 
 ## Secrets
-- Ne pas committer `.env` / clés ; voir `PhieEvreux/.gitignore`.
+- Ne pas committer `.env` / clés ; voir `PhieEvreux/.gitignore` (et `.gitignore` monorepo parent).
 - Ne pas logger tokens ni mots de passe.
 - CSP : conserver les restrictions existantes (cdn.jsdelivr, domaine Supabase projet).

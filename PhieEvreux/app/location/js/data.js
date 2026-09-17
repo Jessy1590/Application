@@ -435,27 +435,6 @@
     return data;
   }
 
-  async function upsertSuiviLigne(row) {
-    if (row.id) {
-      const { data, error } = await sb()
-        .from('location_suivi_lignes')
-        .update({ ...row, updated_at: new Date().toISOString() })
-        .eq('id', row.id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
-    const { data, error } = await sb().from('location_suivi_lignes').insert(row).select().single();
-    if (error) throw error;
-    return data;
-  }
-
-  async function deleteSuiviLigne(id) {
-    const { error } = await sb().from('location_suivi_lignes').delete().eq('id', id);
-    if (error) throw error;
-  }
-
   async function listTemplates() {
     const { data, error } = await sb()
       .from('location_templates_contact')
@@ -479,11 +458,6 @@
       actifs.find((t) => t.motif === 'prolongation') ||
       null
     );
-  }
-
-  /** @deprecated Prefer findTemplateByMotif / findTemplateById + resolveLgo. */
-  async function findTemplate(typeAppareil, motif) {
-    return findTemplateByMotif(typeAppareil, global.LocationRules.templateMotifFor(motif));
   }
 
   async function findTemplateById(id) {
@@ -802,6 +776,140 @@
     return (arr || []).join(', ');
   }
 
+  /**
+   * Identité stable d’un appareil du parc pharmacie.
+   * Priorité : numero_pharmacie (trim, insensible à la casse) → matricule → id appareil.
+   */
+  function appareilIdentiteParc(a) {
+    const numRaw = String(a?.numero_pharmacie || '').trim();
+    if (numRaw) {
+      return { key: `num:${numRaw.toLowerCase()}`, kind: 'numero_pharmacie', value: numRaw };
+    }
+    const matRaw = String(a?.matricule || '').trim();
+    if (matRaw) {
+      return { key: `mat:${matRaw.toLowerCase()}`, kind: 'matricule', value: matRaw };
+    }
+    const id = a?.id || null;
+    return { key: id ? `id:${id}` : 'id:', kind: 'id', value: id };
+  }
+
+  function dossierLiePrestataire(d, prestataireId) {
+    if (!prestataireId || d?.statut !== 'actif') return false;
+    const a = d.appareil_actif;
+    if (!a) return false;
+    if (a.prestataire_id !== prestataireId) return false;
+    return (
+      a.source === 'prestataire' ||
+      d.qui_facture === 'prestataire' ||
+      !!a.facturation_prestataire
+    );
+  }
+
+  /** Dossiers actifs liés à un prestataire, regroupés par type d’appareil. */
+  async function listParcPrestataire(prestataireId) {
+    const dossiers = await listDossiers({ statut: 'actif' });
+    const rows = dossiers.filter((d) => dossierLiePrestataire(d, prestataireId));
+    const byType = new Map();
+    for (const d of rows) {
+      const type = d.appareil_actif?.type_appareil || 'autre';
+      if (!byType.has(type)) byType.set(type, []);
+      byType.get(type).push(d);
+    }
+    return {
+      dossiers: rows,
+      byType: [...byType.entries()]
+        .map(([type, list]) => ({ type, dossiers: list }))
+        .sort((a, b) => String(a.type).localeCompare(String(b.type), 'fr')),
+    };
+  }
+
+  /**
+   * Vue parc pharmacie : appareils source=parc groupés par identité.
+   * enLocation = appareil actif sur dossier statut actif.
+   */
+  async function listParcPharmacie() {
+    const dossiers = await listDossiers({});
+    const byKey = new Map();
+
+    for (const d of dossiers) {
+      for (const a of d.appareils || []) {
+        if (a.source !== 'parc') continue;
+        const ident = appareilIdentiteParc(a);
+        if (!ident.key || ident.key === 'id:') continue;
+        let entry = byKey.get(ident.key);
+        if (!entry) {
+          entry = {
+            key: ident.key,
+            kind: ident.kind,
+            value: ident.value,
+            type_appareil: a.type_appareil || 'autre',
+            type_libelle: a.type_libelle || null,
+            numero_pharmacie: a.numero_pharmacie || null,
+            matricule: a.matricule || null,
+            locations: [],
+            enLocation: false,
+            dossierActif: null,
+            appareilActif: null,
+          };
+          byKey.set(ident.key, entry);
+        }
+        if (a.numero_pharmacie) entry.numero_pharmacie = a.numero_pharmacie;
+        if (a.matricule) entry.matricule = a.matricule;
+        if (a.type_appareil) entry.type_appareil = a.type_appareil;
+        if (a.type_libelle) entry.type_libelle = a.type_libelle;
+
+        const enCours = !!a.actif && d.statut === 'actif';
+        entry.locations.push({
+          dossier: d,
+          appareil: a,
+          enCours,
+        });
+        if (enCours) {
+          entry.enLocation = true;
+          entry.dossierActif = d;
+          entry.appareilActif = a;
+        }
+      }
+    }
+
+    for (const entry of byKey.values()) {
+      entry.locations.sort((x, y) =>
+        String(y.appareil?.date_debut || y.dossier?.date_debut || y.dossier?.created_at || '').localeCompare(
+          String(x.appareil?.date_debut || x.dossier?.date_debut || x.dossier?.created_at || '')
+        )
+      );
+    }
+
+    const all = [...byKey.values()];
+    const enLocation = all.filter((e) => e.enLocation);
+    const disponibles = all.filter((e) => !e.enLocation);
+
+    function groupByType(list) {
+      const map = new Map();
+      for (const e of list) {
+        const type = e.type_appareil || 'autre';
+        if (!map.has(type)) map.set(type, []);
+        map.get(type).push(e);
+      }
+      return [...map.entries()]
+        .map(([type, items]) => ({
+          type,
+          items: items.sort((a, b) =>
+            String(a.value || '').localeCompare(String(b.value || ''), 'fr', { numeric: true })
+          ),
+        }))
+        .sort((a, b) => String(a.type).localeCompare(String(b.type), 'fr'));
+    }
+
+    return {
+      all,
+      enLocation,
+      disponibles,
+      enLocationByType: groupByType(enLocation),
+      disponiblesByType: groupByType(disponibles),
+    };
+  }
+
   global.LocationData = {
     sb,
     invalidateCache,
@@ -824,10 +932,7 @@
     updateAppareil,
     changerAppareil,
     addProlongation,
-    upsertSuiviLigne,
-    deleteSuiviLigne,
     listTemplates,
-    findTemplate,
     findTemplateByMotif,
     findTemplateById,
     contactInterpVars,
@@ -845,5 +950,9 @@
     syncContactQueue,
     splitList,
     joinList,
+    appareilIdentiteParc,
+    dossierLiePrestataire,
+    listParcPrestataire,
+    listParcPharmacie,
   };
 })(window);

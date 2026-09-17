@@ -15,6 +15,7 @@
     { key: 'module_suivi', label: 'Module Suivi (consultation / édition)' },
     { key: 'module_contact', label: 'Module Contact' },
     { key: 'module_facture', label: 'Module Facture' },
+    { key: 'module_parc', label: 'Module Parc' },
     { key: 'impression_fiche', label: 'Impression fiche (Suivi)' },
     { key: 'cloture_dossier', label: 'Clôture de dossier (Suivi)' },
     { key: 'suppression_dossier', label: 'Suppression de dossier (Suivi)' },
@@ -32,6 +33,7 @@
     module_suivi: { personnel: true, gestionnaire: true, administrateur: true },
     module_contact: { personnel: true, gestionnaire: true, administrateur: true },
     module_facture: { personnel: true, gestionnaire: true, administrateur: true },
+    module_parc: { personnel: true, gestionnaire: true, administrateur: true },
     impression_fiche: { personnel: true, gestionnaire: true, administrateur: true },
     cloture_dossier: { personnel: true, gestionnaire: true, administrateur: true },
     suppression_dossier: { personnel: false, gestionnaire: true, administrateur: true },
@@ -45,6 +47,7 @@
     suivi: 'module_suivi',
     contact: 'module_contact',
     facture: 'module_facture',
+    parc: 'module_parc',
   });
 
   let cachedMatrix = null;
@@ -133,12 +136,6 @@
     cachedMatrix = null;
   }
 
-  async function canCurrent(feature) {
-    const snap = global.PhieEquipe?.getSnapshot?.() || null;
-    const matrix = await loadMatrix();
-    return can(resolveRole(snap), feature, matrix);
-  }
-
   function featureForModule(moduleName) {
     return MODULE_FEATURE[moduleName] || null;
   }
@@ -157,7 +154,6 @@
     resolveRole,
     loadMatrix,
     invalidate,
-    canCurrent,
     featureForModule,
   };
 })(window);

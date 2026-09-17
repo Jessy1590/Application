@@ -69,7 +69,6 @@
 
   async function mount(root, ctx) {
     const params = await LocationData.loadParams();
-    const rules = await LocationData.loadRules();
     const prestataires = await LocationData.listPrestataires(true);
     const req = (k) => LocationData.isRequired(params, k);
     const quiFactureDefaut = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
@@ -107,6 +106,26 @@
       unite: 'semaines',
       notes: '',
     };
+
+    const prefill = ctx.creationPrefill || {};
+    if (prefill.source === 'parc' || prefill.source === 'prestataire') {
+      state.appareil.source = prefill.source;
+    }
+    if (prefill.type_appareil && TYPES.includes(prefill.type_appareil)) {
+      state.appareil.type_appareil = prefill.type_appareil;
+    }
+    if (prefill.numero_pharmacie) {
+      state.appareil.numero_pharmacie = String(prefill.numero_pharmacie);
+    }
+    if (prefill.matricule) {
+      state.appareil.matricule = String(prefill.matricule);
+    }
+    if (prefill.step === 'appareil') {
+      step = 2;
+    }
+    if (state.appareil.source === 'parc') {
+      state.appareil.prestataire_id = '';
+    }
 
     root.innerHTML = '';
     const wrap = el(`<div class="loc-module">
@@ -368,10 +387,6 @@
     }
 
     function renderAppareil() {
-      const typeInfos = LocationRules.infosForType(state.appareil.type_appareil, rules);
-      const infoHtml = typeInfos.length
-        ? `<div class="loc-info-box">${typeInfos.map((i) => `<p>${esc(i.message)}</p>`).join('')}</div>`
-        : '';
       const autre = state.appareil.type_appareil === 'autre';
       const prest = state.appareil.source === 'prestataire';
       const parc = state.appareil.source === 'parc';
@@ -384,7 +399,6 @@
       const attentions = attentionBoxesHtml(typeChamps);
 
       formEl.innerHTML = `
-        ${infoHtml}
         ${attentions}
         ${field('Type d’appareil', `<select name="type_appareil">
           ${TYPES.map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}

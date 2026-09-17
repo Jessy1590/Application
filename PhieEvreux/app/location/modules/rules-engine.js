@@ -12,15 +12,6 @@
     autre: 'Autre',
   };
 
-  const ENCART_DEFAUT = {
-    aerosol: '',
-    tire_lait: '',
-    pese_bebe: '',
-    tens: '',
-    fauteuil: '',
-    autre: '',
-  };
-
   const GENERIC_CONTACT_MOTIFS = new Set([
     'fin_location',
     'pas_de_rendu',
@@ -182,7 +173,6 @@
    * @param {object} [params]
    */
   function evaluate(ctx, rules, params) {
-    const infos = [];
     const alerts = [];
     const contactReasons = [];
     const actions = [];
@@ -202,10 +192,6 @@
       });
       const rawMsg = rule.message || rule.nom;
       const message = interpolate(rawMsg, msgVars);
-
-      if (rule.action === 'info_creation') {
-        continue;
-      }
 
       if (!hit) continue;
 
@@ -266,7 +252,6 @@
     }
 
     return {
-      infos,
       alerts,
       contactReasons: uniqueReasons,
       actions,
@@ -298,14 +283,6 @@
     }
 
     return false;
-  }
-
-  function infosForType(type, rules) {
-    return evaluate({ type_appareil: type }, rules, {}).infos;
-  }
-
-  function encartDefaut(type) {
-    return ENCART_DEFAUT[type] || '';
   }
 
   function typeLabel(type) {
@@ -357,7 +334,6 @@
 
   global.LocationRules = {
     TYPE_LABELS,
-    ENCART_DEFAUT,
     MOTIF_TO_TEMPLATE,
     MOTIF_PRIORITY,
     GENERIC_CONTACT_MOTIFS,
@@ -373,8 +349,6 @@
     pickContactMotif,
     resolveLgo,
     evaluate,
-    infosForType,
-    encartDefaut,
     typeLabel,
     listRules,
     upsertRule,

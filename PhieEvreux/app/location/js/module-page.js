@@ -1,5 +1,5 @@
 /**
- * Boot commun des pages modules Location (création, suivi, contact, facture).
+ * Boot commun des pages modules Location (création, suivi, contact, facture, parc).
  * body[data-module="…"] + #locModuleRoot
  */
 (function () {
@@ -8,6 +8,7 @@
     suivi: 'Suivi',
     contact: 'Contact',
     facture: 'Facture',
+    parc: 'Parc',
   };
 
   function queryId() {
@@ -15,6 +16,14 @@
       return new URLSearchParams(window.location.search).get('id') || null;
     } catch (_) {
       return null;
+    }
+  }
+
+  function queryParams() {
+    try {
+      return new URLSearchParams(window.location.search);
+    } catch (_) {
+      return new URLSearchParams();
     }
   }
 
@@ -30,9 +39,20 @@
         return LocationAccess.can(role, feature, matrix);
       },
       initialDossierId: null,
+      creationPrefill: null,
       openSuivi(dossierId) {
         const q = dossierId ? `?id=${encodeURIComponent(dossierId)}` : '';
         window.location.href = `suivi.html${q}`;
+      },
+      openCreation(fields) {
+        const params = new URLSearchParams();
+        if (fields && typeof fields === 'object') {
+          Object.entries(fields).forEach(([k, v]) => {
+            if (v != null && String(v) !== '') params.set(k, String(v));
+          });
+        }
+        const q = params.toString();
+        window.location.href = `creation.html${q ? `?${q}` : ''}`;
       },
     };
   }
@@ -42,6 +62,7 @@
     else if (name === 'suivi') await LocationSuivi.mount(root, ctx);
     else if (name === 'contact') await LocationContact.mount(root, ctx);
     else if (name === 'facture') await LocationFacture.mount(root, ctx);
+    else if (name === 'parc') await LocationParc.mount(root, ctx);
     else root.innerHTML = `<p class="loc-msg loc-msg-err">Module inconnu.</p>`;
   }
 
@@ -86,6 +107,16 @@
 
     const ctx = ctxFromSnap(snap, matrix);
     if (name === 'suivi') ctx.initialDossierId = queryId();
+    if (name === 'creation') {
+      const qp = queryParams();
+      ctx.creationPrefill = {
+        source: qp.get('source') || null,
+        type_appareil: qp.get('type_appareil') || null,
+        numero_pharmacie: qp.get('numero_pharmacie') || null,
+        matricule: qp.get('matricule') || null,
+        step: qp.get('step') || null,
+      };
+    }
 
     root.innerHTML = '<p class="loc-muted">Chargement…</p>';
     try {

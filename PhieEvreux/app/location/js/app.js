@@ -7,6 +7,7 @@
     'suivi.html': 'module_suivi',
     'contact.html': 'module_contact',
     'facture.html': 'module_facture',
+    'parc.html': 'module_parc',
     'parametres.html': 'parametres_location',
   };
 

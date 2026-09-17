@@ -576,17 +576,6 @@ a.loc-btn {
   border: 1px solid var(--loc-line);
 }
 
-.loc-info-box {
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px dashed var(--loc-accent);
-  background: color-mix(in srgb, var(--loc-accent) 12%, transparent);
-  font-size: 13px;
-}
-
-.loc-info-box p { margin: 0 0 6px; }
-.loc-info-box p:last-child { margin: 0; }
-
 .loc-attention {
   border: 1px solid color-mix(in srgb, #b45309 45%, var(--loc-line));
   background: color-mix(in srgb, #b45309 12%, transparent);
@@ -1154,3 +1143,209 @@ body > a[title="Retour au portail"] {
 .loc-facture-item-ok {
   border-color: color-mix(in srgb, var(--loc-ok) 40%, var(--loc-line));
 }
+
+/* ——— Module Parc ——— */
+.loc-parc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.loc-parc-modes {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-elev);
+}
+
+.loc-parc-mode {
+  border: none;
+  background: transparent;
+  color: var(--loc-muted);
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.loc-parc-mode.active {
+  background: color-mix(in srgb, var(--loc-accent) 22%, var(--loc-elev));
+  color: var(--loc-text);
+}
+
+.loc-parc-prest-field {
+  min-width: min(280px, 100%);
+  margin: 0;
+}
+
+.loc-parc-body {
+  min-height: 120px;
+}
+
+.loc-parc-fade {
+  animation: loc-parc-in 0.22s ease;
+}
+
+@keyframes loc-parc-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.loc-parc-empty {
+  margin: 8px 0 0;
+  padding: 14px;
+  border: 1px dashed var(--loc-line);
+  border-radius: 12px;
+}
+
+.loc-parc-group {
+  margin-bottom: 10px;
+}
+
+.loc-parc-count {
+  margin-left: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--loc-muted);
+}
+
+.loc-parc-group-body {
+  gap: 8px;
+}
+
+.loc-parc-item {
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.loc-parc-item:hover,
+.loc-parc-item:focus-visible {
+  border-color: var(--loc-accent);
+  background: color-mix(in srgb, var(--loc-accent) 10%, var(--loc-elev));
+  outline: none;
+}
+
+.loc-parc-split {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .loc-parc-split {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.loc-parc-col {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--loc-line);
+  background: color-mix(in srgb, var(--loc-elev) 70%, transparent);
+}
+
+.loc-parc-col-active {
+  border-color: color-mix(in srgb, var(--loc-accent) 35%, var(--loc-line));
+  background: color-mix(in srgb, var(--loc-accent) 8%, var(--loc-elev));
+}
+
+.loc-parc-col-head h2 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 20px;
+}
+
+.loc-parc-col-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.loc-parc-device {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-elev);
+}
+
+.loc-parc-device-main {
+  display: grid;
+  gap: 2px;
+}
+
+.loc-parc-device-main span {
+  font-size: 12px;
+  color: var(--loc-muted);
+}
+
+.loc-parc-device-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.loc-parc-hist-panel {
+  max-width: min(560px, 100%);
+  max-height: min(80vh, 720px);
+  overflow: auto;
+}
+
+.loc-parc-hist-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.loc-parc-hist-item {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--loc-line);
+  background: var(--loc-bg);
+}
+
+.loc-parc-hist-item > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.loc-parc-hist-item span {
+  font-size: 12px;
+  color: var(--loc-muted);
+}
+
+.loc-parc-hist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.loc-parc-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--loc-line);
+  color: var(--loc-muted);
+}
+
+.loc-parc-badge.is-ok {
+  border-color: color-mix(in srgb, var(--loc-ok) 45%, var(--loc-line));
+  color: var(--loc-ok);
+}
+

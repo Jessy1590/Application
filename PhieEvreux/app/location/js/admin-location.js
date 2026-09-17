@@ -989,15 +989,5 @@
     await render();
   }
 
-  /** @deprecated utiliser mount — conservé pour compat éventuelle */
-  async function open(ctx) {
-    if (!ctx?.isAdmin) {
-      alert('Réservé aux administrateurs.');
-      return;
-    }
-    const host = document.getElementById('locViewContent') || document.body;
-    await mount(host, ctx);
-  }
-
-  global.LocationAdmin = { mount, open };
+  global.LocationAdmin = { mount };
 })(window);

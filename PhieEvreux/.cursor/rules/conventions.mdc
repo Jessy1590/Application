@@ -14,15 +14,23 @@ alwaysApply: false
 ## Structure
 - Hub à la racine `PhieEvreux/` ; une app = un dossier sous `app/<nom>/`.
 - Code transverse uniquement dans `shared/` (pas de duplication hub ↔ apps).
-- Location : shell `js/app.js`, modules métier à venir (`creation.js`, `suivi.js`, `contact.js`, `modules/rules-engine.js`).
+- Location — fichiers réels :
+  - pages : `index|creation|suivi|contact|facture|parametres.html`
+  - `js/app.js`, `module-page.js`, `data.js`, `access.js`, `fields.js`, `impression.js`
+  - modules métier : `creation.js`, `suivi.js`, `contact.js`, `facture.js`
+  - admin : `admin-location.js`, `parametres-page.js`
+  - moteur : `modules/rules-engine.js`
+- Globals attendus : `PhieEvreuxApps`, `PhieEquipe`, `PhieTheme`, `PhieFab`, `PhieBugs`, `PhieInvite` (hub), `LocationData`, `LocationRules`, `LocationAccess`, `LocationAdmin`, `LocationFields`, `LocationImpression`, `LocationCreation|Suivi|Contact|Facture`.
 
 ## Nommage données
 - Schéma `phieevreux` ; table historique `anciennelocation`.
 - Préfixe `location_` pour le métier Location.
+- Params clés usuels : `acces_roles`, `champs_obligatoires`, `seuil_contact_jours`, `seuil_reclame_mois`, `qui_facture_defaut`, `facture_delai_cloture_jours` (évent. `theme_defaut` en base — thème UI via `localStorage` / `PhieTheme`).
 - Bugs : `type` `bug`|`amelioration` ; `statut` `nouveau`|`en_cours`|`modifie`|`impossible`|`annule`.
 - Équipe : rôles `administrateur`|`gestionnaire`|`personnel`.
+- Contacts Location : `phase` `commentaire`|`appel` ; statuts ouverts / attente / perte selon `contact.js`.
 
 ## UI
 - Ne pas inventer d’écrans / options hors demande (voir `ne-rien-inventer`).
-- Thème Location : `data-theme` + `shared/theme.js`.
+- Thème : `data-theme` + `shared/theme.js` (persistance `phieevreux-theme`).
 - Hub : fond sombre, cartes accents arc-en-ciel, contraste noir/blanc alterné.
