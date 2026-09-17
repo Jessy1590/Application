@@ -455,13 +455,16 @@ const PRINT_CSS = `
   .sheet{
     position:relative;
     width:210mm;
-    height:297mm;
+    height:277mm;
     padding:3mm 2mm 8mm;
-    page-break-after:always;
-    break-after:page;
     overflow:hidden;
+    page-break-inside:avoid;
+    break-inside:avoid;
   }
-  .sheet:last-child{page-break-after:auto;break-after:auto;}
+  .sheet + .sheet{
+    page-break-before:always;
+    break-before:page;
+  }
   .sheet-head{margin-bottom:3px;}
   .sheet-foot{
     position:absolute;
@@ -478,7 +481,7 @@ const PRINT_CSS = `
   .c-patho{font-size:7pt;}
   col.c1{width:16%;} col.c2{width:36%;} col.c3{width:48%;}
   #measure{position:absolute;left:-9999px;top:0;width:206mm;visibility:hidden;}
-  @page{size:A4 portrait;margin:0;}
+  @page{size:A4 portrait;margin:10mm 0;}
 `;
 
 function buildPrintSheet(rowsHtml, dateTxt, page, total) {
@@ -585,7 +588,7 @@ function printTableOnly() {
       sheet.style.left = '0';
       sheet.style.top = '0';
       doc.body.appendChild(sheet);
-      const sheetH = sheet.getBoundingClientRect().height || (297 / 25.4 * 96);
+      const sheetH = sheet.getBoundingClientRect().height || (277 / 25.4 * 96);
       const padTop = 3 / 25.4 * 96;
       const padBottom = 8 / 25.4 * 96;
       sheet.remove();
