@@ -636,12 +636,21 @@
     return data;
   }
 
+  /**
+   * Prolongation : nouvelle date_fin = date_fin courante du dossier + durée ordo.
+   * (Création initiale calcule date_debut|date_ordo + durée ; ici on étend la fin existante.)
+   * date_ordo est enregistrée pour l’historique, pas comme base du calcul.
+   */
   async function addProlongation(dossierId, row, userId) {
-    const dateFin = row.date_fin || global.LocationRules.addDuration(
-      row.date_ordo || global.LocationRules.todayISO(),
-      row.duree,
-      row.unite
-    );
+    let dateFin = row.date_fin || null;
+    if (!dateFin) {
+      const dossier = await getDossier(dossierId);
+      const base =
+        dossier?.date_fin ||
+        row.date_ordo ||
+        global.LocationRules.todayISO();
+      dateFin = global.LocationRules.addDuration(base, row.duree, row.unite);
+    }
     const { data, error } = await sb()
       .from('location_prolongations')
       .insert({

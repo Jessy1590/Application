@@ -206,6 +206,9 @@
       </div>
       <div class="loc-bar">
         <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="clToggleFilters" aria-expanded="false" aria-controls="clFilters">Filtres</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="clToggleList" aria-expanded="true" aria-controls="clListPanel">Dossiers</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="clPrev" aria-label="Dossier précédent" disabled>←</button>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="clNext" aria-label="Dossier suivant" disabled>→</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="clRefresh">Actualiser</button>
       </div>
       <div class="loc-toolbar loc-filters" id="clFilters" hidden>
@@ -215,10 +218,12 @@
         </select>
         <label class="loc-check loc-check-inline"><input type="checkbox" id="clContact"> À contacter</label>
       </div>
-      <div class="loc-list-panel" id="clListPanel">
-        <div class="loc-list" id="clList"><p class="loc-muted">Chargement…</p></div>
+      <div class="loc-split" id="clSplit">
+        <div class="loc-list-panel" id="clListPanel">
+          <div class="loc-list" id="clList"><p class="loc-muted">Chargement…</p></div>
+        </div>
+        <div class="loc-detail" id="clDetail" hidden></div>
       </div>
-      <div class="loc-detail" id="clDetail" hidden></div>
       <p class="loc-msg" id="clMsg" hidden></p>
     </div>`);
     root.appendChild(wrap);
@@ -226,14 +231,55 @@
     const searchEl = wrap.querySelector('#clSearch');
     const filtersEl = wrap.querySelector('#clFilters');
     const btnFilters = wrap.querySelector('#clToggleFilters');
+    const btnList = wrap.querySelector('#clToggleList');
     const listEl = wrap.querySelector('#clList');
+    const listPanel = wrap.querySelector('#clListPanel');
+    const splitEl = wrap.querySelector('#clSplit');
     const detailEl = wrap.querySelector('#clDetail');
     const msgEl = wrap.querySelector('#clMsg');
+    const btnPrev = wrap.querySelector('#clPrev');
+    const btnNext = wrap.querySelector('#clNext');
 
     let allRows = [];
     let filtered = [];
     let selectedId = null;
     let searchTimer = null;
+
+    function currentIndex() {
+      if (!selectedId) return -1;
+      return filtered.findIndex((r) => r.id === selectedId);
+    }
+
+    function updateNav() {
+      const n = filtered.length;
+      if (!n) {
+        btnPrev.disabled = true;
+        btnNext.disabled = true;
+        return;
+      }
+      const i = currentIndex();
+      if (i < 0) {
+        btnPrev.disabled = false;
+        btnNext.disabled = false;
+        return;
+      }
+      btnPrev.disabled = i <= 0;
+      btnNext.disabled = i >= n - 1;
+    }
+
+    function goPrev() {
+      if (!filtered.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? filtered[filtered.length - 1] : filtered[i - 1];
+      if (target) void selectDossier(target.id);
+    }
+
+    function goNext() {
+      if (!filtered.length) return;
+      const i = currentIndex();
+      const target = i < 0 ? filtered[0] : filtered[i + 1];
+      if (target) void selectDossier(target.id);
+    }
 
     function setToggle(btn, panel, open) {
       panel.hidden = !open;
@@ -244,7 +290,14 @@
     btnFilters.addEventListener('click', () => {
       setToggle(btnFilters, filtersEl, filtersEl.hidden);
     });
+    btnList.addEventListener('click', () => {
+      const open = listPanel.hidden;
+      setToggle(btnList, listPanel, open);
+      splitEl.classList.toggle('is-list-collapsed', !open);
+    });
     setToggle(btnFilters, filtersEl, false);
+    setToggle(btnList, listPanel, true);
+    splitEl.classList.remove('is-list-collapsed');
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -257,6 +310,7 @@
         listEl.innerHTML = `<p class="loc-muted">${
           searchEl.value.trim() ? 'Aucun dossier actif trouvé.' : 'Aucun dossier actif.'
         }</p>`;
+        updateNav();
         return;
       }
       listEl.innerHTML = filtered
@@ -271,6 +325,7 @@
       listEl.querySelectorAll('[data-id]').forEach((b) => {
         b.addEventListener('click', () => void selectDossier(b.dataset.id));
       });
+      updateNav();
     }
 
     function applyFilter() {
@@ -356,6 +411,7 @@
         allRows = [];
         filtered = [];
         listEl.innerHTML = '';
+        updateNav();
         showMsg(e.message || 'Erreur chargement', true);
       }
     }
@@ -368,6 +424,8 @@
     wrap.querySelector('#clRefresh').addEventListener('click', () => void load());
     wrap.querySelector('#clType').addEventListener('change', () => void load());
     wrap.querySelector('#clContact').addEventListener('change', () => void load());
+    btnPrev.addEventListener('click', goPrev);
+    btnNext.addEventListener('click', goNext);
 
     await load();
     searchEl.focus();
