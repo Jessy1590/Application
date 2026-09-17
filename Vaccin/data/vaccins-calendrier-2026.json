@@ -6,7 +6,7 @@
     "vaccins": "Ligne système - Ne pas supprimer",
     "calendrier": "2026-04-01",
     "rattrapage": "Années révolues = années terminées (ex. 24 ans révolus = jusqu'à la veille du 25e anniversaire). Sources : Calendrier vaccinal 2026 (avril 2026) et Vaccination Info Service. Correspondances valences ↔ noms commerciaux selon disponibilité France. Revaxis (dTP) arrêté depuis 07/2024 → rappels adultes en dTcaP. NeisVac arrêté 06/2025 ; Menjugate arrêt prévu automne 2026 ; Pentavac arrêt prévu 03/2027 ; HBVaxPro 10 µg arrêté 12/2025. Hors reco : voyageurs hors calendrier général et monovalents obsolètes/transition masqués par défaut.",
-    "details": "Obligatoire : Vaccination obligatoire (nés ≥ 01/01/2018 sauf Méningo ACWY/B : nés ≥ 01/01/2023)\nImmunodéprimé : Patients immunodéprimés / asplénie / greffe\nVIH : Personnes vivant avec le VIH\nGrossesse : Femmes enceintes\nVoyage : Voyageurs / zones d'endémie\nProfessionnel : Exposition professionnelle\nCocooning : Entourage du nourrisson\nSenior : 65 ans et plus\nHors reco : Hors recommandations / hors affichage courant"
+    "details": "Officine : Faisable en pharmacie (pharmacien)\nObligatoire : Vaccination obligatoire (nés ≥ 01/01/2018 sauf Méningo ACWY/B : nés ≥ 01/01/2023)\nImmunodéprimé : Patients immunodéprimés / asplénie / greffe\nVIH : Personnes vivant avec le VIH\nGrossesse : Femmes enceintes\nVoyage : Voyageurs / zones d'endémie\nProfessionnel : Exposition professionnelle\nCocooning : Entourage du nourrisson\nSenior : 65 ans et plus\nHors reco : Hors recommandations / hors affichage courant"
   },
   "vaccins": [
     {

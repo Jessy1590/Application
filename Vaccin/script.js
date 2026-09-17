@@ -698,9 +698,11 @@ function updateFilterSelect(situationsText) {
 function filterTable() {
   const query = el('searchInput').value.toLowerCase().trim();
   const particularity = el('filterParticularity').value.toLowerCase();
+  const filterHorsRecoOnly = particularity === 'hors reco' || particularity.includes('hors reco');
 
   filteredData = currentData.filter(v => {
-    if (!showHorsReco && isHorsReco(v)) return false;
+    // Masquer hors reco sauf toggle ON ou filtre situation « Hors reco »
+    if (!showHorsReco && !filterHorsRecoOnly && isHorsReco(v)) return false;
     if (activeFamily && getFamily(v.pathologie) !== activeFamily) return false;
 
     const txtPatho = (v.pathologie || '').toLowerCase();
@@ -716,7 +718,7 @@ function filterTable() {
     if (particularity) {
       if (particularity === 'officine' || particularity.includes('officine') || particularity.includes('pharmacien')) {
         matchFilter = getPharmacistInfo(v).eligible === true;
-      } else if (particularity === 'hors reco' || particularity.includes('hors reco')) {
+      } else if (filterHorsRecoOnly) {
         matchFilter = isHorsReco(v);
       } else {
         matchFilter = haystack.includes(particularity);
