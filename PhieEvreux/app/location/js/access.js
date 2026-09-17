@@ -12,14 +12,14 @@
   /** Features alignées sur le tableau Accès (comportement historique du code). */
   const FEATURES = Object.freeze([
     { key: 'module_creation', label: 'Module Création' },
-    { key: 'module_suivi', label: 'Module Suivi (consultation / édition)' },
+    { key: 'module_suivi', label: 'Module Suivi (consultation)' },
+    { key: 'edition_suivi', label: 'Édition dossier (Suivi)' },
     { key: 'module_contact', label: 'Module Contact' },
     { key: 'module_facture', label: 'Module Facture' },
     { key: 'module_parc', label: 'Module Parc' },
     { key: 'module_prolongation', label: 'Module Prolongation' },
     { key: 'module_cloture', label: 'Module Clôture' },
     { key: 'impression_fiche', label: 'Impression fiche (Suivi)' },
-    { key: 'cloture_dossier', label: 'Clôture de dossier (Suivi / Clôture)' },
     { key: 'suppression_dossier', label: 'Suppression de dossier (Suivi)' },
     { key: 'parametres_location', label: 'Paramètres Location (tuile + page)' },
     {
@@ -33,13 +33,13 @@
   const DEFAULTS = Object.freeze({
     module_creation: { personnel: true, gestionnaire: true, administrateur: true },
     module_suivi: { personnel: true, gestionnaire: true, administrateur: true },
+    edition_suivi: { personnel: true, gestionnaire: true, administrateur: true },
     module_contact: { personnel: true, gestionnaire: true, administrateur: true },
     module_facture: { personnel: true, gestionnaire: true, administrateur: true },
     module_parc: { personnel: true, gestionnaire: true, administrateur: true },
     module_prolongation: { personnel: true, gestionnaire: true, administrateur: true },
     module_cloture: { personnel: true, gestionnaire: true, administrateur: true },
     impression_fiche: { personnel: true, gestionnaire: true, administrateur: true },
-    cloture_dossier: { personnel: true, gestionnaire: true, administrateur: true },
     suppression_dossier: { personnel: false, gestionnaire: true, administrateur: true },
     parametres_location: { personnel: false, gestionnaire: false, administrateur: true },
     hub_equipe_bugs: { personnel: false, gestionnaire: false, administrateur: true },
@@ -88,6 +88,20 @@
         personnel: boolOrDefault(row.personnel, def.personnel),
         gestionnaire: boolOrDefault(row.gestionnaire, def.gestionnaire),
         administrateur: boolOrDefault(row.administrateur, def.administrateur),
+      };
+    }
+    // Alias legacy : cloture_dossier → module_cloture (si module_cloture absent en base)
+    const legacyCloture = raw.cloture_dossier;
+    if (
+      legacyCloture &&
+      typeof legacyCloture === 'object' &&
+      !(raw.module_cloture && typeof raw.module_cloture === 'object')
+    ) {
+      const def = DEFAULTS.module_cloture;
+      out.module_cloture = {
+        personnel: boolOrDefault(legacyCloture.personnel, def.personnel),
+        gestionnaire: boolOrDefault(legacyCloture.gestionnaire, def.gestionnaire),
+        administrateur: boolOrDefault(legacyCloture.administrateur, def.administrateur),
       };
     }
     // Verrou : admin ne peut pas perdre Paramètres Location

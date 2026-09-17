@@ -236,7 +236,7 @@
         renderDetail(d, rules, params, champsDef);
         if (pendingCloture) {
           pendingCloture = false;
-          const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+          const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
           if (canCloturerRole && d.statut === 'actif') openClotureModal(d);
         }
       } catch (e) {
@@ -328,11 +328,12 @@
     function renderDetail(d, rules, params, champsDef) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
+      const canEdit = typeof ctx.can === 'function' ? ctx.can('edition_suivi') : true;
       const canDelete = typeof ctx.can === 'function'
         ? ctx.can('suppression_dossier')
         : !!(ctx.isAdmin || ctx.isGestionnaire);
       const canPrint = typeof ctx.can === 'function' ? ctx.can('impression_fiche') : true;
-      const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+      const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
       const prest = a.source === 'prestataire';
       const parc = !prest;
       const prolongCount = (d.prolongations || []).length;
@@ -355,13 +356,20 @@
           })
           .join('');
       const specHtml = champsSpecHtml(a.type_appareil, champsDef, extraBag);
+      const canInvalidateCom =
+        canEdit &&
+        (d.contacts || []).some(
+          (c) =>
+            ["a_contacter", "en_cours", "reporte"].includes(c.statut) &&
+            (c.phase === "appel" || c.commentaire_fait_at)
+        );
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
           <h3>${esc(p.nom)} ${esc(p.prenom)}</h3>
           <div class="loc-detail-actions">
             ${canPrint ? '<button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>' : ''}
-            <button type="button" class="loc-btn" id="suSave">Enregistrer</button>
+            ${canEdit ? '<button type="button" class="loc-btn" id="suSave">Enregistrer</button>' : ''}
             ${canCloturer ? '<button type="button" class="loc-btn" id="suCloturer">Clôturer le dossier</button>' : ''}
             ${canDelete ? '<button type="button" class="loc-btn loc-btn-ghost" id="suDelete">Supprimer</button>' : ''}
           </div>
@@ -461,8 +469,7 @@
             <ul class="loc-history">
               ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.source || ''} · ${x.actif ? 'actif' : 'inactif'} · n° ${esc(x.numero_pharmacie || x.matricule || '—')} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
             </ul>
-            <button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button>
-            <div id="suNewAppForm" hidden></div>
+            ${canEdit ? '<button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button><div id="suNewAppForm" hidden></div>' : ''}
           </div>
         </details>
 
@@ -474,7 +481,9 @@
                 `<li>${esc(pr.date_ordo || '')} · ${pr.duree} ${esc(pr.unite)} → fin ${esc(pr.date_fin || '')}${pr.notes ? ' · ' + esc(pr.notes) : ''}</li>`
               ).join('') || '<li>Aucune</li>'}
             </ul>
-            <div class="loc-grid-2" id="suProlongForm">
+            ${
+              canEdit
+                ? `<div class="loc-grid-2" id="suProlongForm">
               <label class="loc-field">Date ordo<input type="date" name="pr_ordo" value="${LocationRules.todayISO()}"></label>
               <label class="loc-field">Durée<input type="number" min="1" name="pr_duree" value="1"></label>
               <label class="loc-field">Unité<select name="pr_unite">
@@ -484,7 +493,9 @@
               </select></label>
               <label class="loc-field">Notes<input name="pr_notes"></label>
             </div>
-            <button type="button" class="loc-btn loc-btn-ghost" id="suAddProlong">Ajouter prolongation</button>
+            <button type="button" class="loc-btn loc-btn-ghost" id="suAddProlong">Ajouter prolongation</button>`
+                : ''
+            }
           </div>
         </details>
 
@@ -492,11 +503,7 @@
           <summary>Contacts / appels${contactCount ? ` · ${contactCount}` : ''}</summary>
           <div class="loc-card-body">
             ${
-              (d.contacts || []).some(
-                (c) =>
-                  ['a_contacter', 'en_cours', 'reporte'].includes(c.statut) &&
-                  (c.phase === 'appel' || c.commentaire_fait_at)
-              )
+              canInvalidateCom
                 ? `<span class="loc-field-label-row">
                      <button type="button" class="loc-btn loc-btn-ghost" id="suInvalidateCom">Invalider le commentaire</button>
                      ${helpTipHtml('Remet le dossier en file Commentaire.', 'Aide : invalider le commentaire')}
@@ -546,6 +553,15 @@
         p.mails || []
       );
 
+      if (!canEdit) {
+        detailEl.querySelectorAll('input, select, textarea').forEach((node) => {
+          node.disabled = true;
+        });
+        detailEl.querySelector('#addPhoneBtn')?.remove();
+        detailEl.querySelector('#addMailBtn')?.remove();
+        detailEl.querySelectorAll('.loc-multi-remove').forEach((btn) => btn.remove());
+      }
+
       detailEl.querySelector('#suPrint')?.addEventListener('click', () => {
         if (typeof ctx.can === 'function' && !ctx.can('impression_fiche')) {
           showMsg('Impression non autorisée pour votre rôle.', true);
@@ -554,18 +570,22 @@
         // d déjà chargé via getDossier dans openDetail — print synchrone (geste utilisateur)
         void LocationPrint.printFiche(d);
       });
-      detailEl.querySelector('#suSave').addEventListener('click', () => saveDetail(d));
+      detailEl.querySelector('#suSave')?.addEventListener('click', () => saveDetail(d));
       detailEl.querySelector('#suCloturer')?.addEventListener('click', () => {
-        if (typeof ctx.can === 'function' && !ctx.can('cloture_dossier')) {
+        if (typeof ctx.can === 'function' && !ctx.can('module_cloture')) {
           showMsg('Clôture non autorisée pour votre rôle.', true);
           return;
         }
         openClotureModal(d);
       });
-      detailEl.querySelector('#suAddProlong').addEventListener('click', () => addProlong(d));
+      detailEl.querySelector('#suAddProlong')?.addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
-      detailEl.querySelector('#suNewApp').addEventListener('click', () => showNewAppForm(d));
+      detailEl.querySelector('#suNewApp')?.addEventListener('click', () => showNewAppForm(d));
       detailEl.querySelector('#suInvalidateCom')?.addEventListener('click', async () => {
+        if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+          showMsg('Édition non autorisée pour votre rôle.', true);
+          return;
+        }
         if (
           !window.confirm(
             'Invalider le commentaire ? Tout le dossier repasse en phase Commentaire (une seule file).'
@@ -622,6 +642,10 @@
     }
 
     function showNewAppForm(d) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
       const box = detailEl.querySelector('#suNewAppForm');
       box.hidden = false;
       box.innerHTML = `
@@ -656,6 +680,10 @@
     }
 
     async function saveDetail(d) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
       const g = (n) => detailEl.querySelector(`[name=${n}]`);
       try {
         await LocationData.updatePatient(d.patient.id, {
@@ -747,6 +775,10 @@
     }
 
     async function addProlong(d) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
       const box = detailEl.querySelector('#suProlongForm');
       const duree = Number(box.querySelector('[name=pr_duree]').value);
       const unite = box.querySelector('[name=pr_unite]').value;

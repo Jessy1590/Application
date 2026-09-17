@@ -51,6 +51,17 @@
       <div class="loc-search-row">
         <input type="search" id="prSearch" placeholder="Nom, prénom, type, matricule, n° interne…" autocomplete="off">
       </div>
+      <div class="loc-bar">
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="prToggleFilters" aria-expanded="false" aria-controls="prFilters">Filtres</button>
+        <button type="button" class="loc-btn loc-btn-ghost" id="prRefresh">Actualiser</button>
+      </div>
+      <div class="loc-toolbar loc-filters" id="prFilters" hidden>
+        <select id="prType">
+          <option value="">Tous types</option>
+          ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+        </select>
+        <label class="loc-check loc-check-inline"><input type="checkbox" id="prContact"> À contacter</label>
+      </div>
       <div class="loc-list-panel" id="prListPanel">
         <div class="loc-list" id="prList"><p class="loc-muted">Chargement…</p></div>
       </div>
@@ -60,6 +71,8 @@
     root.appendChild(wrap);
 
     const searchEl = wrap.querySelector('#prSearch');
+    const filtersEl = wrap.querySelector('#prFilters');
+    const btnFilters = wrap.querySelector('#prToggleFilters');
     const listEl = wrap.querySelector('#prList');
     const detailEl = wrap.querySelector('#prDetail');
     const msgEl = wrap.querySelector('#prMsg');
@@ -69,6 +82,17 @@
     let selectedId = null;
     let selectedDossier = null;
     let searchTimer = null;
+
+    function setToggle(btn, panel, open) {
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-active', open);
+    }
+
+    btnFilters.addEventListener('click', () => {
+      setToggle(btnFilters, filtersEl, filtersEl.hidden);
+    });
+    setToggle(btnFilters, filtersEl, false);
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -199,7 +223,11 @@
     async function load() {
       showMsg('Chargement…');
       try {
-        const rows = await LocationData.listDossiers({ statut: 'actif' });
+        const rows = await LocationData.listDossiers({
+          statut: 'actif',
+          type_appareil: wrap.querySelector('#prType').value || undefined,
+          a_contacter: wrap.querySelector('#prContact').checked || undefined,
+        });
         allRows = rows.filter((d) => !isPrestataireOnly(d));
         showMsg('');
         applyFilter();
@@ -216,6 +244,9 @@
       searchTimer = setTimeout(applyFilter, 120);
     });
     searchEl.addEventListener('search', applyFilter);
+    wrap.querySelector('#prRefresh').addEventListener('click', () => void load());
+    wrap.querySelector('#prType').addEventListener('change', () => void load());
+    wrap.querySelector('#prContact').addEventListener('change', () => void load());
 
     await load();
     searchEl.focus();

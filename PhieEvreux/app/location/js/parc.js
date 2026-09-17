@@ -40,7 +40,7 @@
 
   function canCloture(ctx, d) {
     if (!d || d.statut === 'cloture' || d.statut === 'annule') return false;
-    return typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+    return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
   }
 
   function dossierActionsHtml(d, ctx) {

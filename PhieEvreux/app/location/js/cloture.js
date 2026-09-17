@@ -195,7 +195,7 @@
   }
 
   function canCloturer(ctx) {
-    return typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+    return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
   }
 
   async function mount(root, ctx) {
@@ -203,6 +203,17 @@
     const wrap = el(`<div class="loc-module loc-cloture">
       <div class="loc-search-row">
         <input type="search" id="clSearch" placeholder="Nom, prénom, type, matricule, n° interne…" autocomplete="off">
+      </div>
+      <div class="loc-bar">
+        <button type="button" class="loc-btn loc-btn-ghost loc-toggle-btn" id="clToggleFilters" aria-expanded="false" aria-controls="clFilters">Filtres</button>
+        <button type="button" class="loc-btn loc-btn-ghost" id="clRefresh">Actualiser</button>
+      </div>
+      <div class="loc-toolbar loc-filters" id="clFilters" hidden>
+        <select id="clType">
+          <option value="">Tous types</option>
+          ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+        </select>
+        <label class="loc-check loc-check-inline"><input type="checkbox" id="clContact"> À contacter</label>
       </div>
       <div class="loc-list-panel" id="clListPanel">
         <div class="loc-list" id="clList"><p class="loc-muted">Chargement…</p></div>
@@ -213,6 +224,8 @@
     root.appendChild(wrap);
 
     const searchEl = wrap.querySelector('#clSearch');
+    const filtersEl = wrap.querySelector('#clFilters');
+    const btnFilters = wrap.querySelector('#clToggleFilters');
     const listEl = wrap.querySelector('#clList');
     const detailEl = wrap.querySelector('#clDetail');
     const msgEl = wrap.querySelector('#clMsg');
@@ -221,6 +234,17 @@
     let filtered = [];
     let selectedId = null;
     let searchTimer = null;
+
+    function setToggle(btn, panel, open) {
+      panel.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-active', open);
+    }
+
+    btnFilters.addEventListener('click', () => {
+      setToggle(btnFilters, filtersEl, filtersEl.hidden);
+    });
+    setToggle(btnFilters, filtersEl, false);
 
     function showMsg(t, err) {
       msgEl.hidden = !t;
@@ -321,7 +345,11 @@
     async function load() {
       showMsg('Chargement…');
       try {
-        allRows = await LocationData.listDossiers({ statut: 'actif' });
+        allRows = await LocationData.listDossiers({
+          statut: 'actif',
+          type_appareil: wrap.querySelector('#clType').value || undefined,
+          a_contacter: wrap.querySelector('#clContact').checked || undefined,
+        });
         showMsg('');
         applyFilter();
       } catch (e) {
@@ -337,6 +365,9 @@
       searchTimer = setTimeout(applyFilter, 120);
     });
     searchEl.addEventListener('search', applyFilter);
+    wrap.querySelector('#clRefresh').addEventListener('click', () => void load());
+    wrap.querySelector('#clType').addEventListener('change', () => void load());
+    wrap.querySelector('#clContact').addEventListener('change', () => void load());
 
     await load();
     searchEl.focus();
