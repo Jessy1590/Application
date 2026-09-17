@@ -1061,15 +1061,13 @@
     if (error) throw error;
   }
 
-  async function listOpenContacts() {
-    const { data, error } = await sb()
-      .from('location_contacts')
-      .select(
-        '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))'
-      )
-      .in('statut', ['a_contacter', 'en_cours', 'reporte'])
-      .order('created_at', { ascending: true });
-    if (error) throw error;
+  const CONTACT_SELECT =
+    '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))';
+
+  const OPEN_CONTACT_STATUTS = ['a_contacter', 'en_cours', 'reporte'];
+  const OUTCOME_RESULTATS = ['ramene_semaine', 'ordo_mail', 'autre_raison', 'PERTE'];
+
+  function mapContactRows(data) {
     return (data || []).map((c) => ({
       ...c,
       dossier: enrichDossier(c.dossier),
@@ -1077,23 +1075,64 @@
   }
 
   /**
-   * Contacts résolus en attente de suite métier (prolongation / retour appareil / PERTE).
-   * Hors file ouverte (listOpenContacts) — statut DB = resolu uniquement.
+   * Cycle contact obsolète si la date_fin dossier a avancé (prolongation)
+   * après phase_date_fin — même critère que shouldResetContactToCommentaire.
    */
-  async function listOutcomeContacts() {
+  function isContactCycleObsolete(contact, dossier) {
+    const newFin = dossier?.date_fin || null;
+    const cycleFin = contact?.phase_date_fin || null;
+    return !!(newFin && cycleFin && newFin > cycleFin);
+  }
+
+  async function fetchOpenContactsRaw() {
     const { data, error } = await sb()
       .from('location_contacts')
-      .select(
-        '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))'
-      )
+      .select(CONTACT_SELECT)
+      .in('statut', OPEN_CONTACT_STATUTS)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return mapContactRows(data);
+  }
+
+  async function fetchOutcomeContactsRaw() {
+    const { data, error } = await sb()
+      .from('location_contacts')
+      .select(CONTACT_SELECT)
       .eq('statut', 'resolu')
-      .in('resultat', ['ramene_semaine', 'ordo_mail', 'autre_raison', 'PERTE'])
+      .in('resultat', OUTCOME_RESULTATS)
       .order('contacted_at', { ascending: false });
     if (error) throw error;
-    return (data || []).map((c) => ({
-      ...c,
-      dossier: enrichDossier(c.dossier),
-    }));
+    return mapContactRows(data);
+  }
+
+  /** File ouverte UI : exclut les cycles obsolètes (nouvelle date_fin). */
+  async function listOpenContacts() {
+    return (await fetchOpenContactsRaw()).filter(
+      (c) => !isContactCycleObsolete(c, c.dossier)
+    );
+  }
+
+  /**
+   * Contacts résolus en attente de suite métier (prolongation / retour appareil / PERTE).
+   * Hors file ouverte — statut DB = resolu uniquement.
+   * Exclut les cycles obsolètes et les dossiers qui ont déjà un contact ouvert courant
+   * (évite Appels + Attente/Perte pour le même dossier).
+   */
+  async function listOutcomeContacts() {
+    const [outcomes, opens] = await Promise.all([
+      fetchOutcomeContactsRaw(),
+      fetchOpenContactsRaw(),
+    ]);
+    const openDossierIds = new Set(
+      opens
+        .filter((c) => !isContactCycleObsolete(c, c.dossier))
+        .map((c) => c.dossier_id)
+    );
+    return outcomes.filter((c) => {
+      if (isContactCycleObsolete(c, c.dossier)) return false;
+      if (openDossierIds.has(c.dossier_id)) return false;
+      return true;
+    });
   }
 
   /**
@@ -1136,6 +1175,33 @@
     return data;
   }
 
+  /** Annule tous les contacts non déjà annulés du dossier sauf keepId. */
+  async function archiveDossierContactSiblings(dossierId, keepId) {
+    if (!dossierId || !keepId) return;
+    const { data, error } = await sb()
+      .from('location_contacts')
+      .select('*')
+      .eq('dossier_id', dossierId)
+      .neq('statut', 'annule');
+    if (error) throw error;
+    for (const c of data || []) {
+      if (!c || c.id === keepId) continue;
+      await upsertContact({
+        id: c.id,
+        dossier_id: dossierId,
+        motif: c.motif,
+        commentaire: c.commentaire || null,
+        phase: c.phase || 'appel',
+        statut: 'annule',
+        resultat: c.resultat || null,
+        canal: c.canal || null,
+        contacted_at: c.contacted_at || null,
+        commentaire_fait_at: c.commentaire_fait_at || null,
+        phase_date_fin: c.phase_date_fin || null,
+      });
+    }
+  }
+
   /** Remet tout le dossier en phase commentaire (une seule file, pas de doublon). */
   async function invalidateDossierCommentaire(dossierId, contacts) {
     if (!dossierId) throw new Error('Dossier introuvable');
@@ -1146,13 +1212,13 @@
     );
     if (!list.length) throw new Error('Aucun contact sur ce dossier');
 
-    const openStatuts = new Set(['a_contacter', 'en_cours', 'reporte']);
+    const openStatuts = new Set(OPEN_CONTACT_STATUTS);
     const open = list.filter((c) => openStatuts.has(c.statut));
-    const keeper = open[0] || list[0];
+    const keeper = open[0] || list.find((c) => c.statut !== 'annule') || list[0];
     const others = list.filter((c) => c.id !== keeper.id);
 
     for (const c of others) {
-      if (!openStatuts.has(c.statut)) continue;
+      if (c.statut === 'annule') continue;
       await upsertContact({
         id: c.id,
         dossier_id: dossierId,
@@ -1190,23 +1256,34 @@
    */
   function shouldResetContactToCommentaire(contact, dossier) {
     if (!contact || contact.phase !== 'appel') return false;
-    const newFin = dossier.date_fin || null;
-    const cycleFin = contact.phase_date_fin || null;
-    return !!(newFin && cycleFin && newFin > cycleFin);
+    return isContactCycleObsolete(contact, dossier);
   }
 
   /**
    * Synchronise la file contact à partir des dossiers actifs + règles.
    * Crée en phase « commentaire » ; réouvre un cycle commentaire si manque ordo
    * après une prolongation post-phase-appel (contact ouvert) ou après résolution
-   * (plus de contact ouvert → nouvelle ligne).
+   * obsolète (Attente/Perte d’un ancien cycle → nouvelle ligne, anciens annulés).
+   * Un dossier déjà en Attente/Perte du cycle courant n’est pas re-créé en parallèle.
    */
   async function syncContactQueue(userId) {
     const params = await loadParams();
     const rules = await loadRules();
     const dossiers = await listDossiers({ statut: 'actif' });
-    const existing = await listOpenContacts();
-    const byDossier = new Map(existing.map((c) => [c.dossier_id, c]));
+    const [existing, outcomes] = await Promise.all([
+      fetchOpenContactsRaw(),
+      fetchOutcomeContactsRaw(),
+    ]);
+    const byDossier = new Map();
+    for (const c of existing) {
+      // Un seul contact ouvert retenu par dossier (le plus récent en fin de liste).
+      byDossier.set(c.dossier_id, c);
+    }
+    const outcomesByDossier = new Map();
+    for (const c of outcomes) {
+      // contacted_at desc : premier = plus récent
+      if (!outcomesByDossier.has(c.dossier_id)) outcomesByDossier.set(c.dossier_id, c);
+    }
     const created = [];
     const reset = [];
 
@@ -1231,8 +1308,11 @@
       if (!tpl || !String(tpl.corps || '').trim()) continue;
       const commentaire = global.LocationRules.interpolate(String(tpl.corps), vars);
       const open = byDossier.get(d.id);
+      const outcome = outcomesByDossier.get(d.id);
 
       if (open) {
+        // Un seul contact pertinent : annuler jumeaux ouverts / Attente / Perte.
+        await archiveDossierContactSiblings(d.id, open.id);
         if (shouldResetContactToCommentaire(open, d)) {
           const row = await upsertContact({
             id: open.id,
@@ -1275,6 +1355,13 @@
         continue;
       }
 
+      // Attente / Perte du cycle courant : ne pas ouvrir une 2ᵉ file.
+      if (outcome && !isContactCycleObsolete(outcome, d)) {
+        await archiveDossierContactSiblings(d.id, outcome.id);
+        continue;
+      }
+
+      // Ancien cycle résolu (ex. après prolongation) : nouvelle ligne, anciens annulés.
       const row = await upsertContact({
         dossier_id: d.id,
         motif,
@@ -1284,6 +1371,7 @@
         phase_date_fin: d.date_fin || null,
         created_by: userId || null,
       });
+      await archiveDossierContactSiblings(d.id, row.id);
       created.push(row);
       byDossier.set(d.id, row);
     }
@@ -1488,6 +1576,9 @@
     listOpenContacts,
     listOutcomeContacts,
     upsertContact,
+    isContactCycleObsolete,
+    shouldResetContactToCommentaire,
+    archiveDossierContactSiblings,
     invalidateDossierCommentaire,
     syncContactQueue,
     splitList,
