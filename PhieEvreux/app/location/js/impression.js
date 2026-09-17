@@ -236,32 +236,33 @@
   }
 
   /**
-   * Fiche papier compacte — 1 page A4, priorité lignes manuscrites de suivi.
+   * Fiche papier A4 (réf. PDF Pharmacie Evreux) :
+   * gauche Patient + Appareil + OP/Caution/Notes | droite Suivi | bas Clôture (sans Facturation).
    * @param {object} dossier
-   * @param {{ attentionLines?: string[] }|string[]} [meta]
+   * @param {{
+   *   attentionLines?: string[],
+   *   params?: object,
+   *   champsDef?: object[],
+   * }} [meta]
    */
   function buildFicheHtml(dossier, meta) {
     const attentionLines = Array.isArray(meta) ? meta : meta?.attentionLines || [];
+    const params = (!Array.isArray(meta) && meta?.params) || {};
+    const champsDef = (!Array.isArray(meta) && meta?.champsDef) || [];
 
     const p = dossier.patient || {};
     const a = dossier.appareil_actif || {};
+    const extra = a.champs_extra && typeof a.champs_extra === 'object' ? a.champs_extra : {};
     const tels = (p.telephones || []).join(' · ');
     const mails = (p.mails || []).join(' · ');
-    const typeTxt =
-      R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '');
-    const refApp = a.numero_pharmacie || a.matricule || '—';
-    const sourceTxt = a.source === 'prestataire' ? 'Prestataire' : 'Parc pharmacie';
+    const typeLabel = R().typeLabel(a.type_appareil) || a.type_appareil || 'Appareil';
+    const typeTxt = typeLabel + (a.type_libelle ? ` — ${a.type_libelle}` : '');
+    const isPrestataire = a.source === 'prestataire';
 
-    const prolongs = prolongationsSorted(dossier);
-    const init = prolongs[0];
-    const ordoTxt = init
-      ? [
-          init.date_ordo ? `Ordo ${init.date_ordo}` : '',
-          init.duree != null ? `${init.duree} ${init.unite || ''}`.trim() : '',
-        ]
-          .filter(Boolean)
-          .join(' · ')
-      : '';
+    const patientCustom = customCreationLines(params, 'patient', extra);
+    const appareilCustom = customCreationLines(params, 'appareil', extra);
+    const specLines = specChampLines(champsDef, a.type_appareil, extra);
+    const autresAppareil = specLines.concat(appareilCustom);
 
     const attentionParts = [];
     (attentionLines || []).forEach((t) => {
@@ -270,60 +271,63 @@
     });
     const commentaire = String(a.encart_texte || '').trim();
     if (commentaire) attentionParts.push(commentaire);
-    const attentionShort = attentionParts.length
-      ? `<div class="print-attention-short"><strong>Attention</strong> ${esc(
-          attentionParts.join(' · ')
-        )}</div>`
-      : '';
 
-    const identite = [p.nom, p.prenom].filter(Boolean).join(' ') || '—';
+    const identite = [p.nom, p.prenom].filter(Boolean).join(' - ') || '—';
+    const notesInit = notesInitiales(dossier.notes);
 
-    const bandeau = `<div class="print-bandeau">${esc(
-      [
-        `OP ${dossier.code_op || '—'}`,
-        `Caution ${cautionLabel(dossier.caution)}`,
-        `Début ${dossier.date_debut || '—'}`,
-        `Fin ${dossier.date_fin || '—'}`,
-        statutLabel(dossier.statut),
-      ].join(' · ')
-    )}</div>`;
+    let appareilBody = line('Type appareil', typeTxt);
+    if (isPrestataire) {
+      appareilBody += line('Matricule / id', a.matricule || '');
+      const obtenuLivre = [
+        modeObtentionLabel(a.mode_obtention) ? `Obtenu par ${modeObtentionLabel(a.mode_obtention)}` : '',
+        livraisonLabel(a.livraison) ? `Livré ${livraisonLabel(a.livraison)}` : '',
+        a.desinfection ? 'Désinfecté : Oui' : '',
+      ]
+        .filter(Boolean)
+        .join(' · ');
+      if (obtenuLivre) appareilBody += line('Prestataire', obtenuLivre);
+    } else {
+      appareilBody += line('N° pharmacie', a.numero_pharmacie || '');
+      if (a.matricule) appareilBody += line('Matricule', a.matricule);
+      if (a.desinfection) appareilBody += line('Désinfection', 'Oui');
+    }
+    autresAppareil.forEach((html) => {
+      appareilBody += html;
+    });
+    if (attentionParts.length) {
+      appareilBody += `<div class="print-attention-short"><strong>Attention</strong> ${esc(
+        attentionParts.join(' · ')
+      )}</div>`;
+    }
 
-    const patientBlock = `<section class="print-zone print-patient">
-  <h2>Patient</h2>
-  <div class="print-grid2">
-    <div class="print-kv"><span class="print-label">Identité</span><span class="print-val">${esc(identite)}</span></div>
-    <div class="print-kv"><span class="print-label">Naissance</span><span class="print-val">${esc(p.date_naissance || '') || '&nbsp;'}</span></div>
-    <div class="print-kv"><span class="print-label">Téléphone(s)</span><span class="print-val">${esc(tels) || '&nbsp;'}</span></div>
-    <div class="print-kv"><span class="print-label">Mail(s)</span><span class="print-val">${esc(mails) || '&nbsp;'}</span></div>
-    <div class="print-kv print-span2"><span class="print-label">Adresse</span><span class="print-val">${esc(p.adresse || '') || '&nbsp;'}</span></div>
-  </div>
-</section>`;
+    const patientBody =
+      line('Nom - Prénom', identite) +
+      line('Date naissance', p.date_naissance || '') +
+      line('Adresse', p.adresse || '') +
+      line('Téléphones', tels) +
+      line('Mails', mails) +
+      patientCustom.join('');
 
-    const locParts = [
-      typeTxt || '—',
-      sourceTxt,
-      `mat./n° ${refApp}`,
-      `Qui facture ${quiFactureLabel(dossier.qui_facture)}`,
-      ordoTxt,
-    ].filter(Boolean);
-    const locBlock = `<section class="print-zone print-loc">
-  <h2>Location / appareil</h2>
-  <div class="print-loc-recap">${esc(locParts.join(' · '))}</div>
-  ${attentionShort}
-</section>`;
+    const openBody =
+      line('Initié par / Code OP', dossier.code_op || '') +
+      line('Caution', cautionLabel(dossier.caution)) +
+      line('Notes initiales', notesInit);
 
-    // Priorité aux lignes manuscrites : ≥ 10, viser 12–14 ; 0–3 événements max.
-    const BLANK_ROWS = 13;
-    const MAX_EVENTS = 3;
-    const datePh = '<span class="print-date-ph">   /    /       </span>';
+    const leftCol = `
+<section class="print-zone print-patient"><h2>Patient</h2>${patientBody}</section>
+<section class="print-zone print-appareil"><h2>Appareil</h2>${appareilBody}</section>
+<section class="print-zone print-open"><h2>Dossier</h2>${openBody}</section>`;
+
+    const BLANK_ROWS = 10;
+    const MAX_EVENTS = 6;
+    const datePh = '<span class="print-date-ph">__/__/____</span>';
     const checkCell = '<td class="col-check">□</td>';
     const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${checkCell}</tr>`;
-    // Si trop d’événements, aucun prérempli (priorité aux lignes manuscrites).
     const allEvents = buildSuiviEventRows(dossier);
-    const eventRows = allEvents.length <= MAX_EVENTS ? allEvents : [];
+    const eventRows = allEvents.slice(0, MAX_EVENTS);
     const suiviFilled = eventRows
       .map((s) => {
-        const dateCell = s.date ? esc(s.date) : datePh;
+        const dateCell = s.date ? esc(formatDateFrPrint(s.date) || s.date) : datePh;
         return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${checkCell}</tr>`;
       })
       .join('');
@@ -337,11 +341,11 @@
 </section>`;
 
     function clotureHand(label, dateVal, parVal) {
-      const lePart = dateVal ? esc(dateVal) : '__________';
-      const parPart = parVal ? esc(parVal) : '___________';
+      const lePart = dateVal ? esc(dateVal) : '________________';
+      const parPart = parVal ? esc(parVal) : '_____';
       return `<div class="print-cloture-line">${esc(label)} le ${lePart} par ${parPart}</div>`;
     }
-    const clotureLines = [
+    const clotureBlock = `<section class="print-zone print-cloture">${[
       clotureHand(
         'Appareil rendu',
         dossier.appareil_rendu && dossier.appareil_rendu_le ? dossier.appareil_rendu_le : null,
@@ -352,70 +356,61 @@
         dossier.caution_rendue && dossier.caution_rendue_le ? dossier.caution_rendue_le : null,
         dossier.caution_rendue_op || null
       ),
-    ];
-    if (dossier.statut === 'cloture' || dossier.date_cloture) {
-      clotureLines.push(
-        clotureHand(
-          'Dossier clôturé',
-          dossier.date_cloture || null,
-          dossier.cloture_op || null
-        )
-      );
-    }
-    const clotureBlock = `<section class="print-zone print-cloture"><h2>Clôture</h2>${clotureLines.join('')}</section>`;
+      clotureHand(
+        'Clôturé',
+        dossier.statut === 'cloture' && dossier.date_cloture ? dossier.date_cloture : null,
+        dossier.cloture_op || null
+      ),
+    ].join('')}</section>`;
 
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche location</title>
 <style>
   @page{size:A4;margin:7mm}
   html,body{margin:0;height:100%}
   body{
-    font-family:Georgia,serif;color:#111;font-size:9.5px;line-height:1.2;
+    font-family:Georgia,serif;color:#111;font-size:9px;line-height:1.15;
     box-sizing:border-box;height:283mm;max-height:283mm;overflow:hidden;
     display:flex;flex-direction:column;padding:0;
   }
   *{box-sizing:border-box}
-  h1{font-size:12px;margin:0 0 1px;flex:0 0 auto}
-  .print-meta{color:#555;margin:0 0 3px;font-size:7.5px;flex:0 0 auto}
-  .print-bandeau{
-    flex:0 0 auto;border:1px solid #222;padding:3px 5px;margin-bottom:3px;
-    font-size:9px;font-weight:700;letter-spacing:.01em
-  }
-  .print-zone{border:1px solid #222;padding:3px 5px;margin-bottom:3px;flex:0 0 auto}
-  .print-zone h2{margin:0 0 2px;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em}
-  .print-grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px 8px}
-  .print-kv{display:flex;gap:5px;border-bottom:1px dotted #bbb;padding:1px 0;min-height:12px}
-  .print-span2{grid-column:1 / -1}
-  .print-label{width:78px;flex-shrink:0;color:#444}
-  .print-val{flex:1;min-width:0}
-  .print-loc-recap{padding:1px 0}
+  h1{font-size:13px;margin:0;flex:0 0 auto;text-transform:uppercase;letter-spacing:.02em}
+  .print-meta{color:#444;margin:0 0 3px;font-size:7.5px;flex:0 0 auto}
+  .print-main{flex:1 1 auto;min-height:0;display:grid;grid-template-columns:1fr 1.15fr;gap:4px;overflow:hidden}
+  .print-left{display:flex;flex-direction:column;gap:3px;min-height:0;overflow:hidden}
+  .print-right{min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .print-zone{border:1px solid #222;padding:3px 5px;flex:0 0 auto}
+  .print-zone h2{margin:0 0 2px;font-size:8px;text-transform:uppercase;letter-spacing:.04em}
+  .print-line{display:flex;gap:5px;border-bottom:1px dotted #bbb;padding:0;min-height:11px}
+  .print-label{width:92px;flex-shrink:0;color:#444;font-size:8px}
+  .print-val{flex:1;min-width:0;white-space:pre-wrap}
   .print-attention-short{
-    margin-top:2px;border:1px solid #c00;padding:2px 4px;font-size:8.5px;
+    margin-top:2px;border:1px solid #c00;padding:2px 4px;font-size:8px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis
   }
-  .print-attention-short strong{color:#c00;margin-right:4px;text-transform:uppercase;font-size:8px}
-  .print-suivi{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-  .print-table{width:100%;border-collapse:collapse;font-size:9px;flex:1}
+  .print-attention-short strong{color:#c00;margin-right:4px;text-transform:uppercase;font-size:7.5px}
+  .print-suivi{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;height:100%}
+  .print-table{width:100%;border-collapse:collapse;font-size:8.5px;flex:1}
   .print-table-suivi{height:100%}
   .print-table th,.print-table td{border:1px solid #999;padding:1px 3px;text-align:left;vertical-align:middle}
-  .print-table th{background:#f3f3f3;font-size:8px}
-  .print-table .col-date{width:4.2em;white-space:pre;font-variant-numeric:tabular-nums}
-  .print-table .col-check{width:1.8em;text-align:center}
-  .print-table .col-lib{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .print-table th{background:#f3f3f3;font-size:7.5px}
+  .print-table .col-date{width:4.6em;white-space:pre;font-variant-numeric:tabular-nums}
+  .print-table .col-check{width:1.6em;text-align:center}
+  .print-table .col-lib{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .print-date-ph{white-space:pre;color:#666}
-  .print-cloture{flex:0 0 auto;margin-bottom:0}
-  .print-cloture-line{padding:2px 0;border-bottom:1px dotted #bbb}
+  .print-cloture{flex:0 0 auto;margin-top:3px;margin-bottom:0}
+  .print-cloture-line{padding:2px 0;border-bottom:1px dotted #bbb;font-size:9px}
   .print-cloture-line:last-child{border-bottom:none}
-  .print-row-fill td{height:16px}
+  .print-row-fill td{height:15px}
   @media print{
     body{margin:0;height:283mm;max-height:283mm;overflow:hidden}
   }
 </style></head><body>
-  <h1>Fiche location — Phie Evreux</h1>
-  <p class="print-meta">Imprimé le ${esc(new Date().toLocaleString('fr-FR'))}</p>
-  ${bandeau}
-  ${patientBlock}
-  ${locBlock}
-  ${suiviBlock}
+  <h1>Fiche de location — ${esc(typeLabel)}</h1>
+  <p class="print-meta">Pharmacie Evreux — version ${esc(versionCourteFr())}</p>
+  <div class="print-main">
+    <div class="print-left">${leftCol}</div>
+    <div class="print-right">${suiviBlock}</div>
+  </div>
   ${clotureBlock}
 </body></html>`;
   }
@@ -426,12 +421,26 @@
       return;
     }
     let attentionLines = [];
+    let params = {};
+    let champsDef = [];
     try {
       attentionLines = await loadAttentionLines(dossier);
     } catch (_) {
       attentionLines = [];
     }
-    printHtml(buildFicheHtml(dossier, { attentionLines }));
+    try {
+      if (global.LocationData?.loadParams) params = (await LocationData.loadParams()) || {};
+    } catch (_) {
+      params = {};
+    }
+    try {
+      if (global.LocationData?.listChampsCreation) {
+        champsDef = (await LocationData.listChampsCreation(null, true)) || [];
+      }
+    } catch (_) {
+      champsDef = [];
+    }
+    printHtml(buildFicheHtml(dossier, { attentionLines, params, champsDef }));
   }
 
   function statutLabel(s) {
