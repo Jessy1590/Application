@@ -43,7 +43,7 @@
     resolu: 'Résolu',
   };
 
-  /** Lignes « Suivi matériel » : prolongations, appareils, contacts (journal = section dédiée). */
+  /** Lignes Suivi fiche A4 : location initiale, prolongations, contacts (résumé), rendu. */
   function buildSuiviEventRows(dossier) {
     const rows = [];
     const resultatLabels = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
@@ -53,10 +53,9 @@
     prolongations.forEach((pr, idx) => {
       const duree = [pr.duree, pr.unite].filter((x) => x != null && x !== '').join(' ');
       const label =
-        (idx === 0 ? 'Ordonnance initiale' : 'Prolongation') +
+        (idx === 0 ? 'Location initiale' : `Prolongation ${idx}`) +
         (duree ? ` · ${duree}` : '') +
-        (pr.date_fin ? ` → fin ${pr.date_fin}` : '') +
-        (pr.notes && pr.notes !== 'Location initiale' ? ` · ${pr.notes}` : '');
+        (pr.date_fin ? ` → fin ${pr.date_fin}` : '');
       rows.push({ date: pr.date_ordo || null, libelle: label });
     });
 
@@ -73,51 +72,55 @@
       });
     });
 
-    if (dossier.appareil_rendu) {
-      rows.push({
-        date: dossier.appareil_rendu_le || null,
-        libelle:
-          "Rendu d'appareil" +
-          (dossier.appareil_rendu_op ? ` · OP ${dossier.appareil_rendu_op}` : ''),
-      });
-    }
-    if (dossier.caution_rendue) {
-      rows.push({
-        date: dossier.caution_rendue_le || null,
-        libelle:
-          'Caution rendue' +
-          (dossier.caution_rendue_op ? ` · OP ${dossier.caution_rendue_op}` : ''),
-      });
-    }
-    if (dossier.statut === 'cloture' || dossier.date_cloture) {
-      rows.push({
-        date: dossier.date_cloture || null,
-        libelle: 'Clôture du dossier' + (dossier.cloture_op ? ` · OP ${dossier.cloture_op}` : ''),
-      });
-    }
-
-    (dossier.suivi || []).forEach((s) => {
-      const lib = [s.libelle, s.details].filter(Boolean).join(' · ');
-      if (!lib) return;
-      rows.push({ date: s.date_ligne || null, libelle: lib });
-    });
-
     const contacts = (dossier.contacts || []).slice().sort((a, b) =>
       String(a.contacted_at || a.created_at || '').localeCompare(
         String(b.contacted_at || b.created_at || '')
       )
     );
+    let contactIdx = 0;
     contacts.forEach((c) => {
+      if (c.statut === 'annule') return;
+      contactIdx += 1;
       const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10) || null;
-      const st = CONTACT_STATUT_LABELS[c.statut] || c.statut || '';
       const res = c.resultat ? resultatLabels[c.resultat] || c.resultat : '';
-      const phase = c.phase === 'appel' ? 'Appel' : c.phase === 'commentaire' ? 'Commentaire' : '';
-      const parts = ['Contact', phase, c.motif || '', st, res].filter(Boolean);
+      const st = CONTACT_STATUT_LABELS[c.statut] || c.statut || '';
+      const parts = [`Contact ${contactIdx}`, st, res].filter(Boolean);
       rows.push({ date: when, libelle: parts.join(' · ') });
     });
 
+    if (dossier.appareil_rendu) {
+      rows.push({
+        date: dossier.appareil_rendu_le || null,
+        libelle:
+          'Appareil rendu' +
+          (dossier.appareil_rendu_op ? ` · OP ${dossier.appareil_rendu_op}` : ''),
+      });
+    }
+
     rows.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
     return rows;
+  }
+
+  /** Notes dossier hors lignes journal d’appels datées JJ/MM/AAAA —. */
+  function notesInitiales(notes) {
+    return String(notes || '')
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^\d{2}\/\d{2}\/\d{4}\s*[—\-–]/u.test(l))
+      .join('\n');
+  }
+
+  function versionCourteFr() {
+    const d = new Date();
+    return `${d.getDate()}/${d.getMonth() + 1}`;
+  }
+
+  function formatDateFrPrint(iso) {
+    if (!iso) return '';
+    const s = String(iso).slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return s;
+    return `${m[3]}/${m[2]}/${m[1]}`;
   }
 
   /** Impression same-document — pas de pop-up, pas d’alerte « Autorisez les pop-ups ». */
