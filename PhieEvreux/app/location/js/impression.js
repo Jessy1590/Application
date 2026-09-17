@@ -233,25 +233,32 @@
   }
 
   /**
-   * Fiche complète alignée Suivi (patient, dossier, appareil, champs ajoutés,
-   * prolongations, journal appels, contacts, clôture).
+   * Fiche papier compacte — 1 page A4, priorité lignes manuscrites de suivi.
    * @param {object} dossier
-   * @param {{ attentionLines?: string[], params?: object, champsDef?: object[] }} [meta]
+   * @param {{ attentionLines?: string[] }|string[]} [meta]
    */
   function buildFicheHtml(dossier, meta) {
     const attentionLines = Array.isArray(meta) ? meta : meta?.attentionLines || [];
-    const params = Array.isArray(meta) ? null : meta?.params || null;
-    const champsDef = Array.isArray(meta) ? null : meta?.champsDef || null;
 
     const p = dossier.patient || {};
     const a = dossier.appareil_actif || {};
-    const extra = a.champs_extra && typeof a.champs_extra === 'object' ? a.champs_extra : {};
     const tels = (p.telephones || []).join(' · ');
     const mails = (p.mails || []).join(' · ');
-    const dateFin = dossier.date_fin || '';
     const typeTxt =
       R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '');
-    const resultatLabels = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    const refApp = a.numero_pharmacie || a.matricule || '—';
+    const sourceTxt = a.source === 'prestataire' ? 'Prestataire' : 'Parc pharmacie';
+
+    const prolongs = prolongationsSorted(dossier);
+    const init = prolongs[0];
+    const ordoTxt = init
+      ? [
+          init.date_ordo ? `Ordo ${init.date_ordo}` : '',
+          init.duree != null ? `${init.duree} ${init.unite || ''}`.trim() : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : '';
 
     const attentionParts = [];
     (attentionLines || []).forEach((t) => {
@@ -260,189 +267,78 @@
     });
     const commentaire = String(a.encart_texte || '').trim();
     if (commentaire) attentionParts.push(commentaire);
-    const attentionInner = attentionParts.length
-      ? attentionParts.map((t) => `<p>${esc(t)}</p>`).join('')
-      : '<p>&nbsp;</p>';
+    const attentionShort = attentionParts.length
+      ? `<div class="print-attention-short"><strong>Attention</strong> ${esc(
+          attentionParts.join(' · ')
+        )}</div>`
+      : '';
 
-    const patientBlock = `<section class="print-zone">
+    const identite = [p.nom, p.prenom].filter(Boolean).join(' ') || '—';
+
+    const bandeau = `<div class="print-bandeau">${esc(
+      [
+        `OP ${dossier.code_op || '—'}`,
+        `Caution ${cautionLabel(dossier.caution)}`,
+        `Début ${dossier.date_debut || '—'}`,
+        `Fin ${dossier.date_fin || '—'}`,
+        statutLabel(dossier.statut),
+      ].join(' · ')
+    )}</div>`;
+
+    const patientBlock = `<section class="print-zone print-patient">
   <h2>Patient</h2>
-  ${[
-    line('Nom', p.nom),
-    line('Prénom', p.prenom),
-    line('Date de naissance', p.date_naissance),
-    line('Adresse', p.adresse),
-    line('Téléphone(s)', tels),
-    line('Mail(s)', mails),
-    ...customCreationLines(params, 'patient', extra),
-  ].join('')}
+  <div class="print-grid2">
+    <div class="print-kv"><span class="print-label">Identité</span><span class="print-val">${esc(identite)}</span></div>
+    <div class="print-kv"><span class="print-label">Naissance</span><span class="print-val">${esc(p.date_naissance || '') || '&nbsp;'}</span></div>
+    <div class="print-kv"><span class="print-label">Téléphone(s)</span><span class="print-val">${esc(tels) || '&nbsp;'}</span></div>
+    <div class="print-kv"><span class="print-label">Mail(s)</span><span class="print-val">${esc(mails) || '&nbsp;'}</span></div>
+    <div class="print-kv print-span2"><span class="print-label">Adresse</span><span class="print-val">${esc(p.adresse || '') || '&nbsp;'}</span></div>
+  </div>
 </section>`;
 
-    const dossierBlock = `<section class="print-zone">
-  <h2>Dossier</h2>
-  ${[
-    line('Code OP', dossier.code_op),
-    line('Caution', cautionLabel(dossier.caution)),
-    line('Statut', statutLabel(dossier.statut)),
-    line('Qui facture', quiFactureLabel(dossier.qui_facture)),
-    line('Date début', dossier.date_debut),
-    line('Fin courante', dateFin),
-    line('Appareil rendu', dossier.appareil_rendu ? 'Oui' : 'Non'),
-    line('Appareil rendu le', dossier.appareil_rendu_le),
-    line('OP appareil rendu', dossier.appareil_rendu_op),
-    line('Caution rendue', dossier.caution_rendue ? 'Oui' : 'Non'),
-    line('Caution rendue le', dossier.caution_rendue_le),
-    line('OP caution', dossier.caution_rendue_op),
-    line(
-      'Facturation OK',
-      dossier.facturation_ok == null ? '' : dossier.facturation_ok ? 'Oui' : 'Non'
-    ),
-    line('Facturation OK le', dossier.facturation_ok_le),
-    line('OP facturation', dossier.facturation_ok_op),
-    line('Date clôture', dossier.date_cloture),
-    line('OP clôture', dossier.cloture_op),
-    ...customCreationLines(params, 'personnel', extra),
-    ...customCreationLines(params, 'location', extra),
-  ].join('')}
+    const locParts = [
+      typeTxt || '—',
+      sourceTxt,
+      `mat./n° ${refApp}`,
+      `Qui facture ${quiFactureLabel(dossier.qui_facture)}`,
+      ordoTxt,
+    ].filter(Boolean);
+    const locBlock = `<section class="print-zone print-loc">
+  <h2>Location / appareil</h2>
+  <div class="print-loc-recap">${esc(locParts.join(' · '))}</div>
+  ${attentionShort}
 </section>`;
 
-    const appareilLines = [
-      line('Type', typeTxt),
-      line('Source', a.source === 'prestataire' ? 'Prestataire' : 'Parc pharmacie'),
-      line('Matricule', a.matricule),
-      line('N° pharmacie', a.numero_pharmacie),
-      line('Obtention', modeObtentionLabel(a.mode_obtention)),
-      line('Livraison', livraisonLabel(a.livraison)),
-      line('Désinfection', a.desinfection ? 'Oui' : 'Non'),
-      line('Facturation prestataire', a.facturation_prestataire ? 'Oui' : 'Non'),
-    ];
-    if (a.type_appareil === 'pese_bebe') {
-      appareilLines.push(
-        line('Régler d’avance', a.pese_bebe_regler_avance ? 'Oui' : 'Non'),
-        line('Période', a.pese_bebe_periode)
-      );
-    }
-    if (a.type_appareil === 'tire_lait') {
-      appareilLines.push(line('Date accouchement', a.date_accouchement));
-    }
-    appareilLines.push(...specChampLines(champsDef, a.type_appareil, extra));
-    appareilLines.push(...customCreationLines(params, 'appareil', extra));
-    appareilLines.push(line('Commentaire appareil', a.encart_texte));
-
-    const histApp = (dossier.appareils || [])
-      .map((x) => {
-        const t =
-          R().typeLabel(x.type_appareil) + (x.type_libelle ? ` (${x.type_libelle})` : '');
-        return `<li>${esc(
-          [
-            t,
-            x.source || '',
-            x.actif ? 'actif' : 'inactif',
-            `n° ${x.numero_pharmacie || x.matricule || '—'}`,
-            `${x.date_debut || ''} → ${x.date_fin || '…'}`,
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        )}</li>`;
-      })
-      .join('');
-
-    const appareilBlock = `<section class="print-zone">
-  <h2>Appareil</h2>
-  ${appareilLines.join('')}
-  <div class="print-attention"><strong>Attention</strong>${attentionInner}</div>
-  <p class="print-note">Joindre copie d’ordonnance.</p>
-  ${
-    histApp
-      ? `<h2 style="margin-top:6px">Historique appareils</h2><ul class="print-ul">${histApp}</ul>`
-      : ''
-  }
-</section>`;
-
-    const prolongHtml = (dossier.prolongations || [])
-      .slice()
-      .sort((x, y) =>
-        String(x.date_ordo || x.created_at || '').localeCompare(
-          String(y.date_ordo || y.created_at || '')
-        )
-      )
-      .map((pr, idx) => {
-        const label = idx === 0 ? 'Ordonnance initiale' : 'Prolongation';
-        return `<li>${esc(
-          [
-            label,
-            pr.date_ordo || '',
-            pr.duree != null ? `${pr.duree} ${pr.unite || ''}` : '',
-            pr.date_fin ? `→ fin ${pr.date_fin}` : '',
-            pr.notes || '',
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        )}</li>`;
-      })
-      .join('');
-
-    const prolongBlock = `<section class="print-zone">
-  <h2>Prolongations</h2>
-  ${prolongHtml ? `<ul class="print-ul">${prolongHtml}</ul>` : '<p class="print-empty">Aucune</p>'}
-</section>`;
-
-    const journal = String(dossier.notes || '').trim();
-    const contactsHtml = (dossier.contacts || [])
-      .slice()
-      .sort((x, y) =>
-        String(x.contacted_at || x.created_at || '').localeCompare(
-          String(y.contacted_at || y.created_at || '')
-        )
-      )
-      .map((c) => {
-        const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
-        const st = CONTACT_STATUT_LABELS[c.statut] || c.statut || '';
-        const res = c.resultat ? resultatLabels[c.resultat] || c.resultat : '';
-        const phase =
-          c.phase === 'appel' ? 'appel' : c.phase === 'commentaire' ? 'commentaire' : '';
-        return `<li>${esc(
-          [when || '—', phase, c.motif || '', st, res, c.commentaire || '']
-            .filter(Boolean)
-            .join(' · ')
-        )}</li>`;
-      })
-      .join('');
-
-    const contactBlock = `<section class="print-zone">
-  <h2>Contacts / appels</h2>
-  ${
-    journal
-      ? `<p class="print-journal-title">Suivi appels déjà effectué</p><div class="print-journal">${esc(journal)}</div>`
-      : '<p class="print-empty">Aucun suivi d’appel</p>'
-  }
-  <h2 style="margin-top:6px">Historique contacts</h2>
-  ${contactsHtml ? `<ul class="print-ul">${contactsHtml}</ul>` : '<p class="print-empty">Aucun</p>'}
-</section>`;
-
+    // Priorité aux lignes manuscrites : ≥ 10, viser 12–14 ; 0–3 événements max.
+    const BLANK_ROWS = 13;
+    const MAX_EVENTS = 3;
     const datePh = '<span class="print-date-ph">   /    /       </span>';
-    const statutCell = '<td class="col-statut">□</td>';
-    const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${statutCell}</tr>`;
-    const eventRows = buildSuiviEventRows(dossier);
+    const checkCell = '<td class="col-check">□</td>';
+    const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${checkCell}</tr>`;
+    // Si trop d’événements, aucun prérempli (priorité aux lignes manuscrites).
+    const allEvents = buildSuiviEventRows(dossier);
+    const eventRows = allEvents.length <= MAX_EVENTS ? allEvents : [];
     const suiviFilled = eventRows
       .map((s) => {
         const dateCell = s.date ? esc(s.date) : datePh;
-        return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${statutCell}</tr>`;
+        return `<tr><td class="col-date">${dateCell}</td><td class="col-lib">${esc(s.libelle || '')}</td>${checkCell}</tr>`;
       })
       .join('');
-    const suiviBlock = `<section class="print-zone print-suivi"><h2>Suivi matériel / appels (synthèse)</h2>
-      <table class="print-table print-table-suivi"><thead><tr>
-        <th class="col-date">Date</th>
-        <th class="col-lib">Événement</th>
-        <th class="col-statut">Statut</th>
-      </tr></thead><tbody>${suiviFilled}${emptySuiviRow.repeat(3)}</tbody></table>
-    </section>`;
+    const suiviBlock = `<section class="print-zone print-suivi">
+  <h2>Suivi</h2>
+  <table class="print-table print-table-suivi"><thead><tr>
+    <th class="col-date">Date</th>
+    <th class="col-lib">Libellé</th>
+    <th class="col-check">□</th>
+  </tr></thead><tbody>${suiviFilled}${emptySuiviRow.repeat(BLANK_ROWS)}</tbody></table>
+</section>`;
 
     function clotureHand(label, dateVal, parVal) {
       const lePart = dateVal ? esc(dateVal) : '__________';
       const parPart = parVal ? esc(parVal) : '___________';
       return `<div class="print-cloture-line">${esc(label)} le ${lePart} par ${parPart}</div>`;
     }
-    const clotureBlock = `<section class="print-zone print-cloture"><h2>Clôture</h2>${[
+    const clotureLines = [
       clotureHand(
         'Appareil rendu',
         dossier.appareil_rendu && dossier.appareil_rendu_le ? dossier.appareil_rendu_le : null,
@@ -453,58 +349,69 @@
         dossier.caution_rendue && dossier.caution_rendue_le ? dossier.caution_rendue_le : null,
         dossier.caution_rendue_op || null
       ),
-      clotureHand(
-        'Facturation OK',
-        dossier.facturation_ok && dossier.facturation_ok_le ? dossier.facturation_ok_le : null,
-        dossier.facturation_ok_op || null
-      ),
-      clotureHand(
-        'Dossier clôturé',
-        dossier.statut === 'cloture' && dossier.date_cloture ? dossier.date_cloture : null,
-        dossier.cloture_op || null
-      ),
-    ].join('')}</section>`;
+    ];
+    if (dossier.statut === 'cloture' || dossier.date_cloture) {
+      clotureLines.push(
+        clotureHand(
+          'Dossier clôturé',
+          dossier.date_cloture || null,
+          dossier.cloture_op || null
+        )
+      );
+    }
+    const clotureBlock = `<section class="print-zone print-cloture"><h2>Clôture</h2>${clotureLines.join('')}</section>`;
 
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche location</title>
 <style>
-  @page{size:A4;margin:8mm}
-  html,body{margin:0}
-  body{font-family:Georgia,serif;color:#111;font-size:10px;line-height:1.25;box-sizing:border-box}
-  h1{font-size:13px;margin:0 0 2px}
-  .print-meta{color:#555;margin:0 0 6px;font-size:8.5px}
-  .print-zone{border:1px solid #222;padding:5px 6px;margin-bottom:5px;page-break-inside:avoid}
-  .print-zone h2{margin:0 0 3px;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em}
-  .print-line{display:flex;gap:6px;border-bottom:1px dotted #bbb;padding:1px 0;min-height:13px}
-  .print-label{width:130px;flex-shrink:0;color:#444}
-  .print-val{flex:1;white-space:pre-wrap}
-  .print-attention{margin-top:4px;border:1.5px solid #c00;padding:3px 5px;min-height:22px}
-  .print-attention strong{display:block;color:#c00;margin-bottom:2px;font-size:9px;text-transform:uppercase}
-  .print-attention p{margin:0 0 2px;white-space:pre-wrap}
-  .print-note{font-style:italic;margin:2px 0 0;color:#333;font-size:9px}
-  .print-ul{margin:2px 0 0;padding-left:16px}
-  .print-ul li{margin:1px 0}
-  .print-empty{margin:0;color:#666}
-  .print-journal-title{margin:0 0 2px;font-weight:700;font-size:9px}
-  .print-journal{white-space:pre-wrap;border:1px solid #ccc;padding:4px;margin:0 0 4px;background:#fafafa}
-  .print-table{width:100%;border-collapse:collapse;font-size:9.5px}
-  .print-table th,.print-table td{border:1px solid #999;padding:2px 3px;text-align:left;vertical-align:top}
-  .print-table th{background:#f3f3f3;font-size:8.5px}
-  .print-table .col-date{width:4.5em;white-space:pre;font-variant-numeric:tabular-nums}
-  .print-table .col-statut{width:2.4em;text-align:center}
-  .print-table .col-lib{white-space:pre-wrap}
+  @page{size:A4;margin:7mm}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:Georgia,serif;color:#111;font-size:9.5px;line-height:1.2;
+    box-sizing:border-box;height:283mm;max-height:283mm;overflow:hidden;
+    display:flex;flex-direction:column;padding:0;
+  }
+  *{box-sizing:border-box}
+  h1{font-size:12px;margin:0 0 1px;flex:0 0 auto}
+  .print-meta{color:#555;margin:0 0 3px;font-size:7.5px;flex:0 0 auto}
+  .print-bandeau{
+    flex:0 0 auto;border:1px solid #222;padding:3px 5px;margin-bottom:3px;
+    font-size:9px;font-weight:700;letter-spacing:.01em
+  }
+  .print-zone{border:1px solid #222;padding:3px 5px;margin-bottom:3px;flex:0 0 auto}
+  .print-zone h2{margin:0 0 2px;font-size:8.5px;text-transform:uppercase;letter-spacing:.04em}
+  .print-grid2{display:grid;grid-template-columns:1fr 1fr;gap:1px 8px}
+  .print-kv{display:flex;gap:5px;border-bottom:1px dotted #bbb;padding:1px 0;min-height:12px}
+  .print-span2{grid-column:1 / -1}
+  .print-label{width:78px;flex-shrink:0;color:#444}
+  .print-val{flex:1;min-width:0}
+  .print-loc-recap{padding:1px 0}
+  .print-attention-short{
+    margin-top:2px;border:1px solid #c00;padding:2px 4px;font-size:8.5px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
+  .print-attention-short strong{color:#c00;margin-right:4px;text-transform:uppercase;font-size:8px}
+  .print-suivi{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .print-table{width:100%;border-collapse:collapse;font-size:9px;flex:1}
+  .print-table-suivi{height:100%}
+  .print-table th,.print-table td{border:1px solid #999;padding:1px 3px;text-align:left;vertical-align:middle}
+  .print-table th{background:#f3f3f3;font-size:8px}
+  .print-table .col-date{width:4.2em;white-space:pre;font-variant-numeric:tabular-nums}
+  .print-table .col-check{width:1.8em;text-align:center}
+  .print-table .col-lib{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .print-date-ph{white-space:pre;color:#666}
-  .print-cloture-line{padding:3px 0;border-bottom:1px dotted #bbb}
+  .print-cloture{flex:0 0 auto;margin-bottom:0}
+  .print-cloture-line{padding:2px 0;border-bottom:1px dotted #bbb}
   .print-cloture-line:last-child{border-bottom:none}
-  .print-row-fill td{height:18px}
-  @media print{body{margin:0}}
+  .print-row-fill td{height:16px}
+  @media print{
+    body{margin:0;height:283mm;max-height:283mm;overflow:hidden}
+  }
 </style></head><body>
   <h1>Fiche location — Phie Evreux</h1>
   <p class="print-meta">Imprimé le ${esc(new Date().toLocaleString('fr-FR'))}</p>
+  ${bandeau}
   ${patientBlock}
-  ${dossierBlock}
-  ${appareilBlock}
-  ${prolongBlock}
-  ${contactBlock}
+  ${locBlock}
   ${suiviBlock}
   ${clotureBlock}
 </body></html>`;
@@ -516,26 +423,12 @@
       return;
     }
     let attentionLines = [];
-    let params = null;
-    let champsDef = [];
     try {
       attentionLines = await loadAttentionLines(dossier);
     } catch (_) {
       attentionLines = [];
     }
-    try {
-      if (global.LocationData?.loadParams) params = await LocationData.loadParams();
-    } catch (_) {
-      params = null;
-    }
-    try {
-      if (global.LocationData?.listChampsCreation) {
-        champsDef = await LocationData.listChampsCreation(null, true);
-      }
-    } catch (_) {
-      champsDef = [];
-    }
-    printHtml(buildFicheHtml(dossier, { attentionLines, params, champsDef }));
+    printHtml(buildFicheHtml(dossier, { attentionLines }));
   }
 
   function statutLabel(s) {
