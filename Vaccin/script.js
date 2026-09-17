@@ -27,16 +27,99 @@ const DEFAULT_SITUATIONS =
   "Voyage : Voyageurs / zones d'endémie\n" +
   "Professionnel : Exposition professionnelle\n" +
   "Cocooning : Entourage du nourrisson\n" +
-  "Senior : 65 ans et plus";
+  "Senior : 65 ans et plus\n" +
+  "Hors reco : Hors recommandations / hors affichage courant";
 
 const DEFAULT_LEGEND =
   "Années révolues = années terminées (ex. 24 ans révolus = jusqu'à la veille du 25e anniversaire). " +
   "Sources : Calendrier vaccinal 2026 + Vaccination Info Service. " +
-  "Officine : pharmacien d'officine formé — vaccins du calendrier ≥11 ans (prescription + administration) ; " +
-  "grippe ≥11 ans (cible ou non) ; Covid-19 ≥5 ans (cible ou non). " +
-  "Exceptions : vaccins vivants atténués non prescrits aux immunodéprimés ; fièvre jaune / vaccins voyageurs hors calendrier souvent hors officine. " +
+  "Officine : badge uniquement pour vaccins du calendrier réalisables en routine par un pharmacien formé " +
+  "(≥11 ans ; grippe ≥11 ans ; Covid ≥5 ans) — liste blanche stricte. " +
+  "Hors reco : fiches masquées par défaut (voyageurs hors calendrier général, monovalents obsolètes / transition). " +
   "Revaxis arrêté → rappels adultes en dTcaP.";
 
+/**
+ * Liste blanche Officine (arrêté 8 août 2023 modifié) :
+ * pharmacien d'officine formé, pharmacie agréée, droit commun calendrier.
+ * Pas de badge pour centres agréés, circuits particuliers, primo &lt; 11 ans, etc.
+ */
+const OFFICINE_WHITELIST = [
+  {
+    re: /^dipht[eé]rie\s*\/\s*t[eé]tanos\s*\/\s*coqueluche\s*\/\s*poliomy[eé]lite$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'dTcaP / DTCaP ados-adultes : prescription + administration calendrier (≥ 11 ans). Vivants atténués : pas de prescription si immunodéprimé.'
+  },
+  {
+    re: /^h[eé]patite\s*b$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Hépatite B monovalent ado/adulte ≥ 11 ans (Engerix® B20…). Primo nourrisson via hexa = hors âge officine.'
+  },
+  {
+    re: /^h[eé]patite\s*a$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Hépatite A ≥ 11 ans selon indication (voyageurs / risques).'
+  },
+  {
+    re: /^h[eé]patite\s*a\s*&\s*h[eé]patite\s*b$/i,
+    label: 'Officine (≥16 ans)',
+    detail: 'Twinrix® Adulte (≥ 16 ans) — calendrier / indications combinées HAV+HBV.'
+  },
+  {
+    re: /^grippe/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Grippe : prescription + administration dès 11 ans (cible ou non).'
+  },
+  {
+    re: /^covid/i,
+    label: 'Officine (≥5 ans)',
+    detail: 'Covid-19 : prescription + administration dès 5 ans (cible ou non).'
+  },
+  {
+    re: /^m[eé]ningocoque\s*a,\s*c,\s*y,\s*w$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Méningo ACWY : dose ado 11-14 ans / rattrapage 15-24 ans. Schéma nourrisson obligatoire = hors âge officine.'
+  },
+  {
+    re: /^m[eé]ningocoque\s*b$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Méningo B : Trumenba® / Bexsero® pour ados-adultes (≥ 10-11 ans selon AMM). Primo nourrisson = hors âge officine.'
+  },
+  {
+    re: /papillomavirus|\bhpv\b/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'HPV 11-14 ans + rattrapage jusqu’à 26 ans révolus.'
+  },
+  {
+    re: /^pneumocoque$/i,
+    label: 'Officine (≥18 ans)',
+    detail: 'Pneumocoque adultes (≥ 18 ans à risque / ≥ 65 ans : VPC20 / Capvaxive®). Primo nourrisson = hors âge officine.'
+  },
+  {
+    re: /rougeole|oreillons|rub[eé]ole/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'ROR rattrapage ≥ 11 ans (nés ≥ 1980, 2 doses). Vivant atténué : pas de prescription si immunodéprimé / grossesse.'
+  },
+  {
+    re: /^varicelle$/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Varicelle cibles ≥ 11 ans (ados, femmes en âge de procréer, pros…). Vivant atténué : pas de prescription si immunodéprimé / grossesse.'
+  },
+  {
+    re: /^zona$/i,
+    label: 'Officine (≥18 ans)',
+    detail: 'Shingrix® : ≥ 65 ans immuno-compétents ; immunodéprimés ≥ 18 ans.'
+  },
+  {
+    re: /syncytial|\bvrs\b/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Vaccins VRS (Abrysvo® grossesse 32-36 SA ; Abrysvo® / Arexvy® / mRESVIA® seniors). Beyfortus® / Synagis® (anticorps) ≠ badge officine vaccin calendrier.'
+  },
+  {
+    re: /enc[eé]phalite\s*[aà]\s*tiques/i,
+    label: 'Officine (≥11 ans)',
+    detail: 'Encéphalite à tiques : recommandation calendrier pour exposés / pros en zone d’endémie (≥ 11 ans).'
+  }
+];
 const VIS_BASE = 'https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins';
 
 /** Fiches VIS détectées depuis les valences d'une ligne (une fiche par pathologie). */
@@ -87,6 +170,7 @@ let isAdmin = false;
 let sortCol = 'pathologie';
 let sortAsc = true;
 let activeFamily = '';
+let showHorsReco = false;
 let quillDetails = null;
 let quillRattrapage = null;
 let editingId = null;
@@ -243,56 +327,41 @@ function getFallbackColor(patho) {
   return FAMILY_COLORS[family] || AUTRE_SUBGROUP_COLORS.default;
 }
 
+function isHorsReco(v) {
+  return v?.hors_reco === true || v?.hors_reco === 'true' || v?.hors_reco === 1;
+}
+
 function getPharmacistInfo(v) {
-  const p = (v.pathologie || '').toLowerCase().trim();
-
-  // Hors compétence officine habituelle
-  if (/fièvre jaune/.test(p)) {
-    return { eligible: false, label: null, detail: 'Centres de vaccination agréés fièvre jaune' };
-  }
-  if (/bcg|tuberculose/.test(p) || /rotavirus/.test(p)) {
-    return { eligible: false, label: null, detail: 'Schéma nourrisson — hors âge officine (< 11 ans)' };
-  }
-  if (/typho[iï]de|chol[eé]ra|enc[eé]phalite japonaise/.test(p)) {
-    return { eligible: false, label: null, detail: 'Vaccin voyageur — hors liste calendrier officine' };
+  const p = (v.pathologie || '').trim();
+  const hit = OFFICINE_WHITELIST.find(entry => entry.re.test(p));
+  if (hit) {
+    return { eligible: true, label: hit.label, detail: hit.detail };
   }
 
-  // Combinés / monovalents strictement pédiatriques (< 11 ans)
-  if (p.includes('haemophilus') && p.includes('coqueluche') && p.includes('diphtérie')) {
-    return { eligible: false, label: null, detail: 'Hexavalent / penta nourrisson (< 11 ans)' };
-  }
-  if (p === 'haemophilus influenzae b' || /^haemophilus influenzae b\b/.test(p)) {
-    return { eligible: false, label: null, detail: 'Rattrapage pédiatrique (≤ 5 ans)' };
-  }
-  if (p === 'poliomyélite') {
-    return { eligible: false, label: null, detail: 'Monovalent rare ; chez l’enfant via combinés' };
-  }
-
-  if (/covid/.test(p)) {
-    return {
-      eligible: true,
-      label: 'Officine (≥5 ans)',
-      detail: 'Pharmacien : prescription + administration Covid-19 dès 5 ans (cible ou non)'
-    };
-  }
-  if (/grippe/.test(p)) {
-    return {
-      eligible: true,
-      label: 'Officine (≥11 ans)',
-      detail: 'Pharmacien : prescription + administration grippe dès 11 ans (cible ou non)'
-    };
+  const pl = p.toLowerCase();
+  let detail = 'Hors liste blanche officine (calendrier droit commun, pharmacien formé, pharmacie agréée).';
+  if (/fi[eè]vre jaune/.test(pl)) detail = 'Centres de vaccination agréés fièvre jaune — pas d’officine de droit commun.';
+  else if (/typho[iï]de|chol[eé]ra|enc[eé]phalite japonaise/.test(pl)) detail = 'Vaccin voyageur hors calendrier général officine.';
+  else if (/bcg|tuberculose|rotavirus/.test(pl)) detail = 'Schéma nourrisson — hors âge officine (< 11 ans).';
+  else if (/haemophilus.*coqueluche|hexavalent|penta|hexa/.test(pl) || (pl.includes('haemophilus') && pl.includes('dipht'))) {
+    detail = 'Combiné pédiatrique / nourrisson (< 11 ans).';
+  } else if (/^haemophilus influenzae b/.test(pl) || pl === 'poliomyélite') {
+    detail = 'Monovalent pédiatrique ou situations particulières — hors routine officine ≥ 11 ans.';
+  } else if (/^rage$/.test(pl)) detail = 'Pré-expo pro borderline ; post-expo = centres antirabiques — pas de badge.';
+  else if (/leptospirose|dengue|chikungunya|mpox|variole/.test(pl)) {
+    detail = 'Indication / circuit particulier — pas de badge officine de droit commun.';
+  } else if (/m[eé]ningocoque\s*c/.test(pl)) detail = 'Transition ACWY — monovalent C hors routine officine.';
+  else if (/t[eé]tanos \(valence seule\)|dipht[eé]rie \/ t[eé]tanos$|revaxis|dTP/.test(pl)) {
+    detail = 'Fiche transition / ATU / informatif — pas de produit officine de routine.';
   }
 
-  return {
-    eligible: true,
-    label: 'Officine (≥11 ans)',
-    detail: 'Pharmacien formé : prescription + administration selon calendrier (≥ 11 ans). Vivants atténués : pas de prescription si immunodéprimé.'
-  };
+  return { eligible: false, label: null, detail };
 }
 
 function getBadges(v) {
   const t = `${v.pathologie} ${v.vaccins} ${v.calendrier} ${stripHTML(v.details)} ${stripHTML(v.rattrapage)}`.toLowerCase();
   const badges = [];
+  if (isHorsReco(v)) badges.push({ k: 'hors-reco', l: 'Hors reco' });
   const pharma = getPharmacistInfo(v);
   if (pharma.eligible && pharma.label) badges.push({ k: 'officine', l: pharma.label });
   if (/\bobligatoire\b/.test(t)) badges.push({ k: 'obl', l: 'Obligatoire' });
@@ -362,7 +431,18 @@ function renderPathoLinks(links, compact = true) {
 
 function printTableOnly() {
   const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  const tableHtml = el('vaccineTable').outerHTML;
+  const printable = filteredData.filter(v => !isHorsReco(v));
+  const rowsHtml = printable.length
+    ? printable.map(v => {
+        const color = v.couleur || getFallbackColor(v.pathologie);
+        return `<tr>
+      <td style="background-color:${color};color:#fff;font-weight:700;">${escapeHtml(v.pathologie || '')}</td>
+      <td>${escapeHtml(v.vaccins || '')}</td>
+      <td>${escapeHtml(v.calendrier || '')}</td>
+    </tr>`;
+      }).join('')
+    : '<tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr>';
+
   const dateTxt = el('lastUpdated')?.textContent || '';
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
@@ -379,13 +459,14 @@ function printTableOnly() {
   table{width:100%;border-collapse:collapse;}
   th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top;text-align:left;}
   th{background:#eee;}
-  .row-badges,.row-actions,.hint-click,.no-print{display:none!important;}
-  .badge{display:none!important;}
   @page{size:A4 landscape;margin:0.8cm;}
 </style></head><body>
 <h1>Vaccins &amp; valences — France</h1>
-<p class="meta">${escapeHtml(dateTxt)}</p>
-${tableHtml}
+<p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
+<table>
+  <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
+  <tbody>${rowsHtml}</tbody>
+</table>
 </body></html>`);
   doc.close();
 
@@ -399,7 +480,6 @@ ${tableHtml}
   setTimeout(() => {
     win.focus();
     win.print();
-    // Filet de sécurité si afterprint n'est pas déclenché
     setTimeout(cleanup, 1500);
   }, 100);
 }
@@ -461,6 +541,10 @@ function setupEventListeners() {
     el('searchInput').focus();
   });
   el('filterParticularity').addEventListener('change', filterTable);
+  el('toggleHorsReco')?.addEventListener('change', e => {
+    showHorsReco = !!e.target.checked;
+    filterTable();
+  });
   el('saveSettingsBtn').addEventListener('click', saveSettings);
   el('importFile').addEventListener('change', importData);
   el('exportBtn').addEventListener('click', exportData);
@@ -616,6 +700,7 @@ function filterTable() {
   const particularity = el('filterParticularity').value.toLowerCase();
 
   filteredData = currentData.filter(v => {
+    if (!showHorsReco && isHorsReco(v)) return false;
     if (activeFamily && getFamily(v.pathologie) !== activeFamily) return false;
 
     const txtPatho = (v.pathologie || '').toLowerCase();
@@ -631,6 +716,8 @@ function filterTable() {
     if (particularity) {
       if (particularity === 'officine' || particularity.includes('officine') || particularity.includes('pharmacien')) {
         matchFilter = getPharmacistInfo(v).eligible === true;
+      } else if (particularity === 'hors reco' || particularity.includes('hors reco')) {
+        matchFilter = isHorsReco(v);
       } else {
         matchFilter = haystack.includes(particularity);
       }
@@ -655,12 +742,13 @@ function applySortAndRender() {
 function renderTable(dataArray) {
   const tbody = el('vaccineTbody');
   const query = el('searchInput').value.trim();
-  const total = currentData.length;
+  const visibleBase = showHorsReco ? currentData.length : currentData.filter(v => !isHorsReco(v)).length;
+  const horsCount = currentData.filter(isHorsReco).length;
 
   el('resultCount').textContent =
-    dataArray.length === total
-      ? `${total} fiches`
-      : `${dataArray.length} / ${total} fiches`;
+    dataArray.length === visibleBase
+      ? `${visibleBase} fiches${!showHorsReco && horsCount ? ` (${horsCount} hors reco masquées)` : ''}`
+      : `${dataArray.length} / ${visibleBase} fiches`;
 
   if (dataArray.length === 0) {
     tbody.innerHTML = '<tr><td colspan="3" class="empty-cell">Aucun vaccin ne correspond à votre recherche.</td></tr>';
@@ -670,7 +758,8 @@ function renderTable(dataArray) {
   tbody.innerHTML = dataArray.map(v => {
     const color = v.couleur || getFallbackColor(v.pathologie);
     const badges = getBadges(v);
-    return `<tr data-id="${escapeHtml(v.id)}" tabindex="0" role="button" aria-label="Ouvrir ${escapeHtml(v.pathologie)}">
+    const hors = isHorsReco(v);
+    return `<tr data-id="${escapeHtml(v.id)}" class="${hors ? 'row-hors-reco' : ''}" tabindex="0" role="button" aria-label="Ouvrir ${escapeHtml(v.pathologie)}">
       <td class="col-patho" style="background-color:${color};">
         ${highlight(v.pathologie, query)}
         ${renderBadges(badges)}
@@ -753,7 +842,8 @@ async function saveEntry(e) {
     lien: el('f_lien').value.trim(),
     couleur: normalizeHexColor(el('f_couleur').value, getFallbackColor(el('f_pathologie').value)),
     details: getQuillHtml(quillDetails),
-    rattrapage: getQuillHtml(quillRattrapage)
+    rattrapage: getQuillHtml(quillRattrapage),
+    hors_reco: !!(el('f_hors_reco') && el('f_hors_reco').checked)
   };
 
   if (!payload.pathologie || !payload.vaccins) {
@@ -813,6 +903,7 @@ function editEntry(id) {
   el('f_calendrier').value = v.calendrier || '';
   el('f_lien').value = v.lien || '';
   el('f_couleur').value = normalizeHexColor(v.couleur, getFallbackColor(v.pathologie));
+  if (el('f_hors_reco')) el('f_hors_reco').checked = isHorsReco(v);
 
   // Laisser le panneau s'afficher avant de peupler Quill (évite éditeur « mort »)
   requestAnimationFrame(() => {
@@ -848,6 +939,7 @@ function resetForm() {
   el('addForm').reset();
   el('editId').value = '';
   el('f_couleur').value = '#7F8C8D';
+  if (el('f_hors_reco')) el('f_hors_reco').checked = false;
   ensureQuill();
   setQuillHtml(quillDetails, '');
   setQuillHtml(quillRattrapage, '');

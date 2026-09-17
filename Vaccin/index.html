@@ -56,6 +56,10 @@
           <option value="">Toutes les situations</option>
         </select>
       </div>
+      <label class="toggle-hors-reco" for="toggleHorsReco">
+        <input type="checkbox" id="toggleHorsReco">
+        <span>Afficher hors reco</span>
+      </label>
     </section>
 
     <section class="chip-bar no-print" aria-label="Familles vaccinales">
@@ -65,11 +69,11 @@
 
     <aside class="pharma-note no-print" id="pharmaNote">
       <strong>Vaccination par le pharmacien d’officine</strong>
-      (formé, activité déclarée) : vaccins du calendrier pour les <strong>≥ 11 ans</strong> ;
-      <strong>grippe ≥ 11 ans</strong> (cible ou non) ;
-      <strong>Covid-19 ≥ 5 ans</strong> (cible ou non).
-      Pas de prescription des vivants atténués chez l’immunodéprimé.
-      Badge <em>Officine</em> sur les fiches concernées — filtre « Faisable en pharmacie ».
+      (formé, activité déclarée, pharmacie agréée) : badge <em>Officine</em> uniquement pour les vaccins du
+      <strong>calendrier en droit commun</strong> réalisables en routine —
+      <strong>≥ 11 ans</strong> ; <strong>grippe ≥ 11 ans</strong> ; <strong>Covid-19 ≥ 5 ans</strong>.
+      Pas de badge pour fièvre jaune (centres), voyageurs hors calendrier, primo &lt; 11 ans, circuits spéciaux.
+      Filtre « Faisable en pharmacie » = liste blanche. Les fiches <em>Hors reco</em> sont masquées par défaut et exclues de l’impression.
     </aside>
 
     <details class="legend-box no-print" id="legendDisplay">
@@ -121,6 +125,13 @@
                 <input type="color" id="f_couleur" value="#7F8C8D">
                 <span class="color-picker-hint">Aperçu dans le tableau</span>
               </div>
+            </div>
+            <div class="field field-check">
+              <label class="check-label" for="f_hors_reco">
+                <input type="checkbox" id="f_hors_reco">
+                Hors recommandations / hors affichage courant
+              </label>
+              <span class="field-hint">Masquée par défaut, grisée, exclue de l’impression</span>
             </div>
           </div>
           <div class="field field-editor">

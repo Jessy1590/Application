@@ -184,6 +184,29 @@ body {
   box-shadow: 0 0 0 3px rgba(15, 107, 109, 0.15);
 }
 
+.toggle-hors-reco {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.toggle-hors-reco input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .search-clear {
   position: absolute;
   right: 8px;
@@ -425,6 +448,19 @@ mark {
 .badge.vih { background: #ede9fe; color: #5b21b6; }
 .badge.officine { background: #0f6b6d; color: #fff; }
 .badge.immuno { background: #f3e8ff; color: #6b21a8; }
+.badge.hors-reco { background: #64748b; color: #fff; }
+
+tbody tr.row-hors-reco {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+tbody tr.row-hors-reco:hover {
+  opacity: 0.78;
+  filter: grayscale(0.15);
+}
+tbody tr.row-hors-reco td.col-patho {
+  background-image: linear-gradient(rgba(100, 116, 139, 0.35), rgba(100, 116, 139, 0.35)) !important;
+}
 
 .row-actions {
   margin-top: 8px;
@@ -613,6 +649,27 @@ mark {
   margin-bottom: 14px;
 }
 .form-grid-color { grid-template-columns: minmax(140px, 200px) 1fr; }
+.field-check .check-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.field-check .check-label input {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
 .field-span-2 { grid-column: span 2; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label {
@@ -668,27 +725,80 @@ mark {
 }
 
 .field-editor { margin-bottom: 16px; }
-.quill-host {
-  background: var(--surface);
-  min-height: 148px;
+
+/* Quill insère .ql-toolbar en frère AVANT .quill-host — cibler .field-editor, pas .quill-host .ql-toolbar */
+.field-editor .ql-toolbar.ql-snow {
   border: 1px solid var(--line);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.quill-host .ql-toolbar.ql-snow {
-  border: none;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-soft);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: #f4f7f9;
   padding: 8px 10px;
   font-family: var(--font);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 0;
+  color: #444;
 }
-.quill-host .ql-toolbar.ql-snow .ql-formats { margin-right: 10px; }
-.quill-host .ql-container.ql-snow {
-  border: none;
+.field-editor .ql-toolbar.ql-snow .ql-formats { margin-right: 10px; }
+.field-editor .ql-toolbar.ql-snow button,
+.field-editor .ql-toolbar.ql-snow .ql-picker-label {
+  color: #444;
+  background: transparent;
+}
+.field-editor .ql-toolbar.ql-snow button svg {
+  float: left;
+  height: 100%;
+}
+.field-editor .ql-toolbar.ql-snow .ql-stroke {
+  fill: none;
+  stroke: #444;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+.field-editor .ql-toolbar.ql-snow .ql-fill,
+.field-editor .ql-toolbar.ql-snow .ql-stroke.ql-fill {
+  fill: #444;
+}
+.field-editor .ql-toolbar.ql-snow .ql-thin { stroke-width: 1; }
+.field-editor .ql-toolbar.ql-snow .ql-empty { fill: none; }
+.field-editor .ql-toolbar.ql-snow .ql-even { fill-rule: evenodd; }
+.field-editor .ql-toolbar.ql-snow .ql-picker { color: #444; }
+.field-editor .ql-toolbar.ql-snow .ql-picker-options {
+  background: #fff;
+  color: #444;
+}
+.field-editor .ql-toolbar.ql-snow button:hover,
+.field-editor .ql-toolbar.ql-snow button.ql-active,
+.field-editor .ql-toolbar.ql-snow .ql-picker-label:hover,
+.field-editor .ql-toolbar.ql-snow .ql-picker-item:hover,
+.field-editor .ql-toolbar.ql-snow .ql-picker-item.ql-selected {
+  color: var(--accent);
+}
+.field-editor .ql-toolbar.ql-snow button:hover .ql-stroke,
+.field-editor .ql-toolbar.ql-snow button.ql-active .ql-stroke,
+.field-editor .ql-toolbar.ql-snow .ql-picker-label:hover .ql-stroke {
+  stroke: var(--accent);
+}
+.field-editor .ql-toolbar.ql-snow button:hover .ql-fill,
+.field-editor .ql-toolbar.ql-snow button.ql-active .ql-fill,
+.field-editor .ql-toolbar.ql-snow button:hover .ql-stroke.ql-fill,
+.field-editor .ql-toolbar.ql-snow button.ql-active .ql-stroke.ql-fill {
+  fill: var(--accent);
+}
+
+.quill-host {
+  background: var(--surface);
+  min-height: 148px;
+  border: 1px solid var(--line);
+  border-radius: 0 0 6px 6px;
+  overflow: hidden;
+}
+.field-editor .quill-host.ql-container.ql-snow {
+  border-top: none;
+}
+.quill-host.ql-container.ql-snow {
   min-height: 112px;
   font-family: var(--font);
   font-size: 14px;
@@ -704,20 +814,6 @@ mark {
   font-style: normal;
   left: 14px;
   right: 14px;
-}
-.quill-host .ql-snow .ql-stroke { stroke: #3d4f5f; }
-.quill-host .ql-snow .ql-fill { fill: #3d4f5f; }
-.quill-host .ql-snow.ql-toolbar button:hover,
-.quill-host .ql-snow .ql-toolbar button:hover,
-.quill-host .ql-snow.ql-toolbar button.ql-active,
-.quill-host .ql-snow .ql-toolbar button.ql-active {
-  color: var(--accent);
-}
-.quill-host .ql-snow.ql-toolbar button:hover .ql-stroke,
-.quill-host .ql-snow .ql-toolbar button:hover .ql-stroke,
-.quill-host .ql-snow.ql-toolbar button.ql-active .ql-stroke,
-.quill-host .ql-snow .ql-toolbar button.ql-active .ql-stroke {
-  stroke: var(--accent);
 }
 
 .admin-actions {
@@ -1020,17 +1116,21 @@ body.is-admin .inline-admin-btns,
     min-height: 168px;
     max-width: 100%;
   }
-  .quill-host .ql-toolbar.ql-snow {
+  .field-editor .ql-toolbar.ql-snow {
     flex-wrap: wrap;
     position: sticky;
     top: 0;
     z-index: 1;
     padding: 6px 8px;
   }
-  .quill-host .ql-toolbar.ql-snow .ql-formats {
+  .field-editor .ql-toolbar.ql-snow .ql-formats {
     margin-right: 6px;
   }
-  .quill-host .ql-container.ql-snow,
+  .field-editor .ql-toolbar.ql-snow button {
+    width: 32px;
+    height: 28px;
+  }
+  .quill-host.ql-container.ql-snow,
   .quill-host .ql-editor {
     min-height: 128px;
     font-size: 16px;
