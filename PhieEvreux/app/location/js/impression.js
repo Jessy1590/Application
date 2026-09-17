@@ -234,11 +234,15 @@
   /**
    * Remplit le tableau Suivi de lignes vierges jusqu’à coller le bandeau
    * clôture en bas de la page A4 (zone imprimable).
+   * Mesure l’écart réel table → bandeau après que les lignes remplies
+   * soient posées (évite scrollHeight/flex trop tôt → trop de vierges).
    */
   function fillFicheBlankRows(doc) {
     const body = doc.body;
     const tbody = doc.querySelector('.print-suivi-table tbody');
-    if (!body || !tbody || !body.classList.contains('print-fiche')) return;
+    const table = doc.querySelector('.print-suivi-table');
+    const cloture = doc.querySelector('.print-cloture');
+    if (!body || !tbody || !table || !cloture || !body.classList.contains('print-fiche')) return;
 
     const datePh = '<span class="print-date-ph">__/__/____</span>';
     const rowHtml =
@@ -247,14 +251,33 @@
 
     tbody.querySelectorAll('tr.print-row-fill').forEach((tr) => tr.remove());
 
-    const fits = () => body.scrollHeight <= body.clientHeight + 1;
+    // Forcer un reflow : hauteurs des lignes remplies (pre-line) stables.
+    void body.offsetHeight;
+
+    tbody.insertAdjacentHTML('beforeend', rowHtml);
+    void body.offsetHeight;
+    const probe = tbody.lastElementChild;
+    const rowH = probe?.getBoundingClientRect().height || 0;
+    probe?.remove();
+    void body.offsetHeight;
+    if (rowH <= 0) return;
+
+    const gap =
+      cloture.getBoundingClientRect().top - table.getBoundingClientRect().bottom;
+    const count = Math.max(0, Math.floor((gap - 1) / rowH));
     const MAX = 50;
-    for (let i = 0; i < MAX; i++) {
+    for (let i = 0; i < Math.min(count, MAX); i++) {
       tbody.insertAdjacentHTML('beforeend', rowHtml);
-      if (!fits()) {
-        tbody.lastElementChild?.remove();
-        break;
-      }
+    }
+
+    // Sécurité : retirer si débordement (arrondis / bordures).
+    void body.offsetHeight;
+    while (body.scrollHeight > body.clientHeight + 1) {
+      const fills = tbody.querySelectorAll('tr.print-row-fill');
+      const last = fills[fills.length - 1];
+      if (!last) break;
+      last.remove();
+      void body.offsetHeight;
     }
   }
 
@@ -309,12 +332,25 @@
       }
     };
 
-    // Laisser le navigateur peindre le document iframe avant print()
-    if (doc.readyState === 'complete') {
-      setTimeout(trigger, 50);
-    } else {
-      iframe.onload = () => setTimeout(trigger, 50);
-    }
+    /** Après paint + polices : layout mesurable (lignes remplies) avant prepare. */
+    const whenMeasurable = (cb) => {
+      const afterPaint = () => {
+        win.requestAnimationFrame(() => {
+          win.requestAnimationFrame(cb);
+        });
+      };
+      const afterFonts = () => {
+        if (doc.fonts?.ready) {
+          doc.fonts.ready.then(afterPaint).catch(afterPaint);
+        } else {
+          afterPaint();
+        }
+      };
+      if (doc.readyState === 'complete') afterFonts();
+      else iframe.onload = afterFonts;
+    };
+
+    whenMeasurable(trigger);
   }
 
   function resolveAppareilType(dossier) {
