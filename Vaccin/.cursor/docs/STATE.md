@@ -16,7 +16,8 @@
 - **Fichier miroir local :** `data/vaccins-calendrier-2026.json` (34 valences + paramètres).
 - **Contenu :** schémas thérapeutiques concis, correspondances valences ↔ noms commerciaux, arrêts de commercialisation (Revaxis, NeisVac, HBVaxPro 10 µg, etc.), rattrapages et situations particulières.
 
-## Prochaines étapes de développement (TODO)
-- [ ] Ajouter un système de tags ou de puces visuelles pour le calendrier vaccinal.
-- [ ] Créer les fiches de pathologies par pathologie.
-- [ ] Éventuels ajustements design (à valider avec le propriétaire). 
+## UI (refonte)
+- Filtres par **famille** (chips) + situations + recherche globale (y compris détails/rattrapage).
+- **Badges** automatiques (Obligatoire, Grossesse, Senior, Voyage, Pro, Transition…).
+- Modale enrichie (calendrier mis en avant, badges, lien VIS).
+- En-tête source Calendrier 2026 / VIS, compteur de fiches, légende repliable, sticky header tableau. 

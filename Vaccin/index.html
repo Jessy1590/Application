@@ -3,165 +3,168 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tableau des Vaccins - France</title>
+<title>Vaccins France — Valences &amp; schémas</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.quilljs.com; connect-src 'self' https://kpjflntnotftpzffjbud.supabase.co wss://kpjflntnotftpzffjbud.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.quilljs.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="description" content="Aide-mémoire pharmacien : correspondances valences ↔ noms commerciaux et schémas du calendrier vaccinal français.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Arial:wght@400;700&display=swap" rel="stylesheet">
-<!-- Import CSS Quill (Éditeur de texte) -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<!-- Import JS Quill (AJOUTEZ CETTE LIGNE) -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-<!-- Ton fichier CSS -->
 <link rel="stylesheet" href="style.css">
-
-<!-- Scripts -->
 <script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
-
-<!-- 2. protect.js (gate UX) -->
 <script src="../protect.js"></script>
-
-<!-- 3. Lancer la vérification d'accès -->
 <script>
   initialiserSite("6b25908c-9354-48f0-9c7d-68c1fbf6673a");
 </script>
 </head>
 <body>
 
-  <!-- Conteneur pour les notifications Toast -->
   <div id="toast-container" class="toast-container no-print"></div>
 
   <div class="container">
-    <header>
-      <div>
-        <h1>Tableau des Vaccins & Valences</h1>
-        <div class="update-date" id="lastUpdated">Recherche des données...</div>
+    <header class="site-header">
+      <div class="brand-block">
+        <p class="brand-kicker">Aide-mémoire officinal</p>
+        <h1>Vaccins &amp; valences — France</h1>
+        <p class="brand-sub">Correspondances commerciales · schémas classiques · rattrapages</p>
+        <div class="meta-row">
+          <span class="update-date" id="lastUpdated">Chargement…</span>
+          <span class="result-count" id="resultCount"></span>
+        </div>
       </div>
       <div class="header-actions no-print">
-        <a href="https://professionnels.vaccination-info-service.fr/" target="_blank" class="btn link-btn">Dernière recommandation</a>
-        <button class="btn admin-btn hidden" id="toggleAdminBtn">Administration</button>
-        <button class="btn" onclick="window.print()">Imprimer PDF</button>
+        <a href="https://sante.gouv.fr/prevention-en-sante/preserver-sa-sante/vaccination/calendrier-vaccinal" target="_blank" rel="noopener" class="btn link-btn">Calendrier 2026</a>
+        <a href="https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins" target="_blank" rel="noopener" class="btn link-btn">Vaccination Info Service</a>
+        <button type="button" class="btn admin-btn hidden" id="toggleAdminBtn">Administration</button>
+        <button type="button" class="btn" id="printBtn">Imprimer</button>
       </div>
     </header>
 
-    <div class="toolbar no-print">
-      <div class="search-box" style="flex: 1;">
-        <input type="text" id="searchInput" placeholder="Rechercher par pathologie ou nom commercial..." style="width: 100%;">
+    <section class="toolbar no-print" aria-label="Recherche et filtres">
+      <div class="search-box">
+        <input type="search" id="searchInput" placeholder="Valence, pathologie, nom commercial (ex. Hexyon, Bexsero, dTcaP)…" autocomplete="off">
+        <button type="button" class="search-clear hidden" id="clearSearchBtn" title="Effacer" aria-label="Effacer la recherche">×</button>
       </div>
       <div class="filter-box">
+        <label class="sr-only" for="filterParticularity">Situation</label>
         <select id="filterParticularity">
-          <option value="">-- Toutes les situations --</option>
+          <option value="">Toutes les situations</option>
         </select>
       </div>
-    </div>
-    
-    <div class="legend-box no-print" id="legendDisplay">
-      <strong>Légende :</strong> <span id="legendText">années révolus = années terminées ex: 24 ans révolus = jusqu'à la veille du 25ème anniversaire</span>
-    </div>
+    </section>
+
+    <section class="chip-bar no-print" aria-label="Familles vaccinales">
+      <span class="chip-label">Famille</span>
+      <div class="chips" id="familyChips"></div>
+    </section>
+
+    <details class="legend-box no-print" id="legendDisplay">
+      <summary><strong>Légende &amp; notes d’usage</strong></summary>
+      <p id="legendText"></p>
+    </details>
 
     <div class="table-wrapper">
       <table id="vaccineTable">
         <thead>
           <tr>
-            <th class="sortable" data-col="pathologie">Valences vaccinales / Pathologies <span class="sort-icon">↕</span></th>
-            <th class="sortable" data-col="vaccins">Noms commerciaux des vaccins <span class="sort-icon">↕</span></th>
-            <th class="sortable" data-col="calendrier">Calendrier standard & Cibles <span class="sort-icon">↕</span></th>
+            <th class="sortable" data-col="pathologie">Valences / pathologies <span class="sort-icon" aria-hidden="true">↕</span></th>
+            <th class="sortable" data-col="vaccins">Noms commerciaux <span class="sort-icon" aria-hidden="true">↕</span></th>
+            <th class="sortable" data-col="calendrier">Schéma &amp; cibles <span class="sort-icon" aria-hidden="true">↕</span></th>
           </tr>
         </thead>
         <tbody id="vaccineTbody">
-          <tr><td colspan="3" style="text-align:center; padding: 40px; color:#888;">Chargement de la base de données...</td></tr>
+          <tr><td colspan="3" class="loading-cell">Chargement de la base…</td></tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Admin Panel -->
+    <footer class="site-footer no-print">
+      <p>Source : <strong>Calendrier des vaccinations 2026</strong> (ministère chargé de la Santé) et <strong>Vaccination Info Service</strong>. Outil d’aide à la décision — vérifier toujours AMM / RCP et actualités DGS-Urgent.</p>
+    </footer>
+
     <div class="admin-panel no-print" id="adminPanel">
-      <h3 style="margin-top:0; color:#d35400;">Gérer les vaccins</h3>
+      <h3>Gérer les vaccins</h3>
       <form id="addForm">
         <input type="hidden" id="editId">
-        
         <div class="form-grid">
-          <div class="field"><label>Pathologies</label><input type="text" id="f_pathologie" required></div>
-          <div class="field"><label>Noms commerciaux</label><input type="text" id="f_vaccins" required></div>
+          <div class="field"><label for="f_pathologie">Pathologies / valences</label><input type="text" id="f_pathologie" required></div>
+          <div class="field"><label for="f_vaccins">Noms commerciaux</label><input type="text" id="f_vaccins" required></div>
         </div>
-        
         <div class="form-grid">
-          <div class="field"><label>Calendrier (Affiché dans tableau)</label><input type="text" id="f_calendrier"></div>
-          <div class="field"><label>Lien d'information spécifique (URL complète)</label><input type="url" id="f_lien" placeholder="https://professionnels.vaccination-info-service.fr/..."></div>
+          <div class="field"><label for="f_calendrier">Calendrier (colonne tableau)</label><input type="text" id="f_calendrier"></div>
+          <div class="field"><label for="f_lien">Lien VIS / fiche</label><input type="url" id="f_lien" placeholder="https://professionnels.vaccination-info-service.fr/..."></div>
         </div>
-
-        <div class="form-grid" style="grid-template-columns: 200px 1fr;">
+        <div class="form-grid form-grid-color">
           <div class="field">
-            <label>Couleur de la ligne</label>
-            <input type="color" id="f_couleur" value="#7F8C8D" style="width:100%; height: 40px; cursor: pointer;">
+            <label for="f_couleur">Couleur de la ligne</label>
+            <input type="color" id="f_couleur" value="#7F8C8D">
           </div>
         </div>
-
-        <!-- Éditeurs WYSIWYG -->
-        <div class="field" style="margin-bottom: 15px; margin-top: 15px;">
-          <label>Détails Complets</label>
-          <div id="f_details" style="background: white; height: 150px;"></div>
+        <div class="field field-editor">
+          <label>Détails / correspondances</label>
+          <div id="f_details" class="quill-host"></div>
         </div>
-        <div class="field" style="margin-bottom: 15px;">
-          <label>Rattrapage / Cas particuliers</label>
-          <div id="f_rattrapage" style="background: white; height: 150px;"></div>
+        <div class="field field-editor">
+          <label>Rattrapage / cas particuliers</label>
+          <div id="f_rattrapage" class="quill-host"></div>
         </div>
-        
-        <button type="submit" class="btn admin-btn" id="saveBtn">Enregistrer</button>
-        <button type="button" class="btn hidden" id="cancelEditBtn" onclick="resetForm()">Annuler</button>
+        <div class="admin-actions">
+          <button type="submit" class="btn admin-btn" id="saveBtn">Enregistrer</button>
+          <button type="button" class="btn hidden" id="cancelEditBtn">Annuler</button>
+        </div>
       </form>
-      
-      <!-- Section de paramétrage général -->
-      <h3 style="margin-top:25px; color:#d35400; border-top: 1px solid #e1b173; padding-top: 15px;">Paramètres généraux</h3>
+
+      <h3 class="admin-sub">Paramètres généraux</h3>
       <div class="form-grid">
         <div class="field">
-          <label>Forcer la date de dernière mise à jour</label>
+          <label for="adminDateInput">Date de dernière mise à jour</label>
           <input type="date" id="adminDateInput">
         </div>
         <div class="field">
-          <label>Texte de la légende</label>
-          <textarea id="adminLegendInput" rows="2"></textarea>
+          <label for="adminLegendInput">Texte de la légende</label>
+          <textarea id="adminLegendInput" rows="3"></textarea>
         </div>
-        <div class="field" style="grid-column: span 2;">
-          <label>Filtres de situations (Format -> <i>Mot-clé : Texte affiché</i>, un par ligne)</label>
-          <textarea id="adminSituationsInput" rows="4" placeholder="VIH : Patients sous VIH&#10;Grossesse : Femmes enceintes&#10;Voyage : Voyageurs"></textarea>
+        <div class="field field-span-2">
+          <label for="adminSituationsInput">Filtres situations (<i>Mot-clé : Libellé</i>, une ligne)</label>
+          <textarea id="adminSituationsInput" rows="5" placeholder="Obligatoire : Vaccination obligatoire&#10;Grossesse : Femmes enceintes"></textarea>
         </div>
       </div>
       <button type="button" class="btn admin-btn" id="saveSettingsBtn">Enregistrer les paramètres</button>
-
-      <div style="margin-top: 25px; border-top: 1px solid #ccc; padding-top: 15px;">
-        <label class="btn" style="cursor: pointer; display: inline-block;">
-          Importer JSON <input type="file" id="importFile" accept=".json" style="display:none;">
+      <div class="admin-io">
+        <label class="btn file-btn">
+          Importer JSON <input type="file" id="importFile" accept=".json">
         </label>
-        <button class="btn" id="exportBtn">Exporter JSON</button>
+        <button type="button" class="btn" id="exportBtn">Exporter JSON</button>
       </div>
     </div>
   </div>
 
-  <!-- Modal Détails -->
-  <div class="modal-overlay" id="vaccinModal">
+  <div class="modal-overlay" id="vaccinModal" role="dialog" aria-modal="true" aria-labelledby="modalPathologieTag">
     <div class="modal-content">
-      <button class="close-btn" id="closeModalBtn">&times;</button>
+      <button type="button" class="close-btn" id="closeModalBtn" aria-label="Fermer">&times;</button>
       <div class="modal-header">
-        <h2 id="modalNom">Noms commerciaux</h2>
         <span class="patho-tag" id="modalPathologieTag">Pathologie</span>
+        <div class="modal-badges" id="modalBadges"></div>
+        <h2 id="modalNom">Noms commerciaux</h2>
+        <p class="modal-calendrier" id="modalCalendrier"></p>
       </div>
       <div class="modal-section">
-        <h3>Calendrier & Utilisation</h3>
-        <div id="modalDetails" class="ql-editor" style="padding: 0;"></div>
+        <h3>Schéma &amp; correspondances</h3>
+        <div id="modalDetails" class="ql-editor modal-body"></div>
       </div>
       <div class="modal-section">
-        <h3>Rattrapage & Cas particuliers</h3>
-        <div id="modalRattrapage" class="ql-editor" style="padding: 0;"></div>
+        <h3>Rattrapage &amp; cas particuliers</h3>
+        <div id="modalRattrapage" class="ql-editor modal-body"></div>
       </div>
+      <div class="modal-footer" id="modalFooter"></div>
     </div>
   </div>
 
-  <!-- Charger la logique principale -->
   <script src="script.js"></script>
 </body>
 </html>
