@@ -89,13 +89,10 @@
     'Ajoute un champ libre visible à la création et au suivi pour cette étape.';
 
   const INFO_REGLES =
-    'Priorité calculée automatiquement. Associez un template LGO à chaque règle.';
-
-  const INFO_TEMPLATES =
-    'Pour un template hors règle --> signaler une Amélioration via le bouton bug.';
+    'Si besoin de créer une nouvelle règle alors déclarer une amélioration via le bouton bug. N\'oubliez pas d\'associer un template commentaire à chaque règle.';
 
   const INFO_CHAMPS_APPAREIL =
-    'Champs propres à chaque type d’appareil, affichés à la création et au suivi';
+    'Champs personnalisés à chaque type d’appareil, affichés à la création et au suivi';
 
   const MOTIF_LABELS = {
     prolongation: 'Prolongation',
@@ -652,7 +649,7 @@
       const delaiFacture = params.facture_delai_cloture_jours ?? 30;
 
       const seuilReclameHelp =
-        'Sans règle LGO spécifique : on compte les mois depuis la fin de la dernière prolongation. En dessous du seuil → prolongation ; au seuil ou au-delà → réclamer l’appareil.';
+        'En l\'absence de règle différente, on compte pour le commentaire les mois depuis la fin de la dernière prolongation. En dessous du seuil → message de prolongation ; au seuil ou au-delà → réclamer l’appareil.';
 
       body.innerHTML = `
         <h3>Seuils</h3>
@@ -769,7 +766,7 @@
     function templateSelectHtml(templates, selectedId) {
       const actifs = (templates || []).filter((t) => t.actif !== false);
       return `<label class="loc-field" data-template-field>
-        Template (message LGO si la règle s’applique)
+        Template Commentaire
         <select data-f="template_id">
           <option value="">— Aucun —</option>
           ${actifs
@@ -999,7 +996,6 @@
         : rows;
 
       body.innerHTML = `
-        ${infoBanner(esc(INFO_TEMPLATES))}
         <div class="loc-motif-chips" role="tablist" aria-label="Motifs">
           ${
             motifs
@@ -1078,7 +1074,16 @@
       });
     }
 
-    function collectChampFromEditor(editor, id) {
+    function sortChampsByOrdre(list) {
+      return (list || []).slice().sort((a, b) => {
+        const oa = Number(a.ordre) || 0;
+        const ob = Number(b.ordre) || 0;
+        if (oa !== ob) return oa - ob;
+        return String(a.code || '').localeCompare(String(b.code || ''), 'fr');
+      });
+    }
+
+    function collectChampFromEditor(editor, id, ordreAuto) {
       const dataType = editor.querySelector('[data-f=data_type]').value;
       const isAttention = dataType === 'attention';
       return {
@@ -1088,7 +1093,7 @@
         libelle: editor.querySelector('[data-f=libelle]').value.trim(),
         data_type: dataType,
         options: isAttention ? {} : readOptionsFromForm(editor, dataType),
-        ordre: Number(editor.querySelector('[data-f=ordre]').value),
+        ordre: Number(ordreAuto) || 0,
         obligatoire: isAttention ? false : editor.querySelector('[data-f=obligatoire]')?.checked === true,
         actif: editor.querySelector('[data-f=actif]').checked,
       };
@@ -1098,7 +1103,20 @@
       const editor = body.querySelector('[data-champ-editor]');
       if (!editor || !selectedChampId) return true;
       try {
-        await LocationData.upsertChampCreation(collectChampFromEditor(editor, selectedChampId));
+        const rows = await LocationData.listChampsCreation(null, false);
+        const typeForSave =
+          editor.querySelector('[data-f=type_appareil]')?.value || selectedTypeAppareil;
+        const filtered = sortChampsByOrdre(
+          rows.filter((r) => r.type_appareil === typeForSave)
+        );
+        const idx = Math.max(
+          0,
+          filtered.findIndex((r) => r.id === selectedChampId)
+        );
+        const ordreAuto = (idx + 1) * 10;
+        await LocationData.upsertChampCreation(
+          collectChampFromEditor(editor, selectedChampId, ordreAuto)
+        );
         if (!silent) showMsg('Champ enregistré.');
         return true;
       } catch (e) {
@@ -1114,18 +1132,17 @@
       if (selectedTypeAppareil && !LocationRules.TYPE_LABELS[selectedTypeAppareil]) {
         selectedTypeAppareil = typeEntries[0]?.[0] || null;
       }
-      const filtered = selectedTypeAppareil
-        ? rows.filter((r) => r.type_appareil === selectedTypeAppareil)
-        : rows;
+      const filtered = sortChampsByOrdre(
+        selectedTypeAppareil
+          ? rows.filter((r) => r.type_appareil === selectedTypeAppareil)
+          : rows
+      );
       if (!selectedChampId && filtered[0]) selectedChampId = filtered[0].id;
       if (selectedChampId && !filtered.some((r) => r.id === selectedChampId)) {
         selectedChampId = filtered[0]?.id || null;
       }
       const current = filtered.find((r) => r.id === selectedChampId) || null;
-      const nextOrdre =
-        rows
-          .filter((r) => r.type_appareil === selectedTypeAppareil)
-          .reduce((m, r) => Math.max(m, Number(r.ordre) || 0), 0) + 10;
+      const nextOrdre = (filtered.length + 1) * 10;
 
       body.innerHTML = `
         ${infoBanner(esc(INFO_CHAMPS_APPAREIL))}
@@ -1175,7 +1192,6 @@
                       `<option value="${k}"${current.data_type === k ? ' selected' : ''}>${esc(v)}</option>`
                   ).join('')}
                 </select></label>
-                <label class="loc-field">Ordre<input type="number" data-f="ordre" value="${current.ordre ?? 0}"></label>
               </div>
               ${
                 current.data_type === 'attention'

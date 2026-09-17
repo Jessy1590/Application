@@ -177,14 +177,73 @@
       detailEl.innerHTML = '<p class="loc-muted">Chargement…</p>';
       try {
         const d = await LocationData.getDossier(id);
-        const [rules, params] = await Promise.all([
+        const [rules, params, champsDef] = await Promise.all([
           LocationData.loadRules(),
           LocationData.loadParams(),
+          LocationData.listChampsCreation(null, false),
         ]);
-        renderDetail(d, rules, params);
+        renderDetail(d, rules, params, champsDef);
       } catch (e) {
         detailEl.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
+    }
+
+    function champSpecInputHtml(champ, value, inactiveHint) {
+      if (champ.data_type === 'attention') return '';
+      const code = champ.code;
+      const name = `ce_${code}`;
+      const val = value == null ? '' : value;
+      const opts = LocationRules.parseJson(champ.options, {});
+      const choix = Array.isArray(opts.choix) ? opts.choix : [];
+      const hint = inactiveHint || '';
+      if (champ.data_type === 'oui_non') {
+        const checked = val === true || val === 'oui' || val === 'true';
+        return `<label class="loc-check"><input type="checkbox" name="${esc(name)}"${checked ? ' checked' : ''}> ${esc(champ.libelle)}${hint}</label>`;
+      }
+      if (champ.data_type === 'date') {
+        return `<label class="loc-field">${esc(champ.libelle)}${hint}<input type="date" name="${esc(name)}" value="${esc(val)}"></label>`;
+      }
+      if (champ.data_type === 'nombre') {
+        return `<label class="loc-field">${esc(champ.libelle)}${hint}<input type="number" name="${esc(name)}" value="${esc(val)}"></label>`;
+      }
+      if (champ.data_type === 'liste') {
+        return `<label class="loc-field">${esc(champ.libelle)}${hint}<select name="${esc(name)}">
+          <option value="">—</option>
+          ${choix
+            .map(
+              (c) =>
+                `<option value="${esc(c)}"${String(val) === String(c) ? ' selected' : ''}>${esc(c)}</option>`
+            )
+            .join('')}
+        </select></label>`;
+      }
+      return `<label class="loc-field">${esc(champ.libelle)}${hint}<input type="text" name="${esc(name)}" value="${esc(val)}"></label>`;
+    }
+
+    function champsSpecHtml(typeAppareil, champsDef, extraBag) {
+      const typeChamps = (champsDef || [])
+        .filter((c) => c.type_appareil === typeAppareil)
+        .slice()
+        .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+      if (!typeChamps.length) return '';
+      const attentions = typeChamps
+        .filter((c) => c.data_type === 'attention' && c.libelle)
+        .map(
+          (c) =>
+            `<div class="loc-attention-box" role="note"><strong>Attention</strong><p>${esc(c.libelle)}</p></div>`
+        )
+        .join('');
+      const dynamiques = typeChamps
+        .filter((c) => c.data_type !== 'attention')
+        .map((c) => {
+          const hint =
+            c.actif === false
+              ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>'
+              : '';
+          return champSpecInputHtml(c, extraBag[c.code], hint);
+        })
+        .join('');
+      return `${attentions ? `<div class="loc-attention-stack loc-span-2">${attentions}</div>` : ''}${dynamiques}`;
     }
 
     function wireAccordion(container) {
@@ -210,7 +269,7 @@
       return `Attention après ${n} mois faire passer l'appareil chez le prestataire`;
     }
 
-    function renderDetail(d, rules, params) {
+    function renderDetail(d, rules, params, champsDef) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
       const canDelete = typeof ctx.can === 'function'
@@ -239,6 +298,7 @@
             return `<label class="loc-field loc-span-2">${esc(f.label)}${creHint(etapeId, f.code)}<input name="cd_${esc(f.code)}" value="${esc(val)}"></label>`;
           })
           .join('');
+      const specHtml = champsSpecHtml(a.type_appareil, champsDef, extraBag);
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -337,6 +397,7 @@
               ${a.type_appareil === 'tire_lait' ? `
                 <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
               ` : ''}
+              ${specHtml}
               <label class="loc-field loc-span-2">Commentaire${creHint('appareil', 'encart_texte')}<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
               ${customHtml('appareil')}
             </div>
@@ -702,7 +763,10 @@
               ? d.appareil_actif.champs_extra
               : {}),
           };
-          const paramsSave = await LocationData.loadParams();
+          const [paramsSave, champsSave] = await Promise.all([
+            LocationData.loadParams(),
+            LocationData.listChampsCreation(null, false),
+          ]);
           for (const etape of LocationData.CREATION_ETAPES) {
             for (const f of LocationData.listCreationFieldsForEtape(paramsSave, etape.id)) {
               if (!f.custom) continue;
@@ -710,6 +774,23 @@
               if (!inp) continue;
               const v = inp.value.trim();
               nextExtra[f.code] = v === '' ? null : v;
+            }
+          }
+          const typeChamps = (champsSave || []).filter(
+            (c) => c.type_appareil === d.appareil_actif.type_appareil
+          );
+          for (const champ of typeChamps) {
+            if (champ.data_type === 'attention') continue;
+            const elIn = detailEl.querySelector(`[name="ce_${champ.code}"]`);
+            if (!elIn) continue;
+            if (champ.data_type === 'oui_non') {
+              nextExtra[champ.code] = !!elIn.checked;
+            } else if (champ.data_type === 'nombre') {
+              const n = elIn.value === '' ? null : Number(elIn.value);
+              nextExtra[champ.code] = Number.isFinite(n) ? n : null;
+            } else {
+              const v = elIn.value;
+              nextExtra[champ.code] = v === '' ? null : v;
             }
           }
           appPatch.champs_extra = nextExtra;
