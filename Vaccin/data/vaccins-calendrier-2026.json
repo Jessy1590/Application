@@ -121,7 +121,7 @@
       "pathologie": "Grippe saisonnière",
       "vaccins": "≥65 ans (priorité) : Efluelda® (haute dose) / Fluad® (adjuvanté) — Standard : Flucelvax® / Influvac® / Vaxigrip® — Arrêtés : Fluarix Tetra®, Influvac Tetra®, VaxigripTetra®",
       "calendrier": "1 dose / an à l'automne — ≥65 ans, comorbidités, grossesse, entourage, pros de santé ; possible 6-23 mois à risque",
-      "couleur": "#3498DB",
+      "couleur": "#607D8B",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Grippe-saisonniere",
       "details": "<p><strong>2026 :</strong> ≥65 ans → préférer Efluelda® ou Fluad® (standard acceptable). Flucelvax® utilisable dès 6 mois.</p><p><strong>Grossesse :</strong> recommandée quel que soit le trimestre.</p><p>Campagne souvent couplée Covid-19.</p>",
       "rattrapage": "<p>Enfant &lt;9 ans primo : 2 doses à 1 mois si jamais vacciné (selon RCP/âge). Immunodéprimés : dose annuelle standard ou selon avis.</p>"
@@ -166,7 +166,7 @@
       "pathologie": "Pneumocoque",
       "vaccins": "Nourrisson : Prevenar 13® (VPC13) / Vaxneuvance® (VPC15) — Adulte : Prevenar 20® (VPC20) / Capvaxive® (VPC21) — Enfant à risque + : Pneumovax® (VPP23)",
       "calendrier": "Obligatoire : 2, 4, 11 mois (VPC13/15) — ≥65 ans et adultes à risque ≥18 ans : 1 dose VPC20 ou Capvaxive®",
-      "couleur": "#E83A5D",
+      "couleur": "#C0392B",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-a-pneumocoques",
       "details": "<p><strong>Nourrisson :</strong> VPC13 ou VPC15 à M2-M4-M11. Prématurés/risque : M2-M3-M4 + M11.</p><p><strong>Adulte ≥65 ans (2026) :</strong> 1 dose unique Prevenar 20® <em>ou</em> Capvaxive®. Idem adultes ≥18 ans à risque élevé.</p><p><strong>2-17 ans à risque :</strong> séquence VPC13/15 + VPP23 (délais selon statut).</p><p><strong>Correspondance :</strong> VPC13↔Prevenar13® ; VPC15↔Vaxneuvance® ; VPC20↔Prevenar20® ; VPC21↔Capvaxive® ; VPP23↔Pneumovax®.</p>",
       "rattrapage": "<p>7-11 mois non vaccinés : 2 doses + rappel 1 an. 12-23 mois : 2 doses. Adulte déjà VPC13 ou VPP23 seul : 1 VPC20/21 si &gt;1 an. Séquence VPC13-VPP23 : VPC20/21 après ≥5 ans post-VPP23.</p>"
@@ -175,7 +175,7 @@
       "pathologie": "Rougeole / Oreillons / Rubéole",
       "vaccins": "M-M-RVaxPro® / Priorix®",
       "calendrier": "Obligatoire : 12 mois puis 16-18 mois — Nés ≥1980 : total 2 doses (3 si 1re dose &lt;12 mois)",
-      "couleur": "#E83A5D",
+      "couleur": "#9B59B6",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Rougeole",
       "details": "<p><strong>Type :</strong> vivant atténué. 2e dose = rattrapage non-répondeurs (pas un « rappel » classique).</p><p>Interchangeables M-M-RVaxPro® ↔ Priorix®. Statut inconnu : 2 doses sans sérologie préalable.</p><p><strong>2026 :</strong> obligation d'immunisation rougeole pour pros/étudiants sanitaires, médico-sociaux et petite enfance (modalités réglementaires à venir).</p>",
       "rattrapage": "<p>Dose &lt;12 mois (exposition) → +2 doses à 12 et 16-18 mois (=3 total). Post-exposition &lt;72 h. Femmes nées &lt;1980 non vaccinées, projet grossesse : 1 dose ROR. CI grossesse ; différer conception 1 mois.</p>"
@@ -229,7 +229,7 @@
       "pathologie": "Rage",
       "vaccins": "Vaccin rabique Pasteur® / Rabipur®",
       "calendrier": "Pré-exposition : J0+J7 (immuno-compétent) — Post-exposition : centres antirabiques uniquement",
-      "couleur": "#F1C40F",
+      "couleur": "#2980B9",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Rage",
       "details": "<p><strong>Pré-expo immuno-compétent :</strong> 2 doses IM J0 et J7. <strong>Immunodéprimé :</strong> 3 doses J0, J7, J21/28.</p><p>ID 2×0,1 mL possible (J0+J7) avec contrôle sérologique. Interchangeables Pasteur® ↔ Rabipur®.</p><p>Cibles : chiroptérologues, vétérinaires, labos, fourrières, forestiers, etc.</p>",
       "rattrapage": "<p>Rappels non systématiques (sauf chiroptérologues à 1 an + sérologies). Post-expo = urgence centres antirabiques (Ig ± schéma selon statut).</p>"
@@ -238,7 +238,7 @@
       "pathologie": "Leptospirose",
       "vaccins": "Spirolept®",
       "calendrier": "J0, J15, rappel 4-6 mois, puis /2 ans si exposition persiste — pro / loisirs eau douce",
-      "couleur": "#3498DB",
+      "couleur": "#2980B9",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Leptospirose",
       "details": "<p>Après évaluation du risque (médecine du travail). Égoutiers, pisciculture, eaux douces, DROM, sports nautiques réguliers.</p><p>Vaccin complémentaire aux mesures d'hygiène (efficacité relative).</p>",
       "rattrapage": "<p>Maintenir rappels /2 ans tant que l'exposition dure. Population générale : au cas par cas (loisirs à risque).</p>"
@@ -265,7 +265,7 @@
       "pathologie": "Mpox (Variole B)",
       "vaccins": "Imvanex® / Jynneos® (MVA-BN, interchangeables)",
       "calendrier": "Pré-expo : 2 doses ≥28 j (HSH multipartenaires, prostitution, pros lieux sexuels…) — Post-expo : dose idéale ≤4 j (max 14 j)",
-      "couleur": "#607D8B",
+      "couleur": "#7F8C8D",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Mpox-Variole-du-singe",
       "details": "<p>SC, haut du bras. Vaccinés variole avant 1980 : 1 dose. Immunodéprimés : 3e dose ≥28 j après 2e. Infection Mpox depuis 2022 : pas de vaccination.</p><p>Rappel : 1 dose si primo complète antérieure.</p>",
       "rattrapage": "<p>Éviter grossesse/allaitement sauf bénéfice &gt; risque. Mineurs : cas par cas spécialistes. Suivre DGS-Urgent.</p>"

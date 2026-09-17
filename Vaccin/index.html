@@ -63,6 +63,15 @@
       <div class="chips" id="familyChips"></div>
     </section>
 
+    <aside class="pharma-note no-print" id="pharmaNote">
+      <strong>Vaccination par le pharmacien d’officine</strong>
+      (formé, activité déclarée) : vaccins du calendrier pour les <strong>≥ 11 ans</strong> ;
+      <strong>grippe ≥ 11 ans</strong> (cible ou non) ;
+      <strong>Covid-19 ≥ 5 ans</strong> (cible ou non).
+      Pas de prescription des vivants atténués chez l’immunodéprimé.
+      Badge <em>Officine</em> sur les fiches concernées — filtre « Faisable en pharmacie ».
+    </aside>
+
     <details class="legend-box no-print" id="legendDisplay">
       <summary><strong>Légende &amp; notes d’usage</strong></summary>
       <p id="legendText"></p>
@@ -88,7 +97,7 @@
     </footer>
 
     <div class="admin-panel no-print" id="adminPanel">
-      <h3>Gérer les vaccins</h3>
+      <h3 id="adminFormTitle">Ajouter une fiche</h3>
       <form id="addForm">
         <input type="hidden" id="editId">
         <div class="form-grid">
@@ -97,7 +106,7 @@
         </div>
         <div class="form-grid">
           <div class="field"><label for="f_calendrier">Calendrier (colonne tableau)</label><input type="text" id="f_calendrier"></div>
-          <div class="field"><label for="f_lien">Lien VIS / fiche</label><input type="url" id="f_lien" placeholder="https://professionnels.vaccination-info-service.fr/..."></div>
+          <div class="field"><label for="f_lien">Liens VIS additionnels (optionnel)</label><textarea id="f_lien" rows="2" placeholder="Une URL par ligne, ou Libellé|URL&#10;Les fiches sont aussi générées auto depuis les valences"></textarea></div>
         </div>
         <div class="form-grid form-grid-color">
           <div class="field">
@@ -114,8 +123,8 @@
           <div id="f_rattrapage" class="quill-host"></div>
         </div>
         <div class="admin-actions">
-          <button type="submit" class="btn admin-btn" id="saveBtn">Enregistrer</button>
-          <button type="button" class="btn hidden" id="cancelEditBtn">Annuler</button>
+          <button type="submit" class="btn admin-btn" id="saveBtn">Ajouter</button>
+          <button type="button" class="btn hidden" id="cancelEditBtn">Annuler l’édition</button>
         </div>
       </form>
 
@@ -152,6 +161,7 @@
         <div class="modal-badges" id="modalBadges"></div>
         <h2 id="modalNom">Noms commerciaux</h2>
         <p class="modal-calendrier" id="modalCalendrier"></p>
+        <div class="modal-pharma" id="modalPharma" hidden></div>
       </div>
       <div class="modal-section">
         <h3>Schéma &amp; correspondances</h3>

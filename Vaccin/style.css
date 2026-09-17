@@ -221,6 +221,46 @@ body {
   color: #fff;
 }
 
+.pharma-note {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #e3f2f2 0%, #eef6f8 100%);
+  border: 1px solid #b8d9d9;
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: #1f3d3e;
+  line-height: 1.45;
+}
+.pharma-note strong { color: var(--accent); }
+.pharma-note em {
+  font-style: normal;
+  font-weight: 700;
+  background: #0f6b6d;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.modal-pharma {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.modal-pharma.yes {
+  background: #e3f2f2;
+  border-left: 3px solid var(--accent);
+  color: #1f3d3e;
+}
+.modal-pharma.no {
+  background: #f8f1e7;
+  border-left: 3px solid #b45309;
+  color: #5c4a32;
+}
+
 /* Legend */
 .legend-box {
   margin-bottom: 14px;
@@ -366,16 +406,27 @@ mark {
 .badge.stop { background: #fef3c7; color: #92400e; }
 .badge.coco { background: #d1fae5; color: #065f46; }
 .badge.vih { background: #ede9fe; color: #5b21b6; }
+.badge.officine { background: #0f6b6d; color: #fff; }
 .badge.immuno { background: #f3e8ff; color: #6b21a8; }
 
 .row-actions {
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
 }
-.row-actions .btn { padding: 4px 8px; font-size: 11px; }
+.row-actions .btn { padding: 3px 8px; font-size: 11px; }
+.modal-links { display: flex; flex-direction: column; gap: 8px; }
+.modal-links-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.modal-links-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.modal-footer .btn { font-size: 12px; }
 
 .hint-click {
   display: block;
@@ -534,8 +585,10 @@ mark {
 .file-btn input { display: none; }
 
 .hidden { display: none !important; }
-.inline-admin-btns { display: none; }
-.admin-active .inline-admin-btns { display: inline-flex; gap: 6px; }
+.inline-admin-btns { display: none; gap: 6px; flex-wrap: wrap; }
+body.is-admin .inline-admin-btns,
+.admin-active .inline-admin-btns { display: inline-flex; }
+.modal-admin-actions { margin-top: 12px; }
 
 /* Footer */
 .site-footer {

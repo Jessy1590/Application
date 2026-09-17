@@ -19,6 +19,7 @@ const FAMILIES = [
 ];
 
 const DEFAULT_SITUATIONS =
+  "Officine : Faisable en pharmacie (pharmacien)\n" +
   "Obligatoire : Vaccination obligatoire\n" +
   "Immunodéprimé : Patients immunodéprimés\n" +
   "VIH : Personnes vivant avec le VIH\n" +
@@ -31,8 +32,52 @@ const DEFAULT_SITUATIONS =
 const DEFAULT_LEGEND =
   "Années révolues = années terminées (ex. 24 ans révolus = jusqu'à la veille du 25e anniversaire). " +
   "Sources : Calendrier vaccinal 2026 + Vaccination Info Service. " +
-  "Revaxis (dTP) arrêté → rappels adultes en dTcaP. " +
-  "NeisVac arrêté ; Menjugate / Pentavac / HBVaxPro 10 µg : voir fiches concernées.";
+  "Officine : pharmacien d'officine formé — vaccins du calendrier ≥11 ans (prescription + administration) ; " +
+  "grippe ≥11 ans (cible ou non) ; Covid-19 ≥5 ans (cible ou non). " +
+  "Exceptions : vaccins vivants atténués non prescrits aux immunodéprimés ; fièvre jaune / vaccins voyageurs hors calendrier souvent hors officine. " +
+  "Revaxis arrêté → rappels adultes en dTcaP.";
+
+const VIS_BASE = 'https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins';
+
+/** Fiches VIS détectées depuis les valences d'une ligne (une fiche par pathologie). */
+const PATHO_VIS = [
+  { re: /tuberculose|\bbcg\b/i, label: 'Tuberculose', slug: 'Tuberculose' },
+  { re: /dipht[eé]rie/i, label: 'Diphtérie', slug: 'Diphterie' },
+  { re: /t[eé]tanos/i, label: 'Tétanos', slug: 'Tetanos' },
+  { re: /coqueluche/i, label: 'Coqueluche', slug: 'Coqueluche' },
+  { re: /poliomy[eé]lite/i, label: 'Poliomyélite', slug: 'Poliomyelite' },
+  { re: /haemophilus|hib\b/i, label: 'Haemophilus b', slug: 'Infections-invasives-a-Haemophilus-influenzae-b' },
+  { re: /h[eé]patite\s*a\s*[&et]+\s*h[eé]patite\s*b|h[eé]patite\s*a\s*&\s*h[eé]patite\s*b/i, label: null, slug: null, multi: [
+    { label: 'Hépatite A', slug: 'Hepatite-A' },
+    { label: 'Hépatite B', slug: 'Hepatite-B' }
+  ]},
+  { re: /h[eé]patite\s*a\b(?!\s*[&et])/i, label: 'Hépatite A', slug: 'Hepatite-A' },
+  { re: /h[eé]patite\s*b\b/i, label: 'Hépatite B', slug: 'Hepatite-B' },
+  { re: /m[eé]ningocoque/i, label: 'Méningocoques', slug: 'Infections-invasives-a-meningocoques' },
+  { re: /pneumocoque/i, label: 'Pneumocoque', slug: 'Infections-a-pneumocoques' },
+  { re: /papillomavirus|\bhpv\b/i, label: 'HPV', slug: 'Infections-a-papillomavirus-humain-HPV' },
+  { re: /rougeole|oreillons|rub[eé]ole/i, label: null, slug: null, multi: [
+    { label: 'Rougeole', slug: 'Rougeole' },
+    { label: 'Oreillons', slug: 'Oreillons' },
+    { label: 'Rubéole', slug: 'Rubeole' }
+  ]},
+  { re: /varicelle/i, label: 'Varicelle', slug: 'Varicelle' },
+  { re: /\bzona\b/i, label: 'Zona', slug: 'Zona' },
+  { re: /grippe/i, label: 'Grippe', slug: 'Grippe-saisonniere' },
+  { re: /covid/i, label: 'COVID-19', slug: 'COVID-19' },
+  { re: /\bvrs\b|syncytial|bronchiolite/i, label: 'VRS', slug: 'Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS' },
+  { re: /rotavirus/i, label: 'Rotavirus', slug: 'Gastro-enterite-a-rotavirus' },
+  { re: /fi[eè]vre jaune/i, label: 'Fièvre jaune', slug: 'Fievre-jaune' },
+  { re: /dengue/i, label: 'Dengue', slug: 'Dengue' },
+  { re: /chikungunya/i, label: 'Chikungunya', slug: 'Chikungunya' },
+  { re: /mpox|variole/i, label: 'Mpox', slug: 'Mpox-Variole-du-singe' },
+  { re: /rage/i, label: 'Rage', slug: 'Rage' },
+  { re: /leptospirose/i, label: 'Leptospirose', slug: 'Leptospirose' },
+  { re: /enc[eé]phalite\s*[aà]\s*tiques/i, label: 'Encéphalite à tiques', slug: 'Encephalite-a-tiques' },
+  { re: /enc[eé]phalite\s*japonaise/i, label: 'Encéphalite japonaise', slug: 'Encephalite-japonaise' },
+  { re: /typho[iï]de/i, label: 'Typhoïde', slug: 'Fievre-typhoide' },
+  { re: /chol[eé]ra/i, label: 'Choléra', slug: 'Cholera' }
+];
 
 // --- ETAT ---
 let currentData = [];
@@ -42,10 +87,94 @@ let isAdmin = false;
 let sortCol = 'pathologie';
 let sortAsc = true;
 let activeFamily = '';
+let quillDetails = null;
+let quillRattrapage = null;
+let editingId = null;
 
-const quillDetails = new Quill('#f_details', { theme: 'snow' });
-const quillRattrapage = new Quill('#f_rattrapage', { theme: 'snow' });
 const el = id => document.getElementById(id);
+
+/** Quill ne doit pas être créé tant que le panneau admin est display:none. */
+function ensureQuill() {
+  if (quillDetails && quillRattrapage) return;
+  const opts = {
+    theme: 'snow',
+    modules: {
+      toolbar: [
+        ['bold', 'italic', 'underline'],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link'],
+        ['clean']
+      ]
+    }
+  };
+  if (!quillDetails) quillDetails = new Quill('#f_details', opts);
+  if (!quillRattrapage) quillRattrapage = new Quill('#f_rattrapage', opts);
+}
+
+function setQuillHtml(quill, html) {
+  if (!quill) return;
+  const safe = html && String(html).trim() ? html : '';
+  try {
+    quill.setContents([]);
+    if (safe) quill.clipboard.dangerouslyPasteHTML(safe);
+  } catch (_) {
+    quill.root.innerHTML = safe || '<p><br></p>';
+  }
+}
+
+function getQuillHtml(quill) {
+  if (!quill) return '';
+  const html = (quill.root.innerHTML || '').trim();
+  if (!html || html === '<p><br></p>' || html === '<p></p>') return '';
+  return quill.root.innerHTML;
+}
+
+function normalizeHexColor(value, fallback = '#7F8C8D') {
+  const v = (value || '').trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(v)) return v;
+  if (/^#[0-9A-Fa-f]{3}$/.test(v)) {
+    return '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+  }
+  return fallback;
+}
+
+async function syncVaccinSession() {
+  try {
+    const { data: { session } } = await sbAuth.auth.getSession();
+    if (session?.access_token && session?.refresh_token) {
+      await sbVaccin.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token
+      });
+    }
+  } catch (err) {
+    console.warn('Sync session vaccins:', err);
+  }
+}
+
+function openAdminPanel() {
+  ensureQuill();
+  el('adminPanel').classList.add('active');
+  document.body.classList.add('admin-active');
+}
+
+function closeAdminPanel() {
+  el('adminPanel').classList.remove('active');
+  document.body.classList.remove('admin-active');
+}
+
+function updateAdminFormTitle() {
+  const title = el('adminFormTitle');
+  const saveBtn = el('saveBtn');
+  if (!title || !saveBtn) return;
+  if (editingId) {
+    title.textContent = 'Modifier cette fiche';
+    saveBtn.textContent = 'Enregistrer les modifications';
+  } else {
+    title.textContent = 'Ajouter une fiche';
+    saveBtn.textContent = 'Ajouter';
+  }
+}
 
 // --- UTILITAIRES ---
 function showMessage(msg, isError = false) {
@@ -71,21 +200,25 @@ function stripHTML(html) {
   return (html || '').replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function getFallbackColor(patho) {
-  if (!patho) return '#7F8C8D';
-  const p = patho.toLowerCase();
-  if (p.includes('bcg') || p.includes('tuberculose')) return '#8E44AD';
-  if (p.includes('diphtérie') || p.includes('tétanos') || p.includes('coqueluche') || p.includes('poliomyélite') || p.includes('haemophilus')) return '#16A085';
-  if (p.includes('hépatite')) return '#F39C12';
-  if (p.includes('méningocoque') || p.includes('rougeole') || p.includes('pneumocoque') || p.includes('oreillons')) return '#E83A5D';
-  if (p.includes('papillomavirus') || p.includes('hpv')) return '#E67E22';
-  if (p.includes('varicelle') || p.includes('zona')) return '#9B59B6';
-  if (p.includes('grippe') || p.includes('leptospirose')) return '#3498DB';
-  if (p.includes('rage')) return '#F1C40F';
-  if (p.includes('choléra') || p.includes('dengue') || p.includes('chikungunya') || p.includes('fièvre jaune') || p.includes('typhoïde') || p.includes('encéphalite')) return '#2980B9';
-  if (p.includes('rotavirus') || p.includes('covid') || p.includes('mpox') || p.includes('vrs') || p.includes('syncytial')) return '#607D8B';
-  return '#7F8C8D';
-}
+/** Palette unifiée par famille (design clinique teal/ardoise). */
+const FAMILY_COLORS = {
+  dtp: '#16A085',
+  hep: '#F39C12',
+  men: '#E83A5D',
+  pneumo: '#C0392B',
+  ror: '#9B59B6',
+  saison: '#607D8B',
+  voyage: '#2980B9'
+};
+
+/** Sous-groupes stables de la famille « autre ». */
+const AUTRE_SUBGROUP_COLORS = {
+  bcg: '#8E44AD',
+  hpv: '#E67E22',
+  rotavirus: '#607D8B',
+  mpox: '#7F8C8D',
+  default: '#7F8C8D'
+};
 
 function getFamily(patho) {
   const p = (patho || '').toLowerCase();
@@ -99,9 +232,69 @@ function getFamily(patho) {
   return 'autre';
 }
 
+function getFallbackColor(patho) {
+  if (!patho) return AUTRE_SUBGROUP_COLORS.default;
+  const p = patho.toLowerCase();
+  if (/bcg|tuberculose/.test(p)) return AUTRE_SUBGROUP_COLORS.bcg;
+  if (/papillomavirus|\bhpv\b/.test(p)) return AUTRE_SUBGROUP_COLORS.hpv;
+  if (/rotavirus/.test(p)) return AUTRE_SUBGROUP_COLORS.rotavirus;
+  if (/mpox|variole/.test(p)) return AUTRE_SUBGROUP_COLORS.mpox;
+  const family = getFamily(patho);
+  return FAMILY_COLORS[family] || AUTRE_SUBGROUP_COLORS.default;
+}
+
+function getPharmacistInfo(v) {
+  const p = (v.pathologie || '').toLowerCase().trim();
+
+  // Hors compétence officine habituelle
+  if (/fièvre jaune/.test(p)) {
+    return { eligible: false, label: null, detail: 'Centres de vaccination agréés fièvre jaune' };
+  }
+  if (/bcg|tuberculose/.test(p) || /rotavirus/.test(p)) {
+    return { eligible: false, label: null, detail: 'Schéma nourrisson — hors âge officine (< 11 ans)' };
+  }
+  if (/typho[iï]de|chol[eé]ra|enc[eé]phalite japonaise/.test(p)) {
+    return { eligible: false, label: null, detail: 'Vaccin voyageur — hors liste calendrier officine' };
+  }
+
+  // Combinés / monovalents strictement pédiatriques (< 11 ans)
+  if (p.includes('haemophilus') && p.includes('coqueluche') && p.includes('diphtérie')) {
+    return { eligible: false, label: null, detail: 'Hexavalent / penta nourrisson (< 11 ans)' };
+  }
+  if (p === 'haemophilus influenzae b' || /^haemophilus influenzae b\b/.test(p)) {
+    return { eligible: false, label: null, detail: 'Rattrapage pédiatrique (≤ 5 ans)' };
+  }
+  if (p === 'poliomyélite') {
+    return { eligible: false, label: null, detail: 'Monovalent rare ; chez l’enfant via combinés' };
+  }
+
+  if (/covid/.test(p)) {
+    return {
+      eligible: true,
+      label: 'Officine (≥5 ans)',
+      detail: 'Pharmacien : prescription + administration Covid-19 dès 5 ans (cible ou non)'
+    };
+  }
+  if (/grippe/.test(p)) {
+    return {
+      eligible: true,
+      label: 'Officine (≥11 ans)',
+      detail: 'Pharmacien : prescription + administration grippe dès 11 ans (cible ou non)'
+    };
+  }
+
+  return {
+    eligible: true,
+    label: 'Officine (≥11 ans)',
+    detail: 'Pharmacien formé : prescription + administration selon calendrier (≥ 11 ans). Vivants atténués : pas de prescription si immunodéprimé.'
+  };
+}
+
 function getBadges(v) {
   const t = `${v.pathologie} ${v.vaccins} ${v.calendrier} ${stripHTML(v.details)} ${stripHTML(v.rattrapage)}`.toLowerCase();
   const badges = [];
+  const pharma = getPharmacistInfo(v);
+  if (pharma.eligible && pharma.label) badges.push({ k: 'officine', l: pharma.label });
   if (/\bobligatoire\b/.test(t)) badges.push({ k: 'obl', l: 'Obligatoire' });
   if (/grossesse|aménorrhée|\bsa\b|enceinte|post[- ]?partum/.test(t)) badges.push({ k: 'gross', l: 'Grossesse' });
   if (/65 ans|75 ans|senior/.test(t)) badges.push({ k: 'senior', l: 'Senior' });
@@ -121,6 +314,96 @@ function renderBadges(badges) {
   return `<div class="row-badges">${badges.map(b => `<span class="badge ${b.k}">${escapeHtml(b.l)}</span>`).join('')}</div>`;
 }
 
+function getPathoLinks(v) {
+  const text = `${v.pathologie || ''} ${v.vaccins || ''}`;
+  const seen = new Set();
+  const links = [];
+
+  const push = (label, slugOrUrl) => {
+    const url = /^https?:\/\//i.test(slugOrUrl) ? slugOrUrl : `${VIS_BASE}/${slugOrUrl}`;
+    if (seen.has(url)) return;
+    seen.add(url);
+    links.push({ label, url });
+  };
+
+  for (const entry of PATHO_VIS) {
+    if (!entry.re.test(text)) continue;
+    if (entry.multi) {
+      entry.multi.forEach(m => push(m.label, m.slug));
+    } else if (entry.slug) {
+      push(entry.label, entry.slug);
+    }
+  }
+
+  // Liens manuels supplémentaires (une URL par ligne, ou Libellé|URL)
+  const raw = (v.lien || '').trim();
+  if (raw) {
+    raw.split(/\n+/).map(l => l.trim()).filter(Boolean).forEach(line => {
+      if (line.includes('|')) {
+        const [label, url] = line.split('|').map(s => s.trim());
+        if (url) push(label || 'Fiche', url);
+      } else if (/^https?:\/\//i.test(line)) {
+        const slug = line.split('/').pop() || 'Fiche';
+        push(slug.replace(/-/g, ' '), line);
+      }
+    });
+  }
+
+  return links;
+}
+
+function renderPathoLinks(links, compact = true) {
+  if (!links.length) return '';
+  const cls = compact ? 'btn ghost' : 'btn link-btn';
+  return links.map(l =>
+    `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener" class="${cls}" onclick="event.stopPropagation();">${escapeHtml(l.label)}</a>`
+  ).join('');
+}
+
+function printTableOnly() {
+  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  const tableHtml = el('vaccineTable').outerHTML;
+  const dateTxt = el('lastUpdated')?.textContent || '';
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
+<style>
+  body{font-family:system-ui,sans-serif;color:#111;margin:12px;font-size:11px;}
+  h1{font-size:16px;margin:0 0 4px;}
+  .meta{color:#555;margin:0 0 12px;font-size:11px;}
+  table{width:100%;border-collapse:collapse;}
+  th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top;text-align:left;}
+  th{background:#eee;}
+  .row-badges,.row-actions,.hint-click,.no-print{display:none!important;}
+  .badge{display:none!important;}
+  @page{size:A4 landscape;margin:0.8cm;}
+</style></head><body>
+<h1>Vaccins &amp; valences — France</h1>
+<p class="meta">${escapeHtml(dateTxt)}</p>
+${tableHtml}
+</body></html>`);
+  doc.close();
+
+  const win = iframe.contentWindow;
+  const cleanup = () => {
+    try { iframe.remove(); } catch (_) {}
+    window.scrollTo(0, scrollY);
+  };
+
+  win.addEventListener('afterprint', cleanup);
+  setTimeout(() => {
+    win.focus();
+    win.print();
+    // Filet de sécurité si afterprint n'est pas déclenché
+    setTimeout(cleanup, 1500);
+  }, 100);
+}
+
 function highlight(text, query) {
   const safeText = escapeHtml(text);
   if (!query) return safeText;
@@ -131,15 +414,17 @@ function highlight(text, query) {
 // --- INIT ---
 async function init() {
   try {
+    await syncVaccinSession();
     const { data: { session } } = await sbAuth.auth.getSession();
     if (session) {
       const { data: profile } = await sbAuth.from('profiles').select('role').eq('id', session.user.id).single();
       if (profile && profile.role === 'admin') {
         isAdmin = true;
         el('toggleAdminBtn').classList.remove('hidden');
+        document.body.classList.add('is-admin');
       }
     }
-  } catch (_) { /* accès lecture publique possible */ }
+  } catch (_) { /* accès lecture possible */ }
 
   renderFamilyChips();
   setupEventListeners();
@@ -155,11 +440,19 @@ function renderFamilyChips() {
 
 function setupEventListeners() {
   el('toggleAdminBtn').addEventListener('click', () => {
-    el('adminPanel').classList.toggle('active');
-    document.body.classList.toggle('admin-active');
+    if (el('adminPanel').classList.contains('active')) {
+      closeAdminPanel();
+    } else {
+      openAdminPanel();
+      updateAdminFormTitle();
+      el('adminPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   });
 
-  el('printBtn').addEventListener('click', () => window.print());
+  el('printBtn').addEventListener('click', e => {
+    e.preventDefault();
+    printTableOnly();
+  });
   el('searchInput').addEventListener('input', onSearchInput);
   el('clearSearchBtn').addEventListener('click', () => {
     el('searchInput').value = '';
@@ -186,13 +479,18 @@ function setupEventListeners() {
     const adminEdit = e.target.closest('[data-edit]');
     const adminDel = e.target.closest('[data-delete]');
     const link = e.target.closest('a');
-    if (link) return;
+    if (link) {
+      e.stopPropagation();
+      return;
+    }
     if (adminEdit) {
+      e.preventDefault();
       e.stopPropagation();
       editEntry(adminEdit.getAttribute('data-edit'));
       return;
     }
     if (adminDel) {
+      e.preventDefault();
       e.stopPropagation();
       deleteEntry(adminDel.getAttribute('data-delete'));
       return;
@@ -203,6 +501,7 @@ function setupEventListeners() {
 
   el('vaccineTbody').addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.closest('button, a')) return;
     const row = e.target.closest('tr[data-id]');
     if (!row) return;
     e.preventDefault();
@@ -211,6 +510,13 @@ function setupEventListeners() {
 
   el('vaccinModal').addEventListener('click', e => {
     if (e.target === el('vaccinModal')) closeModal();
+    const editBtn = e.target.closest('[data-modal-edit]');
+    if (editBtn) {
+      e.preventDefault();
+      const id = editBtn.getAttribute('data-modal-edit');
+      closeModal();
+      editEntry(id);
+    }
   });
   el('closeModalBtn').addEventListener('click', closeModal);
   document.addEventListener('keydown', e => {
@@ -320,7 +626,15 @@ function filterTable() {
     const haystack = `${txtPatho} ${txtVaccins} ${txtCal} ${plainDetails} ${plainRattrapage}`;
 
     const matchSearch = !query || haystack.includes(query);
-    const matchFilter = !particularity || haystack.includes(particularity);
+
+    let matchFilter = true;
+    if (particularity) {
+      if (particularity === 'officine' || particularity.includes('officine') || particularity.includes('pharmacien')) {
+        matchFilter = getPharmacistInfo(v).eligible === true;
+      } else {
+        matchFilter = haystack.includes(particularity);
+      }
+    }
     return matchSearch && matchFilter;
   });
 
@@ -366,7 +680,7 @@ function renderTable(dataArray) {
         ${highlight(v.calendrier, query)}
         <span class="hint-click no-print">Cliquer pour schéma &amp; rattrapage</span>
         <div class="row-actions no-print">
-          ${v.lien ? `<a href="${escapeHtml(v.lien)}" target="_blank" rel="noopener" class="btn ghost" onclick="event.stopPropagation();">Fiche VIS</a>` : ''}
+          ${renderPathoLinks(getPathoLinks(v), true)}
           ${isAdmin ? `
             <span class="inline-admin-btns">
               <button type="button" class="btn admin-btn" data-edit="${escapeHtml(v.id)}">Éditer</button>
@@ -389,11 +703,32 @@ function openModal(id) {
   el('modalNom').textContent = v.vaccins;
   el('modalCalendrier').textContent = v.calendrier || 'Schéma non renseigné';
   el('modalBadges').innerHTML = renderBadges(getBadges(v));
+
+  const pharma = getPharmacistInfo(v);
+  const pharmaBox = el('modalPharma');
+  if (pharmaBox) {
+    if (pharma.eligible) {
+      pharmaBox.className = 'modal-pharma yes';
+      pharmaBox.innerHTML = `<strong>${escapeHtml(pharma.label)}</strong> — ${escapeHtml(pharma.detail)}`;
+      pharmaBox.hidden = false;
+    } else {
+      pharmaBox.className = 'modal-pharma no';
+      pharmaBox.innerHTML = `<strong>Pas en officine (habitude)</strong> — ${escapeHtml(pharma.detail || 'Hors compétence pharmacien d’officine')}`;
+      pharmaBox.hidden = false;
+    }
+  }
+
   el('modalDetails').innerHTML = v.details || '<p>Aucune information.</p>';
   el('modalRattrapage').innerHTML = v.rattrapage || '<p>Non spécifié.</p>';
-  el('modalFooter').innerHTML = v.lien
-    ? `<a href="${escapeHtml(v.lien)}" target="_blank" rel="noopener" class="btn link-btn">Ouvrir la fiche Vaccination Info Service</a>`
-    : '';
+  const pathoLinks = getPathoLinks(v);
+  let footerHtml = '';
+  if (pathoLinks.length) {
+    footerHtml += `<div class="modal-links"><span class="modal-links-label">Fiches pathologie VIS</span><div class="modal-links-list">${renderPathoLinks(pathoLinks, false)}</div></div>`;
+  }
+  if (isAdmin) {
+    footerHtml += `<div class="modal-admin-actions"><button type="button" class="btn admin-btn" data-modal-edit="${escapeHtml(v.id)}">Éditer cette fiche</button></div>`;
+  }
+  el('modalFooter').innerHTML = footerHtml;
 
   el('vaccinModal').classList.add('active');
   document.body.style.overflow = 'hidden';
@@ -407,71 +742,121 @@ function closeModal() {
 // --- ADMIN ---
 async function saveEntry(e) {
   e.preventDefault();
-  const id = el('editId').value;
+  ensureQuill();
+  await syncVaccinSession();
+
+  const id = el('editId').value || editingId || '';
   const payload = {
-    pathologie: el('f_pathologie').value,
-    vaccins: el('f_vaccins').value,
-    calendrier: el('f_calendrier').value,
-    lien: el('f_lien').value,
-    couleur: el('f_couleur').value,
-    details: quillDetails.root.innerHTML,
-    rattrapage: quillRattrapage.root.innerHTML
+    pathologie: el('f_pathologie').value.trim(),
+    vaccins: el('f_vaccins').value.trim(),
+    calendrier: el('f_calendrier').value.trim(),
+    lien: el('f_lien').value.trim(),
+    couleur: normalizeHexColor(el('f_couleur').value, getFallbackColor(el('f_pathologie').value)),
+    details: getQuillHtml(quillDetails),
+    rattrapage: getQuillHtml(quillRattrapage)
   };
 
-  el('saveBtn').textContent = '…';
-  const res = id
-    ? await sbVaccin.from(TABLE_NAME).update(payload).eq('id', id)
-    : await sbVaccin.from(TABLE_NAME).insert([payload]);
-  el('saveBtn').textContent = 'Enregistrer';
-
-  if (res.error) showMessage(res.error.message, true);
-  else {
-    showMessage('Vaccin enregistré !');
-    resetForm();
-    await loadData();
+  if (!payload.pathologie || !payload.vaccins) {
+    showMessage('Pathologie et noms commerciaux sont obligatoires.', true);
+    return;
   }
+
+  el('saveBtn').disabled = true;
+  el('saveBtn').textContent = 'Enregistrement…';
+
+  let res;
+  try {
+    if (id) {
+      res = await sbVaccin.from(TABLE_NAME).update(payload).eq('id', id).select();
+    } else {
+      res = await sbVaccin.from(TABLE_NAME).insert([payload]).select();
+    }
+  } catch (err) {
+    el('saveBtn').disabled = false;
+    updateAdminFormTitle();
+    showMessage(err.message || 'Erreur réseau', true);
+    return;
+  }
+
+  el('saveBtn').disabled = false;
+  updateAdminFormTitle();
+
+  if (res.error) {
+    showMessage(res.error.message, true);
+    return;
+  }
+  if (!res.data || res.data.length === 0) {
+    showMessage('Aucune ligne enregistrée — vérifiez vos droits admin / connexion.', true);
+    return;
+  }
+
+  showMessage(id ? 'Fiche mise à jour.' : 'Fiche ajoutée.');
+  resetForm();
+  await loadData();
 }
 
 function editEntry(id) {
-  const v = currentData.find(item => item.id == id);
-  if (!v) return;
-
-  if (!el('adminPanel').classList.contains('active')) {
-    el('adminPanel').classList.add('active');
-    document.body.classList.add('admin-active');
+  const v = currentData.find(item => String(item.id) === String(id));
+  if (!v) {
+    showMessage('Fiche introuvable.', true);
+    return;
   }
 
+  closeModal();
+  openAdminPanel();
+  ensureQuill();
+
+  editingId = v.id;
   el('editId').value = v.id;
   el('f_pathologie').value = v.pathologie || '';
   el('f_vaccins').value = v.vaccins || '';
   el('f_calendrier').value = v.calendrier || '';
   el('f_lien').value = v.lien || '';
-  el('f_couleur').value = v.couleur || getFallbackColor(v.pathologie);
-  quillDetails.root.innerHTML = v.details || '';
-  quillRattrapage.root.innerHTML = v.rattrapage || '';
+  el('f_couleur').value = normalizeHexColor(v.couleur, getFallbackColor(v.pathologie));
+
+  // Laisser le panneau s'afficher avant de peupler Quill (évite éditeur « mort »)
+  requestAnimationFrame(() => {
+    setQuillHtml(quillDetails, v.details || '');
+    setQuillHtml(quillRattrapage, v.rattrapage || '');
+  });
+
   el('cancelEditBtn').classList.remove('hidden');
-  el('adminPanel').scrollIntoView({ behavior: 'smooth' });
+  updateAdminFormTitle();
+  el('adminPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el('f_pathologie').focus();
 }
 
 async function deleteEntry(id) {
   if (!confirm('Supprimer définitivement cette ligne ?')) return;
-  const { error } = await sbVaccin.from(TABLE_NAME).delete().eq('id', id);
-  if (error) showMessage(error.message, true);
-  else {
-    showMessage('Ligne supprimée !');
-    await loadData();
+  await syncVaccinSession();
+  const { data, error } = await sbVaccin.from(TABLE_NAME).delete().eq('id', id).select();
+  if (error) {
+    showMessage(error.message, true);
+    return;
   }
+  if (!data || data.length === 0) {
+    showMessage('Suppression impossible — droits admin / connexion ?', true);
+    return;
+  }
+  showMessage('Ligne supprimée.');
+  if (String(editingId) === String(id)) resetForm();
+  await loadData();
 }
 
 function resetForm() {
+  editingId = null;
   el('addForm').reset();
   el('editId').value = '';
-  quillDetails.root.innerHTML = '';
-  quillRattrapage.root.innerHTML = '';
+  el('f_couleur').value = '#7F8C8D';
+  ensureQuill();
+  setQuillHtml(quillDetails, '');
+  setQuillHtml(quillRattrapage, '');
   el('cancelEditBtn').classList.add('hidden');
+  updateAdminFormTitle();
 }
 
 async function saveSettings() {
+  await syncVaccinSession();
   const payload = {
     pathologie: '__PARAMETRES__',
     vaccins: 'Ligne système - Ne pas supprimer',
@@ -480,15 +865,23 @@ async function saveSettings() {
     details: el('adminSituationsInput').value
   };
 
-  const res = settingsId
-    ? await sbVaccin.from(TABLE_NAME).update(payload).eq('id', settingsId)
-    : await sbVaccin.from(TABLE_NAME).insert([payload]);
-
-  if (res && res.error) showMessage(res.error.message, true);
-  else {
-    showMessage('Paramètres enregistrés !');
-    await loadData();
+  let res;
+  if (settingsId) {
+    res = await sbVaccin.from(TABLE_NAME).update(payload).eq('id', settingsId).select();
+  } else {
+    res = await sbVaccin.from(TABLE_NAME).insert([payload]).select();
   }
+
+  if (res.error) {
+    showMessage(res.error.message, true);
+    return;
+  }
+  if (!res.data || res.data.length === 0) {
+    showMessage('Paramètres non enregistrés — droits admin / connexion ?', true);
+    return;
+  }
+  showMessage('Paramètres enregistrés.');
+  await loadData();
 }
 
 function exportData() {
@@ -503,13 +896,21 @@ function exportData() {
 async function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
+  await syncVaccinSession();
   const reader = new FileReader();
   reader.onload = async e => {
     try {
-      const imported = JSON.parse(e.target.result);
-      const { error } = await sbVaccin.from(TABLE_NAME).insert(imported);
+      let imported = JSON.parse(e.target.result);
+      if (!Array.isArray(imported)) imported = [imported];
+      // Ne pas réinsérer les id / paramètres système tels quels
+      const rows = imported
+        .filter(r => r && r.pathologie && r.pathologie !== '__PARAMETRES__')
+        .map(({ id, created_at, ...rest }) => rest);
+      if (!rows.length) throw new Error('Aucune fiche valide dans le fichier');
+      const { data, error } = await sbVaccin.from(TABLE_NAME).insert(rows).select();
       if (error) throw error;
-      showMessage('Données importées avec succès !');
+      if (!data?.length) throw new Error('Import refusé (droits ?)');
+      showMessage(`${data.length} fiche(s) importée(s).`);
       event.target.value = '';
       await loadData();
     } catch (err) {

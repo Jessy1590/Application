@@ -18,6 +18,7 @@
 
 ## UI (refonte)
 - Filtres par **famille** (chips) + situations + recherche globale (y compris détails/rattrapage).
-- **Badges** automatiques (Obligatoire, Grossesse, Senior, Voyage, Pro, Transition…).
-- Modale enrichie (calendrier mis en avant, badges, lien VIS).
-- En-tête source Calendrier 2026 / VIS, compteur de fiches, légende repliable, sticky header tableau. 
+- **Badges** automatiques (Obligatoire, Grossesse, Senior, Voyage, Pro, Officine, Transition…).
+- Modale enrichie (calendrier mis en avant, badges, lien VIS, mention pharmacien).
+- En-tête source Calendrier 2026 / VIS, compteur de fiches, légende repliable, sticky header tableau.
+- **Admin corrigé :** Quill lazy-init, sync session Auth → client `autres`, boutons Éditer toujours visibles si admin, sauvegarde avec `.select()` + messages d’erreur RLS, édition depuis la modale. 
