@@ -1,0 +1,319 @@
+{
+  "source": "Calendrier des vaccinations et recommandations vaccinales 2026 (Ministère de la Santé, avril 2026) + Vaccination Info Service",
+  "updated": "2026-09-17",
+  "settings": {
+    "pathologie": "__PARAMETRES__",
+    "vaccins": "Ligne système - Ne pas supprimer",
+    "calendrier": "2026-04-01",
+    "rattrapage": "Années révolues = années terminées (ex. 24 ans révolus = jusqu'à la veille du 25e anniversaire). Sources : Calendrier vaccinal 2026 (avril 2026) et Vaccination Info Service. Correspondances valences ↔ noms commerciaux selon disponibilité France. Revaxis (dTP) arrêté depuis 07/2024 → rappels adultes en dTcaP. NeisVac arrêté 06/2025 ; Menjugate arrêt prévu automne 2026 ; Pentavac arrêt prévu 03/2027 ; HBVaxPro 10 µg arrêté 12/2025.",
+    "details": "Obligatoire : Vaccination obligatoire (nés ≥ 01/01/2018 sauf Méningo ACWY/B : nés ≥ 01/01/2023)\nImmunodéprimé : Patients immunodéprimés / asplénie / greffe\nVIH : Personnes vivant avec le VIH\nGrossesse : Femmes enceintes\nVoyage : Voyageurs / zones d'endémie\nProfessionnel : Exposition professionnelle\nCocooning : Entourage du nourrisson\nSenior : 65 ans et plus"
+  },
+  "vaccins": [
+    {
+      "pathologie": "BCG (tuberculose)",
+      "vaccins": "Vaccin BCG AJVaccines®",
+      "calendrier": "1 dose ID dès 1 mois (ou à la naissance si Guyane/Mayotte/entourage tuberculeux) — enfants à risque uniquement",
+      "couleur": "#8E44AD",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Tuberculose",
+      "details": "<p><strong>Type :</strong> vivant atténué (ID stricte).</p><p><strong>Schéma :</strong> 1 dose — &lt;12 mois : 0,05 mL ; ≥12 mois : 0,1 mL (deltoïde, bras G préférentiel).</p><p><strong>Cibles :</strong> enfants à risque élevé (naissance/parent endémie ; séjour ≥1 mois ; ATCD familial ; IDF/Guyane/Mayotte ; précarité ; jugement médical).</p><p><strong>Correspondance :</strong> monovalent BCG uniquement.</p>",
+      "rattrapage": "<p>Jusqu'à 15 ans si non vacciné et à risque. IDR préalable non systématique &lt;6 ans (sauf séjour &gt;1 mois en zone forte incidence). Pas de revaccination. CI : immunodépression (dont VIH), grossesse, dermatose étendue.</p>"
+    },
+    {
+      "pathologie": "Diphtérie / Tétanos",
+      "vaccins": "Vaccin dT disponible uniquement sur ATU nominative",
+      "calendrier": "Non commercialisé en routine — recours ATU nominative si besoin dT sans coqueluche/polio",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Diphterie",
+      "details": "<p><strong>Correspondance pratique :</strong> en France, le dT « nu » n'est plus en circuit classique. Les besoins dT/dTP passent par les combinés (dTcaP) depuis l'arrêt de Revaxis.</p><p>ATU nominative réservée aux situations où la valence coqueluche ou polio est contre-indiquée ou non souhaitée.</p>",
+      "rattrapage": "<p>Préférer BoostrixTetra® / Repevax® (dTcaP) pour tout rappel adulte. Voir lignes DTCaP et hexavalent pour les schémas standards.</p>"
+    },
+    {
+      "pathologie": "Diphtérie / Tétanos / Poliomyélite",
+      "vaccins": "Revaxis® (dTP) — arrêt commercialisation 01/07/2024",
+      "calendrier": "Remplacé par dTcaP (BoostrixTetra® / Repevax®) pour tous les rappels adultes",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Poliomyelite",
+      "details": "<p><strong>Statut :</strong> Revaxis® n'est plus commercialisé. Les rappels dTP adultes se font désormais avec un vaccin <strong>dTcaP</strong> (valence coqueluche systématique).</p><p><strong>Correspondance :</strong> dTP → dTcaP (BoostrixTetra® / Repevax®). Polio monovalent : Imovax Polio® (situations particulières).</p>",
+      "rattrapage": "<p>Rappels fixes adultes : 25, 45, 65 ans puis tous les 10 ans en dTcaP. Professionnels : obligations selon art. L.3111-4 CSP.</p>"
+    },
+    {
+      "pathologie": "Diphtérie / Tétanos / Coqueluche / Poliomyélite",
+      "vaccins": "Enfants (DTCaP) : InfanrixTetra® / Tetravac-acellulaire® — Ados/Adultes (dTcaP) : BoostrixTetra® / Repevax®",
+      "calendrier": "6 ans (DTCaP) → 11-13 ans (dTcaP) → 25 / 45 / 65 ans puis /10 ans (dTcaP) — Grossesse : dTcaP à chaque grossesse (20-36 SA)",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Coqueluche",
+      "details": "<p><strong>Primo nourrisson :</strong> via hexavalent (2, 4, 11 mois) — obligatoire nés ≥01/01/2018.</p><p><strong>Rappels :</strong> 6 ans = DTCaP (dose entière D/Ca) ; 11-13 ans = dTcaP (si rappel 6 ans manqué ou fait en dTcaP → DTCaP à 11-13 ans) ; adultes = dTcaP aux âges fixes.</p><p><strong>Grossesse :</strong> 1 dose dTcaP dès T2, idéalement 20-36 SA, à chaque grossesse.</p><p><strong>Correspondance :</strong> DTCaP ↔ InfanrixTetra® / Tetravac® ; dTcaP ↔ BoostrixTetra® / Repevax®. Pas de monovalent coqueluche.</p>",
+      "rattrapage": "<p><strong>Cocooning</strong> (si mère non vaccinée en grossesse ou accouchement &lt;1 mois après vacc.) : entourage → 1 dose dTcaP si jamais vacciné, ou rappel si dernière dose &gt;5 ans.</p><p><strong>Pros</strong> (soins, petite enfance, contact &lt;6 mois) : rappel dTcaP si &gt;5 ans (contexte 2024-2026).</p><p>Pas de revaccination &lt;10 ans après coqueluche documentée.</p>"
+    },
+    {
+      "pathologie": "Diphtérie / Tétanos / Coqueluche / Poliomyélite / Haemophilus influenzae b",
+      "vaccins": "InfanrixQuinta® / Pentavac® (arrêt Pentavac prévu 31/03/2027)",
+      "calendrier": "Alternative à l'hexavalent si hépatite B déjà couverte autrement — sinon préférer hexavalent",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-invasives-a-Haemophilus-influenzae-b",
+      "details": "<p><strong>Valences :</strong> DTCaP + Hib (pas d'Hépatite B).</p><p><strong>Usage :</strong> situations où l'hexavalent n'est pas adapté (HBV déjà faite / schéma de rattrapage). Schéma nourrisson classique reste 2, 4, 11 mois.</p><p><strong>Correspondance :</strong> Pentavalent ↔ InfanrixQuinta® / Pentavac® ; pour ajouter HBV → Hexyon® / Infanrix Hexa® / Vaxelis®.</p>",
+      "rattrapage": "<p>Hib manquant après 12 mois jusqu'à 5 ans : 1 dose Act-Hib®. Anticiper l'arrêt Pentavac® (03/2027).</p>"
+    },
+    {
+      "pathologie": "Diphtérie / Tétanos / Poliomyélite / Coqueluche / Haemophilus influenzae b / Hépatite B",
+      "vaccins": "Infanrix Hexa® / Hexyon® / Vaxelis®",
+      "calendrier": "Obligatoire : 2 mois, 4 mois, 11 mois (nés ≥ 01/01/2018)",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Hepatite-B",
+      "details": "<p><strong>Hexavalent = DTCaP + Hib + HBV.</strong> Schéma : M2, M4, M11 — ne pas différer.</p><p><strong>Correspondance valences :</strong> remplace les monovalents/combinés partiels pour ces 6 valences chez le nourrisson. Interchangeables entre eux pour compléter un schéma (selon RCP).</p><p>Couvre aussi coqueluche, Hib et hépatite B obligatoires.</p>",
+      "rattrapage": "<p>Transition schémas anciens : tableaux 4.7 du calendrier. Si HBV hors hexavalent : Engerix® B. Si Hib manquant : Act-Hib®.</p>"
+    },
+    {
+      "pathologie": "Haemophilus influenzae b",
+      "vaccins": "Act-Hib® (monovalent) — sinon inclus dans penta/hexavalent",
+      "calendrier": "Via hexavalent 2 / 4 / 11 mois — rattrapage monovalent jusqu'à 5 ans",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-invasives-a-Haemophilus-influenzae-b",
+      "details": "<p><strong>Obligatoire</strong> (nés ≥01/01/2018) via combiné hexavalent.</p><p><strong>Monovalent Act-Hib® :</strong> rattrapage uniquement.</p><ul><li>6-12 mois : 2 doses (M0, M1) + rappel 6 mois après 1re (= 3 doses)</li><li>&gt;12 mois à 5 ans : 1 dose</li></ul>",
+      "rattrapage": "<p>Au-delà de 5 ans : pas de rattrapage en population générale (sauf situations particulières / immunodépression selon avis spécialisés).</p>"
+    },
+    {
+      "pathologie": "Poliomyélite",
+      "vaccins": "Imovax Polio® (monovalent) — sinon inclus dans hexa / DTCaP / dTcaP",
+      "calendrier": "Via hexavalent (2, 4, 11 mois) puis rappels combinés — monovalent = situations particulières",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Poliomyelite",
+      "details": "<p><strong>Obligatoire</strong> en primo (nés ≥01/01/2018) via hexavalent. Rappels via DTCaP/dTcaP.</p><p><strong>Imovax Polio® :</strong> monovalent si besoin isolé de valence polio (voyage, rattrapage ciblé, CI aux autres valences).</p>",
+      "rattrapage": "<p>Statut inconnu : reprendre selon âge avec combinés adaptés. Professionnels : obligations L.3111-4.</p>"
+    },
+    {
+      "pathologie": "Hépatite B",
+      "vaccins": "Nourrisson : via hexavalent — Enfant : Engerix® B10 µg / HBVaxPro® 5 µg — Ado/Adulte : Engerix® B20 µg (HBVaxPro® 10 µg arrêté 12/2025)",
+      "calendrier": "Obligatoire via hexa 2 / 4 / 11 mois — Rattrapage jusqu'à 15 ans révolus ; ado 11-15 ans : 2 doses Engerix® B20 (M0, M6) possible",
+      "couleur": "#F39C12",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Hepatite-B",
+      "details": "<p><strong>Nourrisson :</strong> 3 doses hexavalent. Pas de rappels systématiques ensuite en population générale.</p><p><strong>Ado 11-15 ans non vaccinés :</strong> classique M0-M1-M6 OU 2 doses Engerix® B20 à 6 mois d'intervalle (si pas de risque élevé dans l'intervalle).</p><p><strong>Adulte :</strong> Engerix® B20 — classique M0-M1-M6 ; accéléré J0-J7-J21 + rappel M12 (départ imminent).</p><p><strong>Correspondance :</strong> HBV seule ↔ Engerix® / HBVaxPro® 5 ; HBV+HAV ↔ Twinrix® Adulte (≥16 ans).</p>",
+      "rattrapage": "<p>Nouveau-né de mère AgHBs+ : Engerix® B10 à la naissance (+ Ig si indiqué), 1 mois, 6 mois. Non-répondeurs (&lt;10 UI/L après schéma complet) : doses complémentaires (jusqu'à ~6 doses). Obligation professionnelle L.3111-4.</p>"
+    },
+    {
+      "pathologie": "Hépatite A",
+      "vaccins": "Enfant (1-15 ans) : Havrix® 720 U / Avaxim® 80 U — Ado ≥16 ans / Adulte : Avaxim® 160 U / Havrix® 1440 U / Vaqta® 50 U",
+      "calendrier": "1 dose + rappel 6-12 mois (délais variables selon spécialité) — voyageurs / patients à risque",
+      "couleur": "#F39C12",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Hepatite-A",
+      "details": "<p><strong>Schémas rappel :</strong></p><ul><li>Avaxim® 80 : rappel 6 mois–10 ans</li><li>Havrix® 720 : rappel 6–12 mois (jusqu'à 5 ans)</li><li>Avaxim® 160 : rappel 6–12 mois (jusqu'à 36 mois)</li><li>Havrix® 1440 : rappel 6–12 mois (jusqu'à 5 ans)</li><li>Vaqta® 50 : rappel 6–18 mois</li></ul><p><strong>Cibles :</strong> voyage zone endémie, mucoviscidose/hépatopathie, HSH, usagers de drogues, institutions, professionnels exposés, etc.</p>",
+      "rattrapage": "<p>Une primo sans rappel laisse une protection partielle ; compléter dès que possible dans les fenêtres AMM. Combiné HAV+HBV : Twinrix® Adulte.</p>"
+    },
+    {
+      "pathologie": "Hépatite A & Hépatite B",
+      "vaccins": "Twinrix® Adulte (dès 16 ans)",
+      "calendrier": "3 doses : M0, M1, M6 — accéléré J0, J7, J21 + rappel M12 si départ imminent",
+      "couleur": "#F39C12",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Hepatite-A",
+      "details": "<p><strong>Combiné HAV+HBV</strong> pour ≥16 ans. Évite 2 injections séparées si double indication.</p><p><strong>Correspondance :</strong> Twinrix® Adulte ↔ Avaxim®/Havrix® + Engerix® B20 (équivalence de couverture, schémas distincts).</p>",
+      "rattrapage": "<p>Schéma accéléré : J0-J7-J21 puis rappel indispensable à 12 mois. Grossesse : évaluation bénéfice/risque.</p>"
+    },
+    {
+      "pathologie": "Fièvre jaune",
+      "vaccins": "Stamaril®",
+      "calendrier": "1 dose dès 9 mois (voyageurs zones endémiques) — obligatoire Guyane ≥12 mois — rappel si indiqué",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Fievre-jaune",
+      "details": "<p><strong>Type :</strong> vivant atténué. 1 dose = immunité durable (OMS) ; certificat international.</p><p><strong>Guyane :</strong> obligatoire ≥12 mois. Nourrissons &lt;9 mois : non indiqué sauf situation exceptionnelle.</p><p>2e dose : situations particulières (circulation virale, 1re dose &lt;2 ans, immunodépression partielle, etc. selon calendrier).</p>",
+      "rattrapage": "<p>CI : immunodépression sévère, grossesse (sauf bénéfice &gt; risque), allergie œuf sévère selon RCP. Centres de vaccination habilités pour certificat.</p>"
+    },
+    {
+      "pathologie": "Grippe saisonnière",
+      "vaccins": "≥65 ans (priorité) : Efluelda® (haute dose) / Fluad® (adjuvanté) — Standard : Flucelvax® / Influvac® / Vaxigrip® — Arrêtés : Fluarix Tetra®, Influvac Tetra®, VaxigripTetra®",
+      "calendrier": "1 dose / an à l'automne — ≥65 ans, comorbidités, grossesse, entourage, pros de santé ; possible 6-23 mois à risque",
+      "couleur": "#3498DB",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Grippe-saisonniere",
+      "details": "<p><strong>2026 :</strong> ≥65 ans → préférer Efluelda® ou Fluad® (standard acceptable). Flucelvax® utilisable dès 6 mois.</p><p><strong>Grossesse :</strong> recommandée quel que soit le trimestre.</p><p>Campagne souvent couplée Covid-19.</p>",
+      "rattrapage": "<p>Enfant &lt;9 ans primo : 2 doses à 1 mois si jamais vacciné (selon RCP/âge). Immunodéprimés : dose annuelle standard ou selon avis.</p>"
+    },
+    {
+      "pathologie": "Méningocoque A, C, Y, W",
+      "vaccins": "Nimenrix® (dès 6 sem.) / MenQuadfi® (dès 12 mois) / Menveo® (dès 2 ans)",
+      "calendrier": "Obligatoire (nés ≥01/01/2023) : 6 mois (Nimenrix®) + 12 mois (Nimenrix® ou MenQuadfi®) — Ados 11-14 ans : 1 dose — Rattrapage 15-24 ans",
+      "couleur": "#E83A5D",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-invasives-a-meningocoques",
+      "details": "<p><strong>Nourrisson :</strong> M6 (Nimenrix®) → M12 (Nimenrix®/MenQuadfi®). Remplace le méningo C isolé.</p><p><strong>Ados 11-14 ans :</strong> 1 dose (Nimenrix®/MenQuadfi®/Menveo®) quel que soit le statut antérieur (y compris si déjà C ou ACWY enfant).</p><p><strong>Correspondance selon âge :</strong> &lt;6 mois = Nimenrix® seul ; 12 mois–2 ans = Nimenrix®/MenQuadfi® ; ≥2 ans = les 3.</p>",
+      "rattrapage": "<p>12-24 mois non vaccinés ACWY : 1 dose obligatoire. Transitoire 2-4 ans révolus (y compris déjà vaccinés C). Asplénie/complément : ACWY + B, rappels /5 ans. Contact cas ACWY : vacciner ≤10 jours.</p>"
+    },
+    {
+      "pathologie": "Méningocoque C",
+      "vaccins": "Menjugate® (arrêt prévu automne 2026) / NeisVac® (arrêté 30/06/2025) — remplacés par ACWY",
+      "calendrier": "Plus de schéma C isolé en routine — basculer vers Nimenrix® / MenQuadfi® / Menveo®",
+      "couleur": "#E83A5D",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-invasives-a-meningocoques",
+      "details": "<p><strong>Transition 2026 :</strong> la valence C est couverte par les vaccins tétravalents ACWY. NeisVac® arrêté ; Menjugate® arrêt prévu automne 2026.</p><p>Un enfant déjà vacciné C doit quand même recevoir ACWY selon calendrier (nourrisson / ado / rattrapage).</p>",
+      "rattrapage": "<p>Rattrapage ACWY 2-4 ans même si antécédent vaccin C. Ne pas initier de nouveau schéma C monovalent.</p>"
+    },
+    {
+      "pathologie": "Méningocoque B",
+      "vaccins": "Bexsero® (dès 2 mois) / Trumenba® (dès 10 ans)",
+      "calendrier": "Obligatoire (nés ≥01/01/2023) : Bexsero® à 3, 5 et 12 mois — Possible 15-24 ans ; Trumenba® ≥10 ans",
+      "couleur": "#E83A5D",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-invasives-a-meningocoques",
+      "details": "<p><strong>Schéma obligatoire nourrisson :</strong> M3, M5, M12 (Bexsero®). Espacer ≥15 j des autres vaccins si réactogénicité (pratique courante : co-administration possible selon RCP).</p><p><strong>≥10 ans :</strong> Bexsero® 2 doses (≥1 mois) OU Trumenba® 2 doses (6 mois) ou 3 doses (0, ≥1 mois, ≥4 mois après 2e).</p><p><strong>Correspondance :</strong> Bexsero® = tout âge (AMM) ; Trumenba® = ≥10 ans uniquement. Non interchangeables en cours de schéma.</p>",
+      "rattrapage": "<p>Selon âge (AMM) : 6-11 mois = 2 doses + rappel 2e année ; 12-23 mois = 2 doses + rappel 12-23 mois après ; 2-10 ans = 2 doses. Transitoire 2-4 ans. Asplénie/complément : rappels /5 ans. Proposable 15-24 ans.</p>"
+    },
+    {
+      "pathologie": "Papillomavirus humains (HPV)",
+      "vaccins": "Gardasil 9® (nonavalent — à initier) / Cervarix® (bivalent — finir schéma déjà commencé)",
+      "calendrier": "11-14 ans révolus : 2 doses (5-13 mois) — Rattrapage F/H jusqu'à 26 ans révolus : 3 doses M0-M2-M6",
+      "couleur": "#E67E22",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-a-papillomavirus-humain-HPV",
+      "details": "<p><strong>2026 :</strong> rattrapage élargi aux jeunes femmes <em>et</em> hommes jusqu'à <strong>26 ans révolus</strong> (Gardasil 9®).</p><p>11-14 ans : 2 doses. ≥15 ans : 3 doses en &lt;1 an. Campagne 5e gratuite (+ ACWY depuis 2025-2026).</p><p><strong>Correspondance :</strong> nouvelle vaccination = Gardasil 9®. Cervarix® non interchangeable : terminer avec Cervarix® si déjà initié.</p>",
+      "rattrapage": "<p>Transplantation : possible dès 9 ans. Ne remplace pas le dépistage du col. Immunodéprimés : souvent schéma 3 doses (avis spécialisés).</p>"
+    },
+    {
+      "pathologie": "Pneumocoque",
+      "vaccins": "Nourrisson : Prevenar 13® (VPC13) / Vaxneuvance® (VPC15) — Adulte : Prevenar 20® (VPC20) / Capvaxive® (VPC21) — Enfant à risque + : Pneumovax® (VPP23)",
+      "calendrier": "Obligatoire : 2, 4, 11 mois (VPC13/15) — ≥65 ans et adultes à risque ≥18 ans : 1 dose VPC20 ou Capvaxive®",
+      "couleur": "#E83A5D",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-a-pneumocoques",
+      "details": "<p><strong>Nourrisson :</strong> VPC13 ou VPC15 à M2-M4-M11. Prématurés/risque : M2-M3-M4 + M11.</p><p><strong>Adulte ≥65 ans (2026) :</strong> 1 dose unique Prevenar 20® <em>ou</em> Capvaxive®. Idem adultes ≥18 ans à risque élevé.</p><p><strong>2-17 ans à risque :</strong> séquence VPC13/15 + VPP23 (délais selon statut).</p><p><strong>Correspondance :</strong> VPC13↔Prevenar13® ; VPC15↔Vaxneuvance® ; VPC20↔Prevenar20® ; VPC21↔Capvaxive® ; VPP23↔Pneumovax®.</p>",
+      "rattrapage": "<p>7-11 mois non vaccinés : 2 doses + rappel 1 an. 12-23 mois : 2 doses. Adulte déjà VPC13 ou VPP23 seul : 1 VPC20/21 si &gt;1 an. Séquence VPC13-VPP23 : VPC20/21 après ≥5 ans post-VPP23.</p>"
+    },
+    {
+      "pathologie": "Rougeole / Oreillons / Rubéole",
+      "vaccins": "M-M-RVaxPro® / Priorix®",
+      "calendrier": "Obligatoire : 12 mois puis 16-18 mois — Nés ≥1980 : total 2 doses (3 si 1re dose &lt;12 mois)",
+      "couleur": "#E83A5D",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Rougeole",
+      "details": "<p><strong>Type :</strong> vivant atténué. 2e dose = rattrapage non-répondeurs (pas un « rappel » classique).</p><p>Interchangeables M-M-RVaxPro® ↔ Priorix®. Statut inconnu : 2 doses sans sérologie préalable.</p><p><strong>2026 :</strong> obligation d'immunisation rougeole pour pros/étudiants sanitaires, médico-sociaux et petite enfance (modalités réglementaires à venir).</p>",
+      "rattrapage": "<p>Dose &lt;12 mois (exposition) → +2 doses à 12 et 16-18 mois (=3 total). Post-exposition &lt;72 h. Femmes nées &lt;1980 non vaccinées, projet grossesse : 1 dose ROR. CI grossesse ; différer conception 1 mois.</p>"
+    },
+    {
+      "pathologie": "Varicelle",
+      "vaccins": "Varilrix® / Varivax®",
+      "calendrier": "2 doses — cibles : ados 12-18 ans, femmes en âge de procréer, pros, contacts immuno, pré-greffe (pas en routine enfant)",
+      "couleur": "#9B59B6",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Varicelle",
+      "details": "<p><strong>Type :</strong> vivant atténué. Non recommandé en routine chez l'enfant en France.</p><p><strong>Schéma :</strong> Varivax® 4-8 sem. ; Varilrix® 6-10 sem. entre doses.</p><p>Sérologie possible si ATCD douteux.</p>",
+      "rattrapage": "<p>Post-exposition ≤3 j (&gt;12 ans immuno-compétent, hors grossesse). CI grossesse / immunodépression. Pros petite enfance et santé : si séronégatifs.</p>"
+    },
+    {
+      "pathologie": "Zona",
+      "vaccins": "Shingrix® (recombinant) — Zostavax® : plus utilisé en recommandation actuelle",
+      "calendrier": "≥65 ans immuno-compétents : 2 doses M0-M2 — Immunodéprimés ≥18 ans : idem",
+      "couleur": "#9B59B6",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Zona",
+      "details": "<p><strong>Shingrix® :</strong> 2 doses espacées de 2 mois (flexibilité 2-6 mois ; accéléré 1 mois si besoin). Inactivé → utilisable si immunodépression.</p><p>Après zona ou Zostavax® : attendre ≥1 an avant Shingrix® (≥65 ans immuno-compétents).</p><p>Pas de rappel établi après primo.</p>",
+      "rattrapage": "<p>Avant immunosuppresseur : compléter idéalement ≥14 j avant traitement (intervalle 1 mois possible). Grossesse : éviter par précaution.</p>"
+    },
+    {
+      "pathologie": "Virus Respiratoire Syncytial (VRS)",
+      "vaccins": "Abrysvo® (femme enceinte / seniors) / Arexvy® / mRESVIA® — Immunisation passive nourrisson : Beyfortus® (nirsévimab) / Synagis® (palivizumab)",
+      "calendrier": "Grossesse : Abrysvo® 32-36 SA — Seniors ≥75 ans (ou ≥65 ans avec BPCO/IC) : 1 dose — Nourrisson : Beyfortus® (saison)",
+      "couleur": "#607D8B",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS",
+      "details": "<p><strong>Protection nourrisson :</strong> soit Abrysvo® mère (32-36 SA), soit Beyfortus® enfant (pas les deux sauf inefficacité : préma, naissance &lt;14 j post-vaccin).</p><p><strong>Seniors :</strong> 1 dose Abrysvo® / Arexvy® / mRESVIA® sans préférence (prise en charge AM souvent absente à ce jour).</p><p>Intervalle ≥2 sem. entre dTcaP et Abrysvo®. Co-admin grippe/Covid OK.</p>",
+      "rattrapage": "<p>Beyfortus® : &lt;5 kg = 50 mg ; ≥5 kg = 100 mg ; 2e saison vulnérable = 200 mg (2×100). Synagis® : prématurés/haut risque, mensuel. Nouvelle grossesse après Abrysvo® : préférer Beyfortus® chez le NN.</p>"
+    },
+    {
+      "pathologie": "Gastro-entérite à Rotavirus",
+      "vaccins": "Rotarix® (2 doses) / RotaTeq® (3 doses)",
+      "calendrier": "Recommandé tous nourrissons : Rotarix® M2+M3 (finir &lt;24 sem.) / RotaTeq® M2+M3+M4 (finir &lt;32 sem.)",
+      "couleur": "#607D8B",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Gastro-enterite-a-rotavirus",
+      "details": "<p><strong>Type :</strong> vivant oral. Même spécialité pour tout le schéma. Intervalle ≥4 sem.</p><p>1re dose dès 6 sem. ; Rotarix® 1re idéalement &lt;16 sem. ; RotaTeq® 1re ≤12 sem.</p><p>Info parents obligatoire sur risque d'IIA (J0-J7 post 1re dose).</p>",
+      "rattrapage": "<p>CI : ATCD IIA, malformation GI non opérée, immunodépression (dont VIH). Prématurés : ≥27 SA (Rotarix®) / ≥25 SA (RotaTeq®). Différer si diarrhée/vomissements.</p>"
+    },
+    {
+      "pathologie": "COVID-19",
+      "vaccins": "ARNm : Comirnaty® / Spikevax® (souches actualisées) — Protéines : Nuvaxovid® (≥12 ans, si souche adaptée)",
+      "calendrier": "Campagne automnale annuelle ≥65 ans et à risque de forme grave — Printemps : fragiles (ex. ≥80 ans / EHPAD selon campagne)",
+      "couleur": "#607D8B",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/COVID-19",
+      "details": "<p><strong>2026 :</strong> Nuvaxovid® utilisable ≥12 ans à risque si même niveau d'adaptation souche que ARNm. Grossesse : privilégier ARNm.</p><p>Toute personne peut être vaccinée même hors cible. Couplage fréquent avec grippe.</p>",
+      "rattrapage": "<p>Primo naïve (selon âge/campagne en vigueur) : schémas 1 à 3 doses selon produit et ATCD infection. Suivre DGS-Urgent / HAS en saison.</p>"
+    },
+    {
+      "pathologie": "Rage",
+      "vaccins": "Vaccin rabique Pasteur® / Rabipur®",
+      "calendrier": "Pré-exposition : J0+J7 (immuno-compétent) — Post-exposition : centres antirabiques uniquement",
+      "couleur": "#F1C40F",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Rage",
+      "details": "<p><strong>Pré-expo immuno-compétent :</strong> 2 doses IM J0 et J7. <strong>Immunodéprimé :</strong> 3 doses J0, J7, J21/28.</p><p>ID 2×0,1 mL possible (J0+J7) avec contrôle sérologique. Interchangeables Pasteur® ↔ Rabipur®.</p><p>Cibles : chiroptérologues, vétérinaires, labos, fourrières, forestiers, etc.</p>",
+      "rattrapage": "<p>Rappels non systématiques (sauf chiroptérologues à 1 an + sérologies). Post-expo = urgence centres antirabiques (Ig ± schéma selon statut).</p>"
+    },
+    {
+      "pathologie": "Leptospirose",
+      "vaccins": "Spirolept®",
+      "calendrier": "J0, J15, rappel 4-6 mois, puis /2 ans si exposition persiste — pro / loisirs eau douce",
+      "couleur": "#3498DB",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Leptospirose",
+      "details": "<p>Après évaluation du risque (médecine du travail). Égoutiers, pisciculture, eaux douces, DROM, sports nautiques réguliers.</p><p>Vaccin complémentaire aux mesures d'hygiène (efficacité relative).</p>",
+      "rattrapage": "<p>Maintenir rappels /2 ans tant que l'exposition dure. Population générale : au cas par cas (loisirs à risque).</p>"
+    },
+    {
+      "pathologie": "Dengue",
+      "vaccins": "Qdenga® (vivant atténué)",
+      "calendrier": "2 doses à 3 mois — Antilles, Guyane, Mayotte, La Réunion (recommandations territoriales)",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Dengue",
+      "details": "<p>Schéma : 2 doses / 3 mois. Rappel non établi. Attendre ≥6 mois après infection dengue récente.</p><p>Info : protection incomplète possible si jamais infecté. Drépanocytaires : cas par cas.</p>",
+      "rattrapage": "<p>CI : grossesse, allaitement, immunodépression (vivant). Suivre actualisations DROM.</p>"
+    },
+    {
+      "pathologie": "Chikungunya",
+      "vaccins": "Vimkunya® (protéique adjuvanté) / Ixchiq® (vivant atténué)",
+      "calendrier": "Selon recommandations territoriales / voyage — Vimkunya® préféré ≥65 ans",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Chikungunya",
+      "details": "<p>Deux plateformes : protéique (Vimkunya®) vs vivant (Ixchiq®). ≥65 ans : Vimkunya®. Suivre avis HAS/HCSP actualisés (zones, âge).</p>",
+      "rattrapage": "<p>Ixchiq® CI si immunodépression. Grossesse/allaitement : non recommandé en général. Vérifier disponibilité France.</p>"
+    },
+    {
+      "pathologie": "Mpox (Variole B)",
+      "vaccins": "Imvanex® / Jynneos® (MVA-BN, interchangeables)",
+      "calendrier": "Pré-expo : 2 doses ≥28 j (HSH multipartenaires, prostitution, pros lieux sexuels…) — Post-expo : dose idéale ≤4 j (max 14 j)",
+      "couleur": "#607D8B",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Mpox-Variole-du-singe",
+      "details": "<p>SC, haut du bras. Vaccinés variole avant 1980 : 1 dose. Immunodéprimés : 3e dose ≥28 j après 2e. Infection Mpox depuis 2022 : pas de vaccination.</p><p>Rappel : 1 dose si primo complète antérieure.</p>",
+      "rattrapage": "<p>Éviter grossesse/allaitement sauf bénéfice &gt; risque. Mineurs : cas par cas spécialistes. Suivre DGS-Urgent.</p>"
+    },
+    {
+      "pathologie": "Encéphalite à tiques",
+      "vaccins": "Ticovac® / Ticovac® Enfant",
+      "calendrier": "3 doses (J0, 1-3 mois, 5-12 mois après 2e) — zones Est France / Europe centrale / voyageurs exposés",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Encephalite-a-tiques",
+      "details": "<p>Recommandé professionnels forestiers / expositions répétées en zone d'endémie. Schéma accéléré possible selon RCP avant départ.</p>",
+      "rattrapage": "<p>Rappels selon RCP (souvent 3 ans puis /3-5 ans selon âge). Protection = aussi prévention piqûres.</p>"
+    },
+    {
+      "pathologie": "Encéphalite japonaise",
+      "vaccins": "Ixiaro®",
+      "calendrier": "2 doses J0-J28 (accéléré J0-J7 si ≥18 ans) — voyageurs long séjour / zones rurales Asie",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Encephalite-japonaise",
+      "details": "<p>Hors calendrier général (recommandations voyageurs HCSP). Rappel selon durée d'exposition / RCP.</p>",
+      "rattrapage": "<p>Centres de conseils aux voyageurs. Non systématique pour tourisme urbain court.</p>"
+    },
+    {
+      "pathologie": "Typhoïde",
+      "vaccins": "Typhim Vi® / Typherix®",
+      "calendrier": "1 dose ≥2 ans, ≥15 j avant départ — rappel /3 ans si exposition continue",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Fievre-typhoide",
+      "details": "<p>Polyosidique capsulaire Vi. Protection ~3 ans. Complète (ne remplace pas) l'hygiène alimentaire.</p>",
+      "rattrapage": "<p>Voyage zone précaire / séjour prolongé. Enfant &lt;2 ans : non indiqué (Typhim Vi®).</p>"
+    },
+    {
+      "pathologie": "Choléra",
+      "vaccins": "Dukoral® (buvable, dès 2 ans) / Vaxchora® (dès 6 ans)",
+      "calendrier": "Voyageurs zones épidémiques uniquement — schémas selon RCP (Dukoral® : 2 doses adulte)",
+      "couleur": "#2980B9",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Cholera",
+      "details": "<p>Indication rare. Primauté des mesures d'hygiène eau/aliments. Suivre recommandations voyageurs.</p>",
+      "rattrapage": "<p>Rappel Dukoral® si nouvelle exposition selon délai écoulé (RCP).</p>"
+    },
+    {
+      "pathologie": "Tétanos (valence seule)",
+      "vaccins": "Aucun monovalent commercialisé — toujours en combiné (dTcaP / DTCaP / hexa / penta)",
+      "calendrier": "Couvert par hexa (2, 4, 11 mois) puis rappels DTCaP/dTcaP — PAS de vaccin tétanos seul en officine",
+      "couleur": "#16A085",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Tetanos",
+      "details": "<p><strong>Correspondance clé :</strong> besoin « tétanos » → BoostrixTetra® / Repevax® (adulte) ou InfanrixTetra® / Tetravac® (enfant) ou hexavalent (nourrisson).</p><p>Plaie à risque : vérifier dernière dose ; Ig antitétaniques si indication (statut inconnu + plaie tétingène).</p>",
+      "rattrapage": "<p>Statut inconnu adulte : amorcer dTcaP et poursuivre selon calendrier des âges fixes. Ne pas chercher un monovalent T.</p>"
+    }
+  ]
+}

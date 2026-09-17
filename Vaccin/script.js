@@ -46,16 +46,17 @@ function stripHTML(html) {
 function getFallbackColor(patho) {
   if (!patho) return '#7F8C8D';
   const p = patho.toLowerCase();
-  if (p.includes('bcg') || p.includes('tuberculose')) return '#8E44AD'; 
-  if (p.includes('diphtérie') || p.includes('tétanos') || p.includes('coqueluche') || p.includes('poliomyélite')) return '#16A085';
-  if (p.includes('hépatite')) return '#F39C12'; 
-  if (p.includes('méningocoque') || p.includes('rougeole') || p.includes('pneumocoque')) return '#E83A5D'; 
-  if (p.includes('papillomavirus') || p.includes('hpv')) return '#E67E22'; 
-  if (p.includes('grippe') || p.includes('leptospirose')) return '#3498DB'; 
-  if (p.includes('rage')) return '#F1C40F'; 
-  if (p.includes('choléra') || p.includes('dengue')) return '#2980B9'; 
-  if (p.includes('rotavirus') || p.includes('covid') || p.includes('mpox')) return '#607D8B'; 
-  return '#7F8C8D'; 
+  if (p.includes('bcg') || p.includes('tuberculose')) return '#8E44AD';
+  if (p.includes('diphtérie') || p.includes('tétanos') || p.includes('coqueluche') || p.includes('poliomyélite') || p.includes('haemophilus')) return '#16A085';
+  if (p.includes('hépatite')) return '#F39C12';
+  if (p.includes('méningocoque') || p.includes('rougeole') || p.includes('pneumocoque') || p.includes('oreillons')) return '#E83A5D';
+  if (p.includes('papillomavirus') || p.includes('hpv')) return '#E67E22';
+  if (p.includes('varicelle') || p.includes('zona')) return '#9B59B6';
+  if (p.includes('grippe') || p.includes('leptospirose')) return '#3498DB';
+  if (p.includes('rage')) return '#F1C40F';
+  if (p.includes('choléra') || p.includes('dengue') || p.includes('chikungunya') || p.includes('fièvre jaune') || p.includes('typhoïde') || p.includes('encéphalite')) return '#2980B9';
+  if (p.includes('rotavirus') || p.includes('covid') || p.includes('mpox') || p.includes('vrs') || p.includes('syncytial')) return '#607D8B';
+  return '#7F8C8D';
 }
 
 // --- INITIALISATION ---

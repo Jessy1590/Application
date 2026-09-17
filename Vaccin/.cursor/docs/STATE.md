@@ -11,8 +11,12 @@
 - **Configuration Globale :** Panneau d'administration permettant de forcer la date de mise à jour, la légende et les filtres, le tout sauvegardé dans une ligne système (`__PARAMETRES__`) de la table `vaccins`[cite: 4].
 - **Import / Export :** Fonctions implémentées pour exporter la base en JSON et importer de nouvelles données en masse[cite: 4].
 
+## Données métier
+- **Source :** Calendrier vaccinal 2026 (Ministère de la Santé, avril 2026) + Vaccination Info Service.
+- **Fichier miroir local :** `data/vaccins-calendrier-2026.json` (34 valences + paramètres).
+- **Contenu :** schémas thérapeutiques concis, correspondances valences ↔ noms commerciaux, arrêts de commercialisation (Revaxis, NeisVac, HBVaxPro 10 µg, etc.), rattrapages et situations particulières.
+
 ## Prochaines étapes de développement (TODO)
-*(À compléter selon vos besoins futurs, par exemple :)*
 - [ ] Ajouter un système de tags ou de puces visuelles pour le calendrier vaccinal.
-- [ ] Mettre à jour avec le dernier calendrier vaccinal
-- [ ] Créer les fiches de pathologies par pathologie. 
+- [ ] Créer les fiches de pathologies par pathologie.
+- [ ] Éventuels ajustements design (à valider avec le propriétaire). 
