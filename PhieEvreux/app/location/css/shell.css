@@ -1046,6 +1046,22 @@ html[data-theme="light"] .loc-help-tip__bubble {
   color: var(--loc-text) !important;
 }
 
+.loc-badge-en-attente {
+  border-color: var(--loc-warn-line);
+  background: var(--loc-warn-bg);
+  color: var(--loc-text) !important;
+}
+
+.loc-list-item.is-en-attente {
+  border-color: var(--loc-warn-line);
+  background: var(--loc-warn-bg);
+}
+
+.loc-list-item.is-en-attente.active {
+  border-color: var(--loc-warn-line);
+  box-shadow: inset 3px 0 0 var(--loc-warn-line);
+}
+
 .loc-detail {
   border: 1px solid var(--loc-line);
   background: var(--loc-elev);

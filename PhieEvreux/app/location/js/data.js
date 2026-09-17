@@ -268,12 +268,23 @@
     return data || [];
   }
 
+  function sanitizePatientRow(row) {
+    const r = row && typeof row === 'object' ? { ...row } : {};
+    if (r.date_naissance === '') r.date_naissance = null;
+    r.telephones = Array.isArray(r.telephones) ? r.telephones : [];
+    r.mails = Array.isArray(r.mails) ? r.mails : [];
+    if (r.adresse === '') r.adresse = null;
+    return r;
+  }
+
+  function formatSbError(error, fallback) {
+    if (!error) return fallback || 'Erreur';
+    const parts = [error.message, error.details, error.hint].filter(Boolean);
+    return parts.length ? parts.join(' — ') : fallback || String(error);
+  }
+
   async function createPatient(row) {
-    const payload = {
-      ...row,
-      telephones: Array.isArray(row.telephones) ? row.telephones : [],
-      mails: Array.isArray(row.mails) ? row.mails : [],
-    };
+    const payload = sanitizePatientRow(row);
     const { data, error } = await sb().from('location_patients').insert(payload).select().single();
     if (error) throw error;
     return data;
@@ -281,9 +292,7 @@
 
   async function updatePatient(id, row) {
     const payload = {
-      ...row,
-      telephones: Array.isArray(row.telephones) ? row.telephones : [],
-      mails: Array.isArray(row.mails) ? row.mails : [],
+      ...sanitizePatientRow(row),
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await sb()
@@ -453,6 +462,7 @@
   }
 
   function normalizeDossierStatut(statut) {
+    if (statut && typeof statut === 'object') statut = statut.statut;
     return statut === 'en_attente' ? 'en_attente' : 'actif';
   }
 
@@ -501,13 +511,40 @@
   }
 
   /**
+   * Insert dossier ; réessaie sans created_by si FK profiles échoue.
+   */
+  async function insertDossierRow(dossierRow) {
+    let { data, error } = await sb()
+      .from('location_dossiers')
+      .insert(dossierRow)
+      .select()
+      .single();
+    // FK created_by → portail.profiles : réessaie sans created_by si profil manquant
+    if (
+      error &&
+      dossierRow.created_by &&
+      (error.code === '23503' || /created_by|foreign key|profiles/i.test(String(error.message || '')))
+    ) {
+      const retry = { ...dossierRow, created_by: null };
+      ({ data, error } = await sb().from('location_dossiers').insert(retry).select().single());
+    }
+    if (error) {
+      const err = new Error(formatSbError(error, 'Erreur création dossier'));
+      err.cause = error;
+      err.code = error.code;
+      throw err;
+    }
+    return data;
+  }
+
+  /**
    * Crée patient + dossier + appareil + prolongation initiale.
    * @param {object} payload
    * @param {string|null} userId
    * @param {{ statut?: 'actif'|'en_attente' }} [opts]
    */
   async function createDossierComplet(payload, userId, opts = {}) {
-    const statut = normalizeDossierStatut(opts.statut);
+    const statut = normalizeDossierStatut(opts && opts.statut);
     const patient = payload.patient_id
       ? await updatePatient(payload.patient_id, payload.patient)
       : await createPatient(payload.patient);
@@ -522,26 +559,37 @@
       created_by: userId || null,
       notes: payload.notes || null,
     };
-    const { data: dossier, error: dErr } = await sb()
-      .from('location_dossiers')
-      .insert(dossierRow)
-      .select()
-      .single();
-    if (dErr) throw dErr;
+    let dossier;
+    try {
+      dossier = await insertDossierRow(dossierRow);
+    } catch (e) {
+      e.patient_id = patient.id;
+      throw e;
+    }
 
     const { error: aErr } = await sb()
       .from('location_appareils')
       .insert(appareilRowFromPayload(payload, dossier.id))
       .select()
       .single();
-    if (aErr) throw aErr;
+    if (aErr) {
+      const err = new Error(formatSbError(aErr, 'Erreur appareil'));
+      err.patient_id = patient.id;
+      err.dossier_id = dossier.id;
+      throw err;
+    }
 
     const { error: pErr } = await sb()
       .from('location_prolongations')
       .insert(prolongInitialeFromPayload(payload, dossier.id, userId))
       .select()
       .single();
-    if (pErr) throw pErr;
+    if (pErr) {
+      const err = new Error(formatSbError(pErr, 'Erreur prolongation'));
+      err.patient_id = patient.id;
+      err.dossier_id = dossier.id;
+      throw err;
+    }
 
     return getDossier(dossier.id);
   }
@@ -554,7 +602,7 @@
    * @param {{ statut?: 'actif'|'en_attente' }} [opts]
    */
   async function updateDossierComplet(dossierId, payload, userId, opts = {}) {
-    const statut = normalizeDossierStatut(opts.statut);
+    const statut = normalizeDossierStatut(opts && opts.statut);
     const existing = await getDossier(dossierId);
     if (!existing) throw new Error('Dossier introuvable');
 

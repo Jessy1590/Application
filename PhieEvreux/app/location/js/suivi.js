@@ -82,6 +82,7 @@
         <select id="suStatut">
           <option value="">Tous statuts</option>
           <option value="actif" selected>Actifs</option>
+          <option value="en_attente">En attente</option>
           <option value="cloture">Clôturés</option>
           <option value="annule">Annulés</option>
         </select>
@@ -209,10 +210,13 @@
         .map((d) => {
           const p = d.patient || {};
           const a = d.appareil_actif || {};
-          return `<button type="button" class="loc-list-item${d.id === selectedId ? ' active' : ''}" data-id="${d.id}">
+          const enAttente = d.statut === 'en_attente';
+          const badgeClass = enAttente ? 'loc-badge loc-badge-en-attente' : 'loc-badge';
+          const itemClass = `loc-list-item${d.id === selectedId ? ' active' : ''}${enAttente ? ' is-en-attente' : ''}`;
+          return `<button type="button" class="${itemClass}" data-id="${d.id}">
             <strong>${esc(p.nom)} ${esc(p.prenom)}</strong>
             <span>${esc(LocationRules.typeLabel(a.type_appareil))} · fin ${esc(d.date_fin || '—')}</span>
-            <span class="loc-badge">${esc(d.statut)}</span>
+            <span class="${badgeClass}">${esc(enAttente ? 'en attente' : d.statut)}</span>
           </button>`;
         })
         .join('');
@@ -340,6 +344,7 @@
       const appCount = (d.appareils || []).length;
       const contactCount = (d.contacts || []).length;
       const canCloturer = canCloturerRole && d.statut === 'actif';
+      const enAttente = d.statut === 'en_attente';
       const fauteuilNote = fauteuilBasculeNote(d, rules, params);
       const creOff = (etape, code) => !LocationData.isCreationActif(params, etape, code);
       const creHint = (etape, code) =>
@@ -366,7 +371,7 @@
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
-          <h3>${esc(p.nom)} ${esc(p.prenom)}</h3>
+          <h3>${esc(p.nom)} ${esc(p.prenom)}${enAttente ? ' <span class="loc-badge loc-badge-en-attente">en attente</span>' : ''}</h3>
           <div class="loc-detail-actions">
             ${canPrint ? '<button type="button" class="loc-btn loc-btn-ghost" id="suPrint">Imprimer fiche</button>' : ''}
             ${canEdit ? '<button type="button" class="loc-btn" id="suSave">Enregistrer</button>' : ''}
@@ -406,6 +411,7 @@
               </select></label>
               <label class="loc-field">Statut<select name="statut">
                 <option value="actif"${d.statut === 'actif' ? ' selected' : ''}>Actif</option>
+                <option value="en_attente"${d.statut === 'en_attente' ? ' selected' : ''}>En attente</option>
                 <option value="cloture"${d.statut === 'cloture' ? ' selected' : ''}>Clôturé</option>
                 <option value="annule"${d.statut === 'annule' ? ' selected' : ''}>Annulé</option>
               </select></label>

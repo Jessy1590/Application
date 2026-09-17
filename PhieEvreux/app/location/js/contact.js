@@ -283,6 +283,9 @@
       const typeAppareil = wrap.querySelector('#coType').value || undefined;
       const aContacter = wrap.querySelector('#coContact').checked || undefined;
 
+      // Dossiers brouillon création : hors module Contact
+      list = list.filter((i) => (i.dossier || {}).statut !== 'en_attente');
+
       if (statut) {
         list = list.filter((i) => (i.dossier || {}).statut === statut);
       }

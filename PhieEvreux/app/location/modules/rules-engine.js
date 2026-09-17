@@ -215,7 +215,8 @@
       ctx.qui_facture !== 'prestataire' &&
       !ctx.facturation_prestataire &&
       ctx.statut !== 'cloture' &&
-      ctx.statut !== 'annule'
+      ctx.statut !== 'annule' &&
+      ctx.statut !== 'en_attente'
     ) {
       if (ctx.date_fin) {
         const delta = daysBetween(today, ctx.date_fin);

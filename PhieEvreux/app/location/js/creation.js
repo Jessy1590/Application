@@ -744,9 +744,15 @@
       return true;
     }
 
+    function formatErr(e) {
+      if (!e) return 'Erreur';
+      const parts = [e.message, e.details, e.hint].filter(Boolean);
+      return parts.length ? parts.join(' — ') : String(e);
+    }
+
     async function persistDossier(statut) {
       const payload = buildPayload();
-      const opts = { statut };
+      const opts = { statut: statut === 'en_attente' ? 'en_attente' : 'actif' };
       if (state.dossier_id) {
         return LocationData.updateDossierComplet(state.dossier_id, payload, ctx.userId, opts);
       }
@@ -766,7 +772,9 @@
         await refreshAttenteList();
         resetForm();
       } catch (e) {
-        showMsg(e.message || 'Erreur à la mise en attente', true);
+        if (e.patient_id && !state.patient_id) state.patient_id = e.patient_id;
+        if (e.dossier_id && !state.dossier_id) state.dossier_id = e.dossier_id;
+        showMsg(formatErr(e) || 'Erreur à la mise en attente', true);
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -792,7 +800,9 @@
         await refreshAttenteList();
         afterCreate(dossier);
       } catch (e) {
-        showMsg(e.message || 'Erreur à la création', true);
+        if (e.patient_id && !state.patient_id) state.patient_id = e.patient_id;
+        if (e.dossier_id && !state.dossier_id) state.dossier_id = e.dossier_id;
+        showMsg(formatErr(e) || 'Erreur à la création', true);
         if (btn) btn.disabled = false;
       }
     }
@@ -882,6 +892,8 @@
         });
       } catch (e) {
         attenteBlock.hidden = true;
+        attenteList.innerHTML = '';
+        showMsg(formatErr(e) || 'Impossible de charger les dossiers en attente', true);
       }
     }
 
