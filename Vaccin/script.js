@@ -437,32 +437,6 @@ function printCellHtml(text) {
     .replace(/\s*[—–]\s*/g, '<br>');
 }
 
-/** Estime la hauteur relative d’une ligne (retours à la ligne sur —). */
-function printRowWeight(v) {
-  const lines = t => Math.max(1, 1 + ((String(t || '').match(/[—–]/g) || []).length));
-  return Math.max(lines(v.pathologie), lines(v.vaccins), lines(v.calendrier));
-}
-
-/** Découpe les fiches en blocs qui tiennent sur une page paysage. */
-function chunkPrintableRows(rows, maxWeight = 15) {
-  if (!rows.length) return [[]];
-  const chunks = [];
-  let current = [];
-  let weight = 0;
-  for (const v of rows) {
-    const w = printRowWeight(v);
-    if (current.length && weight + w > maxWeight) {
-      chunks.push(current);
-      current = [];
-      weight = 0;
-    }
-    current.push(v);
-    weight += w;
-  }
-  if (current.length) chunks.push(current);
-  return chunks;
-}
-
 function printRowHtml(v) {
   const color = v.couleur || getFallbackColor(v.pathologie);
   return `<tr>
@@ -472,80 +446,171 @@ function printRowHtml(v) {
     </tr>`;
 }
 
-function printTableOnly() {
-  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  const printable = filteredData.filter(v => !isHorsReco(v));
-  const chunks = chunkPrintableRows(printable);
-  const totalParts = chunks.length;
-  const dateTxt = el('lastUpdated')?.textContent || '';
-
-  const partsHtml = printable.length
-    ? chunks.map((chunk, i) => {
-        const partLabel = totalParts > 1
-          ? ` — partie ${i + 1}/${totalParts}`
-          : '';
-        const pageBreak = i < totalParts - 1 ? ' page-break' : '';
-        return `<section class="print-part${pageBreak}">
-  <h1>Vaccins &amp; valences — France${partLabel}</h1>
-  <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus${totalParts > 1 ? ` · ${chunk.length} fiche(s)` : ''}</p>
-  <table>
-    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
-    <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
-    <tbody>${chunk.map(printRowHtml).join('')}</tbody>
-  </table>
-</section>`;
-      }).join('')
-    : `<section class="print-part">
-  <h1>Vaccins &amp; valences — France</h1>
-  <p class="meta">${escapeHtml(dateTxt)}</p>
-  <table><tbody><tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr></tbody></table>
-</section>`;
-
-  const iframe = document.createElement('iframe');
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
-<style>
+const PRINT_CSS = `
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{font-family:system-ui,-apple-system,sans-serif;color:#111;font-size:7.5pt;line-height:1.25;}
   h1{font-size:10pt;margin:0 0 2px;font-weight:700;}
-  .meta{color:#444;margin:0 0 6px;font-size:7pt;}
-  .print-part{page-break-inside:avoid;}
-  .print-part.page-break{page-break-after:always;break-after:page;}
+  .meta{color:#444;margin:0 0 4px;font-size:7pt;}
+  .sheet{
+    position:relative;
+    width:296mm;
+    height:209mm;
+    padding:3mm 2mm 8mm;
+    page-break-after:always;
+    break-after:page;
+    overflow:hidden;
+  }
+  .sheet:last-child{page-break-after:auto;break-after:auto;}
+  .sheet-head{margin-bottom:3px;}
+  .sheet-foot{
+    position:absolute;
+    left:2mm;right:2mm;bottom:2.5mm;
+    text-align:center;
+    font-size:7pt;
+    color:#333;
+    border-top:0.4pt solid #bbb;
+    padding-top:1.5mm;
+  }
   table{width:100%;border-collapse:collapse;table-layout:fixed;}
-  thead{display:table-header-group;}
-  tr{page-break-inside:avoid;break-inside:avoid;}
   th,td{border:1px solid #999;padding:2px 4px;vertical-align:top;text-align:left;font-size:7.5pt;word-wrap:break-word;overflow-wrap:anywhere;}
   th{background:#e8e8e8;font-size:7pt;font-weight:700;}
   .c-patho{font-size:7pt;}
   col.c1{width:16%;} col.c2{width:36%;} col.c3{width:48%;}
-  @page{size:A4 landscape;margin:0.35cm 0.2cm;}
-  @media screen{
-    .print-part{margin-bottom:16px;padding-bottom:12px;border-bottom:1px dashed #ccc;}
-    .print-part:last-child{border-bottom:none;}
-  }
-</style></head><body>
-${partsHtml}
-</body></html>`);
-  doc.close();
+  #measure{position:absolute;left:-9999px;top:0;width:292mm;visibility:hidden;}
+  @page{size:A4 landscape;margin:0;}
+`;
+
+function buildPrintSheet(rowsHtml, dateTxt, page, total) {
+  return `<section class="sheet">
+  <header class="sheet-head">
+    <h1>Vaccins &amp; valences — France</h1>
+    <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
+  </header>
+  <table>
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <footer class="sheet-foot">Page ${page} / ${total}</footer>
+</section>`;
+}
+
+function paginatePrintRows(rowHeights, bodyBudget) {
+  const pages = [];
+  let current = [];
+  let used = 0;
+  rowHeights.forEach((h, i) => {
+    const height = Math.ceil(h);
+    if (current.length && used + height > bodyBudget) {
+      pages.push(current);
+      current = [];
+      used = 0;
+    }
+    // Ligne plus haute que la page : seule sur sa page
+    if (!current.length && height > bodyBudget) {
+      pages.push([i]);
+      return;
+    }
+    current.push(i);
+    used += height;
+  });
+  if (current.length) pages.push(current);
+  return pages.length ? pages : [[]];
+}
+
+function printTableOnly() {
+  const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+  const printable = filteredData.filter(v => !isHorsReco(v));
+  const dateTxt = el('lastUpdated')?.textContent || '';
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1123px;height:794px;border:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(iframe);
 
   const win = iframe.contentWindow;
+  const doc = win.document;
+
   const cleanup = () => {
     try { iframe.remove(); } catch (_) {}
     window.scrollTo(0, scrollY);
   };
 
-  win.addEventListener('afterprint', cleanup);
+  const runPrint = htmlBody => {
+    doc.open();
+    doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
+<style>${PRINT_CSS}</style></head><body>${htmlBody}</body></html>`);
+    doc.close();
+    win.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      win.focus();
+      win.print();
+      setTimeout(cleanup, 1500);
+    }, 80);
+  };
+
+  if (!printable.length) {
+    runPrint(buildPrintSheet(
+      '<tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr>',
+      dateTxt, 1, 1
+    ));
+    return;
+  }
+
+  // 1) Mesure des hauteurs de lignes dans le même rendu que l’impression
+  doc.open();
+  doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><style>${PRINT_CSS}</style></head><body>
+<div id="measure">
+  <header class="sheet-head" id="mHead">
+    <h1>Vaccins &amp; valences — France</h1>
+    <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
+  </header>
+  <table>
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead id="mThead"><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
+    <tbody id="mBody">${printable.map(printRowHtml).join('')}</tbody>
+  </table>
+  <footer class="sheet-foot" id="mFoot" style="position:static;border:none;padding:2mm 0 0;">Page 1 / 1</footer>
+</div>
+</body></html>`);
+  doc.close();
+
   setTimeout(() => {
-    win.focus();
-    win.print();
-    setTimeout(cleanup, 1500);
-  }, 100);
+    try {
+      const sheet = doc.createElement('div');
+      sheet.className = 'sheet';
+      sheet.style.visibility = 'hidden';
+      sheet.style.position = 'absolute';
+      sheet.style.left = '0';
+      sheet.style.top = '0';
+      doc.body.appendChild(sheet);
+      const sheetH = sheet.getBoundingClientRect().height || (209 / 25.4 * 96);
+      const padTop = 3 / 25.4 * 96;
+      const padBottom = 8 / 25.4 * 96;
+      sheet.remove();
+
+      const headH = doc.getElementById('mHead').getBoundingClientRect().height;
+      const theadH = doc.getElementById('mThead').getBoundingClientRect().height;
+      const footH = doc.getElementById('mFoot').getBoundingClientRect().height;
+      const bodyBudget = Math.max(40, sheetH - padTop - padBottom - headH - theadH - footH - 4);
+
+      const rowHeights = [...doc.getElementById('mBody').rows].map(tr =>
+        Math.max(tr.getBoundingClientRect().height, 12)
+      );
+      const pageIndexes = paginatePrintRows(rowHeights, bodyBudget);
+      const total = pageIndexes.length;
+      const sheetsHtml = pageIndexes.map((idxs, i) =>
+        buildPrintSheet(idxs.map(j => printRowHtml(printable[j])).join(''), dateTxt, i + 1, total)
+      ).join('');
+
+      runPrint(sheetsHtml);
+    } catch (err) {
+      console.error(err);
+      // Repli : une seule page continue
+      runPrint(buildPrintSheet(printable.map(printRowHtml).join(''), dateTxt, 1, 1));
+    }
+  }, 60);
 }
 
 function highlight(text, query) {
