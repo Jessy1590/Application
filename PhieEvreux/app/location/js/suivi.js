@@ -225,6 +225,11 @@
       const contactCount = (d.contacts || []).length;
       const canCloturer = canCloturerRole && d.statut === 'actif';
       const fauteuilNote = fauteuilBasculeNote(d, rules, params);
+      const creOff = (etape, code) => !LocationData.isCreationActif(params, etape, code);
+      const creHint = (etape, code) =>
+        creOff(etape, code)
+          ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>'
+          : '';
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -243,14 +248,14 @@
           <summary>Patient</summary>
           <div class="loc-card-body">
             <div class="loc-grid-2">
-              <label class="loc-field">Nom<input name="p_nom" value="${esc(p.nom)}"></label>
-              <label class="loc-field">Prénom<input name="p_prenom" value="${esc(p.prenom)}"></label>
-              <label class="loc-field">Naissance<input type="date" name="p_dn" value="${esc(p.date_naissance || '')}"></label>
-              <label class="loc-field loc-span-2">Adresse<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
+              <label class="loc-field">Nom${creHint('patient', 'patient_nom')}<input name="p_nom" value="${esc(p.nom)}"></label>
+              <label class="loc-field">Prénom${creHint('patient', 'patient_prenom')}<input name="p_prenom" value="${esc(p.prenom)}"></label>
+              <label class="loc-field">Naissance${creHint('patient', 'patient_date_naissance')}<input type="date" name="p_dn" value="${esc(p.date_naissance || '')}"></label>
+              <label class="loc-field loc-span-2">Adresse${creHint('patient', 'patient_adresse')}<textarea name="p_adresse" rows="2">${esc(p.adresse || '')}</textarea></label>
             </div>
             <div class="loc-grid-2" style="margin-top:10px">
-              <div class="loc-span-2">${LocationFields.blockHtml('phones', 'Téléphones')}</div>
-              <div class="loc-span-2">${LocationFields.blockHtml('mails', 'Mails')}</div>
+              <div class="loc-span-2">${LocationFields.blockHtml('phones', `Téléphones${creOff('patient', 'patient_telephone') ? ' (désactivé à la création)' : ''}`)}</div>
+              <div class="loc-span-2">${LocationFields.blockHtml('mails', `Mails${creOff('patient', 'patient_mails') ? ' (désactivé à la création)' : ''}`)}</div>
             </div>
           </div>
         </details>
@@ -259,8 +264,8 @@
           <summary>Dossier · ${esc(d.statut || '—')} · fin ${esc(d.date_fin || '—')}</summary>
           <div class="loc-card-body">
             <div class="loc-grid-2">
-              <label class="loc-field">Code OP<input name="code_op" value="${esc(d.code_op || '')}"></label>
-              <label class="loc-field">Caution<select name="caution">
+              <label class="loc-field">Code OP${creHint('personnel', 'code_op')}<input name="code_op" value="${esc(d.code_op || '')}"></label>
+              <label class="loc-field">Caution${creHint('personnel', 'caution')}<select name="caution">
                 <option value=""${!d.caution ? ' selected' : ''}>Rien</option>
                 <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
                 <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
@@ -274,7 +279,7 @@
                 <option value="pharmacie"${d.qui_facture === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
                 <option value="prestataire"${d.qui_facture === 'prestataire' ? ' selected' : ''}>Prestataire</option>
               </select></label>
-              <label class="loc-field">Date début<input type="date" name="date_debut" value="${esc(d.date_debut || '')}"></label>
+              <label class="loc-field">Date début${creHint('location', 'date_debut')}<input type="date" name="date_debut" value="${esc(d.date_debut || '')}"></label>
               <label class="loc-field">Fin courante<input type="text" value="${esc(d.date_fin || '')}" disabled></label>
               <label class="loc-check"><input type="checkbox" name="appareil_rendu"${d.appareil_rendu ? ' checked' : ''}> Appareil rendu</label>
               <label class="loc-check"><input type="checkbox" name="caution_rendue"${d.caution_rendue ? ' checked' : ''}> Caution rendue</label>
@@ -282,7 +287,7 @@
               <label class="loc-field">OP caution<input name="caution_rendue_op" value="${esc(d.caution_rendue_op || '')}"></label>
               <label class="loc-field">Date clôture<input type="date" name="date_cloture" value="${esc(d.date_cloture || '')}"></label>
               <label class="loc-field">OP clôture<input name="cloture_op" value="${esc(d.cloture_op || '')}"></label>
-              <label class="loc-field loc-span-2">Notes<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
+              <label class="loc-field loc-span-2">Notes${creHint('personnel', 'notes')}<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
             </div>
           </div>
         </details>
@@ -291,24 +296,24 @@
           <summary>Appareil · ${esc(LocationRules.typeLabel(a.type_appareil) || '—')}${appCount ? ` · ${appCount} hist.` : ''}</summary>
           <div class="loc-card-body">
             <div class="loc-appareil-actif loc-grid-2">
-              <label class="loc-field">Type<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
-              <label class="loc-field">Source<select name="a_source">
+              <label class="loc-field">Type${creHint('appareil', 'type_appareil')}<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
+              <label class="loc-field">Source${creHint('appareil', 'source')}<select name="a_source">
                 <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
                 <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
               </select></label>
-              <label class="loc-field">Matricule<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
-              <label class="loc-field">N° pharmacie<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
-              <label class="loc-field">Obtention<select name="a_obtention">
+              <label class="loc-field">Matricule${creHint('appareil', 'matricule')}<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
+              <label class="loc-field">N° pharmacie${creHint('appareil', 'numero_pharmacie')}<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
+              <label class="loc-field">Obtention${creHint('appareil', 'mode_obtention')}<select name="a_obtention">
                 <option value="">—</option>
                 <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
                 <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel</option>
               </select></label>
-              <label class="loc-field">Livraison<select name="a_livraison">
+              <label class="loc-field">Livraison${creHint('appareil', 'livraison')}<select name="a_livraison">
                 <option value="">—</option>
                 <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
                 <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Patient</option>
               </select></label>
-              <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite</label>
+              <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite${creOff('appareil', 'desinfection') ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>' : ''}</label>
               <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
               ${a.type_appareil === 'pese_bebe' ? `
                 <label class="loc-check"><input type="checkbox" name="a_pese_avance"${a.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
@@ -320,7 +325,7 @@
               ${a.type_appareil === 'tire_lait' ? `
                 <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
               ` : ''}
-              <label class="loc-field loc-span-2">Commentaire<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
+              <label class="loc-field loc-span-2">Commentaire${creHint('appareil', 'encart_texte')}<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
             </div>
             <h4>Historique</h4>
             <ul class="loc-history">

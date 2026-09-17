@@ -10,19 +10,6 @@
       .replace(/"/g, '&quot;');
   }
 
-  const CHAMP_KEYS = [
-    ['patient_nom', 'Nom patient'],
-    ['patient_prenom', 'Prénom patient'],
-    ['patient_date_naissance', 'Date de naissance'],
-    ['patient_adresse', 'Adresse'],
-    ['patient_telephone', 'Téléphone'],
-    ['code_op', 'Code OP'],
-    ['caution', 'Caution'],
-    ['type_appareil', 'Type appareil'],
-    ['date_debut', 'Date début'],
-    ['date_ordo', 'Date ordonnance'],
-  ];
-
   const DATA_TYPES = [
     ['texte', 'Texte'],
     ['date', 'Date'],
@@ -48,7 +35,7 @@
     'Pour ajouter un template hors règle, signalez-le via le bouton Bug (ou « Nouveau… » depuis une règle).';
 
   const BUG_HINT_CHAMPS =
-    'Vous pouvez ajouter ou supprimer des champs de création ci-dessous.';
+    'Champs spécifiques par type d’appareil (table location_champs_creation).';
 
   const MOTIF_LABELS = {
     prolongation: 'Prolongation',
@@ -238,11 +225,12 @@
     container.innerHTML = `
       <div class="loc-params">
         <nav class="loc-params-tabs" role="tablist">
-          <button type="button" class="loc-admin-tab active" data-tab="params">Champs &amp; seuils</button>
+          <button type="button" class="loc-admin-tab active" data-tab="creation">Création dossier</button>
+          <button type="button" class="loc-admin-tab" data-tab="champs">Spécificité Appareil</button>
+          <button type="button" class="loc-admin-tab" data-tab="params">Champs &amp; seuils</button>
           <button type="button" class="loc-admin-tab" data-tab="prestataires">Prestataires</button>
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
-          <button type="button" class="loc-admin-tab" data-tab="champs">Champs création</button>
           <button type="button" class="loc-admin-tab" data-tab="acces">Accès</button>
         </nav>
         <div class="loc-params-body" id="locParamsBody"></div>
@@ -252,13 +240,17 @@
 
     const body = container.querySelector('#locParamsBody');
     const msg = container.querySelector('#locParamsMsg');
-    let tab = 'params';
+    let tab = 'creation';
     /** @type {string|null} */
     let selectedRuleId = null;
     /** @type {string|null} */
     let selectedChampId = null;
     /** @type {string|null} */
     let selectedMotif = null;
+    /** @type {string|null} */
+    let selectedTypeAppareil = null;
+    /** @type {string} */
+    let selectedCreationEtape = LocationData.CREATION_ETAPES[0]?.id || 'patient';
 
     container.querySelectorAll('[data-tab]').forEach((b) => {
       b.addEventListener('click', async () => {
@@ -286,12 +278,14 @@
       showMsg('');
       body.innerHTML = '<p class="loc-muted">Chargement…</p>';
       try {
-        if (tab === 'params') await renderParams();
+        if (tab === 'creation') await renderCreationDossier();
+        else if (tab === 'champs') await renderChampsCreation();
+        else if (tab === 'params') await renderParams();
         else if (tab === 'prestataires') await renderPrestataires();
         else if (tab === 'regles') await renderRegles();
         else if (tab === 'templates') await renderTemplates();
         else if (tab === 'acces') await renderAcces();
-        else await renderChampsCreation();
+        else await renderCreationDossier();
       } catch (e) {
         body.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
@@ -389,24 +383,94 @@
       });
     }
 
+    async function renderCreationDossier() {
+      LocationData.invalidateCache();
+      const params = await LocationData.loadParams();
+      const etapes = LocationData.CREATION_ETAPES;
+      if (!etapes.some((e) => e.id === selectedCreationEtape)) {
+        selectedCreationEtape = etapes[0]?.id || 'patient';
+      }
+      const etape = etapes.find((e) => e.id === selectedCreationEtape) || etapes[0];
+
+      body.innerHTML = `
+        <p class="loc-muted">Visibilité et caractère obligatoire des champs du formulaire Création (hors spécificités appareil).</p>
+        <div class="loc-motif-chips" role="tablist" aria-label="Étapes création">
+          ${etapes
+            .map(
+              (e) => `
+            <button type="button" class="loc-motif-chip${e.id === selectedCreationEtape ? ' active' : ''}" data-creation-etape="${esc(e.id)}">
+              ${esc(e.label)}
+            </button>`
+            )
+            .join('')}
+        </div>
+        <p class="loc-muted loc-autosave-hint">Étape : <strong>${esc(etape?.label || '')}</strong> — enregistrement auto.</p>
+        <div class="loc-admin-list" data-creation-fields>
+          ${(etape?.fields || [])
+            .map((f) => {
+              const cfg = LocationData.getCreationChamp(params, etape.id, f.code);
+              return `<div class="loc-admin-row" data-creation-code="${esc(f.code)}">
+                <strong class="loc-span-2">${esc(f.label)}</strong>
+                <label class="loc-check"><input type="checkbox" data-f="actif"${cfg.actif ? ' checked' : ''}> Activé</label>
+                <label class="loc-check"><input type="checkbox" data-f="obligatoire"${cfg.obligatoire ? ' checked' : ''}${cfg.actif ? '' : ' disabled'}> Obligatoire</label>
+              </div>`;
+            })
+            .join('') || '<p class="loc-muted">Aucun champ.</p>'}
+        </div>
+      `;
+
+      body.querySelectorAll('[data-creation-etape]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          selectedCreationEtape = btn.dataset.creationEtape;
+          renderCreationDossier();
+        });
+      });
+
+      const persist = async () => {
+        const uiMap = {};
+        for (const e of etapes) {
+          uiMap[e.id] = {};
+          for (const f of e.fields) {
+            const cfg = LocationData.getCreationChamp(params, e.id, f.code);
+            uiMap[e.id][f.code] = { actif: cfg.actif, obligatoire: cfg.obligatoire };
+          }
+        }
+        body.querySelectorAll('[data-creation-code]').forEach((row) => {
+          const code = row.dataset.creationCode;
+          const actif = row.querySelector('[data-f=actif]')?.checked !== false;
+          const obligatoire = row.querySelector('[data-f=obligatoire]')?.checked === true;
+          uiMap[selectedCreationEtape][code] = { actif, obligatoire: actif && obligatoire };
+        });
+        try {
+          const { creation_champs, champs_obligatoires } = LocationData.buildCreationChampsPayload(uiMap);
+          await LocationData.setParam('creation_champs', creation_champs, ctx.userId);
+          await LocationData.setParam('champs_obligatoires', champs_obligatoires, ctx.userId);
+          Object.assign(params, { creation_champs, champs_obligatoires });
+          showMsg('Création dossier enregistrée.');
+          body.querySelectorAll('[data-creation-code]').forEach((row) => {
+            const actif = row.querySelector('[data-f=actif]')?.checked !== false;
+            const obl = row.querySelector('[data-f=obligatoire]');
+            if (obl) obl.disabled = !actif;
+          });
+        } catch (e) {
+          showMsg(e.message, true);
+        }
+      };
+
+      body.querySelectorAll('[data-creation-code] input').forEach((el) => {
+        el.addEventListener('change', persist);
+      });
+    }
+
     async function renderParams() {
       LocationData.invalidateCache();
       const params = await LocationData.loadParams();
-      const champs = params.champs_obligatoires || {};
       const seuil = params.seuil_contact_jours ?? 7;
       const seuilReclame = params.seuil_reclame_mois ?? 6;
       const qui = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
       const delaiFacture = params.facture_delai_cloture_jours ?? 30;
 
       body.innerHTML = `
-        <h3>Champs obligatoires à la création</h3>
-        <div class="loc-checks">
-          ${CHAMP_KEYS.map(
-            ([k, label]) => `
-            <label class="loc-check"><input type="checkbox" data-champ="${k}"${champs[k] !== false ? ' checked' : ''}> ${esc(label)}</label>
-          `
-          ).join('')}
-        </div>
         <h3>Seuils</h3>
         <div class="loc-grid-2">
           <label class="loc-field">Seuil contact (J-n)<input type="number" min="0" id="adSeuil" value="${Number(seuil)}"></label>
@@ -418,16 +482,12 @@
           </select></label>
         </div>
         <p class="loc-muted">Sans règle spécifique : mois depuis la fin de la dernière prolongation (&lt; seuil → prolongation ; ≥ seuil → réclamer l’appareil).</p>
+        <p class="loc-muted">Visibilité / obligation des champs création : onglet <strong>Création dossier</strong>.</p>
         <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
 
       const persist = async () => {
-        const nextChamps = {};
-        body.querySelectorAll('[data-champ]').forEach((c) => {
-          nextChamps[c.dataset.champ] = c.checked;
-        });
         try {
-          await LocationData.setParam('champs_obligatoires', nextChamps, ctx.userId);
           await LocationData.setParam('seuil_contact_jours', Number(body.querySelector('#adSeuil').value), ctx.userId);
           await LocationData.setParam(
             'seuil_reclame_mois',
@@ -862,28 +922,51 @@
 
     async function renderChampsCreation() {
       const rows = await LocationData.listChampsCreation(null, false);
-      if (!selectedChampId && rows[0]) selectedChampId = rows[0].id;
-      if (selectedChampId && !rows.some((r) => r.id === selectedChampId)) {
-        selectedChampId = rows[0]?.id || null;
+      const typeEntries = Object.entries(LocationRules.TYPE_LABELS);
+      if (!selectedTypeAppareil && typeEntries[0]) selectedTypeAppareil = typeEntries[0][0];
+      if (selectedTypeAppareil && !LocationRules.TYPE_LABELS[selectedTypeAppareil]) {
+        selectedTypeAppareil = typeEntries[0]?.[0] || null;
       }
-      const current = rows.find((r) => r.id === selectedChampId) || null;
-      const nextOrdre = rows.reduce((m, r) => Math.max(m, Number(r.ordre) || 0), 0) + 10;
+      const filtered = selectedTypeAppareil
+        ? rows.filter((r) => r.type_appareil === selectedTypeAppareil)
+        : rows;
+      if (!selectedChampId && filtered[0]) selectedChampId = filtered[0].id;
+      if (selectedChampId && !filtered.some((r) => r.id === selectedChampId)) {
+        selectedChampId = filtered[0]?.id || null;
+      }
+      const current = filtered.find((r) => r.id === selectedChampId) || null;
+      const nextOrdre =
+        rows
+          .filter((r) => r.type_appareil === selectedTypeAppareil)
+          .reduce((m, r) => Math.max(m, Number(r.ordre) || 0), 0) + 10;
 
       body.innerHTML = `
         <p class="loc-admin-hint">${esc(BUG_HINT_CHAMPS)}</p>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique en changeant de champ.</p>
+        <div class="loc-motif-chips" role="tablist" aria-label="Types d’appareil">
+          ${typeEntries
+            .map(
+              ([k, v]) => `
+            <button type="button" class="loc-motif-chip${k === selectedTypeAppareil ? ' active' : ''}" data-type-appareil="${esc(k)}">
+              ${esc(v)}
+            </button>`
+            )
+            .join('')}
+        </div>
+        <p class="loc-muted loc-autosave-hint">Type : <strong>${esc(
+          LocationRules.typeLabel(selectedTypeAppareil)
+        )}</strong> — enregistrement auto en changeant de champ.</p>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
             ${
-              rows
+              filtered
                 .map(
                   (r) => `
               <button type="button" class="loc-params-nav-item${r.id === selectedChampId ? ' active' : ''}" data-pick-champ="${r.id}">
                 <strong>${esc(r.libelle || r.code)}</strong>
-                <span>${esc(LocationRules.typeLabel(r.type_appareil))} · ${esc(r.code)}</span>
+                <span>${esc(r.code)}${r.actif === false ? ' · inactif' : ''}</span>
               </button>`
                 )
-                .join('') || '<p class="loc-muted">Aucun champ.</p>'
+                .join('') || '<p class="loc-muted">Aucun champ pour ce type.</p>'
             }
             <button type="button" class="loc-btn" id="adAddChamp" style="margin-top:8px">＋ Ajouter un champ</button>
           </div>
@@ -893,7 +976,7 @@
                 ? `
               <div class="loc-grid-2">
                 <label class="loc-field">Type appareil<select data-f="type_appareil">
-                  ${Object.entries(LocationRules.TYPE_LABELS)
+                  ${typeEntries
                     .map(
                       ([k, v]) =>
                         `<option value="${k}"${current.type_appareil === k ? ' selected' : ''}>${esc(v)}</option>`
@@ -931,8 +1014,28 @@
       const editor = body.querySelector('[data-champ-editor]');
       if (editor) bindOptionsForm(editor);
 
+      body.querySelectorAll('[data-type-appareil]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const nextType = btn.dataset.typeAppareil;
+          if (nextType === selectedTypeAppareil) return;
+          if (selectedChampId) {
+            const ok = await saveCurrentChamp(true);
+            if (!ok) return;
+          }
+          selectedTypeAppareil = nextType;
+          selectedChampId = null;
+          await renderChampsCreation();
+        });
+      });
+
       editor?.querySelector('[data-f=data_type]')?.addEventListener('change', async () => {
         await saveCurrentChamp(true);
+        await renderChampsCreation();
+      });
+
+      editor?.querySelector('[data-f=type_appareil]')?.addEventListener('change', async () => {
+        await saveCurrentChamp(true);
+        selectedTypeAppareil = editor.querySelector('[data-f=type_appareil]').value;
         await renderChampsCreation();
       });
 
@@ -955,7 +1058,7 @@
         }
         try {
           const created = await LocationData.upsertChampCreation({
-            type_appareil: 'tens',
+            type_appareil: selectedTypeAppareil || 'tens',
             code: `champ_${Date.now().toString(36)}`,
             libelle: 'Nouveau champ',
             data_type: 'texte',

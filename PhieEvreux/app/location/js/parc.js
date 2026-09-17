@@ -169,7 +169,7 @@
         .map((g) => {
           const label = LocationRules.typeLabel(g.type);
           const count = g.dossiers?.length ?? g.items?.length ?? 0;
-          return `<details class="loc-card loc-parc-group" open>
+          return `<details class="loc-card loc-parc-group">
             <summary>${esc(label)} <span class="loc-parc-count">${count}</span></summary>
             <div class="loc-card-body loc-parc-group-body">
               ${itemRenderer(g)}

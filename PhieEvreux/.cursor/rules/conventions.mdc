@@ -25,7 +25,7 @@ alwaysApply: false
 ## Nommage données
 - Schéma `phieevreux` ; table historique `anciennelocation`.
 - Préfixe `location_` pour le métier Location.
-- Params clés usuels : `acces_roles`, `champs_obligatoires`, `seuil_contact_jours`, `seuil_reclame_mois`, `qui_facture_defaut`, `facture_delai_cloture_jours` (évent. `theme_defaut` en base — thème UI via `localStorage` / `PhieTheme`).
+- Params clés usuels : `acces_roles`, `creation_champs` (visibilité/obligation formulaire Création), `champs_obligatoires` (miroir legacy), `seuil_contact_jours`, `seuil_reclame_mois`, `qui_facture_defaut`, `facture_delai_cloture_jours` (évent. `theme_defaut` en base — thème UI via `localStorage` / `PhieTheme`).
 - Bugs : `type` `bug`|`amelioration` ; `statut` `nouveau`|`en_cours`|`modifie`|`impossible`|`annule`.
 - Équipe : rôles `administrateur`|`gestionnaire`|`personnel`.
 - Contacts Location : `phase` `commentaire`|`appel` ; statuts ouverts / attente / perte selon `contact.js`.

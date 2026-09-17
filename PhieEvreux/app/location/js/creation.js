@@ -70,7 +70,8 @@
   async function mount(root, ctx) {
     const params = await LocationData.loadParams();
     const prestataires = await LocationData.listPrestataires(true);
-    const req = (k) => LocationData.isRequired(params, k);
+    const show = (etape, code) => LocationData.isCreationActif(params, etape, code);
+    const req = (etape, code) => LocationData.isCreationRequired(params, etape, code);
     const quiFactureDefaut = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
     const champsDef = await LocationData.listChampsCreation(null, true);
 
@@ -176,11 +177,28 @@
 
     function collectPatient() {
       // Étapes suivantes : champs absents du DOM — ne pas écraser state.patient
-      if (!formEl.querySelector('[name=nom]')) return;
-      const nom = formEl.querySelector('[name=nom]')?.value.trim() || '';
-      const prenom = formEl.querySelector('[name=prenom]')?.value.trim() || '';
-      const date_naissance = formEl.querySelector('[name=date_naissance]')?.value || '';
-      const adresse = formEl.querySelector('[name=adresse]')?.value.trim() || '';
+      if (
+        !formEl.querySelector('[name=nom]') &&
+        !formEl.querySelector('[name=prenom]') &&
+        !formEl.querySelector('[name=date_naissance]') &&
+        !formEl.querySelector('[name=adresse]') &&
+        !formEl.querySelector('#phonesList') &&
+        !formEl.querySelector('#mailsList')
+      ) {
+        return;
+      }
+      const nom = formEl.querySelector('[name=nom]')
+        ? formEl.querySelector('[name=nom]').value.trim()
+        : state.patient.nom;
+      const prenom = formEl.querySelector('[name=prenom]')
+        ? formEl.querySelector('[name=prenom]').value.trim()
+        : state.patient.prenom;
+      const date_naissance = formEl.querySelector('[name=date_naissance]')
+        ? formEl.querySelector('[name=date_naissance]').value || ''
+        : state.patient.date_naissance;
+      const adresse = formEl.querySelector('[name=adresse]')
+        ? formEl.querySelector('[name=adresse]').value.trim()
+        : state.patient.adresse;
       const phonesList = formEl.querySelector('#phonesList');
       const mailsList = formEl.querySelector('#mailsList');
       const telephones = phonesList
@@ -200,12 +218,22 @@
     }
 
     function collectPersonnel() {
-      // Étapes suivantes : champs absents du DOM — ne pas écraser code_op / caution / notes
-      if (!formEl.querySelector('[name=code_op]')) return;
-      state.code_op = formEl.querySelector('[name=code_op]')?.value.trim() || '';
-      const caution = formEl.querySelector('[name=caution]')?.value;
-      state.caution = caution || '';
-      state.notes = formEl.querySelector('[name=notes]')?.value.trim() || '';
+      if (
+        !formEl.querySelector('[name=code_op]') &&
+        !formEl.querySelector('[name=caution]') &&
+        !formEl.querySelector('[name=notes]')
+      ) {
+        return;
+      }
+      if (formEl.querySelector('[name=code_op]')) {
+        state.code_op = formEl.querySelector('[name=code_op]').value.trim() || '';
+      }
+      if (formEl.querySelector('[name=caution]')) {
+        state.caution = formEl.querySelector('[name=caution]').value || '';
+      }
+      if (formEl.querySelector('[name=notes]')) {
+        state.notes = formEl.querySelector('[name=notes]').value.trim() || '';
+      }
     }
 
     function collectChampsExtra(type) {
@@ -229,19 +257,36 @@
 
     function collectAppareil() {
       if (!formEl.querySelector('[name=type_appareil]')) return;
-      const type = formEl.querySelector('[name=type_appareil]')?.value || 'aerosol';
-      const source = formEl.querySelector('[name=source]')?.value || 'parc';
+      const type = formEl.querySelector('[name=type_appareil]')?.value || state.appareil.type_appareil || 'aerosol';
+      const sourceEl = formEl.querySelector('[name=source]');
+      const source = sourceEl ? sourceEl.value || 'parc' : state.appareil.source || 'parc';
       const next = {
         type_appareil: type,
-        type_libelle: formEl.querySelector('[name=type_libelle]')?.value.trim() || '',
+        type_libelle: formEl.querySelector('[name=type_libelle]')
+          ? formEl.querySelector('[name=type_libelle]').value.trim() || ''
+          : state.appareil.type_libelle || '',
         source,
-        prestataire_id: formEl.querySelector('[name=prestataire_id]')?.value || null,
-        matricule: formEl.querySelector('[name=matricule]')?.value.trim() || '',
-        numero_pharmacie: formEl.querySelector('[name=numero_pharmacie]')?.value.trim() || '',
-        mode_obtention: formEl.querySelector('[name=mode_obtention]')?.value || null,
-        livraison: formEl.querySelector('[name=livraison]')?.value || null,
-        desinfection: !!formEl.querySelector('[name=desinfection]')?.checked,
-        encart_texte: formEl.querySelector('[name=encart_texte]')?.value ?? state.appareil.encart_texte,
+        prestataire_id: formEl.querySelector('[name=prestataire_id]')
+          ? formEl.querySelector('[name=prestataire_id]').value || null
+          : state.appareil.prestataire_id,
+        matricule: formEl.querySelector('[name=matricule]')
+          ? formEl.querySelector('[name=matricule]').value.trim() || ''
+          : state.appareil.matricule || '',
+        numero_pharmacie: formEl.querySelector('[name=numero_pharmacie]')
+          ? formEl.querySelector('[name=numero_pharmacie]').value.trim() || ''
+          : state.appareil.numero_pharmacie || '',
+        mode_obtention: formEl.querySelector('[name=mode_obtention]')
+          ? formEl.querySelector('[name=mode_obtention]').value || null
+          : state.appareil.mode_obtention,
+        livraison: formEl.querySelector('[name=livraison]')
+          ? formEl.querySelector('[name=livraison]').value || null
+          : state.appareil.livraison,
+        desinfection: formEl.querySelector('[name=desinfection]')
+          ? !!formEl.querySelector('[name=desinfection]').checked
+          : !!state.appareil.desinfection,
+        encart_texte: formEl.querySelector('[name=encart_texte]')
+          ? formEl.querySelector('[name=encart_texte]').value
+          : state.appareil.encart_texte,
         champs_extra: collectChampsExtra(type),
       };
       if (!next.prestataire_id) next.prestataire_id = null;
@@ -258,40 +303,67 @@
     }
 
     function collectOrdo() {
-      state.date_debut = formEl.querySelector('[name=date_debut]')?.value || null;
-      state.date_ordo = formEl.querySelector('[name=date_ordo]')?.value || null;
-      state.duree = Number(formEl.querySelector('[name=duree]')?.value || 0);
-      state.unite = formEl.querySelector('[name=unite]')?.value || 'semaines';
+      if (formEl.querySelector('[name=date_debut]')) {
+        state.date_debut = formEl.querySelector('[name=date_debut]').value || null;
+      }
+      if (formEl.querySelector('[name=date_ordo]')) {
+        state.date_ordo = formEl.querySelector('[name=date_ordo]').value || null;
+      }
+      if (formEl.querySelector('[name=duree]')) {
+        state.duree = Number(formEl.querySelector('[name=duree]').value || 0);
+      }
+      if (formEl.querySelector('[name=unite]')) {
+        state.unite = formEl.querySelector('[name=unite]').value || 'semaines';
+      }
     }
 
     function validateStep() {
       showMsg('');
       if (step === 0) {
         collectPatient();
-        if (req('patient_nom') && !state.patient.nom) return showMsg('Nom obligatoire.', true), false;
-        if (req('patient_prenom') && !state.patient.prenom) return showMsg('Prénom obligatoire.', true), false;
-        if (req('patient_date_naissance') && !state.patient.date_naissance) return showMsg('Date de naissance obligatoire.', true), false;
-        if (req('patient_adresse') && !state.patient.adresse) return showMsg('Adresse obligatoire.', true), false;
-        if (req('patient_telephone') && !state.patient.telephones.length) return showMsg('Téléphone obligatoire.', true), false;
+        if (req('patient', 'patient_nom') && !state.patient.nom) return showMsg('Nom obligatoire.', true), false;
+        if (req('patient', 'patient_prenom') && !state.patient.prenom) return showMsg('Prénom obligatoire.', true), false;
+        if (req('patient', 'patient_date_naissance') && !state.patient.date_naissance) {
+          return showMsg('Date de naissance obligatoire.', true), false;
+        }
+        if (req('patient', 'patient_adresse') && !state.patient.adresse) return showMsg('Adresse obligatoire.', true), false;
+        if (req('patient', 'patient_telephone') && !state.patient.telephones.length) {
+          return showMsg('Téléphone obligatoire.', true), false;
+        }
       }
       if (step === 1) {
         collectPersonnel();
-        if (req('code_op') && !state.code_op) return showMsg('Code OP obligatoire.', true), false;
-        if (req('caution') && !state.caution) return showMsg('Caution obligatoire.', true), false;
+        if (req('personnel', 'code_op') && !state.code_op) return showMsg('Code OP obligatoire.', true), false;
+        if (req('personnel', 'caution') && !state.caution) return showMsg('Caution obligatoire.', true), false;
       }
       if (step === 2) {
         collectAppareil();
-        if (req('type_appareil') && !state.appareil.type_appareil) return showMsg('Type d’appareil obligatoire.', true), false;
-        if (state.appareil.type_appareil === 'autre' && !state.appareil.type_libelle) {
+        if (req('appareil', 'type_appareil') && !state.appareil.type_appareil) {
+          return showMsg('Type d’appareil obligatoire.', true), false;
+        }
+        if (
+          state.appareil.type_appareil === 'autre' &&
+          show('appareil', 'type_libelle') &&
+          req('appareil', 'type_libelle') &&
+          !state.appareil.type_libelle
+        ) {
           return showMsg('Précisez le type d’appareil.', true), false;
         }
         if (state.appareil.source === 'prestataire') {
-          if (!state.appareil.prestataire_id) return showMsg('Prestataire obligatoire.', true), false;
-          if (!state.appareil.mode_obtention) return showMsg('Mode d’obtention obligatoire.', true), false;
-          if (!state.appareil.livraison) return showMsg('Livraison obligatoire.', true), false;
+          if (req('appareil', 'prestataire_id') && !state.appareil.prestataire_id) {
+            return showMsg('Prestataire obligatoire.', true), false;
+          }
+          if (req('appareil', 'mode_obtention') && !state.appareil.mode_obtention) {
+            return showMsg('Mode d’obtention obligatoire.', true), false;
+          }
+          if (req('appareil', 'livraison') && !state.appareil.livraison) {
+            return showMsg('Livraison obligatoire.', true), false;
+          }
         }
         if (state.appareil.source === 'parc') {
-          if (!state.appareil.numero_pharmacie) return showMsg('N° pharmacie obligatoire pour un appareil du parc.', true), false;
+          if (req('appareil', 'numero_pharmacie') && !state.appareil.numero_pharmacie) {
+            return showMsg('N° pharmacie obligatoire pour un appareil du parc.', true), false;
+          }
         }
         for (const champ of champsForType(state.appareil.type_appareil)) {
           if (!champ.obligatoire) continue;
@@ -305,9 +377,14 @@
       }
       if (step === 3) {
         collectOrdo();
-        if (req('date_debut') && !state.date_debut) return showMsg('Date de début obligatoire.', true), false;
-        if (req('date_ordo') && !state.date_ordo) return showMsg('Date d’ordonnance obligatoire.', true), false;
-        if (!state.duree || state.duree < 1) return showMsg('Durée invalide.', true), false;
+        if (req('location', 'date_debut') && !state.date_debut) return showMsg('Date de début obligatoire.', true), false;
+        if (req('location', 'date_ordo') && !state.date_ordo) return showMsg('Date d’ordonnance obligatoire.', true), false;
+        if (show('location', 'duree') && req('location', 'duree') && (!state.duree || state.duree < 1)) {
+          return showMsg('Durée invalide.', true), false;
+        }
+        if (!show('location', 'duree') && (!state.duree || state.duree < 1)) {
+          state.duree = 10;
+        }
       }
       return true;
     }
@@ -318,23 +395,27 @@
           <input type="search" id="crePatientSearch" placeholder="Rechercher un patient existant (nom / prénom)">
           <div class="loc-suggest" id="creSuggest" hidden></div>
         </div>
-        ${field('Nom', `<input name="nom" value="${esc(state.patient.nom)}" autocomplete="family-name">`, req('patient_nom'))}
-        ${field('Prénom', `<input name="prenom" value="${esc(state.patient.prenom)}" autocomplete="given-name">`, req('patient_prenom'))}
-        ${field('Date de naissance', `<input name="date_naissance" type="date" value="${esc(state.patient.date_naissance || '')}">`, req('patient_date_naissance'))}
-        ${field('Adresse', `<textarea name="adresse" rows="2">${esc(state.patient.adresse || '')}</textarea>`, req('patient_adresse'))}
-        ${LocationFields.blockHtml('phones', `Téléphones${req('patient_telephone') ? ' *' : ''}`)}
-        ${LocationFields.blockHtml('mails', 'Mails')}
+        ${show('patient', 'patient_nom') ? field('Nom', `<input name="nom" value="${esc(state.patient.nom)}" autocomplete="family-name">`, req('patient', 'patient_nom')) : ''}
+        ${show('patient', 'patient_prenom') ? field('Prénom', `<input name="prenom" value="${esc(state.patient.prenom)}" autocomplete="given-name">`, req('patient', 'patient_prenom')) : ''}
+        ${show('patient', 'patient_date_naissance') ? field('Date de naissance', `<input name="date_naissance" type="date" value="${esc(state.patient.date_naissance || '')}">`, req('patient', 'patient_date_naissance')) : ''}
+        ${show('patient', 'patient_adresse') ? field('Adresse', `<textarea name="adresse" rows="2">${esc(state.patient.adresse || '')}</textarea>`, req('patient', 'patient_adresse')) : ''}
+        ${show('patient', 'patient_telephone') ? LocationFields.blockHtml('phones', `Téléphones${req('patient', 'patient_telephone') ? ' *' : ''}`) : ''}
+        ${show('patient', 'patient_mails') ? LocationFields.blockHtml('mails', 'Mails') : ''}
       `;
-      LocationFields.mountPhones(
-        formEl.querySelector('#phonesList'),
-        formEl.querySelector('#addPhoneBtn'),
-        state.patient.telephones
-      );
-      LocationFields.mountMails(
-        formEl.querySelector('#mailsList'),
-        formEl.querySelector('#addMailBtn'),
-        state.patient.mails
-      );
+      if (show('patient', 'patient_telephone')) {
+        LocationFields.mountPhones(
+          formEl.querySelector('#phonesList'),
+          formEl.querySelector('#addPhoneBtn'),
+          state.patient.telephones
+        );
+      }
+      if (show('patient', 'patient_mails')) {
+        LocationFields.mountMails(
+          formEl.querySelector('#mailsList'),
+          formEl.querySelector('#addMailBtn'),
+          state.patient.mails
+        );
+      }
       const search = formEl.querySelector('#crePatientSearch');
       const suggest = formEl.querySelector('#creSuggest');
       let timer;
@@ -376,13 +457,13 @@
 
     function renderPersonnel() {
       formEl.innerHTML = `
-        ${field('Code OP', `<input name="code_op" value="${esc(state.code_op)}" placeholder="texte libre">`, req('code_op'))}
-        ${field('Caution', `<select name="caution">
+        ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}" placeholder="texte libre">`, req('personnel', 'code_op')) : ''}
+        ${show('personnel', 'caution') ? field('Caution', `<select name="caution">
           <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}>Rien</option>
           <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
           <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Espèces</option>
-        </select>`, req('caution'))}
-        ${field('Notes', `<textarea name="notes" rows="2">${esc(state.notes)}</textarea>`, false)}
+        </select>`, req('personnel', 'caution')) : ''}
+        ${show('personnel', 'notes') ? field('Notes', `<textarea name="notes" rows="2">${esc(state.notes)}</textarea>`, req('personnel', 'notes')) : ''}
       `;
     }
 
@@ -400,38 +481,38 @@
 
       formEl.innerHTML = `
         ${attentions}
-        ${field('Type d’appareil', `<select name="type_appareil">
+        ${show('appareil', 'type_appareil') ? field('Type d’appareil', `<select name="type_appareil">
           ${TYPES.map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
-        </select>`, req('type_appareil'))}
-        ${autre ? field('Libellé (autre)', `<input name="type_libelle" value="${esc(state.appareil.type_libelle || '')}">`, true) : ''}
-        ${field('Source', `<select name="source">
+        </select>`, req('appareil', 'type_appareil')) : `<input type="hidden" name="type_appareil" value="${esc(state.appareil.type_appareil)}">`}
+        ${autre && show('appareil', 'type_libelle') ? field('Libellé (autre)', `<input name="type_libelle" value="${esc(state.appareil.type_libelle || '')}">`, req('appareil', 'type_libelle')) : ''}
+        ${show('appareil', 'source') ? field('Source', `<select name="source">
           <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
           <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
-        </select>`, true)}
+        </select>`, req('appareil', 'source')) : `<input type="hidden" name="source" value="${esc(state.appareil.source)}">`}
         ${prest ? `
-          ${field('Prestataire', `<select name="prestataire_id">
+          ${show('appareil', 'prestataire_id') ? field('Prestataire', `<select name="prestataire_id">
             <option value="">—</option>
             ${prestataires.map((p) => `<option value="${p.id}"${state.appareil.prestataire_id === p.id ? ' selected' : ''}>${esc(p.nom)}</option>`).join('')}
-          </select>`, true)}
-          ${field('Matricule', `<input name="matricule" value="${esc(state.appareil.matricule || '')}" placeholder="si disponible">`, false)}
-          ${field('Obtention', `<select name="mode_obtention">
+          </select>`, req('appareil', 'prestataire_id')) : ''}
+          ${show('appareil', 'matricule') ? field('Matricule', `<input name="matricule" value="${esc(state.appareil.matricule || '')}" placeholder="si disponible">`, req('appareil', 'matricule')) : ''}
+          ${show('appareil', 'mode_obtention') ? field('Obtention', `<select name="mode_obtention">
             <option value="depot"${state.appareil.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
             <option value="appel"${state.appareil.mode_obtention === 'appel' ? ' selected' : ''}>Appel pour l’obtenir</option>
-          </select>`, true)}
-          ${field('Livraison', `<select name="livraison">
+          </select>`, req('appareil', 'mode_obtention')) : ''}
+          ${show('appareil', 'livraison') ? field('Livraison', `<select name="livraison">
             <option value="pharmacie"${state.appareil.livraison === 'pharmacie' ? ' selected' : ''}>À la pharmacie</option>
             <option value="patient"${state.appareil.livraison === 'patient' ? ' selected' : ''}>Chez le patient</option>
-          </select>`, true)}
+          </select>`, req('appareil', 'livraison')) : ''}
         ` : ''}
         ${parc ? `
-          ${field('N° appareil pharmacie', `<input name="numero_pharmacie" value="${esc(state.appareil.numero_pharmacie || '')}">`, true)}
-          <label class="loc-check"><input type="checkbox" name="desinfection"${state.appareil.desinfection ? ' checked' : ''}> Désinfection faite</label>
+          ${show('appareil', 'numero_pharmacie') ? field('N° appareil pharmacie', `<input name="numero_pharmacie" value="${esc(state.appareil.numero_pharmacie || '')}">`, req('appareil', 'numero_pharmacie')) : ''}
+          ${show('appareil', 'desinfection') ? `<label class="loc-check"><input type="checkbox" name="desinfection"${state.appareil.desinfection ? ' checked' : ''}> Désinfection faite</label>` : ''}
         ` : ''}
         ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
-        ${field('Commentaire', `<textarea name="encart_texte" rows="3" placeholder="Notes libres…">${esc(state.appareil.encart_texte || '')}</textarea>`, false)}
+        ${show('appareil', 'encart_texte') ? field('Commentaire', `<textarea name="encart_texte" rows="3" placeholder="Notes libres…">${esc(state.appareil.encart_texte || '')}</textarea>`, req('appareil', 'encart_texte')) : ''}
       `;
 
-      formEl.querySelector('[name=type_appareil]').addEventListener('change', (e) => {
+      formEl.querySelector('[name=type_appareil]')?.addEventListener('change', (e) => {
         collectAppareil();
         const t = e.target.value;
         state.appareil.type_appareil = t;
@@ -442,7 +523,7 @@
         }
         render();
       });
-      formEl.querySelector('[name=source]').addEventListener('change', () => {
+      formEl.querySelector('[name=source]')?.addEventListener('change', () => {
         collectAppareil();
         render();
       });
@@ -451,14 +532,14 @@
     function renderOrdo() {
       const fin = LocationRules.addDuration(state.date_debut || state.date_ordo, state.duree, state.unite);
       formEl.innerHTML = `
-        ${field('Date de début', `<input type="date" name="date_debut" value="${esc(state.date_debut || '')}">`, req('date_debut'))}
-        ${field('Date d’ordonnance', `<input type="date" name="date_ordo" value="${esc(state.date_ordo || '')}">`, req('date_ordo'))}
-        ${field('Durée', `<input type="number" name="duree" min="1" value="${state.duree}">`, true)}
-        ${field('Unité', `<select name="unite">
+        ${show('location', 'date_debut') ? field('Date de début', `<input type="date" name="date_debut" value="${esc(state.date_debut || '')}">`, req('location', 'date_debut')) : `<input type="hidden" name="date_debut" value="${esc(state.date_debut || '')}">`}
+        ${show('location', 'date_ordo') ? field('Date d’ordonnance', `<input type="date" name="date_ordo" value="${esc(state.date_ordo || '')}">`, req('location', 'date_ordo')) : `<input type="hidden" name="date_ordo" value="${esc(state.date_ordo || '')}">`}
+        ${show('location', 'duree') ? field('Durée', `<input type="number" name="duree" min="1" value="${state.duree}">`, req('location', 'duree')) : `<input type="hidden" name="duree" value="${state.duree}">`}
+        ${show('location', 'unite') ? field('Unité', `<select name="unite">
           <option value="jours"${state.unite === 'jours' ? ' selected' : ''}>Jours</option>
           <option value="semaines"${state.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
           <option value="mois"${state.unite === 'mois' ? ' selected' : ''}>Mois</option>
-        </select>`, true)}
+        </select>`, req('location', 'unite')) : `<input type="hidden" name="unite" value="${esc(state.unite)}">`}
         <p class="loc-hint">Fin calculée : <strong>${fin || '—'}</strong></p>
       `;
       const recalc = () => {

@@ -53,11 +53,145 @@
     return rulesCache;
   }
 
-  function isRequired(params, key) {
+  /**
+   * Catalogue des champs du formulaire Création (étapes = chips admin « Création dossier »).
+   * creation_champs (location_parametres) :
+   *   { [etape]: { [code]: { actif?: boolean, obligatoire?: boolean } } }
+   * etapes : patient | personnel | appareil | location
+   * Defaults : actif=true ; obligatoire = champs_obligatoires[code] si clé historique, sinon defaultObligatoire.
+   * champs_obligatoires reste synchronisé à l’enregistrement admin (compat).
+   */
+  const CREATION_ETAPES = [
+    {
+      id: 'patient',
+      label: 'Patient',
+      fields: [
+        { code: 'patient_nom', label: 'Nom', defaultObligatoire: true },
+        { code: 'patient_prenom', label: 'Prénom', defaultObligatoire: true },
+        { code: 'patient_date_naissance', label: 'Date de naissance', defaultObligatoire: true },
+        { code: 'patient_adresse', label: 'Adresse', defaultObligatoire: true },
+        { code: 'patient_telephone', label: 'Téléphones', defaultObligatoire: true },
+        { code: 'patient_mails', label: 'Mails', defaultObligatoire: false },
+      ],
+    },
+    {
+      id: 'personnel',
+      label: 'Personnel',
+      fields: [
+        { code: 'code_op', label: 'Code OP', defaultObligatoire: true },
+        { code: 'caution', label: 'Caution', defaultObligatoire: true },
+        { code: 'notes', label: 'Notes', defaultObligatoire: false },
+      ],
+    },
+    {
+      id: 'appareil',
+      label: 'Appareil',
+      fields: [
+        { code: 'type_appareil', label: 'Type d’appareil', defaultObligatoire: true },
+        { code: 'type_libelle', label: 'Libellé (autre)', defaultObligatoire: true },
+        { code: 'source', label: 'Source', defaultObligatoire: true },
+        { code: 'prestataire_id', label: 'Prestataire', defaultObligatoire: true },
+        { code: 'matricule', label: 'Matricule', defaultObligatoire: false },
+        { code: 'mode_obtention', label: 'Obtention', defaultObligatoire: true },
+        { code: 'livraison', label: 'Livraison', defaultObligatoire: true },
+        { code: 'numero_pharmacie', label: 'N° appareil pharmacie', defaultObligatoire: true },
+        { code: 'desinfection', label: 'Désinfection faite', defaultObligatoire: false },
+        { code: 'encart_texte', label: 'Commentaire', defaultObligatoire: false },
+      ],
+    },
+    {
+      id: 'location',
+      label: 'Location',
+      fields: [
+        { code: 'date_debut', label: 'Date de début', defaultObligatoire: true },
+        { code: 'date_ordo', label: 'Date d’ordonnance', defaultObligatoire: true },
+        { code: 'duree', label: 'Durée', defaultObligatoire: true },
+        { code: 'unite', label: 'Unité', defaultObligatoire: true },
+      ],
+    },
+  ];
+
+  const CREATION_FIELD_INDEX = (() => {
+    const map = {};
+    for (const etape of CREATION_ETAPES) {
+      for (const f of etape.fields) {
+        map[f.code] = { etape: etape.id, ...f };
+      }
+    }
+    return map;
+  })();
+
+  function legacyObligatoire(params, key, fallback) {
     const champs = params?.champs_obligatoires;
-    if (!champs || typeof champs !== 'object') return true;
-    if (champs[key] === false) return false;
-    return champs[key] !== false;
+    if (champs && typeof champs === 'object' && Object.prototype.hasOwnProperty.call(champs, key)) {
+      return champs[key] !== false;
+    }
+    return fallback !== false;
+  }
+
+  /** @returns {{ actif: boolean, obligatoire: boolean }} */
+  function getCreationChamp(params, etape, code) {
+    const meta = CREATION_FIELD_INDEX[code];
+    const defObl = meta ? meta.defaultObligatoire !== false : true;
+    const entry = params?.creation_champs?.[etape]?.[code];
+    const actif = entry?.actif !== false;
+    let obligatoire;
+    if (entry && typeof entry.obligatoire === 'boolean') {
+      obligatoire = entry.obligatoire;
+    } else {
+      obligatoire = legacyObligatoire(params, code, defObl);
+    }
+    return { actif, obligatoire };
+  }
+
+  function isCreationActif(params, etape, code) {
+    return getCreationChamp(params, etape, code).actif;
+  }
+
+  function isCreationRequired(params, etape, code) {
+    const c = getCreationChamp(params, etape, code);
+    return c.actif && c.obligatoire;
+  }
+
+  /** Compat : clé historique champs_obligatoires / code catalogue. */
+  function isRequired(params, key) {
+    const meta = CREATION_FIELD_INDEX[key];
+    if (meta) return isCreationRequired(params, meta.etape, key);
+    return legacyObligatoire(params, key, true);
+  }
+
+  /** Fusionne creation_champs + miroir champs_obligatoires pour les codes historiques. */
+  function buildCreationChampsPayload(uiMap) {
+    const creation_champs = {};
+    const champs_obligatoires = {};
+    for (const etape of CREATION_ETAPES) {
+      creation_champs[etape.id] = {};
+      for (const f of etape.fields) {
+        const raw = uiMap?.[etape.id]?.[f.code] || {};
+        const actif = raw.actif !== false;
+        const obligatoire = raw.obligatoire === true;
+        creation_champs[etape.id][f.code] = { actif, obligatoire };
+        if (Object.prototype.hasOwnProperty.call(CREATION_FIELD_INDEX, f.code)) {
+          // Miroir legacy uniquement si le champ était dans l’ancien écran « champs obligatoires »
+          const legacyKeys = [
+            'patient_nom',
+            'patient_prenom',
+            'patient_date_naissance',
+            'patient_adresse',
+            'patient_telephone',
+            'code_op',
+            'caution',
+            'type_appareil',
+            'date_debut',
+            'date_ordo',
+          ];
+          if (legacyKeys.includes(f.code)) {
+            champs_obligatoires[f.code] = actif && obligatoire;
+          }
+        }
+      }
+    }
+    return { creation_champs, champs_obligatoires };
   }
 
   async function listPrestataires(actifsOnly) {
@@ -916,7 +1050,12 @@
     loadParams,
     setParam,
     loadRules,
+    CREATION_ETAPES,
+    getCreationChamp,
+    isCreationActif,
+    isCreationRequired,
     isRequired,
+    buildCreationChampsPayload,
     listPrestataires,
     searchPatients,
     createPatient,
