@@ -232,26 +232,25 @@
   }
 
   /**
-   * Remplit le tableau Suivi de lignes vierges jusqu’à coller le bandeau
-   * clôture en bas de la page A4 (zone imprimable).
-   * Mesure l’écart réel table → bandeau après que les lignes remplies
-   * soient posées (évite scrollHeight/flex trop tôt → trop de vierges).
+   * Remplit le tableau Suivi de lignes vierges pour combler l’écart
+   * entre la dernière ligne écrite et le bandeau clôture (déjà en bas).
+   * Algo : lignes remplies → bas de page posé → mesurer gap → floor(gap/rowH)
+   * → trim si chevauchement (flex/min-height:0 ne gonfle pas scrollHeight).
    */
   function fillFicheBlankRows(doc) {
     const body = doc.body;
     const tbody = doc.querySelector('.print-suivi-table tbody');
-    const table = doc.querySelector('.print-suivi-table');
     const cloture = doc.querySelector('.print-cloture');
-    if (!body || !tbody || !table || !cloture || !body.classList.contains('print-fiche')) return;
+    if (!body || !tbody || !cloture || !body.classList.contains('print-fiche')) return;
 
     const datePh = '<span class="print-date-ph">__/__/____</span>';
     const rowHtml =
       `<tr class="print-row-fill"><td class="col-date">${datePh}</td>` +
       `<td class="col-lib">&nbsp;</td><td class="col-check">□</td></tr>`;
 
+    // 1. Uniquement les lignes de suivi écrites (pas de vierges au départ).
     tbody.querySelectorAll('tr.print-row-fill').forEach((tr) => tr.remove());
-
-    // Forcer un reflow : hauteurs des lignes remplies (pre-line) stables.
+    // 2. Reflow : bandeau clôture déjà en bas (flex + margin-top:auto).
     void body.offsetHeight;
 
     tbody.insertAdjacentHTML('beforeend', rowHtml);
@@ -262,17 +261,31 @@
     void body.offsetHeight;
     if (rowH <= 0) return;
 
+    // 3. Espace entre dernière ligne écrite (ou thead) et début du bas de page.
+    const filledRows = tbody.querySelectorAll('tr:not(.print-row-fill)');
+    const lastWritten =
+      filledRows[filledRows.length - 1] ||
+      doc.querySelector('.print-suivi-table thead tr');
+    if (!lastWritten) return;
+
     const gap =
-      cloture.getBoundingClientRect().top - table.getBoundingClientRect().bottom;
-    const count = Math.max(0, Math.floor((gap - 1) / rowH));
+      cloture.getBoundingClientRect().top - lastWritten.getBoundingClientRect().bottom;
+    // 4. Exactement le nombre de lignes vierges qui tiennent dans le gap.
+    const count = Math.max(0, Math.floor(gap / rowH));
     const MAX = 50;
     for (let i = 0; i < Math.min(count, MAX); i++) {
       tbody.insertAdjacentHTML('beforeend', rowHtml);
     }
 
-    // Sécurité : retirer si débordement (arrondis / bordures).
+    // 5. Trim si chevauchement bandeau (ou débordement page) — pas seulement scrollHeight.
     void body.offsetHeight;
-    while (body.scrollHeight > body.clientHeight + 1) {
+    const overlapsCloture = () => {
+      const fills = tbody.querySelectorAll('tr.print-row-fill');
+      const last = fills[fills.length - 1];
+      if (!last) return false;
+      return last.getBoundingClientRect().bottom > cloture.getBoundingClientRect().top;
+    };
+    while (overlapsCloture() || body.scrollHeight > body.clientHeight + 1) {
       const fills = tbody.querySelectorAll('tr.print-row-fill');
       const last = fills[fills.length - 1];
       if (!last) break;
