@@ -849,6 +849,30 @@
       step = 0;
     }
 
+    function canDeleteAttente() {
+      return typeof ctx.can === 'function'
+        ? ctx.can('suppression_dossier')
+        : !!(ctx.isAdmin || ctx.isGestionnaire);
+    }
+
+    async function deleteAttenteDossier(d) {
+      if (!canDeleteAttente()) {
+        showMsg('Suppression non autorisée pour votre rôle.', true);
+        return;
+      }
+      const p = d.patient || {};
+      const label = `${p.nom || ''} ${p.prenom || ''}`.trim() || 'ce dossier';
+      if (!window.confirm(`Supprimer définitivement ${label} ?`)) return;
+      try {
+        await LocationData.deleteDossier(d.id);
+        if (state.dossier_id === d.id) resetForm();
+        await refreshAttenteList();
+        showMsg('Dossier supprimé.');
+      } catch (e) {
+        showMsg(e.message || 'Erreur suppression', true);
+      }
+    }
+
     async function refreshAttenteList() {
       try {
         const rows = await LocationData.listDossiers({ statut: 'en_attente' });
@@ -858,6 +882,7 @@
           return;
         }
         attenteBlock.hidden = false;
+        const showDelete = canDeleteAttente();
         attenteList.innerHTML = rows
           .map((d) => {
             const p = d.patient || {};
@@ -866,11 +891,17 @@
               : '—';
             const when = d.updated_at || d.created_at || '';
             const whenLabel = when ? String(when).slice(0, 10) : '';
-            return `<button type="button" class="loc-list-item" data-id="${esc(d.id)}">
-              <strong>${esc(p.nom || '')} ${esc(p.prenom || '')}</strong>
-              <span>${esc(type)}${whenLabel ? ' · ' + esc(whenLabel) : ''}</span>
-              <span>Reprendre</span>
-            </button>`;
+            const delBtn = showDelete
+              ? `<button type="button" class="loc-icon-btn" data-delete-attente="${esc(d.id)}" title="Supprimer" aria-label="Supprimer">🗑</button>`
+              : '';
+            return `<div class="loc-list-item loc-attente-row">
+              <button type="button" class="loc-attente-resume" data-id="${esc(d.id)}">
+                <strong>${esc(p.nom || '')} ${esc(p.prenom || '')}</strong>
+                <span>${esc(type)}${whenLabel ? ' · ' + esc(whenLabel) : ''}</span>
+                <span>Reprendre</span>
+              </button>
+              ${delBtn}
+            </div>`;
           })
           .join('');
         attenteList.querySelectorAll('[data-id]').forEach((b) => {
@@ -888,6 +919,14 @@
             } catch (e) {
               showMsg(e.message || 'Reprise impossible', true);
             }
+          });
+        });
+        attenteList.querySelectorAll('[data-delete-attente]').forEach((b) => {
+          b.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const d = rows.find((r) => r.id === b.dataset.deleteAttente);
+            if (d) void deleteAttenteDossier(d);
           });
         });
       } catch (e) {
