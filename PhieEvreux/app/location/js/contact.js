@@ -385,16 +385,60 @@
       </button>`;
     }
 
+    function canInvalidateCommentaire(contact) {
+      if (!contact || !isOpenContact(contact)) return false;
+      return contactPhase(contact) === PHASE_APPEL || !!contact.commentaire_fait_at;
+    }
+
     function suiviDetailBtn(d) {
       const dossierId = d?.id || current?.dossier_id || '';
       return `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(dossierId)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi" ${dossierId ? '' : 'disabled'}>✎</button>`;
     }
 
-    function bindDetailSuivi() {
+    function invalidateComBtn() {
+      if (!canInvalidateCommentaire(current)) return '';
+      return `<span class="loc-help-tip">
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-invalidate-com aria-label="Invalider le commentaire">IC</button>
+        <span class="loc-help-tip__bubble" role="tooltip">Invalider le commentaire : remet le dossier en file Commentaire (LGO à refaire).</span>
+      </span>`;
+    }
+
+    function detailHeadActions(d) {
+      return `<div class="loc-detail-head-actions">${invalidateComBtn()}${suiviDetailBtn(d)}</div>`;
+    }
+
+    function bindDetailHeadActions() {
       flowEl.querySelector('[data-suivi]')?.addEventListener('click', (ev) => {
         const id = ev.currentTarget.dataset.suivi;
         if (id) ctx.openSuivi?.(id);
       });
+      flowEl.querySelector('[data-invalidate-com]')?.addEventListener('click', () => {
+        void invalidateCommentaire();
+      });
+    }
+
+    async function invalidateCommentaire() {
+      const dossierId = current?.dossier_id || current?.dossier?.id;
+      if (!dossierId) return;
+      if (
+        !window.confirm(
+          'Invalider le commentaire ? Tout le dossier repasse en phase Commentaire (une seule file).'
+        )
+      ) {
+        return;
+      }
+      try {
+        showMsg('Enregistrement…');
+        const d = await LocationData.getDossier(dossierId);
+        await LocationData.invalidateDossierCommentaire(d.id, d.contacts || []);
+        showMsg('Dossier remis en phase Commentaire.');
+        current = null;
+        resetDraft();
+        await refresh();
+        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
+      } catch (e) {
+        showMsg(e.message || 'Erreur', true);
+      }
     }
 
     function renderList() {
@@ -713,15 +757,14 @@
             <p class="loc-muted">${esc(appareilFin)}</p>
             <p class="loc-muted">${esc(motifCommentLabel(current.motif))}</p>
           </div>
-          ${suiviDetailBtn(d)}
+          ${detailHeadActions(d)}
         </div>
         <div class="loc-step-card">
           <h4>Message à mettre sur le LGO</h4>
           <div class="loc-lgo-box" id="coLgoText">${esc(lgo) || '<span class="loc-muted">Aucun texte template.</span>'}</div>
           <button type="button" class="loc-btn loc-btn-ghost" id="coCopyLgo" ${lgo ? '' : 'disabled'}>Copier le message</button>
-          <label class="loc-check"><input type="checkbox" id="coCommentDone"> Commentaire mis sur le compte du patient</label>
           <label class="loc-check"><input type="checkbox" id="coMailAlready"> Mail déjà envoyé</label>
-          <button type="button" class="loc-btn" id="coValidateComment" disabled>Valider comme effectué</button>
+          <button type="button" class="loc-btn" id="coValidateComment">Commentaire mis sur le compte</button>
         </div>`;
     }
 
@@ -752,7 +795,7 @@
             <p class="loc-muted">${esc(appareilFin)}</p>
             <p class="loc-muted">${esc(current.commentaire || '—')}</p>
           </div>
-          ${suiviDetailBtn(d)}
+          ${detailHeadActions(d)}
         </div>
         ${
           journal
@@ -791,10 +834,11 @@
           btn('Retour', 'id="coBackAsk"', 'loc-btn-ghost') +
             choices.map(([label, code]) => btn(label, `data-yes-res="${code}"`, 'loc-btn-ghost')).join(''),
           `<label class="loc-field">Note<textarea id="coYesNote" rows="2" placeholder="Ex. a décroché, ton…"></textarea></label>
-           <p class="loc-hint">Puis choisissez le résultat (note vide par défaut).</p>`
+           <p class="loc-hint">Choisissez le résultat de l'appel</p>`
         );
       } else if (callStep === 'call_yes_autre') {
         const selected = draft.autreStatut || '';
+        const autreNote = draft.autreNote || draft.note || '';
         const statutChoices = [
           ['a_appeler', 'À appeler'],
           ['a_rappeler', 'À rappeler'],
@@ -804,8 +848,8 @@
         body = stepCard(
           'Autres — ce qui a été dit',
           btn('Retour', 'id="coBackYes"', 'loc-btn-ghost') + btn('Enregistrer', 'id="coSaveAutre"'),
-          `<label class="loc-field">Texte de l’échange<textarea id="coAutreNote" rows="3" placeholder="Obligatoire"></textarea></label>
-           <p class="loc-hint">Puis choisissez le statut :</p>
+          `<label class="loc-field">Texte de l’échange<textarea id="coAutreNote" rows="3" placeholder="Obligatoire">${esc(autreNote)}</textarea></label>
+           <p class="loc-hint">Choisissez le statut de l'appel</p>
            <div class="loc-step-actions" id="coAutreStatut">
              ${statutChoices
                .map(
@@ -878,7 +922,7 @@
             <p class="loc-muted">Résultat : ${esc(resultatLabel)}</p>
             <p class="loc-muted">${esc(current.commentaire || '—')}</p>
           </div>
-          ${suiviDetailBtn(d)}
+          ${detailHeadActions(d)}
         </div>
         ${
           journal
@@ -930,7 +974,7 @@
 
       if (isAttenteContact(current) || isPerteContact(current)) {
         flowEl.innerHTML = renderOutcomeFlow(d, p);
-        bindDetailSuivi();
+        bindDetailHeadActions();
         flowEl.querySelector('#coARappeler')?.addEventListener('click', () => recallToAppel(current));
         return;
       }
@@ -939,12 +983,8 @@
 
       if (phase === PHASE_COMMENTAIRE) {
         flowEl.innerHTML = renderCommentFlow(d, p);
-        bindDetailSuivi();
-        const done = flowEl.querySelector('#coCommentDone');
+        bindDetailHeadActions();
         const validate = flowEl.querySelector('#coValidateComment');
-        done?.addEventListener('change', () => {
-          if (validate) validate.disabled = !done.checked || !String(current.commentaire || '').trim();
-        });
         flowEl.querySelector('#coCopyLgo')?.addEventListener('click', async () => {
           const text = current.commentaire || '';
           if (!text) return;
@@ -956,14 +996,13 @@
           }
         });
         validate?.addEventListener('click', () => {
-          if (validate.disabled) return;
           validateCommentaire(!!flowEl.querySelector('#coMailAlready')?.checked);
         });
         return;
       }
 
       flowEl.innerHTML = renderCallFlowBody(d, p);
-      bindDetailSuivi();
+      bindDetailHeadActions();
 
       flowEl.querySelector('[data-call="yes"]')?.addEventListener('click', () => {
         draft.fromPatientRecall = false;

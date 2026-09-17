@@ -24,6 +24,56 @@
       .replace(/"/g, '&quot;');
   }
 
+  let helpTipSeq = 0;
+
+  function helpTipHtml(text, ariaLabel) {
+    helpTipSeq += 1;
+    const id = `loc-help-tip-cre-${helpTipSeq}`;
+    return `<span class="loc-help-tip">
+      <button type="button" class="loc-help-tip__btn" aria-label="${escStatic(ariaLabel)}" aria-expanded="false" aria-controls="${id}">?</button>
+      <span class="loc-help-tip__bubble" role="tooltip" id="${id}">${escStatic(text)}</span>
+    </span>`;
+  }
+
+  function closeHelpTips(root, except) {
+    (root || document).querySelectorAll('.loc-help-tip.is-open').forEach((wrap) => {
+      if (except && wrap === except) return;
+      wrap.classList.remove('is-open');
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function bindHelpTips(root) {
+    if (!root) return;
+    root.querySelectorAll('.loc-help-tip').forEach((wrap) => {
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (!btn || btn.dataset.helpBound === '1') return;
+      btn.dataset.helpBound = '1';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !wrap.classList.contains('is-open');
+        closeHelpTips(root, wrap);
+        wrap.classList.toggle('is-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        if (!willOpen) btn.blur();
+      });
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeHelpTips(root);
+          btn.blur();
+        }
+      });
+    });
+    if (root.dataset.helpOutsideBound === '1') return;
+    root.dataset.helpOutsideBound = '1';
+    root.addEventListener('click', (e) => {
+      if (e.target.closest('.loc-help-tip')) return;
+      closeHelpTips(root);
+    });
+  }
+
   function champInputHtml(champ, value) {
     if (champ.data_type === 'attention') return '';
     const code = champ.code;
@@ -521,7 +571,7 @@
 
     function renderPersonnel() {
       formEl.innerHTML = `
-        ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}" placeholder="texte libre">`, req('personnel', 'code_op')) : ''}
+        ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}">`, req('personnel', 'code_op')) : ''}
         ${show('personnel', 'caution') ? field('Caution', `<select name="caution">
           <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}>Rien</option>
           <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
@@ -559,7 +609,13 @@
             <option value="">—</option>
             ${prestataires.map((p) => `<option value="${p.id}"${state.appareil.prestataire_id === p.id ? ' selected' : ''}>${esc(p.nom)}</option>`).join('')}
           </select>`, req('appareil', 'prestataire_id')) : ''}
-          ${show('appareil', 'matricule') ? field('Matricule', `<input name="matricule" value="${esc(state.appareil.matricule || '')}" placeholder="si disponible">`, req('appareil', 'matricule')) : ''}
+          ${show('appareil', 'matricule') ? `<div class="loc-field">
+            <span class="loc-field-label-row">
+              <label for="creMatricule">Matricule${req('appareil', 'matricule') ? ' *' : ''}</label>
+              ${helpTipHtml('Si le matricule est connu.', 'Aide : matricule')}
+            </span>
+            <input id="creMatricule" name="matricule" value="${esc(state.appareil.matricule || '')}">
+          </div>` : ''}
           ${show('appareil', 'mode_obtention') ? field('Obtention', `<select name="mode_obtention">
             <option value="depot"${state.appareil.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
             <option value="appel"${state.appareil.mode_obtention === 'appel' ? ' selected' : ''}>Appel pour l’obtenir</option>
@@ -574,9 +630,11 @@
           ${show('appareil', 'desinfection') ? `<label class="loc-check"><input type="checkbox" name="desinfection"${state.appareil.desinfection ? ' checked' : ''}> Désinfection faite</label>` : ''}
         ` : ''}
         ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
-        ${show('appareil', 'encart_texte') ? field('Commentaire', `<textarea name="encart_texte" rows="3" placeholder="Notes libres…">${esc(state.appareil.encart_texte || '')}</textarea>`, req('appareil', 'encart_texte')) : ''}
+        ${show('appareil', 'encart_texte') ? field('Commentaire', `<textarea name="encart_texte" rows="3">${esc(state.appareil.encart_texte || '')}</textarea>`, req('appareil', 'encart_texte')) : ''}
         ${customFieldsHtml('appareil')}
       `;
+
+      bindHelpTips(formEl);
 
       formEl.querySelector('[name=type_appareil]')?.addEventListener('change', (e) => {
         collectAppareil();

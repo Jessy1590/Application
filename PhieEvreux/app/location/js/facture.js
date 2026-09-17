@@ -22,6 +22,63 @@
     return t.content.firstChild;
   }
 
+  let helpTipSeq = 0;
+
+  function helpTipHtml(text, ariaLabel, bubbleId) {
+    helpTipSeq += 1;
+    const id = bubbleId || `loc-help-tip-fa-${helpTipSeq}`;
+    return `<span class="loc-help-tip">
+      <button type="button" class="loc-help-tip__btn" aria-label="${esc(ariaLabel)}" aria-expanded="false" aria-controls="${id}">?</button>
+      <span class="loc-help-tip__bubble" role="tooltip" id="${id}">${esc(text)}</span>
+    </span>`;
+  }
+
+  function closeHelpTips(root, except) {
+    (root || document).querySelectorAll('.loc-help-tip.is-open').forEach((wrap) => {
+      if (except && wrap === except) return;
+      wrap.classList.remove('is-open');
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  function bindHelpTips(root) {
+    if (!root) return;
+    root.querySelectorAll('.loc-help-tip').forEach((wrap) => {
+      const btn = wrap.querySelector('.loc-help-tip__btn');
+      if (!btn || btn.dataset.helpBound === '1') return;
+      btn.dataset.helpBound = '1';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const willOpen = !wrap.classList.contains('is-open');
+        closeHelpTips(root, wrap);
+        wrap.classList.toggle('is-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        if (!willOpen) btn.blur();
+      });
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeHelpTips(root);
+          btn.blur();
+        }
+      });
+    });
+    if (root.dataset.helpOutsideBound === '1') return;
+    root.dataset.helpOutsideBound = '1';
+    root.addEventListener('click', (e) => {
+      if (e.target.closest('.loc-help-tip')) return;
+      closeHelpTips(root);
+    });
+  }
+
+  function infoBanner(bodyHtml) {
+    return `<div class="loc-info-banner" role="note">
+      <p class="loc-info-banner-title">Information</p>
+      <div class="loc-info-banner-body">${bodyHtml}</div>
+    </div>`;
+  }
+
   function parseMatricules(text) {
     const parts = String(text || '')
       .split(/[\s,;]+/)
@@ -73,6 +130,49 @@
     const m = String(a?.matricule || '').trim();
     if (matchedKey && norm(m) === matchedKey) return m || matchedKey;
     return m || matchedKey || '—';
+  }
+
+  function canSuivi(ctx) {
+    return typeof ctx.can === 'function' ? ctx.can('module_suivi') : true;
+  }
+
+  function canCloture(ctx, d) {
+    if (!d || d.statut === 'cloture' || d.statut === 'annule') return false;
+    return typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+  }
+
+  function dossierActionsHtml(d, ctx) {
+    const id = d?.id || '';
+    if (!id) return '';
+    const parts = [];
+    if (canSuivi(ctx)) {
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(id)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi">✎</button>`
+      );
+    }
+    if (canCloture(ctx, d)) {
+      parts.push(`<span class="loc-help-tip">
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" aria-label="Clôturer le dossier">C</button>
+        <span class="loc-help-tip__bubble" role="tooltip">Clôturer le dossier</span>
+      </span>`);
+    }
+    if (!parts.length) return '';
+    return `<div class="loc-dossier-actions">${parts.join('')}</div>`;
+  }
+
+  function bindDossierActions(root, ctx) {
+    root.querySelectorAll('[data-suivi]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-suivi');
+        if (id) ctx.openSuivi?.(id);
+      });
+    });
+    root.querySelectorAll('[data-cloture]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-cloture');
+        if (id) ctx.openSuivi?.(id, { cloture: true });
+      });
+    });
   }
 
   function findInvoiceHit(d, invoiceSet) {
@@ -175,7 +275,7 @@
     return { normaux, factureMaisClotures, ouvertsAbsents, sansDossier, delaiJours: delai };
   }
 
-  function renderRow(item, { warn } = {}) {
+  function renderRow(item, { warn, ctx } = {}) {
     const d = item.dossier;
     if (!d) {
       return `<li class="loc-facture-item${warn ? ' loc-facture-item-warn' : ' loc-facture-item-ok'}">
@@ -184,19 +284,23 @@
       </li>`;
     }
     return `<li class="loc-facture-item${warn ? ' loc-facture-item-warn' : ' loc-facture-item-ok'}">
-      <strong>${esc(patientLabel(d))}</strong>
-      <span>Dossier ${esc(d.id || '—')} · ${esc(d.statut || '—')}</span>
-      <span>Matricule : ${esc(item.matriculeAffiche)}</span>
-      <span>Date clôture : ${esc(d.date_cloture || '—')}</span>
+      <div class="loc-facture-item-main">
+        <strong>${esc(patientLabel(d))}</strong>
+        <span>Dossier ${esc(d.id || '—')} · ${esc(d.statut || '—')}</span>
+        <span>Matricule : ${esc(item.matriculeAffiche)}</span>
+        <span>Date clôture : ${esc(d.date_cloture || '—')}</span>
+      </div>
+      ${dossierActionsHtml(d, ctx || {})}
     </li>`;
   }
 
-  function fillList(listEl, emptyEl, rows, warn) {
-    listEl.innerHTML = rows.map((r) => renderRow(r, { warn })).join('');
+  function fillList(listEl, emptyEl, rows, warn, ctx) {
+    listEl.innerHTML = rows.map((r) => renderRow(r, { warn, ctx })).join('');
     emptyEl.hidden = rows.length > 0;
+    if (ctx) bindDossierActions(listEl, ctx);
   }
 
-  async function mount(root) {
+  async function mount(root, ctx) {
     root.innerHTML = '';
     let delaiJours = 30;
     try {
@@ -208,7 +312,7 @@
     }
 
     const wrap = el(`<div class="loc-module loc-facture">
-      <p class="loc-muted">Collez les matricules présents sur la facture (un par ligne, ou séparés par virgule / espace). Uniquement les dossiers prestataire. Délai de clôture : <strong id="faDelai">${delaiJours}</strong> j.</p>
+      ${infoBanner(`<p>Collez les matricules de la facture (ligne, virgule ou espace). Dossiers prestataire uniquement. Seuil du délai de clôture : <strong id="faDelai">${delaiJours}</strong> j.</p>`)}
       <label class="loc-field">Matricules facture
         <textarea id="faMats" rows="8" placeholder="Ex.&#10;ABC123&#10;PH-0042&#10;XYZ789"></textarea>
       </label>
@@ -218,32 +322,45 @@
       <p class="loc-msg" id="faMsg" hidden></p>
       <div class="loc-facture-results" id="faResults" hidden>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-ok">Normaux</h3>
-          <p class="loc-muted loc-facture-hint">Matricule sur la facture et dossier prestataire non clôturé.</p>
+          <div class="loc-field-label-row">
+            <h3 class="loc-facture-title loc-facture-title-ok">Normaux</h3>
+            ${helpTipHtml('Matricule sur la facture et dossier prestataire non clôturé.', 'Aide : Normaux')}
+          </div>
           <ul class="loc-facture-list" id="faListOk"></ul>
           <p class="loc-muted" id="faEmptyOk" hidden>Aucun.</p>
         </section>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-warn">Sur facture mais clôturés</h3>
-          <p class="loc-muted loc-facture-hint" id="faHintClosed">Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delaiJours} j.</p>
+          <div class="loc-field-label-row">
+            <h3 class="loc-facture-title loc-facture-title-warn">Sur facture mais clôturés</h3>
+            ${helpTipHtml(
+              `Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delaiJours} j.`,
+              'Aide : Sur facture mais clôturés',
+              'faTipClosed'
+            )}
+          </div>
           <ul class="loc-facture-list" id="faListClosed"></ul>
           <p class="loc-muted" id="faEmptyClosed" hidden>Aucun.</p>
         </section>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-warn">Ouverts absents de la facture</h3>
-          <p class="loc-muted loc-facture-hint">Dossier prestataire non clôturé dont le matricule n’apparaît pas sur la facture.</p>
+          <div class="loc-field-label-row">
+            <h3 class="loc-facture-title loc-facture-title-warn">Ouverts absents de la facture</h3>
+            ${helpTipHtml('Dossier prestataire non clôturé dont le matricule n’apparaît pas sur la facture.', 'Aide : Ouverts absents de la facture')}
+          </div>
           <ul class="loc-facture-list" id="faListAbsent"></ul>
           <p class="loc-muted" id="faEmptyAbsent" hidden>Aucun.</p>
         </section>
         <section class="loc-facture-block">
-          <h3 class="loc-facture-title loc-facture-title-warn">Matricules sans dossier</h3>
-          <p class="loc-muted loc-facture-hint">Matricule sur la facture sans dossier prestataire correspondant.</p>
+          <div class="loc-field-label-row">
+            <h3 class="loc-facture-title loc-facture-title-warn">Matricules sans dossier</h3>
+            ${helpTipHtml('Matricule sur la facture sans dossier prestataire correspondant.', 'Aide : Matricules sans dossier')}
+          </div>
           <ul class="loc-facture-list" id="faListOrphan"></ul>
           <p class="loc-muted" id="faEmptyOrphan" hidden>Aucun.</p>
         </section>
       </div>
     </div>`);
     root.appendChild(wrap);
+    bindHelpTips(wrap);
 
     const msgEl = wrap.querySelector('#faMsg');
     const results = wrap.querySelector('#faResults');
@@ -268,9 +385,9 @@
         if (!Number.isFinite(delai) || delai < 0) delai = 30;
         delaiJours = delai;
         wrap.querySelector('#faDelai').textContent = String(delai);
-        const hintClosed = wrap.querySelector('#faHintClosed');
-        if (hintClosed) {
-          hintClosed.textContent = `Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delai} j.`;
+        const tipClosed = wrap.querySelector('#faTipClosed');
+        if (tipClosed) {
+          tipClosed.textContent = `Matricule sur la facture et dossier prestataire clôturé depuis moins de ${delai} j.`;
         }
 
         const dossiers = await LocationData.listDossiers({});
@@ -280,24 +397,27 @@
           delai
         );
 
-        fillList(wrap.querySelector('#faListOk'), wrap.querySelector('#faEmptyOk'), normaux, false);
+        fillList(wrap.querySelector('#faListOk'), wrap.querySelector('#faEmptyOk'), normaux, false, ctx);
         fillList(
           wrap.querySelector('#faListClosed'),
           wrap.querySelector('#faEmptyClosed'),
           factureMaisClotures,
-          true
+          true,
+          ctx
         );
         fillList(
           wrap.querySelector('#faListAbsent'),
           wrap.querySelector('#faEmptyAbsent'),
           ouvertsAbsents,
-          true
+          true,
+          ctx
         );
         fillList(
           wrap.querySelector('#faListOrphan'),
           wrap.querySelector('#faEmptyOrphan'),
           sansDossier,
-          true
+          true,
+          ctx
         );
 
         results.hidden = false;

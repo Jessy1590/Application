@@ -1056,6 +1056,7 @@ html[data-theme="light"] .loc-help-tip__bubble {
 }
 
 .loc-detail-head {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -1063,9 +1064,42 @@ html[data-theme="light"] .loc-help-tip__bubble {
   align-items: flex-start;
 }
 
+.loc-detail-head:has(.loc-detail-head-actions) {
+  padding-right: 5.5rem;
+}
+
 .loc-detail-head h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
+}
+
+.loc-detail-head-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  z-index: 2;
+}
+
+/* Bulle sous les actions (coin haut-droit) pour rester visible */
+.loc-detail-head-actions .loc-help-tip__bubble {
+  left: auto;
+  right: 0;
+  bottom: auto;
+  top: calc(100% + 8px);
+  transform: none;
+}
+
+.loc-detail-head-actions .loc-help-tip__bubble::after {
+  top: auto;
+  bottom: 100%;
+  left: auto;
+  right: 12px;
+  transform: none;
+  border-top-color: transparent;
+  border-bottom-color: var(--loc-elev);
 }
 
 .loc-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1330,16 +1364,38 @@ body > a[title="Retour au portail"] {
 }
 
 .loc-facture-item {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--loc-line);
   font-size: 13px;
 }
 
+.loc-facture-item-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
 .loc-facture-item strong { font-size: 14px; }
 .loc-facture-item span { color: var(--loc-muted); word-break: break-all; }
+
+.loc-dossier-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.loc-dossier-actions .loc-help-tip__bubble {
+  white-space: nowrap;
+}
 
 .loc-facture-item-warn {
   border-color: color-mix(in srgb, var(--loc-danger) 45%, var(--loc-line));
@@ -1426,11 +1482,29 @@ body > a[title="Retour au portail"] {
 }
 
 .loc-parc-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: default;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
+.loc-parc-item-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.loc-parc-item-main span {
+  font-size: 12px;
+  color: var(--loc-muted);
+}
+
 .loc-parc-item:hover,
-.loc-parc-item:focus-visible {
+.loc-parc-item:focus-within {
   border-color: var(--loc-accent);
   background: color-mix(in srgb, var(--loc-accent) 10%, var(--loc-elev));
   outline: none;

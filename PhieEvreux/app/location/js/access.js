@@ -16,8 +16,10 @@
     { key: 'module_contact', label: 'Module Contact' },
     { key: 'module_facture', label: 'Module Facture' },
     { key: 'module_parc', label: 'Module Parc' },
+    { key: 'module_prolongation', label: 'Module Prolongation' },
+    { key: 'module_cloture', label: 'Module Clôture' },
     { key: 'impression_fiche', label: 'Impression fiche (Suivi)' },
-    { key: 'cloture_dossier', label: 'Clôture de dossier (Suivi)' },
+    { key: 'cloture_dossier', label: 'Clôture de dossier (Suivi / Clôture)' },
     { key: 'suppression_dossier', label: 'Suppression de dossier (Suivi)' },
     { key: 'parametres_location', label: 'Paramètres Location (tuile + page)' },
     {
@@ -34,6 +36,8 @@
     module_contact: { personnel: true, gestionnaire: true, administrateur: true },
     module_facture: { personnel: true, gestionnaire: true, administrateur: true },
     module_parc: { personnel: true, gestionnaire: true, administrateur: true },
+    module_prolongation: { personnel: true, gestionnaire: true, administrateur: true },
+    module_cloture: { personnel: true, gestionnaire: true, administrateur: true },
     impression_fiche: { personnel: true, gestionnaire: true, administrateur: true },
     cloture_dossier: { personnel: true, gestionnaire: true, administrateur: true },
     suppression_dossier: { personnel: false, gestionnaire: true, administrateur: true },
@@ -48,6 +52,8 @@
     contact: 'module_contact',
     facture: 'module_facture',
     parc: 'module_parc',
+    prolongation: 'module_prolongation',
+    cloture: 'module_cloture',
   });
 
   let cachedMatrix = null;

@@ -34,6 +34,51 @@
     return entry.value || '—';
   }
 
+  function canSuivi(ctx) {
+    return typeof ctx.can === 'function' ? ctx.can('module_suivi') : true;
+  }
+
+  function canCloture(ctx, d) {
+    if (!d || d.statut === 'cloture' || d.statut === 'annule') return false;
+    return typeof ctx.can === 'function' ? ctx.can('cloture_dossier') : true;
+  }
+
+  function dossierActionsHtml(d, ctx) {
+    const id = d?.id || '';
+    if (!id) return '';
+    const parts = [];
+    if (canSuivi(ctx)) {
+      parts.push(
+        `<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-suivi="${esc(id)}" title="Ouvrir Suivi" aria-label="Ouvrir Suivi">✎</button>`
+      );
+    }
+    if (canCloture(ctx, d)) {
+      parts.push(`<span class="loc-help-tip">
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-cloture="${esc(id)}" aria-label="Clôturer le dossier">C</button>
+        <span class="loc-help-tip__bubble" role="tooltip">Clôturer le dossier</span>
+      </span>`);
+    }
+    if (!parts.length) return '';
+    return `<div class="loc-dossier-actions">${parts.join('')}</div>`;
+  }
+
+  function bindDossierActions(root, ctx) {
+    root.querySelectorAll('[data-suivi]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-suivi');
+        if (id) ctx.openSuivi?.(id);
+      });
+    });
+    root.querySelectorAll('[data-cloture]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute('data-cloture');
+        if (id) ctx.openSuivi?.(id, { cloture: true });
+      });
+    });
+  }
+
   async function mount(root, ctx) {
     root.innerHTML = '';
     const wrap = el(`<div class="loc-module loc-parc">
@@ -194,17 +239,18 @@
             .map((d) => {
               const a = d.appareil_actif || {};
               const ref = a.matricule || a.numero_pharmacie || '—';
-              return `<button type="button" class="loc-list-item loc-parc-item" data-dossier="${esc(d.id)}">
-                <strong>${esc(patientLabel(d))}</strong>
-                <span>${esc(ref)} · ${esc(fmtDate(d.date_debut))} → ${esc(fmtDate(d.date_fin))}</span>
-              </button>`;
+              return `<div class="loc-list-item loc-parc-item">
+                <div class="loc-parc-item-main">
+                  <strong>${esc(patientLabel(d))}</strong>
+                  <span>${esc(ref)} · ${esc(fmtDate(d.date_debut))} → ${esc(fmtDate(d.date_fin))}</span>
+                </div>
+                ${dossierActionsHtml(d, ctx)}
+              </div>`;
             })
             .join('')}</div>`
       )}</div>`;
 
-      body.querySelectorAll('[data-dossier]').forEach((btn) => {
-        btn.addEventListener('click', () => ctx.openSuivi?.(btn.getAttribute('data-dossier')));
-      });
+      bindDossierActions(body, ctx);
     }
 
     function renderPharmaItem(entry, side) {
@@ -220,6 +266,7 @@
           </div>
           <div class="loc-parc-device-actions">
             <button type="button" class="loc-btn loc-btn-sm" data-modif="${esc(d?.id || '')}">Modifier le dossier</button>
+            ${dossierActionsHtml(d, ctx)}
           </div>
         </div>`;
       }
@@ -271,6 +318,7 @@
           if (id) ctx.openSuivi?.(id);
         });
       });
+      bindDossierActions(body, ctx);
       body.querySelectorAll('[data-creer]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const entry = byKey.get(btn.getAttribute('data-creer'));

@@ -1,5 +1,5 @@
 /**
- * Boot commun des pages modules Location (création, suivi, contact, facture, parc).
+ * Boot commun des pages modules Location (création, suivi, contact, facture, parc, prolongation, clôture).
  * body[data-module="…"] + #locModuleRoot
  */
 (function () {
@@ -9,6 +9,8 @@
     contact: 'Contact',
     facture: 'Facture',
     parc: 'Parc',
+    prolongation: 'Prolongation',
+    cloture: 'Clôture',
   };
 
   function queryId() {
@@ -40,9 +42,12 @@
       },
       initialDossierId: null,
       creationPrefill: null,
-      openSuivi(dossierId) {
-        const q = dossierId ? `?id=${encodeURIComponent(dossierId)}` : '';
-        window.location.href = `suivi.html${q}`;
+      openSuivi(dossierId, opts) {
+        const params = new URLSearchParams();
+        if (dossierId) params.set('id', String(dossierId));
+        if (opts && opts.cloture) params.set('cloture', '1');
+        const q = params.toString();
+        window.location.href = `suivi.html${q ? `?${q}` : ''}`;
       },
       openCreation(fields) {
         const params = new URLSearchParams();
@@ -63,6 +68,8 @@
     else if (name === 'contact') await LocationContact.mount(root, ctx);
     else if (name === 'facture') await LocationFacture.mount(root, ctx);
     else if (name === 'parc') await LocationParc.mount(root, ctx);
+    else if (name === 'prolongation') await LocationProlongation.mount(root, ctx);
+    else if (name === 'cloture') await LocationCloture.mount(root, ctx);
     else root.innerHTML = `<p class="loc-msg loc-msg-err">Module inconnu.</p>`;
   }
 
@@ -106,7 +113,10 @@
     }
 
     const ctx = ctxFromSnap(snap, matrix);
-    if (name === 'suivi') ctx.initialDossierId = queryId();
+    if (name === 'suivi') {
+      ctx.initialDossierId = queryId();
+      ctx.initialCloture = queryParams().get('cloture') === '1';
+    }
     if (name === 'creation') {
       const qp = queryParams();
       ctx.creationPrefill = {

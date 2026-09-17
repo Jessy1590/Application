@@ -8,6 +8,8 @@
     'contact.html': 'module_contact',
     'facture.html': 'module_facture',
     'parc.html': 'module_parc',
+    'prolongation.html': 'module_prolongation',
+    'cloture.html': 'module_cloture',
     'parametres.html': 'parametres_location',
   };
 

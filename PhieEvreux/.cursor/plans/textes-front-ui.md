@@ -5,9 +5,9 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 
 **Légende propositions :** `supprimer` | `bandeau information` | `tooltip ?` | `garder`
 
-**Statut :** Seuils (S1–S3) + Paramètres Location admin (**1–22**) appliqués. Suite : confirmer **ligne par ligne** (23+) avant modification.
+**Statut :** Seuils (S1–S3) + Paramètres Location admin (**1–22**) + Création → Shared (**23–60**) appliqués.
 
-**Style bandeau (si retenu plus tard) :** encadré jaune libellé **Information**, proche `.loc-journal-box--suivi` / warn → créer `.loc-info-banner` réutilisable si besoin.
+**Style bandeau :** `.loc-info-banner` (libellé **Information**) + `.loc-help-tip` (popover « ? »).
 
 ---
 
@@ -50,104 +50,104 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 
 ---
 
-## À confirmer — Création
+## Appliqué — Création
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 23 | `creation.js` | Fin calculée : … | `garder` (résultat dynamique, pas un pavé d’aide) | — |
-| 24 | `creation.js` | placeholder « Rechercher un patient existant (nom / prénom) » | `garder` | — |
-| 25 | `creation.js` | placeholder « texte libre » (Code OP) | `supprimer` (placeholder redondant) | — |
-| 26 | `creation.js` | placeholder « si disponible » (Matricule) | `tooltip ?` près du libellé Matricule | Si le matricule est connu. |
-| 27 | `creation.js` | placeholder « Notes libres… » (Commentaire) | `garder` | — |
-| 28 | `creation.js` | Encarts « Attention » (libellés dynamiques admin) | `garder` | — |
-
----
-
-## À confirmer — Suivi
-
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 29 | `suivi.js` | (désactivé à la création) — suffixe champs | `tooltip ?` près du libellé concerné | Champ non proposé à la création ; modifiable ici. |
-| 30 | `suivi.js` | Remet le dossier en file Commentaire (LGO à refaire). Les autres contacts ouverts du dossier sont annulés. | `tooltip ?` près de « Invalider le commentaire » | Remet le dossier en file Commentaire (LGO à refaire) et annule les autres contacts ouverts. |
-| 31 | `suivi.js` | Confirmez les éléments de clôture. Pour chaque « Oui », indiquez la date et qui l’a fait. | `bandeau information` | Pour chaque réponse « Oui », renseignez la date et l’opérateur. |
-| 32 | `suivi.js` | placeholder recherche « Recherche nom / prénom » | `garder` | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 23 | `creation.js` | Fin calculée : … | `garder` | — | **fait** |
+| 24 | `creation.js` | placeholder « Rechercher un patient existant (nom / prénom) » | `garder` | — | **fait** |
+| 25 | `creation.js` | placeholder « texte libre » (Code OP) | `supprimer` | — | **fait** |
+| 26 | `creation.js` | placeholder « si disponible » (Matricule) | `tooltip ?` près du libellé Matricule | Si le matricule est connu. | **fait** |
+| 27 | `creation.js` | placeholder « Notes libres… » (Commentaire) | `supprimer` | — | **fait** |
+| 28 | `creation.js` | Encarts « Attention » (libellés dynamiques admin) | `garder` | — | **fait** |
 
 ---
 
-## À confirmer — Contact
+## Appliqué — Suivi / Clôture
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 33 | `contact.js` | Puis choisissez le résultat (note vide par défaut). | `supprimer` | — |
-| 34 | `contact.js` | Puis choisissez le statut : | `supprimer` | — |
-| 35 | `contact.js` | Titre encadré « Suivi appels déjà effectué » | `garder` | — |
-| 36 | `contact.js` | placeholder « Ex. a décroché, ton… » | `garder` | — |
-| 37 | `contact.js` | placeholder « Obligatoire » | `garder` | — |
-
----
-
-## À confirmer — Facture
-
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 38 | `facture.js` | Collez les matricules présents sur la facture (un par ligne, ou séparés par virgule / espace). Uniquement les dossiers prestataire. Délai de clôture : N j. | `bandeau information` | Collez les matricules de la facture (ligne, virgule ou espace). Dossiers prestataire uniquement. Délai de clôture : N j. |
-| 39 | `facture.js` | Matricule sur la facture et dossier prestataire non clôturé. | `tooltip ?` près du titre de section « Présents / ouverts » (ou équivalent UI) | — |
-| 40 | `facture.js` | Matricule sur la facture et dossier prestataire clôturé depuis moins de N j. | `tooltip ?` près de la section correspondante | — |
-| 41 | `facture.js` | Dossier prestataire non clôturé dont le matricule n’apparaît pas sur la facture. | `tooltip ?` près de la section correspondante | — |
-| 42 | `facture.js` | Matricule sur la facture sans dossier prestataire correspondant. | `tooltip ?` près de la section correspondante | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 29 | `suivi.js` | (désactivé à la création) — suffixe champs | `garder` | — | **fait** |
+| 30 | `suivi.js` | Remet le dossier en file Commentaire (LGO à refaire). Les autres contacts ouverts du dossier sont annulés. | `tooltip ?` près de « Invalider le commentaire » | Remet le dossier en file Commentaire. | **fait** |
+| 31 | `cloture.js` (modal) | Confirmez les éléments de clôture… | `bandeau information` | Pour chaque réponse « Oui », renseignez la date et l’opérateur. | **fait** |
+| 32 | `suivi.js` | placeholder recherche « Recherche nom / prénom » | `garder` | — | **fait** |
 
 ---
 
-## À confirmer — Parc
+## Appliqué — Contact
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 43 | `parc.js` | Choisissez un prestataire pour voir les dossiers en cours. | `garder` | — |
-| 44 | `parc.js` | Déjà utilisés, pas en location actuellement | `garder` | — |
-| 45 | `parc.js` | Parc pharmacie actuellement loué | `garder` | — |
-
----
-
-## À confirmer — Impression
-
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 46 | `impression.js` | Joindre copie d’ordonnance. | `garder` | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 33 | `contact.js` | Puis choisissez le résultat (note vide par défaut). | rewrite sur place | Choisissez le résultat de l'appel | **fait** |
+| 34 | `contact.js` | Puis choisissez le statut : | rewrite sur place | Choisissez le statut de l'appel | **fait** |
+| 35 | `contact.js` | Titre encadré « Suivi appels déjà effectué » | `garder` | — | **fait** |
+| 36 | `contact.js` | placeholder « Ex. a décroché, ton… » | `garder` | — | **fait** |
+| 37 | `contact.js` | placeholder « Obligatoire » | `garder` | — | **fait** |
 
 ---
 
-## À confirmer — Accueil Location (tuiles)
+## Appliqué — Facture
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 47 | `app/location/index.html` | Nouvelle fiche location | `garder` | — |
-| 48 | `app/location/index.html` | Fiches et prolongations | `garder` | — |
-| 49 | `app/location/index.html` | Patients à contacter | `garder` | — |
-| 50 | `app/location/index.html` | Vérification dossier prestataire | `garder` | — |
-| 51 | `app/location/index.html` | Prestataires et parc pharmacie | `garder` | — |
-| 52 | `app/location/index.html` | Règles, prestataires, seuils | `garder` | — |
-
----
-
-## À confirmer — Hub PhieEvreux
-
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 53 | `index.html` | Choisissez une application | `garder` | — |
-| 54 | `index.html` | Suivi locations existant (comptes, appels, fiches). | `garder` | — |
-| 55 | `index.html` | Création, suivi et contact — nouvelle application. | `garder` | — |
-| 56 | `index.html` | Gestion des signalements (admin). | `supprimer` (bouton déjà explicite) | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 38 | `facture.js` | Collez les matricules présents sur la facture… | `bandeau information` | Collez les matricules de la facture (ligne, virgule ou espace). Dossiers prestataire uniquement. Seuil du délai de clôture : N j. | **fait** |
+| 39 | `facture.js` | Matricule sur la facture et dossier prestataire non clôturé. | `tooltip ?` près du titre « Normaux » | — | **fait** |
+| 40 | `facture.js` | Matricule sur la facture et dossier prestataire clôturé depuis moins de N j. | `tooltip ?` près de « Sur facture mais clôturés » | — | **fait** |
+| 41 | `facture.js` | Dossier prestataire non clôturé dont le matricule n’apparaît pas sur la facture. | `tooltip ?` près de « Ouverts absents… » | — | **fait** |
+| 42 | `facture.js` | Matricule sur la facture sans dossier prestataire correspondant. | `tooltip ?` près de « Matricules sans dossier » | — | **fait** |
 
 ---
 
-## À confirmer — Shared (FABs / bugs)
+## Appliqué — Parc
 
-| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite |
-|---|---------|------------------------|-------------|--------------------------|
-| 57 | `shared/fab.js` | title / aria « Accueil » | `garder` | — |
-| 58 | `shared/fab.js` | title / aria « Signaler un bug » | `garder` | — |
-| 59 | `shared/bugs.js` | placeholder « Résumé court » | `garder` | — |
-| 60 | `shared/bugs.js` | placeholder « Détails, étapes… » | `garder` | — |
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 43 | `parc.js` | Choisissez un prestataire pour voir les dossiers en cours. | `garder` | — | **fait** |
+| 44 | `parc.js` | Déjà utilisés, pas en location actuellement | `garder` | — | **fait** |
+| 45 | `parc.js` | Parc pharmacie actuellement loué | `garder` | — | **fait** |
+
+---
+
+## Appliqué — Impression
+
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 46 | `impression.js` | Joindre copie d’ordonnance. | `garder` | — | **fait** |
+
+---
+
+## Appliqué — Accueil Location (tuiles)
+
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 47 | `app/location/index.html` | Nouvelle fiche location | `garder` | — | **fait** |
+| 48 | `app/location/index.html` | Fiches et prolongations | `garder` | — | **fait** |
+| 49 | `app/location/index.html` | Patients à contacter | `garder` | — | **fait** |
+| 50 | `app/location/index.html` | Vérification dossier prestataire | rewrite desc | Vérification dossier en cours du prestataire | **fait** |
+| 51 | `app/location/index.html` | Prestataires et parc pharmacie | rewrite desc | Parc prestataires et interne pharmacie | **fait** |
+| 52 | `app/location/index.html` | Règles, prestataires, seuils | `garder` | — | **fait** |
+
+---
+
+## Appliqué — Hub PhieEvreux
+
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 53 | `index.html` | Choisissez une application | `garder` | — | **fait** |
+| 54 | `index.html` | Suivi locations existant (comptes, appels, fiches). | `garder` | — | **fait** |
+| 55 | `index.html` | Création, suivi et contact — nouvelle application. | `garder` | — | **fait** |
+| 56 | `index.html` | Gestion des signalements (admin). | `supprimer` | — | **fait** |
+
+---
+
+## Appliqué — Shared (FABs / bugs)
+
+| # | Fichier | Texte actuel (extrait) | Proposition | Nouveau texte si rewrite | Statut |
+|---|---------|------------------------|-------------|--------------------------|--------|
+| 57 | `shared/fab.js` | title / aria « Accueil » | `garder` | — | **fait** |
+| 58 | `shared/fab.js` | title / aria « Signaler un bug » | `garder` | — | **fait** |
+| 59 | `shared/bugs.js` | placeholder « Résumé court » | `garder` | — | **fait** |
+| 60 | `shared/bugs.js` | placeholder « Détails, étapes… » | `garder` | — | **fait** |
 
 ---
 
@@ -165,5 +165,4 @@ Commentaires JS `//` techniques exclus (sauf s’ils sont injectés en UI).
 
 1. Seuils : **déjà corrigé** (S1–S3).
 2. Paramètres Location admin (**1–22**) : **appliqué**.
-3. Pour chaque ligne **23–60** : confirmer ou ajuster la proposition.
-4. Ensuite seulement : appliquer les changements validés.
+3. Création → Shared (**23–60**) : **appliqué**.

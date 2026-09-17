@@ -297,6 +297,50 @@
   }
 
   /**
+   * Filtre texte partagé (Prolongation / Clôture / Suivi) :
+   * nom, prénom, type, matricule, numéro pharmacie.
+   */
+  function matchesDossierSearch(d, q) {
+    const t = String(q || '')
+      .toLowerCase()
+      .trim();
+    if (!t) return true;
+    const p = d?.patient || {};
+    const a = d?.appareil_actif || {};
+    const typeCode = String(a.type_appareil || '').toLowerCase();
+    const typeLabel = String(
+      (global.LocationRules && global.LocationRules.typeLabel(a.type_appareil)) || ''
+    ).toLowerCase();
+    if (
+      String(p.nom || '')
+        .toLowerCase()
+        .includes(t) ||
+      String(p.prenom || '')
+        .toLowerCase()
+        .includes(t) ||
+      typeCode.includes(t) ||
+      typeLabel.includes(t) ||
+      String(a.matricule || '')
+        .toLowerCase()
+        .includes(t) ||
+      String(a.numero_pharmacie || '')
+        .toLowerCase()
+        .includes(t)
+    ) {
+      return true;
+    }
+    return (d?.appareils || []).some(
+      (app) =>
+        String(app.matricule || '')
+          .toLowerCase()
+          .includes(t) ||
+        String(app.numero_pharmacie || '')
+          .toLowerCase()
+          .includes(t)
+    );
+  }
+
+  /**
    * Dossiers avec patient + appareil actif + dernière date_fin.
    */
   async function listDossiers(filters = {}) {
@@ -318,14 +362,7 @@
     let rows = (data || []).map(enrichDossier);
 
     if (filters.q) {
-      const t = String(filters.q).toLowerCase().trim();
-      rows = rows.filter((d) => {
-        const p = d.patient || {};
-        return (
-          String(p.nom || '').toLowerCase().includes(t) ||
-          String(p.prenom || '').toLowerCase().includes(t)
-        );
-      });
+      rows = rows.filter((d) => matchesDossierSearch(d, filters.q));
     }
     if (filters.type_appareil) {
       rows = rows.filter((d) => d.appareil_actif?.type_appareil === filters.type_appareil);
@@ -1116,6 +1153,7 @@
     createPatient,
     updatePatient,
     listDossiers,
+    matchesDossierSearch,
     getDossier,
     enrichDossier,
     dossierContext,
