@@ -466,6 +466,15 @@
     return statut === 'en_attente' ? 'en_attente' : 'actif';
   }
 
+  /** DB : `semaine` | `mois` — alias UI/saisie → valeur contrainte. */
+  function normalizePeseBebePeriode(value) {
+    if (value == null || value === '') return null;
+    const s = String(value).trim().toLowerCase();
+    if (s === 'mois' || s === 'mensuelle' || s === 'mensuel') return 'mois';
+    if (s === 'semaine' || s === 'semaines' || s === 'hebdomadaire') return 'semaine';
+    return s;
+  }
+
   function appareilRowFromPayload(payload, dossierId) {
     const app = payload.appareil || {};
     return {
@@ -481,7 +490,7 @@
       desinfection: !!app.desinfection,
       encart_texte: app.encart_texte || null,
       pese_bebe_regler_avance: app.pese_bebe_regler_avance ?? null,
-      pese_bebe_periode: app.pese_bebe_periode || null,
+      pese_bebe_periode: normalizePeseBebePeriode(app.pese_bebe_periode),
       facturation_prestataire: !!app.facturation_prestataire,
       date_accouchement: app.date_accouchement || null,
       champs_extra: app.champs_extra && typeof app.champs_extra === 'object' ? app.champs_extra : {},
@@ -538,13 +547,36 @@
   }
 
   /**
+   * Annule une création partielle (dossier + patient neuf si orphelin).
+   * Appareils / prolongations / contacts partent en CASCADE avec le dossier.
+   */
+  async function rollbackCreateDossierComplet(dossierId, patientId, patientWasNew) {
+    if (dossierId) {
+      try {
+        await deleteDossier(dossierId);
+      } catch (_) {
+        /* best-effort */
+      }
+    }
+    if (patientWasNew && patientId) {
+      try {
+        await sb().from('location_patients').delete().eq('id', patientId);
+      } catch (_) {
+        /* patient encore lié à un autre dossier → on laisse */
+      }
+    }
+  }
+
+  /**
    * Crée patient + dossier + appareil + prolongation initiale.
+   * Si appareil / prolongation échoue : rollback dossier (+ patient neuf orphelin).
    * @param {object} payload
    * @param {string|null} userId
    * @param {{ statut?: 'actif'|'en_attente' }} [opts]
    */
   async function createDossierComplet(payload, userId, opts = {}) {
     const statut = normalizeDossierStatut(opts && opts.statut);
+    const patientWasNew = !payload.patient_id;
     const patient = payload.patient_id
       ? await updatePatient(payload.patient_id, payload.patient)
       : await createPatient(payload.patient);
@@ -564,6 +596,13 @@
       dossier = await insertDossierRow(dossierRow);
     } catch (e) {
       e.patient_id = patient.id;
+      if (patientWasNew) {
+        try {
+          await sb().from('location_patients').delete().eq('id', patient.id);
+        } catch (_) {
+          /* ignore */
+        }
+      }
       throw e;
     }
 
@@ -573,6 +612,7 @@
       .select()
       .single();
     if (aErr) {
+      await rollbackCreateDossierComplet(dossier.id, patient.id, patientWasNew);
       const err = new Error(formatSbError(aErr, 'Erreur appareil'));
       err.patient_id = patient.id;
       err.dossier_id = dossier.id;
@@ -585,6 +625,7 @@
       .select()
       .single();
     if (pErr) {
+      await rollbackCreateDossierComplet(dossier.id, patient.id, patientWasNew);
       const err = new Error(formatSbError(pErr, 'Erreur prolongation'));
       err.patient_id = patient.id;
       err.dossier_id = dossier.id;
@@ -672,9 +713,13 @@
   }
 
   async function updateAppareil(id, row) {
+    const patch = { ...row, updated_at: new Date().toISOString() };
+    if (Object.prototype.hasOwnProperty.call(patch, 'pese_bebe_periode')) {
+      patch.pese_bebe_periode = normalizePeseBebePeriode(patch.pese_bebe_periode);
+    }
     const { data, error } = await sb()
       .from('location_appareils')
-      .update({ ...row, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq('id', id)
       .select()
       .single();
@@ -1051,18 +1096,42 @@
     }));
   }
 
+  /**
+   * Upsert contact ; réessaie sans created_by si FK profiles échoue.
+   */
   async function upsertContact(row) {
+    const isFkCreatedBy = (error) =>
+      error &&
+      row.created_by &&
+      (error.code === '23503' || /created_by|foreign key|profiles/i.test(String(error.message || '')));
+
     if (row.id) {
-      const { data, error } = await sb()
+      const payload = { ...row, updated_at: new Date().toISOString() };
+      let { data, error } = await sb()
         .from('location_contacts')
-        .update({ ...row, updated_at: new Date().toISOString() })
+        .update(payload)
         .eq('id', row.id)
         .select()
         .single();
+      // FK created_by → portail.profiles : réessaie sans created_by si profil manquant
+      if (isFkCreatedBy(error)) {
+        const retry = { ...payload, created_by: null };
+        ({ data, error } = await sb()
+          .from('location_contacts')
+          .update(retry)
+          .eq('id', row.id)
+          .select()
+          .single());
+      }
       if (error) throw error;
       return data;
     }
-    const { data, error } = await sb().from('location_contacts').insert(row).select().single();
+    let { data, error } = await sb().from('location_contacts').insert(row).select().single();
+    // FK created_by → portail.profiles : réessaie sans created_by si profil manquant
+    if (isFkCreatedBy(error)) {
+      const retry = { ...row, created_by: null };
+      ({ data, error } = await sb().from('location_contacts').insert(retry).select().single());
+    }
     if (error) throw error;
     return data;
   }

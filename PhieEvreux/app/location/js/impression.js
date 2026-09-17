@@ -70,8 +70,9 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
   }
 
-  function detailLines(parts) {
-    return (parts || []).map((p) => String(p ?? '').trim()).filter(Boolean).join('\n');
+  /** Libellé Suivi compact : une ligne `Module - détail - détail`. */
+  function detailInline(parts) {
+    return (parts || []).map((p) => String(p ?? '').trim()).filter(Boolean).join(' - ');
   }
 
   function motifContactLabel(motif) {
@@ -83,8 +84,8 @@
   }
 
   /**
-   * Lignes Suivi fiche A4 — résumé détaillé chronologique par module
-   * (création / prolongation / contact / appareil / clôture partielle).
+   * Lignes Suivi fiche A4 — chronologique, libellés horizontaux compacts.
+   * (création / prolongation / contact / appareil / clôture partielle / journal).
    */
   function buildSuiviEventRows(dossier) {
     const rows = [];
@@ -100,16 +101,14 @@
     prolongations.forEach((pr, idx) => {
       const isInitiale = idx === 0 || pr.notes === 'Location initiale';
       const duree = [pr.duree, pr.unite].filter((x) => x != null && x !== '').join(' ');
-      const lines = [
-        isInitiale ? 'Création · Location initiale créée' : 'Prolongation · Prolongation créée',
-      ];
-      if (pr.date_ordo) lines.push(`ordo : ${formatDateFrPrint(pr.date_ordo) || pr.date_ordo}`);
-      if (duree) lines.push(`durée : ${duree}`);
-      if (pr.date_fin) lines.push(`fin : ${formatDateFrPrint(pr.date_fin) || pr.date_fin}`);
-      if (pr.notes && pr.notes !== 'Location initiale') lines.push(`notes : ${pr.notes}`);
+      const bits = [isInitiale ? 'Création' : 'Prolongation'];
+      if (pr.date_ordo) bits.push(`ordo du ${formatDateFrPrint(pr.date_ordo) || pr.date_ordo}`);
+      if (duree) bits.push(duree);
+      if (pr.date_fin) bits.push(`fin ${formatDateFrPrint(pr.date_fin) || pr.date_fin}`);
+      if (pr.notes && pr.notes !== 'Location initiale') bits.push(pr.notes);
       rows.push({
         date: pr.date_ordo || isoDateOnly(pr.created_at) || null,
-        libelle: detailLines(lines),
+        libelle: detailInline(bits),
       });
     });
 
@@ -122,11 +121,7 @@
       const num = ap.numero_pharmacie || ap.matricule || '—';
       rows.push({
         date: ap.date_debut || isoDateOnly(ap.created_at) || null,
-        libelle: detailLines([
-          'Appareil · Changement d’appareil',
-          `type : ${typeTxt}`,
-          `n° : ${num}`,
-        ]),
+        libelle: detailInline(['Appareil', 'changement', typeTxt, `n° ${num}`]),
       });
     });
 
@@ -139,31 +134,21 @@
       if (c.statut === 'annule') return;
       const motif = motifContactLabel(c.motif);
       const phaseLabel = c.phase === 'appel' ? 'Appel' : 'Commentaire';
-      const lines = [
-        `Contact · ${phaseLabel}${motif ? ` · ${motif}` : ''}`,
-      ];
+      const bits = ['Contact', phaseLabel];
+      if (motif) bits.push(motif);
       if (c.commentaire_fait_at) {
-        lines.push(
-          `commentaire mis le ${formatDateFrPrint(c.commentaire_fait_at) || c.commentaire_fait_at.slice(0, 10)}`
+        bits.push(
+          `com. le ${formatDateFrPrint(c.commentaire_fait_at) || c.commentaire_fait_at.slice(0, 10)}`
         );
       }
       if (c.contacted_at) {
-        lines.push(
-          `appel effectué le ${formatDateFrPrint(c.contacted_at) || c.contacted_at.slice(0, 10)}`
+        bits.push(
+          `appel le ${formatDateFrPrint(c.contacted_at) || c.contacted_at.slice(0, 10)}`
         );
       }
-      if (c.resultat) {
-        lines.push(`réponse : ${resultatLabels[c.resultat] || c.resultat}`);
-      }
-      if (c.statut) {
-        lines.push(`statut final : ${statutLabels[c.statut] || c.statut}`);
-      }
-      if (c.commentaire) {
-        lines.push(`commentaire : ${c.commentaire}`);
-      }
-      if (c.canal) {
-        lines.push(`canal : ${c.canal}`);
-      }
+      if (c.resultat) bits.push(resultatLabels[c.resultat] || c.resultat);
+      if (c.statut) bits.push(statutLabels[c.statut] || c.statut);
+      if (c.commentaire) bits.push(c.commentaire);
       rows.push({
         date:
           isoDateOnly(c.contacted_at) ||
@@ -171,7 +156,7 @@
           isoDateOnly(c.updated_at) ||
           isoDateOnly(c.created_at) ||
           null,
-        libelle: detailLines(lines),
+        libelle: detailInline(bits),
       });
     });
 
@@ -185,22 +170,23 @@
         if (parsed?.text) {
           rows.push({
             date: parsed.date,
-            libelle: detailLines([`Contact / appels · ${parsed.text}`]),
+            libelle: detailInline(['Contact / appels', parsed.text]),
           });
           return;
         }
         rows.push({
           date: null,
-          libelle: detailLines([`Contact / appels · ${line}`]),
+          libelle: detailInline(['Contact / appels', line]),
         });
       });
 
     if (dossier.appareil_rendu) {
       rows.push({
         date: dossier.appareil_rendu_le || null,
-        libelle: detailLines([
-          'Clôture · Appareil rendu',
-          dossier.appareil_rendu_op ? `par : ${dossier.appareil_rendu_op}` : '',
+        libelle: detailInline([
+          'Clôture',
+          'Appareil rendu',
+          dossier.appareil_rendu_op ? `par ${dossier.appareil_rendu_op}` : '',
         ]),
       });
     }
@@ -232,25 +218,22 @@
   }
 
   /**
-   * Remplit le tableau Suivi de lignes vierges pour combler l’écart
-   * entre la dernière ligne écrite et le bandeau clôture (déjà en bas).
-   * Algo : lignes remplies → bas de page posé → mesurer gap → floor(gap/rowH)
-   * → trim si chevauchement (flex/min-height:0 ne gonfle pas scrollHeight).
+   * Remplit le tableau Suivi de lignes vierges dans l’encadré `.print-suivi`
+   * (pas jusqu’au bandeau clôture : la marge hors bordure ne compte pas).
    */
   function fillFicheBlankRows(doc) {
     const body = doc.body;
+    const suivi = doc.querySelector('.print-suivi');
     const tbody = doc.querySelector('.print-suivi-table tbody');
     const cloture = doc.querySelector('.print-cloture');
-    if (!body || !tbody || !cloture || !body.classList.contains('print-fiche')) return;
+    if (!body || !suivi || !tbody || !cloture || !body.classList.contains('print-fiche')) return;
 
     const datePh = '<span class="print-date-ph">__/__/____</span>';
     const rowHtml =
       `<tr class="print-row-fill"><td class="col-date">${datePh}</td>` +
       `<td class="col-lib">&nbsp;</td><td class="col-check">□</td></tr>`;
 
-    // 1. Uniquement les lignes de suivi écrites (pas de vierges au départ).
     tbody.querySelectorAll('tr.print-row-fill').forEach((tr) => tr.remove());
-    // 2. Reflow : bandeau clôture déjà en bas (flex + margin-top:auto).
     void body.offsetHeight;
 
     tbody.insertAdjacentHTML('beforeend', rowHtml);
@@ -261,31 +244,32 @@
     void body.offsetHeight;
     if (rowH <= 0) return;
 
-    // 3. Espace entre dernière ligne écrite (ou thead) et début du bas de page.
     const filledRows = tbody.querySelectorAll('tr:not(.print-row-fill)');
     const lastWritten =
       filledRows[filledRows.length - 1] ||
       doc.querySelector('.print-suivi-table thead tr');
     if (!lastWritten) return;
 
-    const gap =
-      cloture.getBoundingClientRect().top - lastWritten.getBoundingClientRect().bottom;
-    // 4. Exactement le nombre de lignes vierges qui tiennent dans le gap.
+    // Limite = bas intérieur de l’encadré Suivi (padding inclus), pas le top clôture.
+    const win = doc.defaultView || window;
+    const padBottom = parseFloat(win.getComputedStyle(suivi).paddingBottom) || 0;
+    const boxLimit = () => suivi.getBoundingClientRect().bottom - padBottom - 0.5;
+
+    const gap = boxLimit() - lastWritten.getBoundingClientRect().bottom;
     const count = Math.max(0, Math.floor(gap / rowH));
     const MAX = 50;
     for (let i = 0; i < Math.min(count, MAX); i++) {
       tbody.insertAdjacentHTML('beforeend', rowHtml);
     }
 
-    // 5. Trim si chevauchement bandeau (ou débordement page) — pas seulement scrollHeight.
     void body.offsetHeight;
-    const overlapsCloture = () => {
+    const overflowsBox = () => {
       const fills = tbody.querySelectorAll('tr.print-row-fill');
       const last = fills[fills.length - 1];
       if (!last) return false;
-      return last.getBoundingClientRect().bottom > cloture.getBoundingClientRect().top;
+      return last.getBoundingClientRect().bottom > boxLimit();
     };
-    while (overlapsCloture() || body.scrollHeight > body.clientHeight + 1) {
+    while (overflowsBox() || body.scrollHeight > body.clientHeight + 1) {
       const fills = tbody.querySelectorAll('tr.print-row-fill');
       const last = fills[fills.length - 1];
       if (!last) break;
@@ -599,17 +583,23 @@
     margin-top:1mm;border:1px solid #c00;padding:1mm 1.5mm;font-size:8pt;white-space:normal
   }
   .print-attention-short strong{color:#c00;margin-right:1mm;text-transform:uppercase}
-  .print-suivi{margin-top:0;margin-bottom:2mm;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-  .print-suivi-table{width:100%;border-collapse:collapse}
-  .print-suivi-table th,.print-suivi-table td{
-    border:1px solid #666;padding:1mm 1.5mm;text-align:left;vertical-align:middle;font-size:8.5pt
+  .print-suivi{
+    margin-top:0;margin-bottom:2mm;flex:1 1 auto;min-height:0;
+    display:flex;flex-direction:column;overflow:hidden;
   }
-  .print-suivi-table th{background:#eee;font-size:8pt;text-transform:uppercase}
-  .print-suivi-table .col-date{width:18mm;white-space:nowrap}
-  .print-suivi-table .col-check{width:8mm;text-align:center}
-  .print-suivi-table .col-lib{word-break:break-word;white-space:pre-line}
+  .print-suivi-table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .print-suivi-table th,.print-suivi-table td{
+    border:1px solid #666;padding:0.6mm 1.2mm;text-align:left;vertical-align:middle;font-size:8pt;
+    height:5mm;line-height:1.15
+  }
+  .print-suivi-table th{background:#eee;font-size:7.5pt;text-transform:uppercase;height:auto}
+  .print-suivi-table .col-date{width:16mm;white-space:nowrap}
+  .print-suivi-table .col-check{width:7mm;text-align:center}
+  .print-suivi-table .col-lib{
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+  }
   .print-date-ph{color:#666}
-  .print-row-fill td{height:6mm}
+  .print-row-fill td{height:5mm;padding-top:0.4mm;padding-bottom:0.4mm}
   .print-cloture{
     border:1px solid #222;padding:2mm 2.5mm;font-size:9pt;
     flex-shrink:0;margin-top:auto;
