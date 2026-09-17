@@ -236,14 +236,10 @@
   }
 
   /**
-   * Fiche papier A4 (réf. PDF Pharmacie Evreux) :
-   * table 2 colonnes (Patient/Appareil | Suivi) + clôture pleine largeur.
-   * @param {object} dossier
-   * @param {{
-   *   attentionLines?: string[],
-   *   params?: object,
-   *   champsDef?: object[],
-   * }} [meta]
+   * Fiche A4 :
+   * Haut 2 colonnes — gauche Patient puis Personnel ; droite Appareil.
+   * Milieu — Suivi auto (toutes les lignes) + lignes manuscrites.
+   * Pied — clôture manuscrite (préremplie si données).
    */
   function buildFicheHtml(dossier, meta) {
     const attentionLines = Array.isArray(meta) ? meta : meta?.attentionLines || [];
@@ -260,9 +256,11 @@
     const isPrestataire = a.source === 'prestataire';
 
     const patientCustom = customCreationLines(params, 'patient', extra);
+    const personnelCustom = customCreationLines(params, 'personnel', extra).concat(
+      customCreationLines(params, 'location', extra)
+    );
     const appareilCustom = customCreationLines(params, 'appareil', extra);
     const specLines = specChampLines(champsDef, a.type_appareil, extra);
-    const autresAppareil = specLines.concat(appareilCustom);
 
     const attentionParts = [];
     (attentionLines || []).forEach((t) => {
@@ -275,39 +273,6 @@
     const identite = [p.nom, p.prenom].filter(Boolean).join(' - ') || '—';
     const notesInit = notesInitiales(dossier.notes);
 
-    let appareilBody = line('Type appareil', typeTxt);
-    if (isPrestataire) {
-      appareilBody += line('Matricule / id', a.matricule || '');
-      appareilBody += line(
-        'Obtenu par',
-        modeObtentionLabel(a.mode_obtention) || ''
-      );
-      appareilBody += line('Livré', livraisonLabel(a.livraison) || '');
-      appareilBody += line(
-        'Désinfecté le',
-        a.desinfection ? 'Oui' : '________________'
-      );
-    } else {
-      appareilBody += line('N° pharmacie', a.numero_pharmacie || '');
-      if (a.matricule) appareilBody += line('Matricule', a.matricule);
-      appareilBody += line(
-        'Désinfecté le',
-        a.desinfection ? 'Oui' : '________________'
-      );
-    }
-    autresAppareil.forEach((html) => {
-      appareilBody += html;
-    });
-    if (attentionParts.length) {
-      appareilBody += `<div class="print-attention-short"><strong>Attention</strong> ${esc(
-        attentionParts.join(' · ')
-      )}</div>`;
-    }
-
-    appareilBody += line('Initié par / Code OP', dossier.code_op || '');
-    appareilBody += line('Caution', cautionLabel(dossier.caution));
-    appareilBody += line('Notes initiales', notesInit);
-
     const patientBody =
       line('Nom - Prénom', identite) +
       line('Date naissance', formatDateFrPrint(p.date_naissance) || p.date_naissance || '') +
@@ -316,18 +281,63 @@
       line('Mails', mails) +
       patientCustom.join('');
 
-    const leftCol = `
-<section class="print-block"><h2>Patient</h2>${patientBody}</section>
-<section class="print-block"><h2>Appareil</h2>${appareilBody}</section>`;
+    const personnelBody =
+      line('Code OP / Initié par', dossier.code_op || '') +
+      line('Caution', cautionLabel(dossier.caution)) +
+      line('Qui facture', quiFactureLabel(dossier.qui_facture)) +
+      line('Date début', formatDateFrPrint(dossier.date_debut) || dossier.date_debut || '') +
+      line('Fin courante', formatDateFrPrint(dossier.date_fin) || dossier.date_fin || '') +
+      line('Notes initiales', notesInit) +
+      personnelCustom.join('');
 
-    const BLANK_ROWS = 14;
-    const MAX_EVENTS = 8;
+    let appareilBody =
+      line('Type appareil', typeTxt) +
+      line('Source', isPrestataire ? 'Prestataire' : 'Parc pharmacie');
+    if (isPrestataire) {
+      appareilBody += line('Matricule / id', a.matricule || '');
+      appareilBody += line('Obtenu par', modeObtentionLabel(a.mode_obtention) || '');
+      appareilBody += line('Livré', livraisonLabel(a.livraison) || '');
+    } else {
+      appareilBody += line('N° pharmacie', a.numero_pharmacie || '');
+      if (a.matricule) appareilBody += line('Matricule', a.matricule);
+    }
+    appareilBody += line('Désinfecté', a.desinfection ? 'Oui' : '');
+    if (a.type_appareil === 'pese_bebe') {
+      appareilBody += line(
+        "Régler d'avance",
+        a.pese_bebe_regler_avance ? 'Oui' : 'Non'
+      );
+      if (a.pese_bebe_periode) appareilBody += line('Période', a.pese_bebe_periode);
+    }
+    if (a.type_appareil === 'tire_lait' && a.date_accouchement) {
+      appareilBody += line(
+        'Date accouchement',
+        formatDateFrPrint(a.date_accouchement) || a.date_accouchement
+      );
+    }
+    specLines.forEach((html) => {
+      appareilBody += html;
+    });
+    appareilCustom.forEach((html) => {
+      appareilBody += html;
+    });
+    if (commentaire) appareilBody += line('Commentaire', commentaire);
+    if (attentionParts.length) {
+      appareilBody += `<div class="print-attention-short"><strong>Attention</strong> ${esc(
+        attentionParts.join(' · ')
+      )}</div>`;
+    }
+
+    const topLeft = `
+<section class="print-block"><h2>Patient</h2>${patientBody}</section>
+<section class="print-block"><h2>Personnel</h2>${personnelBody}</section>`;
+    const topRight = `<section class="print-block print-appareil"><h2>Appareil</h2>${appareilBody}</section>`;
+
+    const BLANK_ROWS = 10;
     const datePh = '<span class="print-date-ph">__/__/____</span>';
     const checkCell = '<td class="col-check">□</td>';
     const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${checkCell}</tr>`;
-    const allEvents = buildSuiviEventRows(dossier);
-    const eventRows = allEvents.slice(0, MAX_EVENTS);
-    const blankCount = Math.max(BLANK_ROWS, 10);
+    const eventRows = buildSuiviEventRows(dossier);
     const suiviFilled = eventRows
       .map((s) => {
         const dateCell = s.date ? esc(formatDateFrPrint(s.date) || s.date) : datePh;
@@ -343,7 +353,7 @@
       <th class="col-lib">Libellé</th>
       <th class="col-check">□</th>
     </tr></thead>
-    <tbody>${suiviFilled}${emptySuiviRow.repeat(blankCount)}</tbody>
+    <tbody>${suiviFilled}${emptySuiviRow.repeat(BLANK_ROWS)}</tbody>
   </table>
 </section>`;
 
@@ -377,31 +387,30 @@
     return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Fiche location</title>
 <style>
   @page{size:A4;margin:8mm}
-  html,body{margin:0;padding:0;height:100%}
+  html,body{margin:0;padding:0}
   body{
     font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9pt;line-height:1.2;
-    box-sizing:border-box;width:100%;height:277mm;max-height:277mm;overflow:hidden;
+    box-sizing:border-box;width:100%;
   }
   *{box-sizing:border-box}
-  h1{font-size:14pt;margin:0 0 1mm;text-transform:uppercase;letter-spacing:.02em}
+  h1{font-size:13pt;margin:0 0 1mm;text-transform:uppercase;letter-spacing:.02em}
   .print-meta{margin:0 0 2mm;font-size:8pt;color:#333}
-  .print-sheet{width:100%;height:calc(277mm - 18mm);border-collapse:collapse;table-layout:fixed}
-  .print-sheet > tbody > tr > td{vertical-align:top;padding:0}
-  .print-sheet .col-left{width:42%;padding-right:2mm}
-  .print-sheet .col-right{width:58%;padding-left:2mm}
-  .print-sheet .col-full{padding-top:2mm}
+  .print-top{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm}
+  .print-top td{vertical-align:top;padding:0}
+  .print-top .col-l{width:48%;padding-right:2mm}
+  .print-top .col-r{width:52%;padding-left:2mm}
   .print-block{border:1px solid #222;padding:1.5mm 2mm;margin-bottom:2mm}
+  .print-appareil{min-height:100%}
   .print-block h2{margin:0 0 1mm;font-size:8pt;text-transform:uppercase;letter-spacing:.04em}
-  .print-line{display:flex;gap:2mm;border-bottom:1px dotted #999;padding:0.4mm 0;min-height:4mm}
+  .print-line{display:flex;gap:2mm;border-bottom:1px dotted #999;padding:0.4mm 0;min-height:3.8mm}
   .print-label{width:28mm;flex-shrink:0;color:#333;font-size:8pt}
   .print-val{flex:1;min-width:0;font-size:9pt;white-space:pre-wrap}
   .print-attention-short{
-    margin-top:1mm;border:1px solid #c00;padding:1mm 1.5mm;font-size:8pt;
-    white-space:normal
+    margin-top:1mm;border:1px solid #c00;padding:1mm 1.5mm;font-size:8pt;white-space:normal
   }
   .print-attention-short strong{color:#c00;margin-right:1mm;text-transform:uppercase}
-  .print-suivi{margin-bottom:0;height:100%;display:flex;flex-direction:column}
-  .print-suivi-table{width:100%;border-collapse:collapse;flex:1}
+  .print-suivi{margin-top:0}
+  .print-suivi-table{width:100%;border-collapse:collapse}
   .print-suivi-table th,.print-suivi-table td{
     border:1px solid #666;padding:1mm 1.5mm;text-align:left;vertical-align:middle;font-size:8.5pt
   }
@@ -409,26 +418,25 @@
   .print-suivi-table .col-date{width:18mm;white-space:nowrap}
   .print-suivi-table .col-check{width:8mm;text-align:center}
   .print-suivi-table .col-lib{word-break:break-word;white-space:normal}
-  .print-date-ph{color:#666;letter-spacing:.02em}
-  .print-row-fill td{height:6.2mm}
-  .print-cloture{border:1px solid #222;padding:2mm 2.5mm;font-size:9pt}
+  .print-date-ph{color:#666}
+  .print-row-fill td{height:6mm}
+  .print-cloture{border:1px solid #222;padding:2mm 2.5mm;font-size:9pt;margin-top:2mm}
   .print-cloture-row{display:flex;gap:4mm;justify-content:space-between;padding:1mm 0}
   .print-cloture-row span{flex:1}
   @media print{
-    body{height:277mm;max-height:277mm;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
 </style></head><body>
   <h1>Fiche de location — ${esc(typeLabel)}</h1>
   <p class="print-meta">Pharmacie Evreux — version ${esc(versionCourteFr())}</p>
-  <table class="print-sheet">
+  <table class="print-top">
     <tr>
-      <td class="col-left">${leftCol}</td>
-      <td class="col-right">${suiviBlock}</td>
-    </tr>
-    <tr>
-      <td class="col-full" colspan="2">${clotureBlock}</td>
+      <td class="col-l">${topLeft}</td>
+      <td class="col-r">${topRight}</td>
     </tr>
   </table>
+  ${suiviBlock}
+  ${clotureBlock}
 </body></html>`;
   }
 
