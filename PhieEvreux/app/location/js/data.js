@@ -371,6 +371,9 @@
       const params = await loadParams();
       const rules = await loadRules();
       rows = rows.filter((d) => {
+        if (d.statut === 'en_attente' || d.statut === 'cloture' || d.statut === 'annule') {
+          return false;
+        }
         const ctx = dossierContext(d);
         return global.LocationRules.evaluate(ctx, rules, params).shouldContact;
       });
@@ -449,7 +452,62 @@
     };
   }
 
-  async function createDossierComplet(payload, userId) {
+  function normalizeDossierStatut(statut) {
+    return statut === 'en_attente' ? 'en_attente' : 'actif';
+  }
+
+  function appareilRowFromPayload(payload, dossierId) {
+    const app = payload.appareil || {};
+    return {
+      dossier_id: dossierId,
+      type_appareil: app.type_appareil || 'aerosol',
+      type_libelle: app.type_libelle || null,
+      source: app.source || 'parc',
+      prestataire_id: app.prestataire_id || null,
+      matricule: app.matricule || null,
+      numero_pharmacie: app.numero_pharmacie || null,
+      mode_obtention: app.mode_obtention || null,
+      livraison: app.livraison || null,
+      desinfection: !!app.desinfection,
+      encart_texte: app.encart_texte || null,
+      pese_bebe_regler_avance: app.pese_bebe_regler_avance ?? null,
+      pese_bebe_periode: app.pese_bebe_periode || null,
+      facturation_prestataire: !!app.facturation_prestataire,
+      date_accouchement: app.date_accouchement || null,
+      champs_extra: app.champs_extra && typeof app.champs_extra === 'object' ? app.champs_extra : {},
+      actif: true,
+      date_debut: payload.date_debut || null,
+    };
+  }
+
+  function prolongInitialeFromPayload(payload, dossierId, userId) {
+    const duree = Number(payload.duree) > 0 ? Number(payload.duree) : 10;
+    const unite = payload.unite || 'semaines';
+    const dateOrdo = payload.date_ordo || null;
+    const dateFin = global.LocationRules.addDuration(
+      payload.date_debut || dateOrdo,
+      duree,
+      unite
+    );
+    return {
+      dossier_id: dossierId,
+      date_ordo: dateOrdo,
+      duree,
+      unite,
+      date_fin: dateFin,
+      notes: 'Location initiale',
+      created_by: userId || null,
+    };
+  }
+
+  /**
+   * Crée patient + dossier + appareil + prolongation initiale.
+   * @param {object} payload
+   * @param {string|null} userId
+   * @param {{ statut?: 'actif'|'en_attente' }} [opts]
+   */
+  async function createDossierComplet(payload, userId, opts = {}) {
+    const statut = normalizeDossierStatut(opts.statut);
     const patient = payload.patient_id
       ? await updatePatient(payload.patient_id, payload.patient)
       : await createPatient(payload.patient);
@@ -458,7 +516,7 @@
       patient_id: patient.id,
       code_op: payload.code_op || null,
       caution: payload.caution || null,
-      statut: 'actif',
+      statut,
       date_debut: payload.date_debut || null,
       qui_facture: payload.qui_facture || 'pharmacie',
       created_by: userId || null,
@@ -471,59 +529,98 @@
       .single();
     if (dErr) throw dErr;
 
-    const appRow = {
-      dossier_id: dossier.id,
-      type_appareil: payload.appareil.type_appareil,
-      type_libelle: payload.appareil.type_libelle || null,
-      source: payload.appareil.source || 'parc',
-      prestataire_id: payload.appareil.prestataire_id || null,
-      matricule: payload.appareil.matricule || null,
-      numero_pharmacie: payload.appareil.numero_pharmacie || null,
-      mode_obtention: payload.appareil.mode_obtention || null,
-      livraison: payload.appareil.livraison || null,
-      desinfection: !!payload.appareil.desinfection,
-      encart_texte: payload.appareil.encart_texte || null,
-      pese_bebe_regler_avance: payload.appareil.pese_bebe_regler_avance ?? null,
-      pese_bebe_periode: payload.appareil.pese_bebe_periode || null,
-      facturation_prestataire: !!payload.appareil.facturation_prestataire,
-      date_accouchement: payload.appareil.date_accouchement || null,
-      champs_extra: payload.appareil.champs_extra && typeof payload.appareil.champs_extra === 'object'
-        ? payload.appareil.champs_extra
-        : {},
-      actif: true,
-      date_debut: payload.date_debut || null,
-    };
-    const { data: appareil, error: aErr } = await sb()
+    const { error: aErr } = await sb()
       .from('location_appareils')
-      .insert(appRow)
+      .insert(appareilRowFromPayload(payload, dossier.id))
       .select()
       .single();
     if (aErr) throw aErr;
 
-    const duree = Number(payload.duree);
-    const unite = payload.unite;
-    const dateOrdo = payload.date_ordo || null;
-    const dateFin = global.LocationRules.addDuration(
-      payload.date_debut || dateOrdo,
-      duree,
-      unite
-    );
-    const { data: prolong, error: pErr } = await sb()
+    const { error: pErr } = await sb()
       .from('location_prolongations')
-      .insert({
-        dossier_id: dossier.id,
-        date_ordo: dateOrdo,
-        duree,
-        unite,
-        date_fin: dateFin,
-        notes: 'Location initiale',
-        created_by: userId || null,
-      })
+      .insert(prolongInitialeFromPayload(payload, dossier.id, userId))
       .select()
       .single();
     if (pErr) throw pErr;
 
     return getDossier(dossier.id);
+  }
+
+  /**
+   * Met à jour un dossier existant (reprise en_attente → en_attente ou actif).
+   * @param {string} dossierId
+   * @param {object} payload
+   * @param {string|null} userId
+   * @param {{ statut?: 'actif'|'en_attente' }} [opts]
+   */
+  async function updateDossierComplet(dossierId, payload, userId, opts = {}) {
+    const statut = normalizeDossierStatut(opts.statut);
+    const existing = await getDossier(dossierId);
+    if (!existing) throw new Error('Dossier introuvable');
+
+    const patient = payload.patient_id
+      ? await updatePatient(payload.patient_id, payload.patient)
+      : existing.patient_id
+        ? await updatePatient(existing.patient_id, payload.patient)
+        : await createPatient(payload.patient);
+
+    await updateDossier(dossierId, {
+      patient_id: patient.id,
+      code_op: payload.code_op || null,
+      caution: payload.caution || null,
+      statut,
+      date_debut: payload.date_debut || null,
+      qui_facture: payload.qui_facture || existing.qui_facture || 'pharmacie',
+      notes: payload.notes || null,
+    });
+
+    const appareil = existing.appareil_actif || (existing.appareils || [])[0];
+    const appPayload = appareilRowFromPayload(payload, dossierId);
+    delete appPayload.dossier_id;
+    if (appareil?.id) {
+      await updateAppareil(appareil.id, appPayload);
+    } else {
+      const { error: aErr } = await sb()
+        .from('location_appareils')
+        .insert({ ...appPayload, dossier_id: dossierId })
+        .select()
+        .single();
+      if (aErr) throw aErr;
+    }
+
+    const prolongs = (existing.prolongations || []).slice().sort((a, b) =>
+      String(a.created_at || '').localeCompare(String(b.created_at || ''))
+    );
+    const initiale =
+      prolongs.find((p) => p.notes === 'Location initiale') || prolongs[0] || null;
+    const prolongRow = prolongInitialeFromPayload(payload, dossierId, userId);
+    if (initiale?.id) {
+      const duree = prolongRow.duree;
+      const unite = prolongRow.unite;
+      const dateOrdo = prolongRow.date_ordo;
+      const base = payload.date_debut || dateOrdo;
+      const dateFin = global.LocationRules.addDuration(base, duree, unite);
+      const { error: pErr } = await sb()
+        .from('location_prolongations')
+        .update({
+          date_ordo: dateOrdo,
+          duree,
+          unite,
+          date_fin: dateFin,
+          notes: 'Location initiale',
+        })
+        .eq('id', initiale.id);
+      if (pErr) throw pErr;
+    } else {
+      const { error: pErr } = await sb()
+        .from('location_prolongations')
+        .insert(prolongRow)
+        .select()
+        .single();
+      if (pErr) throw pErr;
+    }
+
+    return getDossier(dossierId);
   }
 
   async function updateAppareil(id, row) {
@@ -666,6 +763,64 @@
       .single();
     if (error) throw error;
     return data;
+  }
+
+  /**
+   * Recalcule date_fin de chaque prolongation du dossier en chaîne chronologique
+   * (même logique qu’à l’ajout : 1ʳᵉ = date_debut|date_ordo + durée ; suivantes = fin précédente + durée).
+   */
+  async function recalcProlongationChain(dossierId) {
+    const dossier = await getDossier(dossierId);
+    const list = (dossier.prolongations || []).slice().sort((a, b) =>
+      String(a.created_at || '').localeCompare(String(b.created_at || ''))
+    );
+    let base =
+      dossier.date_debut ||
+      list[0]?.date_ordo ||
+      global.LocationRules.todayISO();
+    for (const p of list) {
+      const dateFin = global.LocationRules.addDuration(base, p.duree, p.unite);
+      const { error } = await sb()
+        .from('location_prolongations')
+        .update({ date_fin: dateFin })
+        .eq('id', p.id);
+      if (error) throw error;
+      base = dateFin || base;
+    }
+    return getDossier(dossierId);
+  }
+
+  async function updateProlongation(id, row) {
+    const { data: existing, error: getErr } = await sb()
+      .from('location_prolongations')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (getErr) throw getErr;
+    const payload = {
+      date_ordo: row.date_ordo !== undefined ? row.date_ordo || null : existing.date_ordo,
+      duree: row.duree != null ? Number(row.duree) : existing.duree,
+      unite: row.unite != null ? row.unite : existing.unite,
+      notes: row.notes !== undefined ? row.notes || null : existing.notes,
+    };
+    const { error } = await sb()
+      .from('location_prolongations')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
+    return recalcProlongationChain(existing.dossier_id);
+  }
+
+  async function deleteProlongation(id) {
+    const { data: existing, error: getErr } = await sb()
+      .from('location_prolongations')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (getErr) throw getErr;
+    const { error } = await sb().from('location_prolongations').delete().eq('id', id);
+    if (error) throw error;
+    return recalcProlongationChain(existing.dossier_id);
   }
 
   async function listTemplates() {
@@ -954,9 +1109,11 @@
       if (!tpl) {
         tpl = await findTemplateByMotif(a?.type_appareil, resolved.templateMotif);
       }
-      const rawCorps =
-        tpl?.corps || evalRes.contactReasons.map((r) => r.message).join('\n');
-      const commentaire = global.LocationRules.interpolate(rawCorps, vars);
+      // Message LGO = corps du template admin uniquement (jamais les messages internes des raisons).
+      const rawCorps = tpl?.corps || '';
+      const commentaire = rawCorps
+        ? global.LocationRules.interpolate(rawCorps, vars)
+        : '';
       const open = byDossier.get(d.id);
 
       if (open) {
@@ -1065,6 +1222,7 @@
     const byKey = new Map();
 
     for (const d of dossiers) {
+      if (d.statut === 'en_attente') continue;
       for (const a of d.appareils || []) {
         if (a.source !== 'parc') continue;
         const ident = appareilIdentiteParc(a);
@@ -1167,12 +1325,16 @@
     enrichDossier,
     dossierContext,
     createDossierComplet,
+    updateDossierComplet,
     updateDossier,
     cloturerDossier,
     deleteDossier,
     updateAppareil,
     changerAppareil,
     addProlongation,
+    updateProlongation,
+    deleteProlongation,
+    recalcProlongationChain,
     listTemplates,
     findTemplateByMotif,
     findTemplateById,

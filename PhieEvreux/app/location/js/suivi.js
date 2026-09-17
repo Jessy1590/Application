@@ -476,11 +476,22 @@
         <details class="loc-card">
           <summary>Prolongations${prolongCount ? ` · ${prolongCount}` : ''}</summary>
           <div class="loc-card-body">
-            <ul class="loc-history">
+            <ul class="loc-history" id="suProlongList">
               ${(d.prolongations || []).map((pr) =>
-                `<li>${esc(pr.date_ordo || '')} · ${pr.duree} ${esc(pr.unite)} → fin ${esc(pr.date_fin || '')}${pr.notes ? ' · ' + esc(pr.notes) : ''}</li>`
+                `<li data-pr-id="${esc(pr.id)}">
+                  <span>${esc(pr.date_ordo || '')} · ${pr.duree} ${esc(pr.unite)} → fin ${esc(pr.date_fin || '')}${pr.notes ? ' · ' + esc(pr.notes) : ''}</span>
+                  ${
+                    canEdit
+                      ? `<span class="loc-step-actions" style="margin-top:4px">
+                          <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-edit-pr="${esc(pr.id)}">Modifier</button>
+                          <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-del-pr="${esc(pr.id)}">Supprimer</button>
+                        </span>`
+                      : ''
+                  }
+                </li>`
               ).join('') || '<li>Aucune</li>'}
             </ul>
+            <div id="suProlongEdit" hidden></div>
             ${
               canEdit
                 ? `<div class="loc-grid-2" id="suProlongForm">
@@ -581,6 +592,15 @@
       detailEl.querySelector('#suAddProlong')?.addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp')?.addEventListener('click', () => showNewAppForm(d));
+      detailEl.querySelectorAll('[data-edit-pr]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const pr = (d.prolongations || []).find((x) => x.id === btn.dataset.editPr);
+          if (pr) showEditProlong(d, pr);
+        });
+      });
+      detailEl.querySelectorAll('[data-del-pr]').forEach((btn) => {
+        btn.addEventListener('click', () => deleteProlong(d, btn.dataset.delPr));
+      });
       detailEl.querySelector('#suInvalidateCom')?.addEventListener('click', async () => {
         if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
           showMsg('Édition non autorisée pour votre rôle.', true);
@@ -802,9 +822,73 @@
           ctx.userId
         );
         showMsg('Prolongation ajoutée.');
-        openDetail(d.id);
+        await refresh();
+        await openDetail(d.id);
       } catch (e) {
         showMsg(e.message, true);
+      }
+    }
+
+    function showEditProlong(d, pr) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
+      const box = detailEl.querySelector('#suProlongEdit');
+      if (!box) return;
+      box.hidden = false;
+      box.innerHTML = `
+        <div class="loc-grid-2" style="margin-top:8px">
+          <label class="loc-field">Date ordo<input type="date" name="ep_ordo" value="${esc(pr.date_ordo || '')}"></label>
+          <label class="loc-field">Durée<input type="number" min="1" name="ep_duree" value="${esc(pr.duree)}"></label>
+          <label class="loc-field">Unité<select name="ep_unite">
+            <option value="jours"${pr.unite === 'jours' ? ' selected' : ''}>Jours</option>
+            <option value="semaines"${pr.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
+            <option value="mois"${pr.unite === 'mois' ? ' selected' : ''}>Mois</option>
+          </select></label>
+          <label class="loc-field">Notes<input name="ep_notes" value="${esc(pr.notes || '')}"></label>
+        </div>
+        <div class="loc-step-actions" style="margin-top:8px">
+          <button type="button" class="loc-btn" id="suSaveProlong">Enregistrer</button>
+          <button type="button" class="loc-btn loc-btn-ghost" id="suCancelProlong">Annuler</button>
+        </div>
+      `;
+      box.querySelector('#suCancelProlong').addEventListener('click', () => {
+        box.hidden = true;
+        box.innerHTML = '';
+      });
+      box.querySelector('#suSaveProlong').addEventListener('click', async () => {
+        const duree = Number(box.querySelector('[name=ep_duree]').value);
+        const unite = box.querySelector('[name=ep_unite]').value;
+        try {
+          await LocationData.updateProlongation(pr.id, {
+            date_ordo: box.querySelector('[name=ep_ordo]').value || null,
+            duree,
+            unite,
+            notes: box.querySelector('[name=ep_notes]').value.trim() || null,
+          });
+          showMsg('Prolongation modifiée.');
+          await refresh();
+          await openDetail(d.id);
+        } catch (e) {
+          showMsg(e.message || 'Erreur', true);
+        }
+      });
+    }
+
+    async function deleteProlong(d, prolongId) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
+      if (!window.confirm('Supprimer cette prolongation ?')) return;
+      try {
+        await LocationData.deleteProlongation(prolongId);
+        showMsg('Prolongation supprimée.');
+        await refresh();
+        await openDetail(d.id);
+      } catch (e) {
+        showMsg(e.message || 'Erreur', true);
       }
     }
 

@@ -127,6 +127,7 @@
 
     let step = 0;
     const state = {
+      dossier_id: null,
       patient_id: null,
       patient: {
         nom: '',
@@ -180,6 +181,10 @@
 
     root.innerHTML = '';
     const wrap = el(`<div class="loc-module">
+      <div class="loc-queue-block" id="creAttenteBlock" hidden>
+        <p class="loc-queue-title">Dossiers en attente</p>
+        <div class="loc-list" id="creAttenteList"></div>
+      </div>
       <div class="loc-steps" id="creSteps"></div>
       <div class="loc-form" id="creForm"></div>
       <div class="loc-form-actions" id="creActions"></div>
@@ -191,6 +196,8 @@
     const stepsEl = wrap.querySelector('#creSteps');
     const actionsEl = wrap.querySelector('#creActions');
     const msgEl = wrap.querySelector('#creMsg');
+    const attenteBlock = wrap.querySelector('#creAttenteBlock');
+    const attenteList = wrap.querySelector('#creAttenteList');
 
     function showMsg(text, isErr) {
       msgEl.hidden = !text;
@@ -680,6 +687,7 @@
     function renderActions() {
       actionsEl.innerHTML = `
         ${step > 0 ? '<button type="button" class="loc-btn loc-btn-ghost" id="crePrev">Précédent</button>' : '<span></span>'}
+        <button type="button" class="loc-btn loc-btn-ghost" id="creHold">Mise en attente</button>
         ${step < 3
           ? '<button type="button" class="loc-btn" id="creNext">Suivant</button>'
           : '<button type="button" class="loc-btn" id="creSave">Créer la fiche</button>'}
@@ -697,43 +705,183 @@
         step += 1;
         render();
       });
+      actionsEl.querySelector('#creHold')?.addEventListener('click', saveEnAttente);
       actionsEl.querySelector('#creSave')?.addEventListener('click', save);
     }
 
+    function buildPayload() {
+      return {
+        patient_id: state.patient_id,
+        patient: state.patient,
+        code_op: state.code_op,
+        caution: state.caution || null,
+        qui_facture: quiFactureDefaut,
+        notes: state.notes,
+        appareil: {
+          ...state.appareil,
+          facturation_prestataire: false,
+        },
+        date_debut: state.date_debut,
+        date_ordo: state.date_ordo,
+        duree: state.duree,
+        unite: state.unite,
+      };
+    }
+
+    function collectCurrentStep() {
+      if (step === 0) collectPatient();
+      else if (step === 1) collectPersonnel();
+      else if (step === 2) collectAppareil();
+      else collectOrdo();
+    }
+
+    function validateEnAttente() {
+      collectCurrentStep();
+      showMsg('');
+      if (!state.patient.nom || !state.patient.prenom) {
+        return showMsg('Nom et prénom obligatoires pour la mise en attente.', true), false;
+      }
+      return true;
+    }
+
+    async function persistDossier(statut) {
+      const payload = buildPayload();
+      const opts = { statut };
+      if (state.dossier_id) {
+        return LocationData.updateDossierComplet(state.dossier_id, payload, ctx.userId, opts);
+      }
+      return LocationData.createDossierComplet(payload, ctx.userId, opts);
+    }
+
+    async function saveEnAttente() {
+      if (!validateEnAttente()) return;
+      const btn = actionsEl.querySelector('#creHold');
+      if (btn) btn.disabled = true;
+      showMsg('Mise en attente…');
+      try {
+        const dossier = await persistDossier('en_attente');
+        state.dossier_id = dossier.id;
+        state.patient_id = dossier.patient_id || state.patient_id;
+        showMsg('Dossier mis en attente.');
+        await refreshAttenteList();
+        resetForm();
+      } catch (e) {
+        showMsg(e.message || 'Erreur à la mise en attente', true);
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     async function save() {
-      if (!validateStep()) return;
-      collectPatient();
-      collectPersonnel();
-      collectAppareil();
-      collectOrdo();
+      collectCurrentStep();
+      const prev = step;
+      for (let s = 0; s < 4; s += 1) {
+        step = s;
+        if (!validateStep()) {
+          render();
+          return;
+        }
+      }
+      step = prev;
       const btn = actionsEl.querySelector('#creSave');
       if (btn) btn.disabled = true;
       showMsg('Enregistrement…');
       try {
-        const dossier = await LocationData.createDossierComplet(
-          {
-            patient_id: state.patient_id,
-            patient: state.patient,
-            code_op: state.code_op,
-            caution: state.caution || null,
-            qui_facture: quiFactureDefaut,
-            notes: state.notes,
-            appareil: {
-              ...state.appareil,
-              facturation_prestataire: false,
-            },
-            date_debut: state.date_debut,
-            date_ordo: state.date_ordo,
-            duree: state.duree,
-            unite: state.unite,
-          },
-          ctx.userId
-        );
+        const dossier = await persistDossier('actif');
         showMsg('Fiche créée.');
+        await refreshAttenteList();
         afterCreate(dossier);
       } catch (e) {
         showMsg(e.message || 'Erreur à la création', true);
         if (btn) btn.disabled = false;
+      }
+    }
+
+    function applyDossierToState(d) {
+      const p = d.patient || {};
+      const a = d.appareil_actif || {};
+      const prolongs = (d.prolongations || []).slice().sort((x, y) =>
+        String(x.created_at || '').localeCompare(String(y.created_at || ''))
+      );
+      const init =
+        prolongs.find((pr) => pr.notes === 'Location initiale') || prolongs[0] || null;
+      state.dossier_id = d.id;
+      state.patient_id = d.patient_id || p.id || null;
+      state.patient = {
+        nom: p.nom || '',
+        prenom: p.prenom || '',
+        date_naissance: p.date_naissance || '',
+        adresse: p.adresse || '',
+        telephones: Array.isArray(p.telephones) ? p.telephones : [],
+        mails: Array.isArray(p.mails) ? p.mails : [],
+      };
+      state.code_op = d.code_op || '';
+      state.caution = d.caution || '';
+      state.notes = d.notes || '';
+      state.appareil = {
+        type_appareil: a.type_appareil || 'aerosol',
+        type_libelle: a.type_libelle || '',
+        source: a.source || 'parc',
+        prestataire_id: a.prestataire_id || '',
+        matricule: a.matricule || '',
+        numero_pharmacie: a.numero_pharmacie || '',
+        mode_obtention: a.mode_obtention || 'depot',
+        livraison: a.livraison || 'pharmacie',
+        desinfection: !!a.desinfection,
+        encart_texte: a.encart_texte || '',
+        champs_extra:
+          a.champs_extra && typeof a.champs_extra === 'object' ? { ...a.champs_extra } : {},
+      };
+      state.date_debut = d.date_debut || a.date_debut || LocationRules.todayISO();
+      state.date_ordo = init?.date_ordo || LocationRules.todayISO();
+      state.duree = Number(init?.duree) > 0 ? Number(init.duree) : 10;
+      state.unite = init?.unite || 'semaines';
+      step = 0;
+    }
+
+    async function refreshAttenteList() {
+      try {
+        const rows = await LocationData.listDossiers({ statut: 'en_attente' });
+        if (!rows.length) {
+          attenteBlock.hidden = true;
+          attenteList.innerHTML = '';
+          return;
+        }
+        attenteBlock.hidden = false;
+        attenteList.innerHTML = rows
+          .map((d) => {
+            const p = d.patient || {};
+            const type = d.appareil_actif
+              ? LocationRules.typeLabel(d.appareil_actif.type_appareil)
+              : '—';
+            const when = d.updated_at || d.created_at || '';
+            const whenLabel = when ? String(when).slice(0, 10) : '';
+            return `<button type="button" class="loc-list-item" data-id="${esc(d.id)}">
+              <strong>${esc(p.nom || '')} ${esc(p.prenom || '')}</strong>
+              <span>${esc(type)}${whenLabel ? ' · ' + esc(whenLabel) : ''}</span>
+              <span>Reprendre</span>
+            </button>`;
+          })
+          .join('');
+        attenteList.querySelectorAll('[data-id]').forEach((b) => {
+          b.addEventListener('click', async () => {
+            try {
+              const dossier = await LocationData.getDossier(b.dataset.id);
+              if (!dossier || dossier.statut !== 'en_attente') {
+                showMsg('Dossier indisponible.', true);
+                await refreshAttenteList();
+                return;
+              }
+              applyDossierToState(dossier);
+              showMsg('');
+              render();
+            } catch (e) {
+              showMsg(e.message || 'Reprise impossible', true);
+            }
+          });
+        });
+      } catch (e) {
+        attenteBlock.hidden = true;
       }
     }
 
@@ -771,6 +919,7 @@
     }
 
     function resetForm() {
+      state.dossier_id = null;
       state.patient_id = null;
       state.patient = { nom: '', prenom: '', date_naissance: '', adresse: '', telephones: [], mails: [] };
       state.code_op = '';
@@ -810,6 +959,7 @@
       renderActions();
     }
 
+    void refreshAttenteList();
     render();
   }
 

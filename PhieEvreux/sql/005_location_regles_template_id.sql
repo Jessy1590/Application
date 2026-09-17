@@ -1,14 +1,10 @@
 -- Lien règle → template Contact + seuil âge pour arbre LGO générique
+-- (Ne pas écraser le corps des templates admin : source de vérité = UI Paramètres.)
 ALTER TABLE phieevreux.location_regles
   ADD COLUMN IF NOT EXISTS template_id uuid REFERENCES phieevreux.location_templates_contact(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS location_regles_template_id_idx
   ON phieevreux.location_regles (template_id);
-
-UPDATE phieevreux.location_templates_contact
-SET corps = 'Réclamer ordo de prolongation depuis le {date_min}',
-    updated_at = now()
-WHERE motif IN ('prolongation', 'prolongation_tire_lait');
 
 UPDATE phieevreux.location_regles r
 SET template_id = t.id,

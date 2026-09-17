@@ -39,7 +39,7 @@
   }
 
   function canCloture(ctx, d) {
-    if (!d || d.statut === 'cloture' || d.statut === 'annule') return false;
+    if (!d || d.statut === 'cloture' || d.statut === 'annule' || d.statut === 'en_attente') return false;
     return typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
   }
 
