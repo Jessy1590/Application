@@ -164,8 +164,7 @@ body {
   position: relative;
 }
 
-.search-box input,
-.filter-box select {
+.search-box input {
   width: 100%;
   padding: 11px 40px 11px 14px;
   border-radius: 6px;
@@ -177,9 +176,144 @@ body {
   outline: none;
   box-shadow: var(--shadow);
 }
-.filter-box select { padding-right: 14px; cursor: pointer; min-width: 220px; }
-.search-box input:focus,
-.filter-box select:focus {
+.search-box input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 107, 109, 0.15);
+}
+
+/* Menu filtres compact */
+.filter-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+.filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  min-height: 42px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.filter-trigger:hover,
+.filter-trigger.open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.filter-caret {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.filter-trigger.open .filter-caret { transform: rotate(180deg); }
+
+.filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgba(15, 35, 52, 0.14);
+}
+.filter-section + .filter-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.filter-section-title {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.filter-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.family-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.family-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.family-check:hover { background: var(--accent-soft); }
+.family-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.filter-quick {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.filter-quick-btn {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+}
+.filter-section select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+}
+.filter-section select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(15, 107, 109, 0.15);
 }
@@ -199,6 +333,16 @@ body {
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+}
+.toggle-hors-reco.in-panel {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 8px;
+  box-shadow: none;
+  border: none;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  white-space: normal;
 }
 .toggle-hors-reco input {
   width: 16px;
@@ -223,43 +367,6 @@ body {
   line-height: 1;
 }
 .search-clear:hover { background: #cfd8e0; color: var(--text); }
-
-/* Family chips */
-.chip-bar {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.chip-label {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  padding-top: 7px;
-  flex-shrink: 0;
-}
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 6px 11px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.chip:hover { border-color: var(--accent); color: var(--accent); }
-.chip.active {
-  background: var(--header-bg);
-  border-color: var(--header-bg);
-  color: #fff;
-}
 
 .pharma-note {
   margin-bottom: 12px;
@@ -965,57 +1072,49 @@ body.is-admin .inline-admin-btns,
   }
 
   .toolbar {
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 10px;
+    align-items: stretch;
   }
-  .filter-box,
-  .filter-box select,
   .search-box {
-    width: 100%;
+    flex: 1 1 100%;
     min-width: 0;
   }
+  .filter-menu { width: auto; }
+  .filter-trigger {
+    min-height: 44px;
+    font-size: 15px;
+    padding: 11px 16px;
+  }
+  .filter-panel {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+    width: auto;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+    z-index: 60;
+  }
   .search-box input,
-  .filter-box select {
+  .filter-section select {
     min-height: 44px;
     font-size: 16px; /* évite le zoom iOS */
+  }
+  .search-box input {
     padding: 12px 44px 12px 14px;
   }
-  .filter-box select { padding-right: 14px; }
   .search-clear {
     width: 32px;
     height: 32px;
     right: 10px;
   }
-
-  .chip-bar {
-    flex-direction: column;
-    gap: 8px;
-    margin-bottom: 14px;
-  }
-  .chip-label { padding-top: 0; }
-  .chips {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 8px;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-x: contain;
-    padding-bottom: 6px;
-    margin: 0 -4px;
-    padding-left: 4px;
-    padding-right: 4px;
-    scrollbar-width: thin;
-  }
-  .chips::-webkit-scrollbar { height: 3px; }
-  .chips::-webkit-scrollbar-thumb {
-    background: #c5d0da;
-    border-radius: 999px;
-  }
-  .chip {
-    flex-shrink: 0;
-    min-height: 36px;
-    padding: 8px 14px;
-    font-size: 13px;
+  .family-check {
+    min-height: 40px;
+    padding: 8px 10px;
+    font-size: 14px;
   }
 
   .pharma-note {
@@ -1247,8 +1346,6 @@ body.is-admin .inline-admin-btns,
   }
   .modal-header h2 { font-size: 1.05rem; }
   .modal-section h3 { font-size: 13px; }
-
-  .chip { padding: 7px 12px; font-size: 12.5px; }
 }
 
 @media print {

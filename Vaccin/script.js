@@ -7,7 +7,6 @@ const sbVaccin = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'au
 const TABLE_NAME = 'vaccins';
 
 const FAMILIES = [
-  { id: '', label: 'Toutes' },
   { id: 'dtp', label: 'DTP / Hib / Hexa' },
   { id: 'hep', label: 'Hépatites' },
   { id: 'men', label: 'Méningocoques' },
@@ -17,6 +16,8 @@ const FAMILIES = [
   { id: 'voyage', label: 'Voyage / tropicaux' },
   { id: 'autre', label: 'Autres' }
 ];
+
+const ALL_FAMILY_IDS = FAMILIES.map(f => f.id);
 
 const DEFAULT_SITUATIONS =
   "Officine : Faisable en pharmacie (pharmacien)\n" +
@@ -169,7 +170,8 @@ let settingsId = null;
 let isAdmin = false;
 let sortCol = 'pathologie';
 let sortAsc = true;
-let activeFamily = '';
+/** Familles incluses dans le filtre (toutes par défaut → « tous sauf X » = décocher X). */
+let includedFamilies = new Set(ALL_FAMILY_IDS);
 let showHorsReco = false;
 let quillDetails = null;
 let quillRattrapage = null;
@@ -507,16 +509,44 @@ async function init() {
     }
   } catch (_) { /* accès lecture possible */ }
 
-  renderFamilyChips();
+  renderFamilyChecks();
   setupEventListeners();
   await loadData();
 }
 
-function renderFamilyChips() {
-  const host = el('familyChips');
-  host.innerHTML = FAMILIES.map(f =>
-    `<button type="button" class="chip${f.id === activeFamily ? ' active' : ''}" data-family="${f.id}">${escapeHtml(f.label)}</button>`
-  ).join('');
+function renderFamilyChecks() {
+  const host = el('familyChecks');
+  host.innerHTML = FAMILIES.map(f => {
+    const checked = includedFamilies.has(f.id) ? ' checked' : '';
+    return `<label class="family-check">
+      <input type="checkbox" data-family="${f.id}"${checked}>
+      <span>${escapeHtml(f.label)}</span>
+    </label>`;
+  }).join('');
+  updateFilterBadge();
+}
+
+function updateFilterBadge() {
+  const badge = el('filterBadge');
+  const excluded = ALL_FAMILY_IDS.length - includedFamilies.size;
+  const situation = el('filterParticularity')?.value || '';
+  const hors = showHorsReco ? 1 : 0;
+  const n = excluded + (situation ? 1 : 0) + hors;
+  if (n > 0) {
+    badge.textContent = String(n);
+    badge.classList.remove('hidden');
+  } else {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+  }
+}
+
+function setFilterPanelOpen(open) {
+  const panel = el('filterPanel');
+  const trigger = el('filterTrigger');
+  panel.classList.toggle('hidden', !open);
+  trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  trigger.classList.toggle('open', open);
 }
 
 function setupEventListeners() {
@@ -541,9 +571,13 @@ function setupEventListeners() {
     filterTable();
     el('searchInput').focus();
   });
-  el('filterParticularity').addEventListener('change', filterTable);
+  el('filterParticularity').addEventListener('change', () => {
+    updateFilterBadge();
+    filterTable();
+  });
   el('toggleHorsReco')?.addEventListener('change', e => {
     showHorsReco = !!e.target.checked;
+    updateFilterBadge();
     filterTable();
   });
   el('saveSettingsBtn').addEventListener('click', saveSettings);
@@ -552,11 +586,34 @@ function setupEventListeners() {
   el('cancelEditBtn').addEventListener('click', resetForm);
   el('addForm').addEventListener('submit', saveEntry);
 
-  el('familyChips').addEventListener('click', e => {
-    const btn = e.target.closest('[data-family]');
-    if (!btn) return;
-    activeFamily = btn.getAttribute('data-family') || '';
-    renderFamilyChips();
+  el('filterTrigger').addEventListener('click', e => {
+    e.stopPropagation();
+    const open = el('filterPanel').classList.contains('hidden');
+    setFilterPanelOpen(open);
+  });
+  el('filterPanel').addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => setFilterPanelOpen(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') setFilterPanelOpen(false);
+  });
+
+  el('familyChecks').addEventListener('change', e => {
+    const input = e.target.closest('[data-family]');
+    if (!input) return;
+    const id = input.getAttribute('data-family');
+    if (input.checked) includedFamilies.add(id);
+    else includedFamilies.delete(id);
+    updateFilterBadge();
+    filterTable();
+  });
+  el('familiesAllBtn').addEventListener('click', () => {
+    includedFamilies = new Set(ALL_FAMILY_IDS);
+    renderFamilyChecks();
+    filterTable();
+  });
+  el('familiesNoneBtn').addEventListener('click', () => {
+    includedFamilies = new Set();
+    renderFamilyChecks();
     filterTable();
   });
 
@@ -704,7 +761,7 @@ function filterTable() {
   filteredData = currentData.filter(v => {
     // Masquer hors reco sauf toggle ON ou filtre situation « Hors reco »
     if (!showHorsReco && !filterHorsRecoOnly && isHorsReco(v)) return false;
-    if (activeFamily && getFamily(v.pathologie) !== activeFamily) return false;
+    if (!includedFamilies.has(getFamily(v.pathologie))) return false;
 
     const txtPatho = (v.pathologie || '').toLowerCase();
     const txtVaccins = (v.vaccins || '').toLowerCase();

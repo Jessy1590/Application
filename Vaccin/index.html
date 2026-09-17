@@ -50,21 +50,34 @@
         <input type="search" id="searchInput" placeholder="Valence, pathologie, nom commercial (ex. Hexyon, Bexsero, dTcaP)…" autocomplete="off">
         <button type="button" class="search-clear hidden" id="clearSearchBtn" title="Effacer" aria-label="Effacer la recherche">×</button>
       </div>
-      <div class="filter-box">
-        <label class="sr-only" for="filterParticularity">Situation</label>
-        <select id="filterParticularity">
-          <option value="">Toutes les situations</option>
-        </select>
+      <div class="filter-menu" id="filterMenu">
+        <button type="button" class="filter-trigger" id="filterTrigger" aria-expanded="false" aria-controls="filterPanel">
+          Filtres
+          <span class="filter-badge hidden" id="filterBadge" aria-hidden="true"></span>
+          <span class="filter-caret" aria-hidden="true"></span>
+        </button>
+        <div class="filter-panel hidden" id="filterPanel" role="region" aria-label="Options de filtre">
+          <div class="filter-section">
+            <p class="filter-section-title">Familles</p>
+            <p class="filter-hint">Décochez pour exclure (ex. tous sauf voyage)</p>
+            <div class="family-checks" id="familyChecks"></div>
+            <div class="filter-quick">
+              <button type="button" class="btn ghost filter-quick-btn" id="familiesAllBtn">Toutes</button>
+              <button type="button" class="btn ghost filter-quick-btn" id="familiesNoneBtn">Aucune</button>
+            </div>
+          </div>
+          <div class="filter-section">
+            <label class="filter-section-title" for="filterParticularity">Situation</label>
+            <select id="filterParticularity">
+              <option value="">Toutes les situations</option>
+            </select>
+          </div>
+          <label class="toggle-hors-reco in-panel" for="toggleHorsReco">
+            <input type="checkbox" id="toggleHorsReco">
+            <span>Afficher hors reco</span>
+          </label>
+        </div>
       </div>
-      <label class="toggle-hors-reco" for="toggleHorsReco">
-        <input type="checkbox" id="toggleHorsReco">
-        <span>Afficher hors reco</span>
-      </label>
-    </section>
-
-    <section class="chip-bar no-print" aria-label="Familles vaccinales">
-      <span class="chip-label">Famille</span>
-      <div class="chips" id="familyChips"></div>
     </section>
 
     <aside class="pharma-note no-print" id="pharmaNote">
