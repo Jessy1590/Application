@@ -456,17 +456,21 @@ function printTableOnly() {
   doc.open();
   doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
 <style>
-  body{font-family:system-ui,sans-serif;color:#111;margin:12px;font-size:11px;}
-  h1{font-size:16px;margin:0 0 4px;}
-  .meta{color:#555;margin:0 0 12px;font-size:11px;}
-  table{width:100%;border-collapse:collapse;}
-  th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top;text-align:left;}
-  th{background:#eee;}
-  @page{size:A4 landscape;margin:0.8cm;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,sans-serif;color:#111;font-size:7.5pt;line-height:1.25;}
+  h1{font-size:10pt;margin:0 0 2px;font-weight:700;}
+  .meta{color:#444;margin:0 0 6px;font-size:7pt;}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th,td{border:1px solid #999;padding:2px 4px;vertical-align:top;text-align:left;font-size:7.5pt;word-wrap:break-word;overflow-wrap:anywhere;}
+  th{background:#e8e8e8;font-size:7pt;font-weight:700;}
+  col.c1{width:28%;} col.c2{width:32%;} col.c3{width:40%;}
+  @page{size:A4 landscape;margin:0.35cm 0.2cm;}
 </style></head><body>
 <h1>Vaccins &amp; valences — France</h1>
 <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
 <table>
+  <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
   <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
   <tbody>${rowsHtml}</tbody>
 </table>
