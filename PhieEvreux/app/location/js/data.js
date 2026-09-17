@@ -1062,7 +1062,7 @@
   }
 
   const CONTACT_SELECT =
-    '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))';
+    '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*), contacts:location_contacts(*))';
 
   const OPEN_CONTACT_STATUTS = ['a_contacter', 'en_cours', 'reporte'];
   const OUTCOME_RESULTATS = ['ramene_semaine', 'ordo_mail', 'autre_raison', 'mauvais_numero', 'PERTE'];
@@ -1198,6 +1198,7 @@
         contacted_at: c.contacted_at || null,
         commentaire_fait_at: c.commentaire_fait_at || null,
         phase_date_fin: c.phase_date_fin || null,
+        mail_envoye: !!c.mail_envoye,
       });
     }
   }
@@ -1231,6 +1232,7 @@
         contacted_at: c.contacted_at || null,
         commentaire_fait_at: c.commentaire_fait_at || null,
         phase_date_fin: c.phase_date_fin || null,
+        mail_envoye: !!c.mail_envoye,
       });
     }
 
@@ -1247,6 +1249,7 @@
       contacted_at: null,
       commentaire_fait_at: null,
       phase_date_fin: keeper.phase_date_fin || null,
+      mail_envoye: !!keeper.mail_envoye,
     });
   }
 

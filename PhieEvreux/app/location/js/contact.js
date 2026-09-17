@@ -71,11 +71,18 @@
     return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
   }
 
-  function appendJournal(prev, line) {
-    const p = String(prev || '').trim();
-    const l = String(line || '').trim();
-    if (!l) return p || null;
-    return p ? `${p}\n${l}` : l;
+  /** Bloc historique contacts (même tableau que Suivi). */
+  function suiviAppelsBlock(dossier) {
+    const contacts = dossier?.contacts || [];
+    if (!contacts.length) return '';
+    const table =
+      typeof global.LocationSuivi?.contactsTableHtml === 'function'
+        ? global.LocationSuivi.contactsTableHtml(contacts)
+        : '<p class="loc-muted">Aucun contact enregistré.</p>';
+    return `<div class="loc-journal-box loc-journal-box--suivi">
+      <p class="loc-journal-title">Suivi appels déjà effectué</p>
+      ${table}
+    </div>`;
   }
 
   function phonesOf(dossier) {
@@ -539,30 +546,20 @@
       return draft.fromPatientRecall ? 'Rappel par le patient' : 'Appel OK';
     }
 
-    function rowHasMailSent(dossier) {
+    function rowHasMailSent(dossier, contacts) {
+      const list = contacts || dossier?.contacts || [];
+      if (list.some((c) => c && c.mail_envoye)) return true;
       const text = `${dossier?.journal || ''}\n${dossier?.notes || ''}`;
       return /Mail déjà envoyé|Mail envoyé/i.test(text);
     }
 
-    async function appendDossierJournal(dossierId, line) {
-      if (!dossierId || !line) return;
-      const d = await LocationData.getDossier(dossierId);
-      const journal = appendJournal(d.journal, line);
-      await LocationData.updateDossier(dossierId, { journal });
-      if (current?.dossier_id === dossierId && current.dossier) {
-        current.dossier.journal = journal;
-      }
-    }
-
-    async function applyCallUpdate(contact, { appel_statut, appel_resultat, journalLine, mailNote, note }) {
+    async function applyCallUpdate(contact, { appel_statut, appel_resultat, note, mail_envoye }) {
       const statut = mapAppelStatut(appel_statut);
       /** PERTE n’existe pas en contrainte statut DB → resolu + resultat PERTE. */
       const resultat = appel_statut === 'PERTE' ? 'PERTE' : appel_resultat || null;
-      const lines = [journalLine, mailNote].filter(Boolean);
-      for (const line of lines) {
-        await appendDossierJournal(contact.dossier_id, line);
-      }
       const noteTxt = String(note ?? draft.note ?? '').trim();
+      const mailFlag =
+        mail_envoye === true ? true : mail_envoye === false ? false : !!contact.mail_envoye;
       const saved = await LocationData.upsertContact({
         id: contact.id,
         dossier_id: contact.dossier_id,
@@ -575,6 +572,7 @@
         contacted_at: new Date().toISOString(),
         commentaire_fait_at: contact.commentaire_fait_at || null,
         phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
+        mail_envoye: mailFlag,
       });
       const nextFile = fileForContact({ ...contact, ...saved, statut, resultat, phase: PHASE_APPEL });
       if (nextFile === 'perte') showMsg('Statut PERTE — rangé dans Perte.');
@@ -591,27 +589,22 @@
       const note = (draft.note || '').trim();
       const date = todayFr();
       const prefix = callJournalPrefix();
-      const d = contact.dossier || {};
 
       if (code === 'ramene_semaine') {
-        const line =
-          `${date} — ${prefix} : ramène l’appareil dans la semaine` + (note ? ` (${note})` : '');
         await applyCallUpdate(contact, {
           appel_resultat: code,
           appel_statut: 'termine',
-          journalLine: line,
+          note,
         });
         return;
       }
 
       if (code === 'autre_raison') {
         const statut = draft.autreStatut || 'a_rappeler';
-        const statutLabel = APPEL_STATUT_LABELS[statut] || statut;
-        const line = `${date} — ${prefix} : autres — ${note} → ${statutLabel}`;
         await applyCallUpdate(contact, {
           appel_resultat: 'autre_raison',
           appel_statut: statut,
-          journalLine: line,
+          note,
         });
         return;
       }
@@ -652,12 +645,9 @@
 
       if (reason === 'autre_raison') {
         const statut = draft.autreStatut || 'a_rappeler';
-        const statutLabel = APPEL_STATUT_LABELS[statut] || statut;
-        const line = `${date} — Pas appelé : autres — ${note} → ${statutLabel}`;
         await applyCallUpdate(contact, {
           appel_resultat: 'autre_raison',
           appel_statut: statut,
-          journalLine: line,
           note,
         });
         return;
@@ -670,7 +660,7 @@
     }
 
     function goMailStepOrSkip(contact) {
-      if (rowHasMailSent(contact.dossier)) {
+      if (rowHasMailSent(contact.dossier, contact.dossier?.contacts)) {
         handleMailYes(contact);
         return;
       }
@@ -678,14 +668,7 @@
     }
 
     async function handleMailYes(contact) {
-      const d = contact.dossier || {};
-      const date = todayFr();
       const after = draft.afterMail;
-      const baseLine = draft.recallLine || `${date} — Suivi appel`;
-      const already = rowHasMailSent(d);
-      const mailLine = already
-        ? `${date} — Mail déjà envoyé (module comptes / métier)`
-        : `${date} — Mail envoyé (logiciel métier)`;
 
       let appel_resultat = draft.resultat || draft.noReason;
       let appel_statut = 'a_rappeler';
@@ -710,20 +693,17 @@
       await applyCallUpdate(contact, {
         appel_resultat,
         appel_statut,
-        journalLine: baseLine,
-        mailNote: mailLine,
+        note: (draft.note || '').trim(),
+        mail_envoye: true,
       });
     }
 
     async function handleMailAFaire(contact) {
-      if (rowHasMailSent(contact.dossier)) {
+      if (rowHasMailSent(contact.dossier, contact.dossier?.contacts)) {
         await handleMailYes(contact);
         return;
       }
-      const date = todayFr();
       const after = draft.afterMail;
-      const baseLine = draft.recallLine || `${date} — Suivi`;
-      const aFaireLine = `${date} — Mail à faire`;
 
       let appel_resultat = draft.resultat || draft.noReason;
       let appel_statut = 'a_rappeler';
@@ -746,27 +726,26 @@
       await applyCallUpdate(contact, {
         appel_resultat,
         appel_statut,
-        journalLine: baseLine,
-        mailNote: aFaireLine,
+        note: (draft.note || '').trim(),
+        mail_envoye: false,
       });
     }
 
     async function handleNoMail(contact) {
-      if (rowHasMailSent(contact.dossier)) {
+      if (rowHasMailSent(contact.dossier, contact.dossier?.contacts)) {
         await handleMailYes(contact);
         return;
       }
-      const date = todayFr();
       const after = draft.afterMail;
-      const baseLine = draft.recallLine || `${date} — Suivi`;
-      const noMailLine = `${date} — Pas d’adresse mail / pas d’envoi possible`;
+      const note = (draft.note || '').trim();
 
       if (after === 'termine_ordo') {
         // Ordo mail + Non → Attente (plus PERTE)
         await applyCallUpdate(contact, {
           appel_resultat: 'ordo_mail',
           appel_statut: 'termine',
-          journalLine: `${baseLine}\n${noMailLine}`,
+          note,
+          mail_envoye: false,
         });
         return;
       }
@@ -775,7 +754,8 @@
         await applyCallUpdate(contact, {
           appel_resultat: draft.resultat,
           appel_statut: 'a_rappeler',
-          journalLine: `${baseLine}\n${noMailLine}`,
+          note,
+          mail_envoye: false,
         });
         return;
       }
@@ -785,7 +765,8 @@
         await applyCallUpdate(contact, {
           appel_resultat: 'mauvais_numero',
           appel_statut: 'a_rappeler',
-          journalLine: `${baseLine}\n${noMailLine}`,
+          note,
+          mail_envoye: false,
         });
         return;
       }
@@ -794,7 +775,8 @@
       await applyCallUpdate(contact, {
         appel_resultat: 'PERTE',
         appel_statut: 'PERTE',
-        journalLine: `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (pas de numéro, pas de mail)`,
+        note,
+        mail_envoye: false,
       });
     }
 
@@ -807,12 +789,6 @@
       }
       try {
         showMsg('Enregistrement…');
-        if (mailAlready) {
-          await appendDossierJournal(
-            current.dossier_id,
-            `${todayFr()} — Mail déjà envoyé (module comptes)`
-          );
-        }
         await LocationData.upsertContact({
           id: current.id,
           dossier_id: current.dossier_id,
@@ -822,6 +798,7 @@
           commentaire: lgoText,
           commentaire_fait_at: new Date().toISOString(),
           phase_date_fin: current.dossier?.date_fin || null,
+          mail_envoye: !!(mailAlready || current.mail_envoye),
         });
         showMsg(
           mailAlready
@@ -883,7 +860,6 @@
         LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
         d.date_fin || '—',
       ].join(' - ');
-      const journal = String(d.journal || '').trim();
       const header = `
         <div class="loc-detail-head">
           <div>
@@ -904,14 +880,7 @@
           </div>
           ${detailHeadActions(d)}
         </div>
-        ${
-          journal
-            ? `<div class="loc-journal-box loc-journal-box--suivi">
-                <p class="loc-journal-title">Suivi appels déjà effectué</p>
-                <div class="loc-journal-body">${esc(journal)}</div>
-              </div>`
-            : ''
-        }`;
+        ${suiviAppelsBlock(d)}`;
 
       let body = '';
 
@@ -1009,7 +978,6 @@
         LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
         d.date_fin || '—',
       ].join(' - ');
-      const journal = String(d.journal || '').trim();
       const badge = isPerteContact(current)
         ? 'Perte'
         : 'Attente prolongation ou retour appareil';
@@ -1036,14 +1004,7 @@
           </div>
           ${detailHeadActions(d)}
         </div>
-        ${
-          journal
-            ? `<div class="loc-journal-box loc-journal-box--suivi">
-                <p class="loc-journal-title">Suivi appels déjà effectué</p>
-                <div class="loc-journal-body">${esc(journal)}</div>
-              </div>`
-            : ''
-        }
+        ${suiviAppelsBlock(d)}
         <div class="loc-row-actions" style="margin-top:12px; justify-content:flex-end">
           <button type="button" class="loc-btn" id="coARappeler">À rappeler</button>
         </div>`;
@@ -1065,6 +1026,7 @@
           contacted_at: contact.contacted_at || null,
           commentaire_fait_at: contact.commentaire_fait_at || null,
           phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
+          mail_envoye: !!contact.mail_envoye,
         });
         showMsg('Remis en file Appels (à appeler).');
         current = null;

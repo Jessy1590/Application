@@ -96,12 +96,19 @@
         const phase = c.phase === 'appel' ? 'Appel' : c.phase === 'commentaire' ? 'Commentaire' : '—';
         const statut = statutMap[c.statut] || c.statut || '—';
         const resultat = phaseResultatLabel(c);
+        const mailCell =
+          c.phase === 'appel'
+            ? `<input type="checkbox" class="loc-mail-check" disabled ${
+                c.mail_envoye ? 'checked' : ''
+              } aria-label="Mail envoyé">`
+            : '—';
         return `<tr>
           <td>${esc(when)}</td>
           <td>${esc(phase)}</td>
           <td>${esc(motifContactLabel(c.motif))}</td>
           <td>${esc(resultat)}</td>
           <td>${esc(c.commentaire || '')}</td>
+          <td class="loc-mail-cell">${mailCell}</td>
           <td>${esc(statut)}</td>
         </tr>`;
       })
@@ -115,6 +122,7 @@
             <th>Motif</th>
             <th>Résultat de la phase</th>
             <th>Commentaire</th>
+            <th>Mail</th>
             <th>Statut actuel</th>
           </tr>
         </thead>
@@ -988,5 +996,5 @@
     if (selectedId) await openDetail(selectedId);
   }
 
-  global.LocationSuivi = { mount };
+  global.LocationSuivi = { mount, contactsTableHtml };
 })(window);

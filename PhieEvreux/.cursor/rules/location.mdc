@@ -33,7 +33,7 @@ alwaysApply: false
 ## Impression fiche A4 (`LocationPrint.buildFicheHtml`)
 - Impression **uniquement** iframe same-document (`printHtml`) — jamais `window.open`.
 - Quadrillage : haut 2 col. (Patient puis Personnel | Appareil) ; Suivi pleine largeur (lignes auto via `buildSuiviEventRows` + lignes vierges jusqu’au bas) ; pied clôture toujours en bas de page (`fillFicheBlankRows`).
-- Journal d’appels : `location_dossiers.journal` (pas `notes`) ; `notes` = notes initiales.
+- Journal d’appels : historique dans `location_contacts` (colonne `mail_envoye` pour mail) ; `notes` = notes initiales ; `journal` dossier plus affiché en UI.
 - Pas de section Facturation sur la fiche papier.
 - Global : **`LocationPrint`** (pas `LocationImpression`).
 
@@ -42,4 +42,4 @@ alwaysApply: false
 - Règles / templates en chips ; accès via `LocationAccess`.
 
 ## SQL local
-- `sql/002`…`007` : phase contacts, facturation_ok, cloture_meta, template_id, statut `en_attente`, journal d’appels — déjà appliqués.
+- `sql/002`…`008` : phase contacts, facturation_ok, cloture_meta, template_id, statut `en_attente`, journal d’appels, `mail_envoye` contacts — déjà appliqués.

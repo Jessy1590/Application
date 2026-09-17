@@ -147,7 +147,9 @@
       const motif = motifContactLabel(c.motif);
       const resultat = phaseResultatLabel(c);
       const statut = c.statut ? statutLabels[c.statut] || c.statut : '';
-      // Compact = tableau Suivi sans Commentaire : Phase · Motif · Résultat · Statut
+      // Compact = tableau Suivi sans Commentaire : Phase · Motif · Résultat · Mail · Statut
+      const bits = ['Contact', phaseLabel, motif, resultat, statut];
+      if (c.phase === 'appel' && c.mail_envoye) bits.splice(bits.length - 1, 0, 'mail: oui');
       rows.push({
         date:
           isoDateOnly(c.contacted_at) ||
@@ -155,7 +157,7 @@
           isoDateOnly(c.updated_at) ||
           isoDateOnly(c.created_at) ||
           null,
-        libelle: detailInline(['Contact', phaseLabel, motif, resultat, statut]),
+        libelle: detailInline(bits),
       });
     });
 
@@ -874,6 +876,7 @@
           : '—';
         const typeTxt =
           R().typeLabel(a.type_appareil) + (a.type_libelle ? ` (${a.type_libelle})` : '');
+        const mailTxt = it.phase === 'appel' && it.mail_envoye ? 'mail: oui' : '';
 
         const identite = `
           <strong>${esc([p.nom, p.prenom].filter(Boolean).join(' '))}</strong>
@@ -892,10 +895,9 @@
         return `<tr>
           <td class="print-identity">${identite}</td>
           <td class="print-location">${location}</td>
-          <td>${esc(it.commentaire || '')}</td>
           <td>${esc(compte)}</td>
           <td class="print-call">${appel}</td>
-          <td class="print-followup">${esc(d.journal || '')}</td>
+          <td class="print-followup">${esc(mailTxt)}</td>
         </tr>`;
       })
       .join('');
@@ -911,12 +913,11 @@
   th,td{border:0.5pt solid #8a8a8a;padding:4px 5px;text-align:left;vertical-align:top;line-height:1.25;overflow-wrap:anywhere}
   th{background:#dfe3e6;font-weight:700;font-size:8.5px;text-transform:uppercase}
   tbody tr:nth-child(even) td{background:#f3f4f5}
-  th:nth-child(1){width:19%}
-  th:nth-child(2){width:12%}
-  th:nth-child(3){width:17%}
-  th:nth-child(4){width:7%}
-  th:nth-child(5){width:18%}
-  th:nth-child(6){width:27%}
+  th:nth-child(1){width:24%}
+  th:nth-child(2){width:20%}
+  th:nth-child(3){width:12%}
+  th:nth-child(4){width:28%}
+  th:nth-child(5){width:16%}
   .print-identity strong,.print-location strong,.print-call strong{display:block;margin-bottom:2px;font-size:9.5px}
   .print-identity span,.print-location span,.print-call span{display:block;margin-top:1px}
   .print-followup{white-space:pre-wrap}
@@ -928,12 +929,11 @@
     <thead><tr>
       <th>Identité</th>
       <th>Location</th>
-      <th>Commentaire</th>
       <th>Statut com.</th>
       <th>Appel</th>
-      <th>Suivi</th>
+      <th>Mail</th>
     </tr></thead>
-    <tbody>${rows || '<tr><td colspan="6">Aucune ligne</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="5">Aucune ligne</td></tr>'}</tbody>
   </table>
 </body></html>`);
   }

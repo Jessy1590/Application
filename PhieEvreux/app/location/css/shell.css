@@ -1230,6 +1230,18 @@ html[data-theme="light"] .loc-help-tip__bubble {
   white-space: nowrap;
 }
 
+.loc-contacts-table .loc-mail-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.loc-contacts-table .loc-mail-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--loc-accent, #2a6f6a);
+}
+
 
 .loc-table-wrap { overflow: auto; }
 
