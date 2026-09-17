@@ -2,7 +2,8 @@
  * Module Contact — files Commentaire / Appels / Attente / Perte.
  * Phase commentaire = message LGO (template) à reporter sur le compte patient.
  * Phase appel = arbre décisionnel (joint ? → résultat → mail éventuel).
- * Attente = resolu + ramene_semaine | ordo_mail ; Perte = resolu + resultat PERTE.
+ * Attente = resolu + ramene_semaine | ordo_mail | autre_raison | mauvais_numero ;
+ * Perte = resolu + resultat PERTE.
  * Note / résultat d’appel : champs vides (pas de préremplissage).
  */
 (function (global) {
@@ -46,8 +47,11 @@
     PERTE: 'PERTE',
   };
 
-  /** Résultats d’appel → file « Attente prolongation ou retour appareil » (appel OK). */
-  const ATTENTE_RESULTATS = new Set(['ramene_semaine', 'ordo_mail', 'autre_raison']);
+  /**
+   * Résultats d’appel → file « Attente prolongation ou retour appareil »
+   * (statut resolu uniquement ; mauvais_numero en Attente = pas de n° + mail Oui/À faire).
+   */
+  const ATTENTE_RESULTATS = new Set(['ramene_semaine', 'ordo_mail', 'autre_raison', 'mauvais_numero']);
 
   /** Libellés motifs template (mêmes que admin-location). */
   const MOTIF_LABELS = {
@@ -550,7 +554,7 @@
       }
     }
 
-    async function applyCallUpdate(contact, { appel_statut, appel_resultat, journalLine, mailNote }) {
+    async function applyCallUpdate(contact, { appel_statut, appel_resultat, journalLine, mailNote, note }) {
       const statut = mapAppelStatut(appel_statut);
       /** PERTE n’existe pas en contrainte statut DB → resolu + resultat PERTE. */
       const resultat = appel_statut === 'PERTE' ? 'PERTE' : appel_resultat || null;
@@ -558,16 +562,18 @@
       for (const line of lines) {
         await appendDossierJournal(contact.dossier_id, line);
       }
+      const noteTxt = String(note ?? draft.note ?? '').trim();
       const saved = await LocationData.upsertContact({
         id: contact.id,
         dossier_id: contact.dossier_id,
         motif: contact.motif,
         statut,
         phase: PHASE_APPEL,
-        commentaire: contact.commentaire || null,
+        commentaire: noteTxt || contact.commentaire || null,
         resultat,
         canal: 'telephone',
         contacted_at: new Date().toISOString(),
+        commentaire_fait_at: contact.commentaire_fait_at || null,
         phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
       });
       const nextFile = fileForContact({ ...contact, ...saved, statut, resultat, phase: PHASE_APPEL });
@@ -576,7 +582,6 @@
       else showMsg('Appel enregistré — reste en file Appels.');
       current = null;
       resetDraft();
-      setFile(nextFile);
       await refresh();
       flowEl.innerHTML = '<p class="loc-muted">Fiche suivante : sélectionnez dans la liste.</p>';
     }
@@ -646,11 +651,14 @@
       const note = (draft.note || '').trim();
 
       if (reason === 'autre_raison') {
-        const line = `${date} — Pas appelé : ${note}`;
+        const statut = draft.autreStatut || 'a_rappeler';
+        const statutLabel = APPEL_STATUT_LABELS[statut] || statut;
+        const line = `${date} — Pas appelé : autres — ${note} → ${statutLabel}`;
         await applyCallUpdate(contact, {
           appel_resultat: 'autre_raison',
-          appel_statut: 'a_rappeler',
+          appel_statut: statut,
           journalLine: line,
+          note,
         });
         return;
       }
@@ -683,12 +691,19 @@
       let appel_statut = 'a_rappeler';
 
       if (after === 'termine_ordo') {
+        // Ordo mail + Oui → Attente (ordo_mail + resolu)
         appel_resultat = 'ordo_mail';
         appel_statut = 'termine';
       } else if (after === 'rappeler') {
+        // Répondeur / raccroché → Appels (reporte)
         appel_statut = 'a_rappeler';
-      } else if (after === 'mauvais_numero' || after === 'pas_de_numero') {
-        appel_resultat = after;
+      } else if (after === 'mauvais_numero') {
+        // Mauvais n° (appel) → Appels (reporte)
+        appel_resultat = 'mauvais_numero';
+        appel_statut = 'a_rappeler';
+      } else if (after === 'pas_de_numero') {
+        // Pas de n° + mail Oui → Attente (mauvais_numero + resolu)
+        appel_resultat = 'mauvais_numero';
         appel_statut = 'termine';
       }
 
@@ -711,12 +726,26 @@
       const aFaireLine = `${date} — Mail à faire`;
 
       let appel_resultat = draft.resultat || draft.noReason;
-      if (after === 'termine_ordo') appel_resultat = 'ordo_mail_a_faire';
-      else if (after === 'mauvais_numero' || after === 'pas_de_numero') appel_resultat = after;
+      let appel_statut = 'a_rappeler';
+
+      if (after === 'termine_ordo') {
+        // Ordo mail + À faire → Attente (ordo_mail + resolu), plus ordo_mail_a_faire
+        appel_resultat = 'ordo_mail';
+        appel_statut = 'termine';
+      } else if (after === 'rappeler') {
+        appel_statut = 'a_rappeler';
+      } else if (after === 'mauvais_numero') {
+        appel_resultat = 'mauvais_numero';
+        appel_statut = 'a_rappeler';
+      } else if (after === 'pas_de_numero') {
+        // Pas de n° + mail À faire → Attente
+        appel_resultat = 'mauvais_numero';
+        appel_statut = 'termine';
+      }
 
       await applyCallUpdate(contact, {
         appel_resultat,
-        appel_statut: 'a_rappeler',
+        appel_statut,
         journalLine: baseLine,
         mailNote: aFaireLine,
       });
@@ -733,10 +762,11 @@
       const noMailLine = `${date} — Pas d’adresse mail / pas d’envoi possible`;
 
       if (after === 'termine_ordo') {
+        // Ordo mail + Non → Attente (plus PERTE)
         await applyCallUpdate(contact, {
           appel_resultat: 'ordo_mail',
-          appel_statut: 'PERTE',
-          journalLine: `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (ordo mail impossible)`,
+          appel_statut: 'termine',
+          journalLine: `${baseLine}\n${noMailLine}`,
         });
         return;
       }
@@ -750,10 +780,21 @@
         return;
       }
 
+      if (after === 'mauvais_numero') {
+        // Mauvais n° + Non → Appels (reporte)
+        await applyCallUpdate(contact, {
+          appel_resultat: 'mauvais_numero',
+          appel_statut: 'a_rappeler',
+          journalLine: `${baseLine}\n${noMailLine}`,
+        });
+        return;
+      }
+
+      // Pas de n° + mail Non → Perte
       await applyCallUpdate(contact, {
-        appel_resultat: after === 'mauvais_numero' ? 'mauvais_numero' : 'pas_de_numero',
-        appel_statut: 'termine',
-        journalLine: `${baseLine}\n${noMailLine}`,
+        appel_resultat: 'PERTE',
+        appel_statut: 'PERTE',
+        journalLine: `${baseLine}\n${noMailLine}\n${date} — Statut PERTE (pas de numéro, pas de mail)`,
       });
     }
 
@@ -789,9 +830,8 @@
         );
         current = null;
         resetDraft();
-        setFile('appel');
         await refresh();
-        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient dans Appels.</p>';
+        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
       } catch (e) {
         showMsg(e.message || 'Erreur', true);
       }
@@ -903,7 +943,7 @@
           `<label class="loc-field">Note<textarea id="coYesNote" rows="2" placeholder="Ex. a décroché, ton…"></textarea></label>
            <p class="loc-hint">Choisissez le résultat de l'appel</p>`
         );
-      } else if (callStep === 'call_yes_autre') {
+      } else if (callStep === 'call_yes_autre' || callStep === 'call_no_autre') {
         const selected = draft.autreStatut || '';
         const autreNote = draft.autreNote || draft.note || '';
         const statutChoices = [
@@ -912,10 +952,15 @@
           ['termine', 'Terminé'],
           ['PERTE', 'PERTE'],
         ];
+        const heading =
+          callStep === 'call_no_autre'
+            ? 'Autre raison — précisez'
+            : 'Autres — ce qui a été dit';
+        const backId = callStep === 'call_no_autre' ? 'coBackNo' : 'coBackYes';
         body = stepCard(
-          'Autres — ce qui a été dit',
-          btn('Retour', 'id="coBackYes"', 'loc-btn-ghost') + btn('Enregistrer', 'id="coSaveAutre"'),
-          `<label class="loc-field">Texte de l’échange<textarea id="coAutreNote" rows="3" placeholder="Obligatoire">${esc(autreNote)}</textarea></label>
+          heading,
+          btn('Retour', `id="${backId}"`, 'loc-btn-ghost') + btn('Enregistrer', 'id="coSaveAutre"'),
+          `<label class="loc-field">Texte<textarea id="coAutreNote" rows="3" placeholder="Obligatoire">${esc(autreNote)}</textarea></label>
            <p class="loc-hint">Choisissez le statut de l'appel</p>
            <div class="loc-step-actions" id="coAutreStatut">
              ${statutChoices
@@ -1114,7 +1159,7 @@
         b.addEventListener('click', () => {
           draft.autreNote = flowEl.querySelector('#coAutreNote')?.value.trim() || draft.autreNote;
           draft.autreStatut = b.dataset.autreSt;
-          go('call_yes_autre');
+          go(callStep === 'call_no_autre' ? 'call_no_autre' : 'call_yes_autre');
         });
       });
 
@@ -1124,13 +1169,24 @@
         if (!draft.autreStatut) return showMsg('Choisissez un statut', true);
         draft.note = note;
         draft.resultat = 'autre_raison';
-        handleCallYes(current);
+        if (callStep === 'call_no_autre') {
+          draft.noReason = 'autre_raison';
+          handleCallNo(current);
+        } else {
+          handleCallYes(current);
+        }
       });
 
       flowEl.querySelectorAll('[data-no-res]').forEach((b) => {
         b.addEventListener('click', () => {
           draft.noReason = b.dataset.noRes;
           draft.note = '';
+          if (draft.noReason === 'autre_raison') {
+            draft.autreNote = '';
+            draft.autreStatut = '';
+            go('call_no_autre');
+            return;
+          }
           go('call_no_comment');
         });
       });

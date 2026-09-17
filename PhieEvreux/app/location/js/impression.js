@@ -36,11 +36,13 @@
   }
 
   const CONTACT_STATUT_LABELS = {
-    a_contacter: 'À contacter',
+    a_contacter: 'À appeler',
     en_cours: 'En cours',
     reporte: 'À rappeler',
     contacte: 'Contacté',
-    resolu: 'Résolu',
+    resolu: 'Terminé',
+    annule: 'Annulé',
+    PERTE: 'PERTE',
   };
 
   const CONTACT_MOTIF_LABELS = {
@@ -85,7 +87,8 @@
 
   /**
    * Lignes Suivi fiche A4 — chronologique, libellés horizontaux compacts.
-   * (création / prolongation / contact / appareil / clôture partielle / journal).
+   * Contacts : même modèle que le tableau Suivi (sans colonne Commentaire).
+   * Le journal dossier n’est plus source d’affichage Suivi.
    */
   function buildSuiviEventRows(dossier) {
     const rows = [];
@@ -94,6 +97,15 @@
       ...CONTACT_STATUT_LABELS,
       ...(global.LocationContact?.APPEL_STATUT_LABELS || {}),
     };
+
+    function phaseResultatLabel(c) {
+      if (c.resultat) return resultatLabels[c.resultat] || c.resultat;
+      if (c.phase === 'commentaire' || !c.commentaire_fait_at) {
+        return c.commentaire_fait_at ? 'ECRIS' : 'com. à faire';
+      }
+      if (c.commentaire_fait_at && c.phase === 'appel' && !c.resultat) return 'ECRIS';
+      return '';
+    }
 
     const prolongations = (dossier.prolongations || []).slice().sort((a, b) =>
       String(a.date_ordo || a.created_at || '').localeCompare(String(b.date_ordo || b.created_at || ''))
@@ -131,24 +143,11 @@
       )
     );
     contacts.forEach((c) => {
-      if (c.statut === 'annule') return;
-      const motif = motifContactLabel(c.motif);
       const phaseLabel = c.phase === 'appel' ? 'Appel' : 'Commentaire';
-      const bits = ['Contact', phaseLabel];
-      if (motif) bits.push(motif);
-      if (c.commentaire_fait_at) {
-        bits.push(
-          `com. le ${formatDateFrPrint(c.commentaire_fait_at) || c.commentaire_fait_at.slice(0, 10)}`
-        );
-      }
-      if (c.contacted_at) {
-        bits.push(
-          `appel le ${formatDateFrPrint(c.contacted_at) || c.contacted_at.slice(0, 10)}`
-        );
-      }
-      if (c.resultat) bits.push(resultatLabels[c.resultat] || c.resultat);
-      if (c.statut) bits.push(statutLabels[c.statut] || c.statut);
-      if (c.commentaire) bits.push(c.commentaire);
+      const motif = motifContactLabel(c.motif);
+      const resultat = phaseResultatLabel(c);
+      const statut = c.statut ? statutLabels[c.statut] || c.statut : '';
+      // Compact = tableau Suivi sans Commentaire : Phase · Motif · Résultat · Statut
       rows.push({
         date:
           isoDateOnly(c.contacted_at) ||
@@ -156,29 +155,9 @@
           isoDateOnly(c.updated_at) ||
           isoDateOnly(c.created_at) ||
           null,
-        libelle: detailInline(bits),
+        libelle: detailInline(['Contact', phaseLabel, motif, resultat, statut]),
       });
     });
-
-    // Journal d’appels / mails (colonne journal, distincte des notes initiales).
-    String(dossier.journal || '')
-      .split(/\n+/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .forEach((line) => {
-        const parsed = isJournalLine(line) ? parseJournalLine(line) : null;
-        if (parsed?.text) {
-          rows.push({
-            date: parsed.date,
-            libelle: detailInline(['Contact / appels', parsed.text]),
-          });
-          return;
-        }
-        rows.push({
-          date: null,
-          libelle: detailInline(['Contact / appels', line]),
-        });
-      });
 
     if (dossier.appareil_rendu) {
       rows.push({

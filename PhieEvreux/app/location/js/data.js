@@ -1065,7 +1065,7 @@
     '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))';
 
   const OPEN_CONTACT_STATUTS = ['a_contacter', 'en_cours', 'reporte'];
-  const OUTCOME_RESULTATS = ['ramene_semaine', 'ordo_mail', 'autre_raison', 'PERTE'];
+  const OUTCOME_RESULTATS = ['ramene_semaine', 'ordo_mail', 'autre_raison', 'mauvais_numero', 'PERTE'];
 
   function mapContactRows(data) {
     return (data || []).map((c) => ({

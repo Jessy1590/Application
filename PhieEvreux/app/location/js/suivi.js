@@ -28,12 +28,13 @@
   }
 
   const CONTACT_STATUT_LABELS = {
-    a_contacter: 'À contacter',
+    a_contacter: 'À appeler',
     en_cours: 'En cours',
     reporte: 'À rappeler',
     contacte: 'Contacté',
-    resolu: 'Résolu',
+    resolu: 'Terminé',
     annule: 'Annulé',
+    PERTE: 'PERTE',
   };
 
   const CONTACT_MOTIF_LABELS = {
@@ -59,7 +60,18 @@
     return s;
   }
 
-  /** Tableau contacts (même logique que l’impression Contact / ancienne app). */
+  /** Résultat de la phase (commentaire → ECRIS / à faire ; appel → résultat). */
+  function phaseResultatLabel(c) {
+    const resMap = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    if (c.resultat) return resMap[c.resultat] || c.resultat;
+    if (c.phase === 'commentaire' || !c.commentaire_fait_at) {
+      return c.commentaire_fait_at ? 'ECRIS' : 'com. à faire';
+    }
+    if (c.commentaire_fait_at && c.phase === 'appel' && !c.resultat) return 'ECRIS';
+    return '—';
+  }
+
+  /** Tableau contacts / étapes passées (source = location_contacts, pas le journal). */
   function contactsTableHtml(contacts) {
     const list = (contacts || []).slice().sort((a, b) =>
       String(a.contacted_at || a.commentaire_fait_at || a.created_at || '').localeCompare(
@@ -69,7 +81,10 @@
     if (!list.length) {
       return '<p class="loc-muted">Aucun contact enregistré.</p>';
     }
-    const resMap = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    const statutMap = {
+      ...CONTACT_STATUT_LABELS,
+      ...(global.LocationContact?.APPEL_STATUT_LABELS || {}),
+    };
     const rows = list
       .map((c) => {
         const when =
@@ -79,17 +94,15 @@
               ? formatDateFr(c.commentaire_fait_at)
               : formatDateFr(c.created_at);
         const phase = c.phase === 'appel' ? 'Appel' : c.phase === 'commentaire' ? 'Commentaire' : '—';
-        const compte = c.commentaire_fait_at || c.phase === 'appel' ? 'ECRIS' : 'com. à faire';
-        const statut = CONTACT_STATUT_LABELS[c.statut] || c.statut || '—';
-        const resultat = c.resultat ? resMap[c.resultat] || c.resultat : '—';
+        const statut = statutMap[c.statut] || c.statut || '—';
+        const resultat = phaseResultatLabel(c);
         return `<tr>
           <td>${esc(when)}</td>
           <td>${esc(phase)}</td>
           <td>${esc(motifContactLabel(c.motif))}</td>
-          <td>${esc(compte)}</td>
-          <td>${esc(statut)}</td>
           <td>${esc(resultat)}</td>
           <td>${esc(c.commentaire || '')}</td>
+          <td>${esc(statut)}</td>
         </tr>`;
       })
       .join('');
@@ -100,10 +113,9 @@
             <th>Date</th>
             <th>Phase</th>
             <th>Motif</th>
-            <th>Compte</th>
-            <th>Appel</th>
-            <th>Résultat</th>
+            <th>Résultat de la phase</th>
             <th>Commentaire</th>
+            <th>Statut actuel</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -611,16 +623,8 @@
                    </span>`
                 : ''
             }
-            <h4 class="loc-contacts-heading">Contacts</h4>
+            <h4 class="loc-contacts-heading">Contacts / appels</h4>
             ${contactsTableHtml(d.contacts)}
-            ${
-              String(d.journal || '').trim()
-                ? `<div class="loc-journal-box loc-journal-box--suivi" style="margin-top:12px">
-                    <p class="loc-journal-title">Suivi appels déjà effectué</p>
-                    <div class="loc-journal-body">${esc(d.journal)}</div>
-                  </div>`
-                : '<p class="loc-muted" style="margin-top:12px">Aucun suivi d’appel enregistré.</p>'
-            }
           </div>
         </details>
         </div>
