@@ -46,8 +46,8 @@
     PERTE: 'PERTE',
   };
 
-  /** Résultats d’appel → file « Attente prolongation ou retour appareil ». */
-  const ATTENTE_RESULTATS = new Set(['ramene_semaine', 'ordo_mail']);
+  /** Résultats d’appel → file « Attente prolongation ou retour appareil » (appel OK). */
+  const ATTENTE_RESULTATS = new Set(['ramene_semaine', 'ordo_mail', 'autre_raison']);
 
   /** Libellés motifs template (mêmes que admin-location). */
   const MOTIF_LABELS = {
@@ -177,6 +177,23 @@
     const btnList = wrap.querySelector('#coToggleList');
     const btnPrev = wrap.querySelector('#coPrev');
     const btnNext = wrap.querySelector('#coNext');
+
+    function setFile(name) {
+      file = name;
+      wrap.querySelectorAll('[data-file]').forEach((b) =>
+        b.classList.toggle('active', b.dataset.file === file)
+      );
+    }
+
+    /** Onglet cible après enregistrement d’un contact. */
+    function fileForContact(it) {
+      if (!it) return file;
+      if (isPerteContact(it)) return 'perte';
+      if (isAttenteContact(it)) return 'attente';
+      if (isOpenContact(it) && contactPhase(it) === PHASE_APPEL) return 'appel';
+      if (isOpenContact(it) && contactPhase(it) === PHASE_COMMENTAIRE) return 'commentaire';
+      return file;
+    }
 
     function activeQueue() {
       if (file === 'appel') return callQueue();
@@ -365,12 +382,7 @@
     function selectItem(id) {
       current = filteredItems.find((i) => i.id === id) || null;
       resetDraft();
-      if (current && (file === 'commentaire' || file === 'appel') && isOpenContact(current)) {
-        file = contactPhase(current) === PHASE_APPEL ? 'appel' : 'commentaire';
-        wrap.querySelectorAll('[data-file]').forEach((b) =>
-          b.classList.toggle('active', b.dataset.file === file)
-        );
-      }
+      if (current) setFile(fileForContact(current));
       renderList();
       renderFlow();
     }
@@ -542,7 +554,7 @@
       for (const line of lines) {
         await appendDossierJournal(contact.dossier_id, line);
       }
-      await LocationData.upsertContact({
+      const saved = await LocationData.upsertContact({
         id: contact.id,
         dossier_id: contact.dossier_id,
         motif: contact.motif,
@@ -554,9 +566,13 @@
         contacted_at: new Date().toISOString(),
         phase_date_fin: contact.dossier?.date_fin || contact.phase_date_fin || null,
       });
-      showMsg(appel_statut === 'PERTE' ? 'Statut PERTE' : 'Appel enregistré.');
+      const nextFile = fileForContact({ ...contact, ...saved, statut, resultat, phase: PHASE_APPEL });
+      if (nextFile === 'perte') showMsg('Statut PERTE — rangé dans Perte.');
+      else if (nextFile === 'attente') showMsg('Appel OK — rangé en Attente prolongation ou retour.');
+      else showMsg('Appel enregistré — reste en file Appels.');
       current = null;
       resetDraft();
+      setFile(nextFile);
       await refresh();
       flowEl.innerHTML = '<p class="loc-muted">Fiche suivante : sélectionnez dans la liste.</p>';
     }
@@ -769,8 +785,9 @@
         );
         current = null;
         resetDraft();
+        setFile('appel');
         await refresh();
-        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient.</p>';
+        flowEl.innerHTML = '<p class="loc-muted">Sélectionnez un patient dans Appels.</p>';
       } catch (e) {
         showMsg(e.message || 'Erreur', true);
       }
@@ -1128,10 +1145,7 @@
 
     wrap.querySelectorAll('[data-file]').forEach((b) => {
       b.addEventListener('click', () => {
-        file = b.dataset.file;
-        wrap.querySelectorAll('[data-file]').forEach((x) =>
-          x.classList.toggle('active', x.dataset.file === file)
-        );
+        setFile(b.dataset.file);
         current = null;
         resetDraft();
         renderList();

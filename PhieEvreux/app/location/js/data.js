@@ -1042,7 +1042,7 @@
         '*, dossier:location_dossiers(*, patient:location_patients(*), appareils:location_appareils(*), prolongations:location_prolongations(*))'
       )
       .eq('statut', 'resolu')
-      .in('resultat', ['ramene_semaine', 'ordo_mail', 'PERTE'])
+      .in('resultat', ['ramene_semaine', 'ordo_mail', 'autre_raison', 'PERTE'])
       .order('contacted_at', { ascending: false });
     if (error) throw error;
     return (data || []).map((c) => ({

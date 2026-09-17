@@ -527,6 +527,15 @@
                    </span>`
                 : ''
             }
+            ${
+              String(d.notes || '').trim()
+                ? `<div class="loc-journal-box loc-journal-box--suivi">
+                    <p class="loc-journal-title">Suivi appels déjà effectué</p>
+                    <div class="loc-journal-body">${esc(d.notes)}</div>
+                  </div>`
+                : '<p class="loc-muted">Aucun suivi d’appel enregistré.</p>'
+            }
+            <h4 style="margin-top:12px">Historique contacts</h4>
             <ul class="loc-history loc-contact-history">
               ${(d.contacts || []).map((c) => {
                 const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
@@ -538,6 +547,7 @@
                   resolu: 'Résolu',
                   annule: 'Annulé',
                 };
+                const resMap = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
                 const phaseLabel =
                   c.phase === 'appel' ? 'appel' : c.phase === 'commentaire' ? 'commentaire' : '';
                 const bits = [
@@ -545,7 +555,7 @@
                   phaseLabel,
                   c.motif || '',
                   stMap[c.statut] || c.statut || '',
-                  c.resultat || '',
+                  c.resultat ? resMap[c.resultat] || c.resultat : '',
                   c.commentaire || '',
                 ].filter(Boolean);
                 return `<li>${esc(bits.join(' · '))}</li>`;
