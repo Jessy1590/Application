@@ -1,0 +1,44 @@
+---
+description: App Location — modules, LGO, accès, impression A4
+globs: "app/location/**/*"
+alwaysApply: false
+---
+
+# Location (`app/location/`)
+
+## Modules & pages
+- Tuiles : Création → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Paramètres.
+- `module-page.js` : boot commun, navigation `openSuivi` / `openProlongation` / `openCloture`.
+- Prolongation / Clôture : UI type Suivi (liste dossiers + flèches), pas de flux inventé.
+- Suivi : consultation vs édition via `edition_suivi` ; crayon / C / P = tooltips existants.
+- Création : peut sauver `statut: en_attente` (reprise plus tard).
+
+## Accès (`LocationAccess` / `acces_roles`)
+- Modules : `module_creation|suivi|contact|facture|parc|prolongation|cloture`.
+- Autres : `edition_suivi`, `impression_fiche`, `suppression_dossier`, `parametres_location` (admin forcé).
+- `hub_equipe_bugs` : info seule, non appliqué ici.
+- Alias legacy : `cloture_dossier` → `module_cloture` si absent en base.
+- Ne pas confondre droits hub (`PhieEquipe`) et matrice Location.
+
+## LGO / Contact
+- Sync : `LocationData.syncContactQueue` → `LocationRules.evaluate` puis `resolveLgo`.
+- LGO : règle avec `location_regles.template_id` → template admin ; sinon si `date_fin` dépassée, seuil `seuil_reclame_mois` → motif `prolongation` | `reclame_appareil`.
+- Ne **pas** inventer de contacts / templates hors admin.
+- Onglets Contact : Commentaire | Appel | Attente prolongation/retour | Perte.
+- Templates : placeholders `{date_min}`, `{type_appareil}`, etc. (`interpolate` / `varsFromConditions`).
+
+## Prolongation
+- `date_fin` = fin courante dossier (ou base) + durée (`LocationRules.addDuration`) ; chaîne via `recalcProlongationChain`.
+
+## Impression fiche A4 (`LocationPrint.buildFicheHtml`)
+- Impression **uniquement** iframe same-document (`printHtml`) — jamais `window.open`.
+- Quadrillage : haut 2 col. (Patient puis Personnel | Appareil) ; Suivi pleine largeur (toutes lignes auto via `buildSuiviEventRows` + lignes manuscrites) ; pied clôture manuscrite prérempli si données.
+- Pas de section Facturation sur la fiche papier.
+- Global : **`LocationPrint`** (pas `LocationImpression`).
+
+## Admin paramètres
+- Onglets : Création dossier (`creation_champs`) → Spécificité Appareil (`location_champs_creation`) → Seuils / Prestataires / Règles / Templates / Accès.
+- Règles / templates en chips ; accès via `LocationAccess`.
+
+## SQL local
+- `sql/002`…`006` : phase contacts, facturation_ok, cloture_meta, template_id, statut `en_attente` — déjà appliqués.

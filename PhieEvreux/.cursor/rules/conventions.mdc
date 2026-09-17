@@ -8,29 +8,34 @@ alwaysApply: false
 
 ## Stack
 - HTML / CSS / JS **vanilla** (pas de React/Vite/npm pour ce site).
-- Supabase JS v2 via CDN ; config centralisée monorepo.
+- Supabase JS v2 via CDN ; config monorepo `SUPABASE_CONFIG` (clé anon seule).
 - Libellés UI en **français**.
 
 ## Structure
-- Hub à la racine `PhieEvreux/` ; une app = un dossier sous `app/<nom>/`.
+- Hub à la racine `PhieEvreux/` ; une app = `app/<nom>/`.
 - Code transverse uniquement dans `shared/` (pas de duplication hub ↔ apps).
 - Location — fichiers réels :
-  - pages : `index|creation|suivi|contact|facture|parametres.html`
-  - `js/app.js`, `module-page.js`, `data.js`, `access.js`, `fields.js`, `impression.js`
-  - modules métier : `creation.js`, `suivi.js`, `contact.js`, `facture.js`
-  - admin : `admin-location.js`, `parametres-page.js`
-  - moteur : `modules/rules-engine.js`
-- Globals attendus : `PhieEvreuxApps`, `PhieEquipe`, `PhieTheme`, `PhieFab`, `PhieBugs`, `PhieInvite` (hub), `LocationData`, `LocationRules`, `LocationAccess`, `LocationAdmin`, `LocationFields`, `LocationImpression`, `LocationCreation|Suivi|Contact|Facture`.
+  - pages : `index|creation|prolongation|cloture|suivi|contact|facture|parc|parametres.html`
+  - shell : `js/app.js`, `js/module-page.js`, `css/shell.css`
+  - data / droits : `js/data.js`, `js/access.js`, `js/fields.js`
+  - métier : `creation.js`, `prolongation.js`, `cloture.js`, `suivi.js`, `contact.js`, `facture.js`, `parc.js`
+  - impression : `js/impression.js` → **`LocationPrint`** (pas `LocationImpression`)
+  - admin : `admin-location.js`, `parametres-page.js` → `LocationAdmin`
+  - moteur : `modules/rules-engine.js` → `LocationRules`
+
+## Globals
+- Hub / shared : `PhieEvreuxApps`, `PhieEquipe`, `PhieTheme`, `PhieFab`, `PhieBugs`, `PhieInvite`.
+- Location : `LocationData`, `LocationRules`, `LocationAccess`, `LocationFields`, `LocationPrint`, `LocationAdmin`, `LocationCreation`, `LocationProlongation`, `LocationCloture`, `LocationSuivi`, `LocationContact`, `LocationFacture`, `LocationParc`.
 
 ## Nommage données
-- Schéma `phieevreux` ; table historique `anciennelocation`.
-- Préfixe `location_` pour le métier Location.
-- Params clés usuels : `acces_roles`, `creation_champs` (visibilité/obligation formulaire Création), `champs_obligatoires` (miroir legacy), `seuil_contact_jours`, `seuil_reclame_mois`, `qui_facture_defaut`, `facture_delai_cloture_jours` (évent. `theme_defaut` en base — thème UI via `localStorage` / `PhieTheme`).
+- Schéma `phieevreux` ; préfixe `location_` pour le métier Location.
+- Params usuels : `acces_roles`, `creation_champs`, `champs_obligatoires` (legacy), `seuil_contact_jours`, `seuil_reclame_mois`, `qui_facture_defaut`, `facture_delai_cloture_jours`.
+- Dossier `statut` : `actif` | `en_attente` | `cloture` | `annule`.
+- Contacts : `phase` `commentaire` | `appel`.
 - Bugs : `type` `bug`|`amelioration` ; `statut` `nouveau`|`en_cours`|`modifie`|`impossible`|`annule`.
-- Équipe : rôles `administrateur`|`gestionnaire`|`personnel`.
-- Contacts Location : `phase` `commentaire`|`appel` ; statuts ouverts / attente / perte selon `contact.js`.
+- Équipe : `administrateur`|`gestionnaire`|`personnel`.
 
 ## UI
-- Ne pas inventer d’écrans / options hors demande (voir `ne-rien-inventer`).
-- Thème : `data-theme` + `shared/theme.js` (persistance `phieevreux-theme`).
-- Hub : fond sombre, cartes accents arc-en-ciel, contraste noir/blanc alterné.
+- Ne pas inventer d’écrans / options hors demande (`ne-rien-inventer`).
+- Thème : `data-theme` + `shared/theme.js` (clé `phieevreux-theme`).
+- Aides UI : `.loc-info-banner` (Information) + `.loc-help-tip` (popover « ? »).

@@ -1,6 +1,5 @@
 ---
 description: Architecture hub multi-apps PhieEvreux (vanilla HTML/CSS/JS)
-globs: "**/*.{html,js,css,md,mdc}"
 alwaysApply: true
 ---
 
@@ -10,43 +9,32 @@ alwaysApply: true
 - Hub multi-apps vanilla sous `PhieEvreux/` (pas de framework SPA).
 - Entrée : `index.html` + `hub.js` / `hub.css` — choix d’apps + engrenage admin (équipe, invite, bugs).
 - Apps : `app/anciennelocation/`, `app/location/` (indépendantes, pas d’import croisé de données).
-- Partagé : `shared/` — FABs, bugs, thème, équipe, invite, client schéma.
+- Partagé : `shared/` — FABs, bugs, thème, équipe, invite, client schéma (`supabase-apps.js`).
 
 ## Chemins monorepo
-- Config Supabase : `Application/shared/supabase-config.js` → depuis hub `../shared/…`, depuis une app `../../../shared/…`.
-- Gate d’accès : `Application/protect.js` → `../../../protect.js` (apps) / `../protect.js` (hub).
-- Site UUID : `9dd064a4-13ec-4cc2-9707-29210c3744ce`.
+- Config Supabase : `Application/shared/supabase-config.js` → hub `../shared/…`, app `../../../shared/…`.
+- Gate d’accès : `Application/protect.js` → hub `../protect.js`, app `../../../protect.js`.
+- Site UUID : `9dd064a4-13ec-4cc2-9707-29210c3744ce` (`PhieEvreuxApps.SITE_ID`).
 
 ## Données
-- Schéma métier : **`phieevreux`** (minuscules).
-- Table historique : `anciennelocation` (ex-`autres.phie_evreux`).
+- Schéma métier : **`phieevreux`** (minuscules) via `shared/supabase-apps.js`.
+- Table historique : `anciennelocation`.
 - Transverse : `equipe`, `bugs`.
-- Métier Location : tables préfixées **`location_*`**.
+- Métier Location : tables **`location_*`**.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
-- SQL locaux : `PhieEvreux/sql/*.sql` = historique / rejouable déjà appliqué via Supabase (ne pas réappliquer sans check).
+- SQL locaux : `PhieEvreux/sql/*.sql` = déjà appliqué (ne pas réappliquer sans check).
 
-## App Location (`app/location/`)
-- Shell : `index.html` + `js/app.js` (tuiles modules) ; pages `creation|suivi|contact|facture|parametres.html`.
-- CSS : `css/shell.css` ; FABs via `shared/fab.js`.
-- Modules JS :
-  - `js/data.js` → `LocationData` (CRUD Supabase)
-  - `modules/rules-engine.js` → `LocationRules` (évaluation LGO / règles)
-  - `js/access.js` → `LocationAccess` (matrice `location_parametres.acces_roles`)
-  - `js/fields.js`, `js/impression.js`
-  - Métier pages : `creation.js`, `suivi.js`, `contact.js`, `facture.js`
-  - Admin : `admin-location.js` + `parametres-page.js` → `LocationAdmin`
-- Contact : phases `commentaire` | `appel` ; onglets file (commentaire / appel) + Attente prolongation/retour + Perte.
-- LGO : règles (`location_regles.template_id` → template) puis, si fin dépassée, seuil `seuil_reclame_mois` depuis `date_fin` → motif prolongation | `reclame_appareil`.
-- Templates : placeholders `{date_min}`, `{type_appareil}`, etc. (`LocationRules.interpolate` / `varsFromConditions`).
-- Admin paramètres : onglets **Création dossier** (chips étapes, `creation_champs`) → **Spécificité Appareil** (chips type, `location_champs_creation`) → Seuils / Prestataires / Règles / Templates / Accès ; règles/templates en chips ; `acces_roles` via `LocationAccess`.
+## App Location — vue d’ensemble
+- Tuiles (ordre) : Création → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Paramètres.
+- Pages : `creation|prolongation|cloture|suivi|contact|facture|parc|parametres.html`.
+- Boot pages : `js/module-page.js` (`body[data-module]` + `#locModuleRoot`).
+- Détail métier / impression / LGO / accès : règle `location.mdc`.
 
 ## Droits
-- Admin PhieEvreux = `portail.profiles.role === 'admin'` **ou** `equipe.role === 'administrateur'`.
+- Admin hub = `portail.profiles.role === 'admin'` **ou** `equipe.role === 'administrateur'` (`PhieEquipe.isAdmin`).
 - Rôles équipe : `administrateur` | `gestionnaire` | `personnel`.
-- Hub (équipe / invite / bugs) : `PhieEquipe.isAdmin` uniquement — hors matrice Location (`hub_equipe_bugs` affiché info seule).
-- Location : matrice `acces_roles` (modules, clôture, impression, suppression, paramètres) ; `parametres_location` forcé admin.
-- Engrenage hub : Equipe, invite, bugs (admin).
-- Paramètres Location : page `parametres.html` (admin / droit matrice).
+- Hub (équipe / invite / bugs) : `PhieEquipe` uniquement — hors matrice Location.
+- Location : `LocationAccess` + `acces_roles` ; `parametres_location` forcé admin.
 
 ## FABs
-- Accueil (hub) + Bug sur hub et apps via `shared/fab.js` + `shared/bugs.js`.
+- Accueil + Bug via `shared/fab.js` + `shared/bugs.js`.

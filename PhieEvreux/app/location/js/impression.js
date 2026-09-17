@@ -286,7 +286,6 @@
       line('Caution', cautionLabel(dossier.caution)) +
       line('Qui facture', quiFactureLabel(dossier.qui_facture)) +
       line('Date début', formatDateFrPrint(dossier.date_debut) || dossier.date_debut || '') +
-      line('Fin courante', formatDateFrPrint(dossier.date_fin) || dossier.date_fin || '') +
       line('Notes initiales', notesInit) +
       personnelCustom.join('');
 

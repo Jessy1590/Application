@@ -15,10 +15,11 @@ alwaysApply: true
 ## Auth & rôles
 - Lire `portail.profiles.role` / table `phieevreux.equipe` — **pas** `user_metadata` pour l’autorisation.
 - Hub admin : `PhieEquipe.isAdmin` (admin portail ∪ `equipe.role === 'administrateur'`).
-- Location : droits modules via `LocationAccess` + param `acces_roles` ; ne pas confondre avec les droits hub.
+- Location : droits modules via `LocationAccess` + `acces_roles` ; ne pas confondre avec les droits hub.
 - Invitation : Edge Function `invite-user` (admin portail côté serveur) + écriture `site_access` + `equipe` depuis le client admin.
 
-## Secrets
-- Ne pas committer `.env` / clés ; voir `PhieEvreux/.gitignore` (et `.gitignore` monorepo parent).
+## Secrets & client
+- Ne pas committer `.env` / clés ; voir `PhieEvreux/.gitignore` (et monorepo parent).
 - Ne pas logger tokens ni mots de passe.
 - CSP : conserver les restrictions existantes (cdn.jsdelivr, domaine Supabase projet).
+- Impression : iframe caché same-document uniquement — pas de pop-up / `window.open`.
