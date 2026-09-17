@@ -443,7 +443,6 @@
       if (s) attentionParts.push(s);
     });
     const commentaire = String(a.encart_texte || '').trim();
-    if (commentaire) attentionParts.push(commentaire);
 
     const identite = [p.nom, p.prenom].filter(Boolean).join(' - ') || '—';
     const notesInit = notesInitiales(dossier.notes);
