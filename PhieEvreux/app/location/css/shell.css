@@ -138,6 +138,92 @@ body {
   margin: 8px 0 0;
 }
 
+/* Admin — Création dossier */
+.loc-creation-panel {
+  margin-top: 12px;
+  display: grid;
+  gap: 14px;
+}
+
+.loc-creation-table {
+  background: var(--loc-elev);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.loc-creation-table th:nth-child(2),
+.loc-creation-table th:nth-child(3),
+.loc-creation-table td.loc-creation-flag {
+  text-align: center;
+  width: 7.5rem;
+  white-space: nowrap;
+}
+
+.loc-creation-table th:last-child,
+.loc-creation-table td.loc-creation-actions {
+  width: 5.5rem;
+  text-align: right;
+}
+
+.loc-creation-label {
+  display: grid;
+  gap: 2px;
+}
+
+.loc-creation-label strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--loc-text);
+}
+
+.loc-creation-code {
+  font-size: 12px;
+  color: var(--loc-muted);
+  font-weight: 400;
+}
+
+.loc-creation-table .loc-check-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--loc-text);
+}
+
+.loc-creation-table .loc-check-inline input {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.loc-creation-add {
+  border: 1px solid var(--loc-line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--loc-elev);
+  display: grid;
+  gap: 10px;
+}
+
+.loc-creation-add > .loc-muted {
+  margin: 0;
+  font-size: 13px;
+}
+
+.loc-creation-add-row {
+  display: grid;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (min-width: 640px) {
+  .loc-creation-add-row {
+    grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.4fr) auto;
+  }
+}
+
 .loc-params-split {
   display: grid;
   gap: 14px;
@@ -448,6 +534,29 @@ a.loc-btn {
   font-size: 13px;
   font-weight: 600;
   color: var(--loc-muted);
+}
+
+.loc-field-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.loc-help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid var(--loc-line);
+  border-radius: 999px;
+  background: var(--loc-elev);
+  color: var(--loc-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
 }
 
 .loc-field input,

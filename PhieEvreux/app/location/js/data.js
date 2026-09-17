@@ -56,9 +56,10 @@
   /**
    * Catalogue des champs du formulaire Création (étapes = chips admin « Création dossier »).
    * creation_champs (location_parametres) :
-   *   { [etape]: { [code]: { actif?: boolean, obligatoire?: boolean } } }
+   *   { [etape]: { [code]: { actif?: boolean, obligatoire?: boolean, libelle?: string, custom?: boolean } } }
    * etapes : patient | personnel | appareil | location
    * Defaults : actif=true ; obligatoire = champs_obligatoires[code] si clé historique, sinon defaultObligatoire.
+   * Entrées custom (hors catalogue) : libelle + custom:true ; valeurs formulaires via appareil.champs_extra.
    * champs_obligatoires reste synchronisé à l’enregistrement admin (compat).
    */
   const CREATION_ETAPES = [
@@ -129,19 +130,70 @@
     return fallback !== false;
   }
 
-  /** @returns {{ actif: boolean, obligatoire: boolean }} */
+  const CREATION_LEGACY_OBL_KEYS = [
+    'patient_nom',
+    'patient_prenom',
+    'patient_date_naissance',
+    'patient_adresse',
+    'patient_telephone',
+    'code_op',
+    'caution',
+    'type_appareil',
+    'date_debut',
+    'date_ordo',
+  ];
+
+  /** @returns {{ actif: boolean, obligatoire: boolean, libelle?: string, custom?: boolean }} */
   function getCreationChamp(params, etape, code) {
     const meta = CREATION_FIELD_INDEX[code];
-    const defObl = meta ? meta.defaultObligatoire !== false : true;
+    const defObl = meta ? meta.defaultObligatoire !== false : false;
     const entry = params?.creation_champs?.[etape]?.[code];
+    const custom = !!(entry?.custom || (!meta && entry));
     const actif = entry?.actif !== false;
     let obligatoire;
     if (entry && typeof entry.obligatoire === 'boolean') {
       obligatoire = entry.obligatoire;
-    } else {
+    } else if (meta) {
       obligatoire = legacyObligatoire(params, code, defObl);
+    } else {
+      obligatoire = false;
     }
-    return { actif, obligatoire };
+    const libelle =
+      (entry && typeof entry.libelle === 'string' && entry.libelle.trim()) ||
+      meta?.label ||
+      code;
+    return { actif, obligatoire, libelle, custom };
+  }
+
+  /**
+   * Champs d’une étape : catalogue fixe + éventuelles lignes custom (creation_champs).
+   * @returns {{ code: string, label: string, custom: boolean, defaultObligatoire?: boolean }[]}
+   */
+  function listCreationFieldsForEtape(params, etapeId) {
+    const etape = CREATION_ETAPES.find((e) => e.id === etapeId);
+    const catalog = (etape?.fields || []).map((f) => ({
+      code: f.code,
+      label: f.label,
+      custom: false,
+      defaultObligatoire: f.defaultObligatoire,
+    }));
+    const known = new Set(catalog.map((f) => f.code));
+    const bag = params?.creation_champs?.[etapeId];
+    const customs = [];
+    if (bag && typeof bag === 'object') {
+      for (const code of Object.keys(bag)) {
+        if (known.has(code)) continue;
+        const entry = bag[code];
+        if (!entry || typeof entry !== 'object') continue;
+        const libelle =
+          typeof entry.libelle === 'string' && entry.libelle.trim()
+            ? entry.libelle.trim()
+            : code;
+        customs.push({ code, label: libelle, custom: true });
+      }
+    }
+    customs.sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+    return catalog.concat(customs);
   }
 
   function isCreationActif(params, etape, code) {
@@ -166,28 +218,29 @@
     const champs_obligatoires = {};
     for (const etape of CREATION_ETAPES) {
       creation_champs[etape.id] = {};
-      for (const f of etape.fields) {
-        const raw = uiMap?.[etape.id]?.[f.code] || {};
+      const codes = new Set(etape.fields.map((f) => f.code));
+      const fromUi = uiMap?.[etape.id];
+      if (fromUi && typeof fromUi === 'object') {
+        for (const code of Object.keys(fromUi)) codes.add(code);
+      }
+      for (const code of codes) {
+        const meta = CREATION_FIELD_INDEX[code];
+        const raw = fromUi?.[code] || {};
+        const custom = !!(raw.custom || !meta);
         const actif = raw.actif !== false;
         const obligatoire = raw.obligatoire === true;
-        creation_champs[etape.id][f.code] = { actif, obligatoire };
-        if (Object.prototype.hasOwnProperty.call(CREATION_FIELD_INDEX, f.code)) {
-          // Miroir legacy uniquement si le champ était dans l’ancien écran « champs obligatoires »
-          const legacyKeys = [
-            'patient_nom',
-            'patient_prenom',
-            'patient_date_naissance',
-            'patient_adresse',
-            'patient_telephone',
-            'code_op',
-            'caution',
-            'type_appareil',
-            'date_debut',
-            'date_ordo',
-          ];
-          if (legacyKeys.includes(f.code)) {
-            champs_obligatoires[f.code] = actif && obligatoire;
-          }
+        const entry = { actif, obligatoire };
+        if (custom) {
+          entry.custom = true;
+          const libelle =
+            typeof raw.libelle === 'string' && raw.libelle.trim()
+              ? raw.libelle.trim()
+              : code;
+          entry.libelle = libelle;
+        }
+        creation_champs[etape.id][code] = entry;
+        if (meta && CREATION_LEGACY_OBL_KEYS.includes(code)) {
+          champs_obligatoires[code] = actif && obligatoire;
         }
       }
     }
@@ -1051,7 +1104,9 @@
     setParam,
     loadRules,
     CREATION_ETAPES,
+    CREATION_FIELD_INDEX,
     getCreationChamp,
+    listCreationFieldsForEtape,
     isCreationActif,
     isCreationRequired,
     isRequired,

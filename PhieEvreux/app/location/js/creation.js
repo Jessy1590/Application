@@ -155,6 +155,59 @@
         .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     }
 
+    function customFieldsForEtape(etapeId) {
+      return LocationData.listCreationFieldsForEtape(params, etapeId).filter((f) => f.custom);
+    }
+
+    function customFieldsHtml(etapeId) {
+      const extra = state.appareil.champs_extra || {};
+      return customFieldsForEtape(etapeId)
+        .map((f) => {
+          if (!show(etapeId, f.code)) return '';
+          const val = extra[f.code] == null ? '' : String(extra[f.code]);
+          return field(
+            f.label,
+            `<input name="cd_${escStatic(f.code)}" value="${esc(val)}">`,
+            req(etapeId, f.code)
+          );
+        })
+        .join('');
+    }
+
+    function collectCustomFields(etapeId) {
+      const fields = customFieldsForEtape(etapeId);
+      if (!fields.length) return;
+      const extra = { ...(state.appareil.champs_extra || {}) };
+      for (const f of fields) {
+        const elIn = formEl.querySelector(`[name="cd_${f.code}"]`);
+        if (!elIn) continue;
+        const v = elIn.value.trim();
+        extra[f.code] = v === '' ? null : v;
+      }
+      state.appareil.champs_extra = extra;
+    }
+
+    function validateCustomFields(etapeId) {
+      for (const f of customFieldsForEtape(etapeId)) {
+        if (!req(etapeId, f.code)) continue;
+        const v = state.appareil.champs_extra?.[f.code];
+        if (v == null || String(v).trim() === '') {
+          return showMsg(`${f.label} obligatoire.`, true), false;
+        }
+      }
+      return true;
+    }
+
+    function preserveCreationCustomExtra(prevExtra) {
+      const keep = {};
+      for (const etape of LocationData.CREATION_ETAPES) {
+        for (const f of customFieldsForEtape(etape.id)) {
+          if (prevExtra && prevExtra[f.code] != null) keep[f.code] = prevExtra[f.code];
+        }
+      }
+      return keep;
+    }
+
     function renderSteps() {
       const labels = ['Patient', 'Personnel', 'Appareil', 'Location'];
       stepsEl.innerHTML = labels
@@ -185,6 +238,7 @@
         !formEl.querySelector('#phonesList') &&
         !formEl.querySelector('#mailsList')
       ) {
+        collectCustomFields('patient');
         return;
       }
       const nom = formEl.querySelector('[name=nom]')
@@ -215,6 +269,7 @@
         telephones,
         mails,
       };
+      collectCustomFields('patient');
     }
 
     function collectPersonnel() {
@@ -223,6 +278,7 @@
         !formEl.querySelector('[name=caution]') &&
         !formEl.querySelector('[name=notes]')
       ) {
+        collectCustomFields('personnel');
         return;
       }
       if (formEl.querySelector('[name=code_op]')) {
@@ -234,6 +290,7 @@
       if (formEl.querySelector('[name=notes]')) {
         state.notes = formEl.querySelector('[name=notes]').value.trim() || '';
       }
+      collectCustomFields('personnel');
     }
 
     function collectChampsExtra(type) {
@@ -300,6 +357,7 @@
         next.desinfection = false;
       }
       state.appareil = next;
+      collectCustomFields('appareil');
     }
 
     function collectOrdo() {
@@ -315,6 +373,7 @@
       if (formEl.querySelector('[name=unite]')) {
         state.unite = formEl.querySelector('[name=unite]').value || 'semaines';
       }
+      collectCustomFields('location');
     }
 
     function validateStep() {
@@ -330,11 +389,13 @@
         if (req('patient', 'patient_telephone') && !state.patient.telephones.length) {
           return showMsg('Téléphone obligatoire.', true), false;
         }
+        if (!validateCustomFields('patient')) return false;
       }
       if (step === 1) {
         collectPersonnel();
         if (req('personnel', 'code_op') && !state.code_op) return showMsg('Code OP obligatoire.', true), false;
         if (req('personnel', 'caution') && !state.caution) return showMsg('Caution obligatoire.', true), false;
+        if (!validateCustomFields('personnel')) return false;
       }
       if (step === 2) {
         collectAppareil();
@@ -374,6 +435,7 @@
             return showMsg(`Champ obligatoire : ${champ.libelle}.`, true), false;
           }
         }
+        if (!validateCustomFields('appareil')) return false;
       }
       if (step === 3) {
         collectOrdo();
@@ -385,6 +447,7 @@
         if (!show('location', 'duree') && (!state.duree || state.duree < 1)) {
           state.duree = 10;
         }
+        if (!validateCustomFields('location')) return false;
       }
       return true;
     }
@@ -401,6 +464,7 @@
         ${show('patient', 'patient_adresse') ? field('Adresse', `<textarea name="adresse" rows="2">${esc(state.patient.adresse || '')}</textarea>`, req('patient', 'patient_adresse')) : ''}
         ${show('patient', 'patient_telephone') ? LocationFields.blockHtml('phones', `Téléphones${req('patient', 'patient_telephone') ? ' *' : ''}`) : ''}
         ${show('patient', 'patient_mails') ? LocationFields.blockHtml('mails', 'Mails') : ''}
+        ${customFieldsHtml('patient')}
       `;
       if (show('patient', 'patient_telephone')) {
         LocationFields.mountPhones(
@@ -464,6 +528,7 @@
           <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Espèces</option>
         </select>`, req('personnel', 'caution')) : ''}
         ${show('personnel', 'notes') ? field('Notes', `<textarea name="notes" rows="2">${esc(state.notes)}</textarea>`, req('personnel', 'notes')) : ''}
+        ${customFieldsHtml('personnel')}
       `;
     }
 
@@ -510,13 +575,15 @@
         ` : ''}
         ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
         ${show('appareil', 'encart_texte') ? field('Commentaire', `<textarea name="encart_texte" rows="3" placeholder="Notes libres…">${esc(state.appareil.encart_texte || '')}</textarea>`, req('appareil', 'encart_texte')) : ''}
+        ${customFieldsHtml('appareil')}
       `;
 
       formEl.querySelector('[name=type_appareil]')?.addEventListener('change', (e) => {
         collectAppareil();
         const t = e.target.value;
+        const prevExtra = state.appareil.champs_extra || {};
         state.appareil.type_appareil = t;
-        state.appareil.champs_extra = {};
+        state.appareil.champs_extra = preserveCreationCustomExtra(prevExtra);
         if (t === 'tire_lait') {
           state.duree = 10;
           state.unite = 'semaines';
@@ -540,6 +607,7 @@
           <option value="semaines"${state.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
           <option value="mois"${state.unite === 'mois' ? ' selected' : ''}>Mois</option>
         </select>`, req('location', 'unite')) : `<input type="hidden" name="unite" value="${esc(state.unite)}">`}
+        ${customFieldsHtml('location')}
         <p class="loc-hint">Fin calculée : <strong>${fin || '—'}</strong></p>
       `;
       const recalc = () => {

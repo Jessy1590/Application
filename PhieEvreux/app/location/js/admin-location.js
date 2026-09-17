@@ -227,7 +227,7 @@
         <nav class="loc-params-tabs" role="tablist">
           <button type="button" class="loc-admin-tab active" data-tab="creation">Création dossier</button>
           <button type="button" class="loc-admin-tab" data-tab="champs">Spécificité Appareil</button>
-          <button type="button" class="loc-admin-tab" data-tab="params">Champs &amp; seuils</button>
+          <button type="button" class="loc-admin-tab" data-tab="params">Seuils</button>
           <button type="button" class="loc-admin-tab" data-tab="prestataires">Prestataires</button>
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
@@ -391,9 +391,38 @@
         selectedCreationEtape = etapes[0]?.id || 'patient';
       }
       const etape = etapes.find((e) => e.id === selectedCreationEtape) || etapes[0];
+      const fields = LocationData.listCreationFieldsForEtape(params, etape.id);
+
+      const rowHtml = (f) => {
+        const cfg = LocationData.getCreationChamp(params, etape.id, f.code);
+        const isCustom = !!f.custom;
+        return `<tr class="loc-creation-row" data-creation-code="${esc(f.code)}" data-creation-custom="${isCustom ? '1' : '0'}"${
+          isCustom ? ` data-creation-libelle="${esc(f.label)}"` : ''
+        }>
+          <td class="loc-creation-label">
+            <strong>${esc(f.label)}</strong>
+            <span class="loc-creation-code">${esc(f.code)}${isCustom ? ' · ajouté' : ''}</span>
+          </td>
+          <td class="loc-creation-flag">
+            <label class="loc-check-inline"><input type="checkbox" data-f="actif"${cfg.actif ? ' checked' : ''}> Actif</label>
+          </td>
+          <td class="loc-creation-flag">
+            <label class="loc-check-inline"><input type="checkbox" data-f="obligatoire"${cfg.obligatoire ? ' checked' : ''}${
+              cfg.actif ? '' : ' disabled'
+            }> Obligatoire</label>
+          </td>
+          <td class="loc-creation-actions">
+            ${
+              isCustom
+                ? '<button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-del-creation-field title="Retirer ce champ">Retirer</button>'
+                : ''
+            }
+          </td>
+        </tr>`;
+      };
 
       body.innerHTML = `
-        <p class="loc-muted">Visibilité et caractère obligatoire des champs du formulaire Création (hors spécificités appareil).</p>
+        <p class="loc-admin-hint">Visibilité et obligation des champs du formulaire Création (hors spécificités par type d’appareil).</p>
         <div class="loc-motif-chips" role="tablist" aria-label="Étapes création">
           ${etapes
             .map(
@@ -405,17 +434,33 @@
             .join('')}
         </div>
         <p class="loc-muted loc-autosave-hint">Étape : <strong>${esc(etape?.label || '')}</strong> — enregistrement auto.</p>
-        <div class="loc-admin-list" data-creation-fields>
-          ${(etape?.fields || [])
-            .map((f) => {
-              const cfg = LocationData.getCreationChamp(params, etape.id, f.code);
-              return `<div class="loc-admin-row" data-creation-code="${esc(f.code)}">
-                <strong class="loc-span-2">${esc(f.label)}</strong>
-                <label class="loc-check"><input type="checkbox" data-f="actif"${cfg.actif ? ' checked' : ''}> Activé</label>
-                <label class="loc-check"><input type="checkbox" data-f="obligatoire"${cfg.obligatoire ? ' checked' : ''}${cfg.actif ? '' : ' disabled'}> Obligatoire</label>
-              </div>`;
-            })
-            .join('') || '<p class="loc-muted">Aucun champ.</p>'}
+        <div class="loc-creation-panel">
+          <div class="loc-admin-table-wrap">
+            <table class="loc-admin-table loc-creation-table">
+              <thead>
+                <tr>
+                  <th>Champ</th>
+                  <th>Actif</th>
+                  <th>Obligatoire</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody data-creation-fields>
+                ${
+                  fields.map(rowHtml).join('') ||
+                  '<tr><td colspan="4" class="loc-muted">Aucun champ.</td></tr>'
+                }
+              </tbody>
+            </table>
+          </div>
+          <div class="loc-creation-add" id="adCreationAdd">
+            <p class="loc-muted">Ajouter une information à cette étape (texte libre à la création / suivi).</p>
+            <div class="loc-creation-add-row">
+              <label class="loc-field">Code<input data-n="code" placeholder="ex. info_complement" autocomplete="off"></label>
+              <label class="loc-field">Libellé<input data-n="libelle" placeholder="Texte affiché" autocomplete="off"></label>
+              <button type="button" class="loc-btn" id="adAddCreationField">＋ Ajouter</button>
+            </div>
+          </div>
         </div>
       `;
 
@@ -426,23 +471,41 @@
         });
       });
 
-      const persist = async () => {
+      const snapshotUiMap = () => {
         const uiMap = {};
         for (const e of etapes) {
           uiMap[e.id] = {};
-          for (const f of e.fields) {
+          for (const f of LocationData.listCreationFieldsForEtape(params, e.id)) {
             const cfg = LocationData.getCreationChamp(params, e.id, f.code);
-            uiMap[e.id][f.code] = { actif: cfg.actif, obligatoire: cfg.obligatoire };
+            uiMap[e.id][f.code] = {
+              actif: cfg.actif,
+              obligatoire: cfg.obligatoire,
+              ...(f.custom || cfg.custom
+                ? { custom: true, libelle: cfg.libelle || f.label || f.code }
+                : {}),
+            };
           }
         }
         body.querySelectorAll('[data-creation-code]').forEach((row) => {
           const code = row.dataset.creationCode;
+          const custom = row.dataset.creationCustom === '1';
           const actif = row.querySelector('[data-f=actif]')?.checked !== false;
           const obligatoire = row.querySelector('[data-f=obligatoire]')?.checked === true;
-          uiMap[selectedCreationEtape][code] = { actif, obligatoire: actif && obligatoire };
+          const entry = { actif, obligatoire: actif && obligatoire };
+          if (custom) {
+            entry.custom = true;
+            entry.libelle = row.dataset.creationLibelle || code;
+          }
+          uiMap[selectedCreationEtape][code] = entry;
         });
+        return uiMap;
+      };
+
+      const persist = async (uiMap) => {
         try {
-          const { creation_champs, champs_obligatoires } = LocationData.buildCreationChampsPayload(uiMap);
+          const { creation_champs, champs_obligatoires } = LocationData.buildCreationChampsPayload(
+            uiMap || snapshotUiMap()
+          );
           await LocationData.setParam('creation_champs', creation_champs, ctx.userId);
           await LocationData.setParam('champs_obligatoires', champs_obligatoires, ctx.userId);
           Object.assign(params, { creation_champs, champs_obligatoires });
@@ -458,7 +521,56 @@
       };
 
       body.querySelectorAll('[data-creation-code] input').forEach((el) => {
-        el.addEventListener('change', persist);
+        el.addEventListener('change', () => persist());
+      });
+
+      body.querySelectorAll('[data-del-creation-field]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const row = btn.closest('[data-creation-code]');
+          const code = row?.dataset.creationCode;
+          if (!code || !confirm(`Retirer le champ « ${code} » ?`)) return;
+          const uiMap = snapshotUiMap();
+          delete uiMap[selectedCreationEtape][code];
+          await persist(uiMap);
+          await renderCreationDossier();
+        });
+      });
+
+      body.querySelector('#adAddCreationField')?.addEventListener('click', async () => {
+        const box = body.querySelector('#adCreationAdd');
+        const codeRaw = box.querySelector('[data-n=code]')?.value || '';
+        const libelle = (box.querySelector('[data-n=libelle]')?.value || '').trim();
+        const code = codeRaw
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, '_')
+          .replace(/[^a-z0-9_]/g, '');
+        if (!code || !/^[a-z][a-z0-9_]*$/.test(code)) {
+          showMsg('Code invalide (lettres / chiffres / _, commencer par une lettre).', true);
+          return;
+        }
+        if (!libelle) {
+          showMsg('Libellé obligatoire.', true);
+          return;
+        }
+        if (LocationData.CREATION_FIELD_INDEX?.[code]) {
+          showMsg('Ce code appartient déjà au catalogue.', true);
+          return;
+        }
+        const existing = LocationData.listCreationFieldsForEtape(params, selectedCreationEtape);
+        if (existing.some((f) => f.code === code)) {
+          showMsg('Ce code existe déjà sur cette étape.', true);
+          return;
+        }
+        const uiMap = snapshotUiMap();
+        uiMap[selectedCreationEtape][code] = {
+          actif: true,
+          obligatoire: false,
+          custom: true,
+          libelle,
+        };
+        await persist(uiMap);
+        await renderCreationDossier();
       });
     }
 
@@ -470,20 +582,20 @@
       const qui = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
       const delaiFacture = params.facture_delai_cloture_jours ?? 30;
 
+      const seuilReclameHelp =
+        'Sans règle LGO spécifique : on compte les mois depuis la fin de la dernière prolongation. En dessous du seuil → prolongation ; au seuil ou au-delà → réclamer l’appareil.';
+
       body.innerHTML = `
         <h3>Seuils</h3>
         <div class="loc-grid-2">
           <label class="loc-field">Seuil contact (J-n)<input type="number" min="0" id="adSeuil" value="${Number(seuil)}"></label>
-          <label class="loc-field">Seuil réclamer appareil (mois)<input type="number" min="0" id="adSeuilReclame" value="${Number(seuilReclame)}"></label>
+          <label class="loc-field"><span class="loc-field-label-row">Seuil réclamer appareil (mois) <button type="button" class="loc-help-tip" title="${esc(seuilReclameHelp)}" aria-label="Aide : seuil réclamer appareil">?</button></span><input type="number" min="0" id="adSeuilReclame" value="${Number(seuilReclame)}"></label>
           <label class="loc-field">Délai clôture facture (jours)<input type="number" min="0" id="adDelaiFacture" value="${Number(delaiFacture)}"></label>
           <label class="loc-field">Qui facture (défaut)<select id="adQui">
             <option value="pharmacie"${qui === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
             <option value="prestataire"${qui === 'prestataire' ? ' selected' : ''}>Prestataire</option>
           </select></label>
         </div>
-        <p class="loc-muted">Sans règle spécifique : mois depuis la fin de la dernière prolongation (&lt; seuil → prolongation ; ≥ seuil → réclamer l’appareil).</p>
-        <p class="loc-muted">Visibilité / obligation des champs création : onglet <strong>Création dossier</strong>.</p>
-        <p class="loc-muted loc-autosave-hint">Enregistrement automatique à chaque modification.</p>
       `;
 
       const persist = async () => {

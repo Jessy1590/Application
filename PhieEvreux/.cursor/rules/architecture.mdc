@@ -38,7 +38,7 @@ alwaysApply: true
 - Contact : phases `commentaire` | `appel` ; onglets file (commentaire / appel) + Attente prolongation/retour + Perte.
 - LGO : règles (`location_regles.template_id` → template) puis, si fin dépassée, seuil `seuil_reclame_mois` depuis `date_fin` → motif prolongation | `reclame_appareil`.
 - Templates : placeholders `{date_min}`, `{type_appareil}`, etc. (`LocationRules.interpolate` / `varsFromConditions`).
-- Admin paramètres : onglets **Création dossier** (chips étapes, `creation_champs`) → **Spécificité Appareil** (chips type, `location_champs_creation`) → Champs & seuils / Prestataires / Règles / Templates / Accès ; règles/templates en chips ; `acces_roles` via `LocationAccess`.
+- Admin paramètres : onglets **Création dossier** (chips étapes, `creation_champs`) → **Spécificité Appareil** (chips type, `location_champs_creation`) → Seuils / Prestataires / Règles / Templates / Accès ; règles/templates en chips ; `acces_roles` via `LocationAccess`.
 
 ## Droits
 - Admin PhieEvreux = `portail.profiles.role === 'admin'` **ou** `equipe.role === 'administrateur'`.

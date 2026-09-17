@@ -230,6 +230,15 @@
         creOff(etape, code)
           ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>'
           : '';
+      const extraBag = a.champs_extra && typeof a.champs_extra === 'object' ? a.champs_extra : {};
+      const customHtml = (etapeId) =>
+        LocationData.listCreationFieldsForEtape(params, etapeId)
+          .filter((f) => f.custom)
+          .map((f) => {
+            const val = extraBag[f.code] == null ? '' : String(extraBag[f.code]);
+            return `<label class="loc-field loc-span-2">${esc(f.label)}${creHint(etapeId, f.code)}<input name="cd_${esc(f.code)}" value="${esc(val)}"></label>`;
+          })
+          .join('');
 
       detailEl.innerHTML = `
         <div class="loc-detail-head">
@@ -256,6 +265,7 @@
             <div class="loc-grid-2" style="margin-top:10px">
               <div class="loc-span-2">${LocationFields.blockHtml('phones', `Téléphones${creOff('patient', 'patient_telephone') ? ' (désactivé à la création)' : ''}`)}</div>
               <div class="loc-span-2">${LocationFields.blockHtml('mails', `Mails${creOff('patient', 'patient_mails') ? ' (désactivé à la création)' : ''}`)}</div>
+              ${customHtml('patient')}
             </div>
           </div>
         </details>
@@ -288,6 +298,8 @@
               <label class="loc-field">Date clôture<input type="date" name="date_cloture" value="${esc(d.date_cloture || '')}"></label>
               <label class="loc-field">OP clôture<input name="cloture_op" value="${esc(d.cloture_op || '')}"></label>
               <label class="loc-field loc-span-2">Notes${creHint('personnel', 'notes')}<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
+              ${customHtml('personnel')}
+              ${customHtml('location')}
             </div>
           </div>
         </details>
@@ -326,6 +338,7 @@
                 <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
               ` : ''}
               <label class="loc-field loc-span-2">Commentaire${creHint('appareil', 'encart_texte')}<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
+              ${customHtml('appareil')}
             </div>
             <h4>Historique</h4>
             <ul class="loc-history">
@@ -684,6 +697,22 @@
           if (g('a_accouchement')) {
             appPatch.date_accouchement = g('a_accouchement').value || null;
           }
+          const nextExtra = {
+            ...(d.appareil_actif.champs_extra && typeof d.appareil_actif.champs_extra === 'object'
+              ? d.appareil_actif.champs_extra
+              : {}),
+          };
+          const paramsSave = await LocationData.loadParams();
+          for (const etape of LocationData.CREATION_ETAPES) {
+            for (const f of LocationData.listCreationFieldsForEtape(paramsSave, etape.id)) {
+              if (!f.custom) continue;
+              const inp = detailEl.querySelector(`[name="cd_${f.code}"]`);
+              if (!inp) continue;
+              const v = inp.value.trim();
+              nextExtra[f.code] = v === '' ? null : v;
+            }
+          }
+          appPatch.champs_extra = nextExtra;
           await LocationData.updateAppareil(d.appareil_actif.id, appPatch);
         }
         showMsg('Enregistré.');
