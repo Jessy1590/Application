@@ -536,14 +536,18 @@
     }
 
     function rowHasMailSent(dossier) {
-      return /Mail déjà envoyé|Mail envoyé/i.test(String(dossier?.notes || ''));
+      const text = `${dossier?.journal || ''}\n${dossier?.notes || ''}`;
+      return /Mail déjà envoyé|Mail envoyé/i.test(text);
     }
 
     async function appendDossierJournal(dossierId, line) {
       if (!dossierId || !line) return;
       const d = await LocationData.getDossier(dossierId);
-      const notes = appendJournal(d.notes, line);
-      await LocationData.updateDossier(dossierId, { notes });
+      const journal = appendJournal(d.journal, line);
+      await LocationData.updateDossier(dossierId, { journal });
+      if (current?.dossier_id === dossierId && current.dossier) {
+        current.dossier.journal = journal;
+      }
     }
 
     async function applyCallUpdate(contact, { appel_statut, appel_resultat, journalLine, mailNote }) {
@@ -839,7 +843,7 @@
         LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
         d.date_fin || '—',
       ].join(' - ');
-      const journal = String(d.notes || '').trim();
+      const journal = String(d.journal || '').trim();
       const header = `
         <div class="loc-detail-head">
           <div>
@@ -960,7 +964,7 @@
         LocationRules.typeLabel(d.appareil_actif?.type_appareil) || '—',
         d.date_fin || '—',
       ].join(' - ');
-      const journal = String(d.notes || '').trim();
+      const journal = String(d.journal || '').trim();
       const badge = isPerteContact(current)
         ? 'Perte'
         : 'Attente prolongation ou retour appareil';

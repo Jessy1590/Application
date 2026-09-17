@@ -1215,6 +1215,22 @@ html[data-theme="light"] .loc-help-tip__bubble {
   font-size: 13px;
 }
 
+.loc-contacts-heading {
+  margin: 12px 0 8px;
+  font-size: 14px;
+}
+
+.loc-contacts-table th,
+.loc-contacts-table td {
+  font-size: 12px;
+  vertical-align: top;
+}
+
+.loc-contacts-table th {
+  white-space: nowrap;
+}
+
+
 .loc-table-wrap { overflow: auto; }
 
 .loc-table {

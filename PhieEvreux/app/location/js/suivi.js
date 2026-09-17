@@ -27,6 +27,90 @@
     </span>`;
   }
 
+  const CONTACT_STATUT_LABELS = {
+    a_contacter: 'À contacter',
+    en_cours: 'En cours',
+    reporte: 'À rappeler',
+    contacte: 'Contacté',
+    resolu: 'Résolu',
+    annule: 'Annulé',
+  };
+
+  const CONTACT_MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
+  function motifContactLabel(motif) {
+    if (!motif) return '—';
+    if (CONTACT_MOTIF_LABELS[motif]) return CONTACT_MOTIF_LABELS[motif];
+    const tpl = global.LocationRules?.templateMotifFor?.(motif);
+    if (tpl && CONTACT_MOTIF_LABELS[tpl]) return CONTACT_MOTIF_LABELS[tpl];
+    return String(motif);
+  }
+
+  function formatDateFr(iso) {
+    if (!iso) return '—';
+    const s = String(iso).slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return s;
+  }
+
+  /** Tableau contacts (même logique que l’impression Contact / ancienne app). */
+  function contactsTableHtml(contacts) {
+    const list = (contacts || []).slice().sort((a, b) =>
+      String(a.contacted_at || a.commentaire_fait_at || a.created_at || '').localeCompare(
+        String(b.contacted_at || b.commentaire_fait_at || b.created_at || '')
+      )
+    );
+    if (!list.length) {
+      return '<p class="loc-muted">Aucun contact enregistré.</p>';
+    }
+    const resMap = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
+    const rows = list
+      .map((c) => {
+        const when =
+          formatDateFr(c.contacted_at) !== '—'
+            ? formatDateFr(c.contacted_at)
+            : formatDateFr(c.commentaire_fait_at) !== '—'
+              ? formatDateFr(c.commentaire_fait_at)
+              : formatDateFr(c.created_at);
+        const phase = c.phase === 'appel' ? 'Appel' : c.phase === 'commentaire' ? 'Commentaire' : '—';
+        const compte = c.commentaire_fait_at || c.phase === 'appel' ? 'ECRIS' : 'com. à faire';
+        const statut = CONTACT_STATUT_LABELS[c.statut] || c.statut || '—';
+        const resultat = c.resultat ? resMap[c.resultat] || c.resultat : '—';
+        return `<tr>
+          <td>${esc(when)}</td>
+          <td>${esc(phase)}</td>
+          <td>${esc(motifContactLabel(c.motif))}</td>
+          <td>${esc(compte)}</td>
+          <td>${esc(statut)}</td>
+          <td>${esc(resultat)}</td>
+          <td>${esc(c.commentaire || '')}</td>
+        </tr>`;
+      })
+      .join('');
+    return `<div class="loc-table-wrap">
+      <table class="loc-table loc-contacts-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Phase</th>
+            <th>Motif</th>
+            <th>Compte</th>
+            <th>Appel</th>
+            <th>Résultat</th>
+            <th>Commentaire</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
   function closeHelpTips(root, except) {
     (root || document).querySelectorAll('.loc-help-tip.is-open').forEach((wrap) => {
       if (except && wrap === except) return;
@@ -427,7 +511,7 @@
               <label class="loc-field">OP caution<input name="caution_rendue_op" value="${esc(d.caution_rendue_op || '')}"></label>
               <label class="loc-field">Date clôture<input type="date" name="date_cloture" value="${esc(d.date_cloture || '')}"></label>
               <label class="loc-field">OP clôture<input name="cloture_op" value="${esc(d.cloture_op || '')}"></label>
-              <label class="loc-field loc-span-2">Notes${creHint('personnel', 'notes')}<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
+              <label class="loc-field loc-span-2">Notes initiales${creHint('personnel', 'notes')}<textarea name="notes" rows="2">${esc(d.notes || '')}</textarea></label>
               ${customHtml('personnel')}
               ${customHtml('location')}
             </div>
@@ -527,40 +611,16 @@
                    </span>`
                 : ''
             }
+            <h4 class="loc-contacts-heading">Contacts</h4>
+            ${contactsTableHtml(d.contacts)}
             ${
-              String(d.notes || '').trim()
-                ? `<div class="loc-journal-box loc-journal-box--suivi">
+              String(d.journal || '').trim()
+                ? `<div class="loc-journal-box loc-journal-box--suivi" style="margin-top:12px">
                     <p class="loc-journal-title">Suivi appels déjà effectué</p>
-                    <div class="loc-journal-body">${esc(d.notes)}</div>
+                    <div class="loc-journal-body">${esc(d.journal)}</div>
                   </div>`
-                : '<p class="loc-muted">Aucun suivi d’appel enregistré.</p>'
+                : '<p class="loc-muted" style="margin-top:12px">Aucun suivi d’appel enregistré.</p>'
             }
-            <h4 style="margin-top:12px">Historique contacts</h4>
-            <ul class="loc-history loc-contact-history">
-              ${(d.contacts || []).map((c) => {
-                const when = (c.contacted_at || c.updated_at || c.created_at || '').slice(0, 10);
-                const stMap = {
-                  a_contacter: 'À contacter',
-                  en_cours: 'En cours',
-                  reporte: 'À rappeler',
-                  contacte: 'Contacté',
-                  resolu: 'Résolu',
-                  annule: 'Annulé',
-                };
-                const resMap = global.LocationContact?.APPEL_RESULTAT_LABELS || {};
-                const phaseLabel =
-                  c.phase === 'appel' ? 'appel' : c.phase === 'commentaire' ? 'commentaire' : '';
-                const bits = [
-                  when || '—',
-                  phaseLabel,
-                  c.motif || '',
-                  stMap[c.statut] || c.statut || '',
-                  c.resultat ? resMap[c.resultat] || c.resultat : '',
-                  c.commentaire || '',
-                ].filter(Boolean);
-                return `<li>${esc(bits.join(' · '))}</li>`;
-              }).join('') || '<li>Aucun</li>'}
-            </ul>
           </div>
         </details>
         </div>

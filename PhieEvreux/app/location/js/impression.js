@@ -175,17 +175,23 @@
       });
     });
 
-    // Notes de contact / décisions d’appel / mails (journal dossier) → Suivi, pas Notes initiales.
-    String(dossier.notes || '')
+    // Journal d’appels / mails (colonne journal, distincte des notes initiales).
+    String(dossier.journal || '')
       .split(/\n+/)
       .map((l) => l.trim())
-      .filter(isJournalLine)
+      .filter(Boolean)
       .forEach((line) => {
-        const parsed = parseJournalLine(line);
-        if (!parsed || !parsed.text) return;
+        const parsed = isJournalLine(line) ? parseJournalLine(line) : null;
+        if (parsed?.text) {
+          rows.push({
+            date: parsed.date,
+            libelle: detailLines([`Contact / appels · ${parsed.text}`]),
+          });
+          return;
+        }
         rows.push({
-          date: parsed.date,
-          libelle: detailLines([`Contact / appels · ${parsed.text}`]),
+          date: null,
+          libelle: detailLines([`Contact / appels · ${line}`]),
         });
       });
 
@@ -203,7 +209,7 @@
     return rows;
   }
 
-  /** Notes dossier hors lignes journal d’appels datées JJ/MM/AAAA —. */
+  /** Notes initiales (création / fiche) — sans lignes journal d’appels. */
   function notesInitiales(notes) {
     return String(notes || '')
       .split(/\n+/)
@@ -225,8 +231,39 @@
     return `${m[3]}/${m[2]}/${m[1]}`;
   }
 
-  /** Impression same-document — pas de pop-up, pas d’alerte « Autorisez les pop-ups ». */
-  function printHtml(html) {
+  /**
+   * Remplit le tableau Suivi de lignes vierges jusqu’à coller le bandeau
+   * clôture en bas de la page A4 (zone imprimable).
+   */
+  function fillFicheBlankRows(doc) {
+    const body = doc.body;
+    const tbody = doc.querySelector('.print-suivi-table tbody');
+    if (!body || !tbody || !body.classList.contains('print-fiche')) return;
+
+    const datePh = '<span class="print-date-ph">__/__/____</span>';
+    const rowHtml =
+      `<tr class="print-row-fill"><td class="col-date">${datePh}</td>` +
+      `<td class="col-lib">&nbsp;</td><td class="col-check">□</td></tr>`;
+
+    tbody.querySelectorAll('tr.print-row-fill').forEach((tr) => tr.remove());
+
+    const fits = () => body.scrollHeight <= body.clientHeight + 1;
+    const MAX = 50;
+    for (let i = 0; i < MAX; i++) {
+      tbody.insertAdjacentHTML('beforeend', rowHtml);
+      if (!fits()) {
+        tbody.lastElementChild?.remove();
+        break;
+      }
+    }
+  }
+
+  /**
+   * Impression same-document — pas de pop-up, pas d’alerte « Autorisez les pop-ups ».
+   * @param {string} html
+   * @param {{ prepare?: (doc: Document, win: Window) => void, measureA4?: boolean }} [opts]
+   */
+  function printHtml(html, opts) {
     const prev = document.getElementById('loc-print-frame');
     if (prev) prev.remove();
 
@@ -234,8 +271,10 @@
     iframe.id = 'loc-print-frame';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('title', 'Impression');
-    iframe.style.cssText =
-      'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    // Mesure A4 (zone contenu ≈ 210×281 mm avec marges 8 mm) pour remplir les lignes.
+    iframe.style.cssText = opts?.measureA4
+      ? 'position:fixed;left:0;top:0;width:210mm;height:281mm;border:0;opacity:0;pointer-events:none;z-index:-1;'
+      : 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
     document.body.appendChild(iframe);
 
     const win = iframe.contentWindow;
@@ -260,6 +299,7 @@
 
     const trigger = () => {
       try {
+        if (typeof opts?.prepare === 'function') opts.prepare(doc, win);
         win.focus();
         win.print();
       } catch (e) {
@@ -434,10 +474,8 @@
 <section class="print-block"><h2>Personnel</h2>${personnelBody}</section>`;
     const topRight = `<section class="print-block print-appareil"><h2>Appareil</h2>${appareilBody}</section>`;
 
-    const BLANK_ROWS = 10;
     const datePh = '<span class="print-date-ph">__/__/____</span>';
     const checkCell = '<td class="col-check">□</td>';
-    const emptySuiviRow = `<tr class="print-row-fill"><td class="col-date">${datePh}</td><td class="col-lib">&nbsp;</td>${checkCell}</tr>`;
     const eventRows = buildSuiviEventRows(dossier);
     const suiviFilled = eventRows
       .map((s) => {
@@ -454,7 +492,7 @@
       <th class="col-lib">Libellé</th>
       <th class="col-check">□</th>
     </tr></thead>
-    <tbody>${suiviFilled}${emptySuiviRow.repeat(BLANK_ROWS)}</tbody>
+    <tbody>${suiviFilled}</tbody>
   </table>
 </section>`;
 
@@ -489,14 +527,16 @@
 <style>
   @page{size:A4;margin:8mm}
   html,body{margin:0;padding:0}
-  body{
+  html{height:100%}
+  body.print-fiche{
     font-family:Arial,Helvetica,sans-serif;color:#111;font-size:9pt;line-height:1.2;
-    box-sizing:border-box;width:100%;
+    box-sizing:border-box;width:100%;height:100%;
+    display:flex;flex-direction:column;
   }
   *{box-sizing:border-box}
-  h1{font-size:13pt;margin:0 0 1mm;text-transform:uppercase;letter-spacing:.02em}
-  .print-meta{margin:0 0 2mm;font-size:8pt;color:#333}
-  .print-top{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm}
+  h1{font-size:13pt;margin:0 0 1mm;text-transform:uppercase;letter-spacing:.02em;flex-shrink:0}
+  .print-meta{margin:0 0 2mm;font-size:8pt;color:#333;flex-shrink:0}
+  .print-top{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;flex-shrink:0}
   .print-top td{vertical-align:top;padding:0}
   .print-top .col-l{width:48%;padding-right:2mm}
   .print-top .col-r{width:52%;padding-left:2mm}
@@ -510,7 +550,7 @@
     margin-top:1mm;border:1px solid #c00;padding:1mm 1.5mm;font-size:8pt;white-space:normal
   }
   .print-attention-short strong{color:#c00;margin-right:1mm;text-transform:uppercase}
-  .print-suivi{margin-top:0}
+  .print-suivi{margin-top:0;margin-bottom:2mm;flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
   .print-suivi-table{width:100%;border-collapse:collapse}
   .print-suivi-table th,.print-suivi-table td{
     border:1px solid #666;padding:1mm 1.5mm;text-align:left;vertical-align:middle;font-size:8.5pt
@@ -521,13 +561,17 @@
   .print-suivi-table .col-lib{word-break:break-word;white-space:pre-line}
   .print-date-ph{color:#666}
   .print-row-fill td{height:6mm}
-  .print-cloture{border:1px solid #222;padding:2mm 2.5mm;font-size:9pt;margin-top:2mm}
+  .print-cloture{
+    border:1px solid #222;padding:2mm 2.5mm;font-size:9pt;
+    flex-shrink:0;margin-top:auto;
+  }
   .print-cloture-row{display:flex;gap:4mm;justify-content:space-between;padding:1mm 0}
   .print-cloture-row span{flex:1}
   @media print{
+    html,body.print-fiche{height:100%}
     body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   }
-</style></head><body>
+</style></head><body class="print-fiche">
   <h1>Fiche de location — ${esc(typeLabel)}</h1>
   <p class="print-meta">Pharmacie Evreux — version ${esc(versionCourteFr())}</p>
   <table class="print-top">
@@ -566,7 +610,10 @@
     } catch (_) {
       champsDef = [];
     }
-    printHtml(buildFicheHtml(dossier, { attentionLines, params, champsDef }));
+    printHtml(buildFicheHtml(dossier, { attentionLines, params, champsDef }), {
+      measureA4: true,
+      prepare: (doc) => fillFicheBlankRows(doc),
+    });
   }
 
   function statutLabel(s) {
@@ -831,7 +878,7 @@
           <td>${esc(it.commentaire || '')}</td>
           <td>${esc(compte)}</td>
           <td class="print-call">${appel}</td>
-          <td class="print-followup">${esc(d.notes || '')}</td>
+          <td class="print-followup">${esc(d.journal || '')}</td>
         </tr>`;
       })
       .join('');
