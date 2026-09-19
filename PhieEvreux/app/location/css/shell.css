@@ -1005,6 +1005,18 @@ html[data-theme="light"] .loc-help-tip__bubble {
   margin-bottom: 12px;
 }
 
+.loc-contact-tabs .loc-admin-tab {
+  background: color-mix(in srgb, var(--loc-elev) 80%, var(--loc-bg));
+  color: var(--loc-muted);
+  border-color: var(--loc-line);
+}
+
+.loc-contact-tabs .loc-admin-tab.active {
+  color: var(--loc-text);
+  border-color: var(--loc-accent);
+  background: color-mix(in srgb, var(--loc-accent) 18%, var(--loc-elev));
+}
+
 .loc-lgo-box {
   border: 1px solid var(--loc-line);
   border-radius: 12px;

@@ -265,9 +265,10 @@ body.loc-transcription-page .loc-top {
 
 .loc-tr-multi-card {
   padding: 10px 12px;
-  border: 1px solid var(--loc-border, #c8d0d8);
-  border-radius: 6px;
-  background: var(--loc-surface, #fff);
+  border: 1px solid var(--loc-line);
+  border-radius: 10px;
+  background: var(--loc-elev);
+  color: var(--loc-text);
 }
 
 .loc-tr-multi-card-head {
@@ -276,4 +277,39 @@ body.loc-transcription-page .loc-top {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.loc-tr-multi-card-head strong {
+  color: var(--loc-text);
+  font-size: 14px;
+}
+
+.loc-tr-multi-card .loc-hint,
+.loc-tr-multi-card .loc-muted {
+  color: var(--loc-muted);
+}
+
+.loc-tr-multi-card fieldset {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--loc-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--loc-bg) 55%, var(--loc-elev));
+}
+
+.loc-tr-multi-card legend {
+  padding: 0 4px;
+  color: var(--loc-muted);
+  font-size: 12px;
+}
+
+.loc-tr-multi-card .loc-lgo-box {
+  background: color-mix(in srgb, var(--loc-bg) 70%, var(--loc-elev));
+  border-color: var(--loc-line);
+  color: var(--loc-text);
+}
+
+.loc-tr-form-section[data-etape="prolongation"] > .loc-btn,
+.loc-tr-form-section[data-etape="contact"] > .loc-btn {
+  margin-top: 4px;
 }
