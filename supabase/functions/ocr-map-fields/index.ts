@@ -107,7 +107,7 @@ Règles :
 2. IGNORE pharmacie / prestataire comme patient.
 3. Cases cochées = sélection active.
 4. Dates ISO YYYY-MM-DD.
-5. Téléphones FR 0XXXXXXXXX si possible.
+5. Téléphones / mails du patient : s’il y en a plusieurs, value = tableau JSON (ex. ["0612345678","0198765432"] ou ["a@mail.fr","b@mail.fr"]). Un seul : string ou tableau à 1 élément. Ignore tél/mail pharmacie ou prestataire. Format tél FR 0XXXXXXXXX si possible.
 6. Booléens true/false.
 7. confidence 0–1.`;
 }
@@ -223,7 +223,11 @@ async function callGemini({ imagesBase64, payload }) {
       : [];
 
   const fields = list
-    .filter((f) => f && f.code != null && f.value != null && String(f.value).trim() !== '')
+    .filter((f) => {
+      if (!f || f.code == null || f.value == null) return false;
+      if (Array.isArray(f.value)) return f.value.length > 0;
+      return String(f.value).trim() !== '';
+    })
     .map((f) => ({
       code: String(f.code).trim(),
       value: f.value,

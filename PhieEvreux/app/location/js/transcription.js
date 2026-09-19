@@ -132,7 +132,6 @@
       showPills: true,
       selectedPillKeys: new Set(),
       lastPillKey: null,
-      pendingMappings: null,
       patient_id: null,
       patient: {
         nom: '',
@@ -388,28 +387,98 @@
       }
     }
 
+    function toMultiList(value) {
+      if (Array.isArray(value)) {
+        return value
+          .map((x) => (x == null ? '' : String(x).trim()))
+          .filter(Boolean);
+      }
+      if (value == null) return [];
+      const s = String(value).trim();
+      if (!s) return [];
+      if (/[;\n|]/.test(s)) {
+        return s.split(/[;\n|]+/).map((x) => x.trim()).filter(Boolean);
+      }
+      if (s.includes(',') && (s.includes('@') || /(?:\+33|0)\s*[1-9]/.test(s))) {
+        return s.split(',').map((x) => x.trim()).filter(Boolean);
+      }
+      return [s];
+    }
+
+    function normalizeFrPhone(raw) {
+      let tel = String(raw || '').replace(/[^\d+]/g, '');
+      if (tel.startsWith('+33')) tel = `0${tel.slice(3)}`;
+      else if (tel.startsWith('33') && tel.length >= 11) tel = `0${tel.slice(2)}`;
+      tel = tel.replace(/\D/g, '');
+      if (tel.length === 10 && /^0[1-9]/.test(tel)) return tel;
+      return String(raw || '').replace(/[^\d+]/g, '').replace(/^\+?33/, '0') || '';
+    }
+
+    function extractPhonesFromValue(value) {
+      const parts = toMultiList(value);
+      const found = [];
+      const re = /(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
+      for (const part of parts) {
+        const matches = part.match(re);
+        if (matches && matches.length) {
+          for (const m of matches) {
+            const tel = normalizeFrPhone(m);
+            if (tel && !found.includes(tel)) found.push(tel);
+          }
+        } else {
+          const tel = normalizeFrPhone(part);
+          if (tel.length >= 10 && !found.includes(tel)) found.push(tel);
+        }
+      }
+      return found;
+    }
+
+    function extractMailsFromValue(value) {
+      const parts = toMultiList(value);
+      const found = [];
+      const re = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+      for (const part of parts) {
+        const matches = part.match(re);
+        if (matches && matches.length) {
+          for (const m of matches) {
+            const mail = m.trim().toLowerCase();
+            if (mail && !found.includes(mail)) found.push(mail);
+          }
+        } else if (part.includes('@')) {
+          const mail = part.trim().toLowerCase();
+          if (mail && !found.includes(mail)) found.push(mail);
+        }
+      }
+      return found;
+    }
+
     function applyValueToState(code, value) {
-      const v = value == null ? '' : String(value).trim();
+      const v = value == null ? '' : Array.isArray(value) ? value : String(value).trim();
       switch (code) {
         case 'patient_nom':
-          state.patient.nom = v;
+          state.patient.nom = Array.isArray(v) ? String(v[0] || '').trim() : v;
           break;
         case 'patient_prenom':
-          state.patient.prenom = v;
+          state.patient.prenom = Array.isArray(v) ? String(v[0] || '').trim() : v;
           break;
         case 'patient_date_naissance':
           state.patient.date_naissance =
-            LocationTranscriptionOcr.parseFrDate(v) || v;
+            LocationTranscriptionOcr.parseFrDate(Array.isArray(v) ? v[0] : v) ||
+            (Array.isArray(v) ? String(v[0] || '') : v);
           break;
         case 'patient_adresse':
-          state.patient.adresse = v;
+          state.patient.adresse = Array.isArray(v) ? v.join(', ') : v;
           break;
-        case 'patient_telephone':
-          if (v) state.patient.telephones = [v];
+        case 'patient_telephone': {
+          const list = extractPhonesFromValue(value);
+          if (list.length) state.patient.telephones = list;
           break;
-        case 'patient_mails':
-          if (v) state.patient.mails = [v];
+        }
+        case 'patient_mails': {
+          const list = extractMailsFromValue(value);
+          if (list.length) state.patient.mails = list;
           break;
+        }
         case 'code_op':
           state.code_op = v;
           break;
@@ -717,8 +786,20 @@
               .map(([k, v]) => `${k}="${v}"`)
               .join(' et ')}`;
           }
-          if (f.code === 'patient_nom' || f.code === 'patient_telephone') {
+          if (f.code === 'patient_nom') {
             row.hint = (row.hint ? row.hint + ' — ' : '') + 'Pas la pharmacie / prestataire';
+          }
+          if (f.code === 'patient_telephone') {
+            row.type = 'string_or_string[]';
+            row.hint =
+              (row.hint ? row.hint + ' — ' : '') +
+              'TOUS les numéros du patient. Si plusieurs : value = tableau JSON ex. ["0612345678","0198765432"]. Un seul : string ou tableau à 1. Pas pharmacie / prestataire.';
+          }
+          if (f.code === 'patient_mails') {
+            row.type = 'string_or_string[]';
+            row.hint =
+              (row.hint ? row.hint + ' — ' : '') +
+              'TOUS les emails du patient. Si plusieurs : value = tableau JSON ex. ["a@mail.fr","b@mail.fr"]. Pas pharmacie / prestataire.';
           }
           if (f.code === 'prestataire_id') {
             row.hint =
@@ -959,93 +1040,6 @@
         if (/^(NOM|DEBUT|TELEPHONE|ADRESSE|DATE|PRENOM|ORKYN)$/i.test(v)) return false;
         return true;
       });
-    }
-
-    /** Debug temporaire : réponse IA avant remplissage du formulaire */
-    function renderAiDebug(result) {
-      let panel = wrap.querySelector('#trAiDebug');
-      if (!panel) {
-        panel = el(`<div class="loc-tr-ai-debug" id="trAiDebug" hidden>
-          <div class="loc-tr-ai-debug-head">
-            <strong>Debug IA (temporaire)</strong>
-            <span class="loc-muted" id="trAiDebugMeta"></span>
-          </div>
-          <p class="loc-muted loc-tr-ai-debug-hint">Vérifiez si type_appareil / TENS apparaît ci-dessous. Le formulaire n’est pas encore rempli.</p>
-          <pre class="loc-tr-ai-debug-pre" id="trAiDebugPre"></pre>
-          <div class="loc-tr-ai-debug-actions">
-            <button type="button" class="loc-btn" id="trAiApplyBtn">Appliquer au formulaire</button>
-            <button type="button" class="loc-btn loc-btn-ghost" id="trAiHideBtn">Masquer</button>
-          </div>
-        </div>`);
-        const toolbar = wrap.querySelector('.loc-tr-toolbar');
-        if (toolbar && toolbar.nextSibling) {
-          wrap.insertBefore(panel, toolbar.nextSibling);
-        } else {
-          wrap.appendChild(panel);
-        }
-        panel.querySelector('#trAiApplyBtn')?.addEventListener('click', () => {
-          const pending = state.pendingMappings;
-          if (!pending || !pending.length) {
-            showMsg('Aucun mapping à appliquer.', true);
-            return;
-          }
-          /* Ne pas collectAll() avant : les défauts du formulaire (parc, date du jour…) écraseraient l’IA */
-          applyMappings(pending, { overwrite: true });
-          state.pendingMappings = null;
-          renderForm();
-          showMsg('Mappings appliqués au formulaire.');
-          setStatus(
-            `Formulaire mis à jour — type ${state.appareil.type_appareil || '—'}, source ${state.appareil.source || '—'}, début ${state.date_debut || '—'}`
-          );
-        });
-        panel.querySelector('#trAiHideBtn')?.addEventListener('click', () => {
-          panel.hidden = true;
-        });
-      }
-
-      const meta = panel.querySelector('#trAiDebugMeta');
-      const pre = panel.querySelector('#trAiDebugPre');
-      const dbg = result?.aiDebug || null;
-      const toApply = sanitizeMappingsForApply(result);
-      const typeFinal = toApply.find((m) => m.code === 'type_appareil');
-      const typeAi = (dbg?.mappings || []).find((m) => m.code === 'type_appareil');
-      const typeHeur = (result?.heurMappings || []).find((m) => m.code === 'type_appareil');
-
-      if (meta) {
-        meta.textContent = [
-          dbg?.engine || 'sans IA',
-          dbg?.model || '',
-          result?.aiError ? `erreur: ${result.aiError}` : '',
-        ]
-          .filter(Boolean)
-          .join(' · ');
-      }
-
-      const payload = {
-        resume: {
-          type_appareil_ia: typeAi?.value ?? null,
-          type_appareil_heuristique: typeHeur?.value ?? null,
-          type_appareil_final: typeFinal
-            ? { value: typeFinal.value, source: typeFinal.source || null, previous: typeFinal.previous ?? null }
-            : null,
-          source_final: toApply.find((m) => m.code === 'source')?.value ?? null,
-          prestataire_id_final: toApply.find((m) => m.code === 'prestataire_id')?.value ?? null,
-          date_debut_final: toApply.find((m) => m.code === 'date_debut')?.value ?? null,
-          modele_final: toApply.find((m) => m.code === 'modele')?.value ?? null,
-          aiCount: result?.aiCount ?? 0,
-          aiError: result?.aiError || null,
-          a_appliquer: toApply.length,
-        },
-        mappings_a_appliquer: toApply,
-        mappings_finaux: result?.mappings || [],
-        mappings_ia_bruts: dbg?.mappings || [],
-        mappings_heuristiques: result?.heurMappings || [],
-        reponse_ia_raw: dbg?.raw ?? null,
-        usage: dbg?.usage ?? null,
-      };
-      if (pre) pre.textContent = JSON.stringify(payload, null, 2);
-      panel.hidden = false;
-      state.pendingMappings = toApply;
     }
 
     function collectCustomFields(etapeId) {
@@ -2112,24 +2106,19 @@
         });
         const added = result.pages || [];
         state.pages = state.pages.concat(added);
+        applyMappings(sanitizeMappingsForApply(result), { overwrite: true });
         renderDocs();
         renderForm();
-        renderAiDebug(result);
         if (result.errors && result.errors.length) {
           showMsg(`Certains fichiers ont échoué : ${result.errors.join(' — ')}`, true);
         } else if (result.aiError) {
           showMsg(`IA mapping : ${result.aiError} (heuristiques utilisées). Vérifiez GEMINI_API_KEY.`, true);
-        } else {
-          showMsg(
-            'Réponse IA affichée ci-dessus — cliquez « Appliquer au formulaire » pour remplir le dossier.',
-            false
-          );
         }
         setStatus(
           state.pages.length
             ? `${state.pages.length} page(s) — ${added.length} ajoutée(s)${
                 result.aiCount ? `, IA ${result.aiCount} champs` : ''
-              }. Vérifiez le debug IA puis appliquez.`
+              }. Relisez les cases cochées / manuscrit.`
             : 'Aucun texte détecté.'
         );
       } catch (e) {

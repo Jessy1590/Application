@@ -709,18 +709,40 @@
     return (m[2] || m[1] || '').replace(/^n[°o]\s*s[eé]rie[:\s]*/i, '').trim() || null;
   }
 
-  function findPhone(text, ctx) {
+  function findPhones(text, ctx) {
     const re = /(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
     const matches = String(text || '').match(re) || [];
+    const out = [];
     for (const raw of matches) {
-      const tel = raw.replace(/[^\d+]/g, '').replace(/^33/, '0');
-      /* ignorer numéros typiques en-tête si la ligne porte aussi « pharmacie » */
+      const tel = raw.replace(/[^\d+]/g, '').replace(/^\+?33/, '0');
+      if (tel.length < 10) continue;
       const idx = text.indexOf(raw);
       const around = text.slice(Math.max(0, idx - 40), idx + raw.length + 40);
       if (isLetterheadOrSenderLine(around, prestataireNames(ctx))) continue;
-      return tel;
+      if (!out.includes(tel)) out.push(tel);
     }
-    return null;
+    return out;
+  }
+
+  function findPhone(text, ctx) {
+    const list = findPhones(text, ctx);
+    return list[0] || null;
+  }
+
+  function findEmails(text, ctx) {
+    const re = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    const matches = String(text || '').match(re) || [];
+    const out = [];
+    for (const raw of matches) {
+      const email = String(raw).trim().toLowerCase();
+      if (!email) continue;
+      const idx = text.indexOf(raw);
+      const around = text.slice(Math.max(0, idx - 40), idx + raw.length + 40);
+      if (isLetterheadOrSenderLine(around, prestataireNames(ctx))) continue;
+      if (/pharmacie|orkyn|noreply|no-?reply|evreux@/.test(email)) continue;
+      if (!out.includes(email)) out.push(email);
+    }
+    return out;
   }
 
   function findNomPrenom(text, ctx) {
@@ -836,8 +858,13 @@
       push('patient_adresse', adresse, 0.55);
     }
 
-    const tel = findPhone(patientText, ctx);
-    if (tel) push('patient_telephone', tel, 0.7);
+    const tels = findPhones(patientText, ctx);
+    if (tels.length === 1) push('patient_telephone', tels[0], 0.7);
+    else if (tels.length > 1) push('patient_telephone', tels, 0.75);
+
+    const mails = findEmails(patientText, ctx);
+    if (mails.length === 1) push('patient_mails', mails[0], 0.65);
+    else if (mails.length > 1) push('patient_mails', mails, 0.7);
 
     const caution = detectCaution(text);
     if (caution) push('caution', caution, 0.8);
