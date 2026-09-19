@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES } from '../../../core/roles.js';
 import {
   fetchHealthProfessionals,
   updateContactSwitchRupture,
@@ -61,7 +62,7 @@ export async function fetchIpsWithProfiles() {
     .schema('portail')
     .from('profiles')
     .select('id, display_name, role')
-    .in('role', ['admin', 'équipe']);
+    .in('role', STAFF_ROLES);
   if (profError) throw profError;
 
   return (ips || []).map((ip) => ({

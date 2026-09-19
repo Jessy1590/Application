@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES } from '../../../core/roles.js';
 
 /** Profils équipe (évite dépendance au module hr). */
 export async function fetchTeamProfiles() {
@@ -6,7 +7,7 @@ export async function fetchTeamProfiles() {
     .schema('portail')
     .from('profiles')
     .select('id, display_name, role')
-    .in('role', ['admin', 'équipe'])
+    .in('role', STAFF_ROLES)
     .order('display_name');
   if (error) throw error;
   return data || [];
@@ -87,7 +88,7 @@ export async function createLotAlert(payload, userId) {
     .schema('portail')
     .from('profiles')
     .select('id')
-    .in('role', ['admin', 'équipe']);
+    .in('role', STAFF_ROLES);
   if (profError) throw profError;
 
   const assignees = profiles?.map((p) => p.id) || [];

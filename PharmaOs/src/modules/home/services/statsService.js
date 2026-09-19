@@ -1,4 +1,5 @@
 ﻿import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES } from '../../../core/roles.js';
 
 /** Utilisation Taskbar (7 j) — lecture `taskbar_logs` + `portail.profiles`. */
 export async function fetchTaskbarUsageStats(days = 7) {
@@ -144,7 +145,7 @@ export async function fetchDashboardInsights(days = 30) {
     changesRes,
     taskbarRes,
   ] = await Promise.all([
-    supabase.schema('portail').from('profiles').select('id, display_name, job_title, role').in('role', ['admin', 'équipe']),
+    supabase.schema('portail').from('profiles').select('id, display_name, job_title, role').in('role', STAFF_ROLES),
     supabase.from('task_assignments').select('user_id, statut, completion_time_seconds, completed_at, tasks(created_at)').gte('completed_at', sinceIso).limit(2000),
     supabase.from('act_ip_logs').select('id, user_id, probleme_identifie, statut, created_at').gte('created_at', sinceIso),
     supabase.from('quality_events').select('id, type, severity, status, created_at').gte('created_at', sinceIso),

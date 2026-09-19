@@ -3,7 +3,7 @@ import {
   Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
   AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
-  Users,
+  Users, Plus, X,
 } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import { supabase } from '../shared/supabaseClient.js';
@@ -11,6 +11,7 @@ import {
   expandWindow, reduceWindow, openModuleWindow, openDashboardWindow, openBugWindow,
 } from '../shared/windowService.js';
 import { logTaskbarToggle } from '../shared/dbServices.js';
+import { setLogSurface } from '../shared/logService.js';
 import ConseilPanel from '../modules/conseil/comptoir/ConseilPanel.jsx';
 
 function TbBtn({ title, onClick, className = '', children }) {
@@ -37,10 +38,14 @@ function SectionSep({ label }) {
 }
 
 export default function Taskbar() {
-  const { user, profile, role, signOut } = useAuth();
+  const { user, profile, signOut, canAccess, canDashboard } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const initLogged = useRef(false);
+
+  useEffect(() => {
+    setLogSurface('taskbar');
+  }, []);
 
   useEffect(() => {
     if (user?.id && !initLogged.current) {
@@ -106,7 +111,12 @@ export default function Taskbar() {
     return name.substring(0, 2).toUpperCase();
   };
 
-  const open = (view) => () => openModuleWindow(view);
+  const open = (view, featureId = view) => () => {
+    if (!canAccess('taskbar', featureId)) return;
+    openModuleWindow(view);
+  };
+
+  const show = (featureId) => canAccess('taskbar', featureId);
 
   if (isCollapsed) {
     return (
@@ -127,42 +137,89 @@ export default function Taskbar() {
   return (
     <div className="w-full h-full flex items-center justify-between px-2 bg-slate-900/90 text-white">
       <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto">
-        <SectionSep label="Tâches" />
-        <TbBtn title="Mes tâches du jour" onClick={open('tasks')} className="relative text-amber-300">
-          <CheckSquare size={18} />
-          {pendingCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
-              {pendingCount}
-            </span>
-          )}
-        </TbBtn>
-        <TbBtn title="Commander un médicament" onClick={open('order')} className="text-emerald-400"><ShoppingBag size={18} /></TbBtn>
-        <TbBtn title="Facturation à effectuer" onClick={open('billing')} className="text-sky-300"><FileText size={18} /></TbBtn>
+        {(show('tasks') || show('order') || show('billing')) && <SectionSep label="Tâches" />}
+        {show('tasks') && (
+          <TbBtn title="Mes tâches du jour" onClick={open('tasks')} className="relative text-amber-300">
+            <CheckSquare size={18} />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
+                {pendingCount}
+              </span>
+            )}
+          </TbBtn>
+        )}
+        {show('order') && (
+          <TbBtn title="Commander un médicament" onClick={open('order')} className="text-emerald-400"><ShoppingBag size={18} /></TbBtn>
+        )}
+        {show('billing') && (
+          <TbBtn title="Facturation à effectuer" onClick={open('billing')} className="text-sky-300"><FileText size={18} /></TbBtn>
+        )}
 
-        <SectionSep label="Communication" />
-        <TbBtn title="Annuaire des contacts" onClick={open('directory')} className="text-sky-400"><BookOpen size={18} /></TbBtn>
-        <TbBtn title="Tracer un appel téléphonique" onClick={open('call')}><Phone size={18} /></TbBtn>
-        <TbBtn title="Interventions pharmaceutiques (Act-IP)" onClick={open('ip')} className="!px-1.5 !py-0.5 bg-indigo-100 text-indigo-700 font-black text-xs hover:bg-indigo-200">IP</TbBtn>
+        {(show('directory') || show('call') || show('ip')) && <SectionSep label="Communication" />}
+        {show('directory') && (
+          <TbBtn title="Annuaire des contacts" onClick={open('directory')} className="text-sky-400"><BookOpen size={18} /></TbBtn>
+        )}
+        {show('call') && (
+          <TbBtn title="Tracer un appel téléphonique" onClick={open('call')}><Phone size={18} /></TbBtn>
+        )}
+        {show('ip') && (
+          <TbBtn title="Interventions pharmaceutiques (Act-IP)" onClick={open('ip')} className="!px-1.5 !py-0.5 bg-indigo-100 text-indigo-700 font-black text-xs hover:bg-indigo-200">IP</TbBtn>
+        )}
 
-        <SectionSep label="Qualité" />
-        <TbBtn title="Procédures / documents" onClick={open('documents')} className="text-blue-300"><BookMarked size={18} /></TbBtn>
-        <TbBtn title="Non-conformités qualité" onClick={open('quality')} className="text-rose-400"><ShieldAlert size={18} /></TbBtn>
-        <TbBtn title="Alertes retrait de lot" onClick={open('lot_alerts')} className="text-red-400"><AlertOctagon size={18} /></TbBtn>
+        {(show('documents') || show('quality') || show('lot_alerts')) && <SectionSep label="Qualité" />}
+        {show('documents') && (
+          <TbBtn title="Procédures / documents" onClick={open('documents')} className="text-blue-300"><BookMarked size={18} /></TbBtn>
+        )}
+        {show('quality') && (
+          <TbBtn title="Non-conformités qualité" onClick={open('quality')} className="text-rose-400"><ShieldAlert size={18} /></TbBtn>
+        )}
+        {show('lot_alerts') && (
+          <TbBtn title="Alertes retrait de lot" onClick={open('lot_alerts')} className="text-red-400"><AlertOctagon size={18} /></TbBtn>
+        )}
 
-        <SectionSep label="Stock" />
-        <TbBtn title="Gestion des périmés" onClick={open('perimes')} className="text-orange-400"><Package size={18} /></TbBtn>
-        <TbBtn title="Mises en avant / promo / challenges du jour" onClick={open('perimes_vitrine')} className="text-amber-300"><Sparkles size={18} /></TbBtn>
-        <TbBtn title="Déclarer une erreur de stock" onClick={open('stock')} className="text-violet-400"><PackageX size={18} /></TbBtn>
-        <TbBtn title="Litiges fournisseurs" onClick={open('disputes')} className="text-amber-300"><Scale size={18} /></TbBtn>
+        {(show('perimes') || show('perimes_vitrine') || show('stock') || show('disputes')) && <SectionSep label="Stock" />}
+        {show('perimes') && (
+          <TbBtn title="Gestion des périmés" onClick={open('perimes')} className="text-orange-400"><Package size={18} /></TbBtn>
+        )}
+        {show('perimes_vitrine') && (
+          <TbBtn title="Mises en avant / promo / challenges du jour" onClick={open('perimes_vitrine')} className="text-amber-300"><Sparkles size={18} /></TbBtn>
+        )}
+        {show('stock') && (
+          <TbBtn title="Déclarer une erreur de stock" onClick={open('stock')} className="text-violet-400"><PackageX size={18} /></TbBtn>
+        )}
+        {show('disputes') && (
+          <TbBtn title="Litiges fournisseurs" onClick={open('disputes')} className="text-amber-300"><Scale size={18} /></TbBtn>
+        )}
 
-        <SectionSep label="Métier" />
-        <TbBtn title="Location de matériel" onClick={open('rental')} className="text-cyan-300"><BedDouble size={18} /></TbBtn>
-        <TbBtn title="Préparations magistrales" onClick={open('magistral')} className="text-fuchsia-300"><FlaskConical size={18} /></TbBtn>
-        <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+        {(show('magistral') || show('psl')) && <SectionSep label="Métier" />}
+        {show('magistral') && (
+          <TbBtn title="Préparations magistrales" onClick={open('magistral')} className="text-fuchsia-300"><FlaskConical size={18} /></TbBtn>
+        )}
+        {show('psl') && (
+          <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+        )}
 
-        <SectionSep label="RH / Compta" />
-        <TbBtn title="RH — planning, retards, absences" onClick={open('hr')} className="text-indigo-300"><Users size={18} /></TbBtn>
-        <TbBtn title="Clôture de caisse" onClick={open('cash')} className="text-emerald-300"><Wallet size={18} /></TbBtn>
+        {show('location') && (
+          <>
+            <SectionSep label="Loc." />
+            <TbBtn title="Location — nouvelle" onClick={open('location_creation', 'location')} className="text-cyan-300">
+              <span className="relative inline-flex"><BedDouble size={16} /><Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} /></span>
+            </TbBtn>
+            <TbBtn title="Location — prolongation" onClick={open('location_prolongation', 'location')} className="text-cyan-300 font-black text-xs !px-2">P</TbBtn>
+            <TbBtn title="Location — clôture" onClick={open('location_cloture', 'location')} className="text-cyan-300">
+              <X size={18} strokeWidth={2.5} />
+            </TbBtn>
+            <TbBtn title="Location — contact" onClick={open('location_contact', 'location')} className="text-cyan-300"><Phone size={18} /></TbBtn>
+          </>
+        )}
+
+        {(show('hr') || show('cash')) && <SectionSep label="RH / Compta" />}
+        {show('hr') && (
+          <TbBtn title="RH — planning, retards, absences" onClick={open('hr')} className="text-indigo-300"><Users size={18} /></TbBtn>
+        )}
+        {show('cash') && (
+          <TbBtn title="Clôture de caisse" onClick={open('cash')} className="text-emerald-300"><Wallet size={18} /></TbBtn>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0 pl-2">
@@ -174,9 +231,9 @@ export default function Taskbar() {
         >
           <Bug size={18} />
         </TbBtn>
-        {role === 'admin' && (
+        {canDashboard && (
           <TbBtn
-            title="Ouvrir le Dashboard titulaire"
+            title="Ouvrir le Dashboard"
             onClick={() => openDashboardWindow()}
             className="text-sky-300"
           >

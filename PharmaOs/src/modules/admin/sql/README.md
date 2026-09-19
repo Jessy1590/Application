@@ -1,0 +1,5 @@
+-- Module admin : logs, bugs, matrice d'accès
+-- Source agrégée : supabase/migrations/024_roles_logs_bugs.sql + 025_roles_logs_harden.sql
+-- Tables : PharmaOs.app_logs, PharmaOs.bugs, PharmaOs.role_access
+-- Rôles portail.profiles : pharmacien | administrateur | gestionnaire | préparateur
+--   (+ legacy admin | équipe | member)

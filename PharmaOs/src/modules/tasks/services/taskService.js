@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES, ADMIN_ROLES } from '../../../core/roles.js';
 
 /**
  * Service unifié tâches (comptoir + dashboard).
@@ -10,7 +11,7 @@ export async function fetchTeamProfiles() {
     .schema('portail')
     .from('profiles')
     .select('id, display_name')
-    .in('role', ['admin', 'équipe']);
+    .in('role', STAFF_ROLES);
   if (error) throw error;
   return data || [];
 }
@@ -20,7 +21,7 @@ export async function fetchAdminIds() {
     .schema('portail')
     .from('profiles')
     .select('id')
-    .eq('role', 'admin');
+    .in('role', ADMIN_ROLES);
   if (error) throw error;
   return (data || []).map((p) => p.id);
 }
@@ -31,7 +32,7 @@ export async function fetchAssigneeIds() {
     .schema('portail')
     .from('profiles')
     .select('id')
-    .in('role', ['admin', 'équipe']);
+    .in('role', STAFF_ROLES);
   if (error) throw error;
   return (data || []).map((p) => p.id);
 }

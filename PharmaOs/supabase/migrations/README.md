@@ -17,6 +17,9 @@ Ordre :
 13. `016_hr_workflow.sql` — absences `statut` + revue ; `change_type` retards
 14. `017`–`019` — RH planning / semaines spéciales / job_title
 15. `020_mds_registry_seq_grants.sql` — séquence registre MDS + GRANT (fix permission denied)
+16. `021`–`023` — BDPM, conseils, sites
+17. `024_roles_logs_bugs.sql` — rôles, `app_logs`, `bugs`, `role_access`
+18. `025_roles_logs_harden.sql` — search_path / GRANT helpers
 
 Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
 

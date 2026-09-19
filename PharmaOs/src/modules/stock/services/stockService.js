@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES, ADMIN_ROLES } from '../../../core/roles.js';
 
 export const STOCK_STATUS_LABELS = {
   ouvert: 'En attente admin',
@@ -28,7 +29,7 @@ export async function declareStockError(userId, payload) {
     .schema('portail')
     .from('profiles')
     .select('id')
-    .eq('role', 'admin');
+    .in('role', ADMIN_ROLES);
   if (admErr) throw new Error(admErr.message);
 
   const assignees = admins?.map((a) => a.id) || [];
@@ -126,7 +127,7 @@ export async function resolveStockError(id, decision, adminNotes, adminUserId) {
       .schema('portail')
       .from('profiles')
       .select('id')
-      .in('role', ['admin', 'équipe']);
+      .in('role', STAFF_ROLES);
     const assignees = profiles?.map((p) => p.id) || [adminUserId];
     const details = {
       type: 'stock_recompte',
@@ -264,7 +265,7 @@ export async function submitRecountResult({
     .schema('portail')
     .from('profiles')
     .select('id')
-    .eq('role', 'admin');
+    .in('role', ADMIN_ROLES);
   const assignees = admins?.map((a) => a.id) || [userId];
 
   const details = {

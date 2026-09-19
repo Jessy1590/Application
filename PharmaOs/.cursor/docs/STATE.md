@@ -10,11 +10,11 @@
 
 - Points d’entrée : `index.html`, `module.html`, `dashboard.html`.
 
-- Auth unifiée : session + `display_name` + `role` (`portail.profiles`).
+- Auth unifiée : session + `display_name` + `role` (`portail.profiles` : pharmacien / administrateur / gestionnaire / préparateur).
 
 - IPC : `setMode`, `openModule`, `openDashboard` ; isolation Electron OK.
 
-- Shell : Login + Taskbar (bouton Dashboard admin-only) + DashboardShell (nav).
+- Shell : Login + Taskbar (bouton Dashboard selon matrice d’accès) + DashboardShell (nav + Administration : logs, bugs, accès).
 
 
 
@@ -64,6 +64,14 @@
 - UI + services `src/modules/controls/` supprimés (Taskbar, nav dashboard, `#controls`).
 - Tables live droppées : `PharmaOs.daily_controls`, `PharmaOs.equipment_calibrations` (migration `009`).
 - Module `quality` / `quality_events` conservé. Affichage tâches `etalonnage_rdv` conservé (pas de nouvelles créations).
+
+## Rôles, logs, bugs (2026-09-19)
+
+- Rôles canoniques : `pharmacien`, `administrateur`, `gestionnaire`, `préparateur` (legacy `admin` / `équipe` / `member` mappés).
+- Matrice `PharmaOs.role_access` : pages dashboard et missions taskbar masquables par rôle (onglet Administration → Accès & rôles).
+- Journal `PharmaOs.app_logs` : UI/auth/fenêtres côté client + trigger SQL sur INSERT/UPDATE/DELETE métier.
+- Bugs en table `PharmaOs.bugs` (date, nom, information, statut nouveau/en_cours/modifié/impossible) à la place des fichiers `bug/*.md`.
+- Migrations `024_roles_logs_bugs` + `025_roles_logs_harden`.
 
 ## Notes
 

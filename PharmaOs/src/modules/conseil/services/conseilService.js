@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES } from '../../../core/roles.js';
 
 const pharma = () => supabase.schema('PharmaOs');
 
@@ -152,7 +153,7 @@ export async function fetchTeamProfiles() {
     .schema('portail')
     .from('profiles')
     .select('id, display_name, role')
-    .in('role', ['admin', 'équipe'])
+    .in('role', STAFF_ROLES)
     .order('display_name');
   if (error) throw error;
   return data || [];

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../core/AuthContext.jsx';
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { signIn, authBlockMessage } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -51,7 +51,9 @@ export default function Login() {
           className="px-2 py-1.5 rounded bg-slate-700 text-white text-xs placeholder-slate-400 outline-none focus:ring-1 focus:ring-sky-500"
         />
 
-        {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+        {(error || authBlockMessage) && (
+          <p className="text-red-400 text-xs text-center">{error || authBlockMessage}</p>
+        )}
 
         <button
           type="submit"

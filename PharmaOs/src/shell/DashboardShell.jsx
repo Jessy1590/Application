@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
-import { NAV_SECTIONS } from './navConfig.js';
+import { NAV_SECTIONS, findNavItem, resolveNavPageId } from './navConfig.js';
+import { firstAllowedDashboardPage } from '../core/access.js';
+import { labelRole } from '../core/roles.js';
+import { logEvent, setLogSurface } from '../shared/logService.js';
 
 import CallTracking from '../modules/calls/dashboard/CallTracking.jsx';
 import AgendaManager from '../modules/agenda/dashboard/AgendaManager.jsx';
 import TasksManager from '../modules/tasks/dashboard/TasksManager.jsx';
 import IpManagement from '../modules/ip/dashboard/IpManagement.jsx';
 import DirectoryManager from '../modules/directory/dashboard/DirectoryManager.jsx';
-import RentalManager from '../modules/rental/dashboard/RentalManager.jsx';
+import LocationManager from '../modules/location/dashboard/LocationManager.jsx';
+import LocationTranscription from '../modules/location/dashboard/LocationTranscription.jsx';
+import Location from '../modules/location/comptoir/Location.jsx';
 import MagistralManager from '../modules/magistral/dashboard/MagistralManager.jsx';
 import PslManager from '../modules/psl/dashboard/PslManager.jsx';
 import CashManager from '../modules/cash/dashboard/CashManager.jsx';
@@ -22,6 +27,9 @@ import HomeDashboard from '../modules/home/dashboard/HomeDashboard.jsx';
 import HrManager from '../modules/hr/dashboard/HrManager.jsx';
 import BdmExplorer from '../modules/bdm/dashboard/BdmExplorer.jsx';
 import ConseilManager from '../modules/conseil/dashboard/ConseilManager.jsx';
+import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
+import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
+import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -58,8 +66,24 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <PslManager />;
     case 'cash':
       return <CashManager />;
-    case 'rental':
-      return <RentalManager />;
+    case 'location':
+    case 'location_suivi':
+      return <LocationManager view="suivi" onNavigate={onNavigate} pageData={pageData} />;
+    case 'location_parc':
+      return <LocationManager view="parc" onNavigate={onNavigate} pageData={pageData} />;
+    case 'location_facture':
+      return <LocationManager view="facture" onNavigate={onNavigate} pageData={pageData} />;
+    case 'location_parametres':
+      return <LocationManager view="parametres" onNavigate={onNavigate} pageData={pageData} />;
+    case 'location_transcription':
+      return <LocationTranscription onNavigate={onNavigate} />;
+    case 'location_creation':
+    case 'location_prolongation':
+    case 'location_cloture':
+    case 'location_contact':
+      return (
+        <Location view={pageId} data={pageData} onNavigate={onNavigate} />
+      );
     case 'magistral':
       return <MagistralManager />;
     case 'directory':
@@ -74,24 +98,62 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <CallTracking onNavigate={onNavigate} />;
     case 'dashboard':
       return <HomeDashboard onNavigate={onNavigate} />;
+    case 'logs':
+      return <LogsManager />;
+    case 'bugs':
+      return <BugsManager />;
+    case 'access':
+      return <AccessManager />;
     default:
       return <PlaceholderPage label={activeLabel} />;
   }
 }
 
 export default function DashboardShell() {
-  const { user, profile, isAdmin, isLoading, signOut } = useAuth();
+  const { user, profile, canDashboard, canAccess, accessOverrides, isLoading, signOut, role } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageData, setPageData] = useState(null);
+
+  useEffect(() => {
+    setLogSurface('dashboard');
+  }, []);
+
+  const visibleSections = useMemo(
+    () => NAV_SECTIONS
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => canAccess('dashboard', item.id)),
+      }))
+      .filter((section) => section.items.length > 0),
+    [canAccess, accessOverrides],
+  );
 
   useEffect(() => {
     if (!window.electronAPI?.onDashboardNavigate) return undefined;
     return window.electronAPI.onDashboardNavigate((payload) => {
       if (!payload?.page) return;
-      setCurrentPage(payload.page);
+      const page = resolveNavPageId(payload.page);
+      if (!canAccess('dashboard', page)) return;
+      setCurrentPage(page);
       setPageData(payload);
+      logEvent({
+        category: 'ui',
+        action: 'navigate',
+        entity: page,
+        message: `Dashboard → ${page}`,
+        details: payload,
+      });
     });
-  }, []);
+  }, [canAccess]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (!canAccess('dashboard', currentPage)) {
+      const fallback = firstAllowedDashboardPage(role, accessOverrides) || 'dashboard';
+      setCurrentPage(fallback);
+      setPageData(null);
+    }
+  }, [isLoading, currentPage, canAccess, role, accessOverrides]);
 
   if (isLoading) {
     return (
@@ -101,12 +163,12 @@ export default function DashboardShell() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canDashboard) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 gap-3 p-6">
         <h1 className="text-xl font-semibold text-slate-800">Accès refusé</h1>
         <p className="text-sm text-slate-500 text-center max-w-md">
-          Le Dashboard titulaire est réservé au rôle <code className="text-xs bg-slate-200 px-1 rounded">admin</code>.
+          Le Dashboard n’est pas ouvert au rôle <code className="text-xs bg-slate-200 px-1 rounded">{labelRole(role)}</code>.
         </p>
         <button
           type="button"
@@ -119,9 +181,19 @@ export default function DashboardShell() {
     );
   }
 
-  const activeLabel =
-    NAV_SECTIONS.flatMap((s) => s.items).find((i) => i.id === currentPage)?.label
-    || currentPage;
+  const activeLabel = findNavItem(currentPage)?.label || currentPage;
+
+  const goTo = (pageId, data = null) => {
+    setCurrentPage(pageId);
+    setPageData(data && typeof data === 'object' ? data : null);
+    logEvent({
+      category: 'ui',
+      action: 'navigate',
+      entity: pageId,
+      message: `Dashboard → ${pageId}`,
+      details: data || undefined,
+    });
+  };
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -131,9 +203,10 @@ export default function DashboardShell() {
           <p className="text-xs text-slate-400 truncate mt-1">
             {profile?.display_name || user?.email}
           </p>
+          <p className="text-[10px] text-slate-500 mt-0.5">{labelRole(role)}</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-5">
-          {NAV_SECTIONS.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.title}>
               <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold px-2 mb-2">
                 {section.title}
@@ -141,15 +214,12 @@ export default function DashboardShell() {
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const active = currentPage === item.id;
+                  const active = resolveNavPageId(currentPage) === item.id;
                   return (
                     <li key={item.id}>
                       <button
                         type="button"
-                        onClick={() => {
-                          setCurrentPage(item.id);
-                          setPageData(null);
-                        }}
+                        onClick={() => goTo(item.id)}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                           active
                             ? 'bg-white/10 text-white font-medium'
@@ -179,7 +249,7 @@ export default function DashboardShell() {
 
       <main className="flex-1 min-w-0 overflow-y-auto">
         <div className="p-6 xl:p-8 max-w-[1600px]">
-          {renderDashboardPage(currentPage, activeLabel, setCurrentPage, pageData)}
+          {renderDashboardPage(currentPage, activeLabel, goTo, pageData)}
         </div>
       </main>
     </div>

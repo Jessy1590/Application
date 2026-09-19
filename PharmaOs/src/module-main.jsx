@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
-import { AuthProvider } from './core/AuthContext.jsx';
+import { AuthProvider, useAuth } from './core/AuthContext.jsx';
 import { bindModuleBeforeCloseBridge } from './shared/windowService.js';
+import { MODULE_VIEW_FEATURE } from './core/access.js';
+import { logEvent, setLogSurface } from './shared/logService.js';
 import './index.css';
 
 import Directory from './modules/directory/comptoir/Directory.jsx';
@@ -9,7 +11,7 @@ import Calls from './modules/calls/comptoir/Calls.jsx';
 import Ip from './modules/ip/comptoir/IP.jsx';
 import Tasks from './modules/tasks/comptoir/Tasks.jsx';
 import QuickAction from './modules/tasks/comptoir/QuickAction.jsx';
-import Rental from './modules/rental/comptoir/Rental.jsx';
+import Location from './modules/location/comptoir/Location.jsx';
 import Magistral from './modules/magistral/comptoir/Magistral.jsx';
 import Psl from './modules/psl/comptoir/Psl.jsx';
 import CashClosure from './modules/cash/comptoir/CashClosure.jsx';
@@ -44,7 +46,11 @@ const VIEW_TITLES = {
   perimes: 'Périmés',
   perimes_vitrine: 'MEA / Promo / Challenge',
   stock: 'Erreur de stock',
-  rental: 'Location',
+  location_creation: 'Location — Création',
+  location_prolongation: 'Location — Prolongation',
+  location_cloture: 'Location — Clôture',
+  location_contact: 'Location — Contact',
+  location: 'Location',
   disputes: 'Litiges',
   lot_alerts: 'Alertes lot',
   magistral: 'Magistrales',
@@ -67,8 +73,12 @@ function renderModuleView(view, moduleData) {
       return <QuickAction type="order" />;
     case 'billing':
       return <QuickAction type="billing" />;
-    case 'rental':
-      return <Rental />;
+    case 'location_creation':
+    case 'location_prolongation':
+    case 'location_cloture':
+    case 'location_contact':
+    case 'location':
+      return <Location view={view} data={moduleData} />;
     case 'magistral':
       return <Magistral />;
     case 'psl':
@@ -96,26 +106,61 @@ function renderModuleView(view, moduleData) {
   }
 }
 
+function ModuleDenied({ title }) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-800 p-6 text-center">
+      <h1 className="text-xl font-semibold mb-2">Accès refusé</h1>
+      <p className="text-sm text-slate-500 max-w-md">
+        La mission <strong>{title}</strong> n’est pas visible pour votre rôle.
+      </p>
+    </div>
+  );
+}
+
 function ModuleApp() {
+  const { canAccess, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState(
     () => window.location.hash.replace('#', '') || 'directory'
   );
   const [moduleData, setModuleData] = useState(null);
 
   useEffect(() => {
+    setLogSurface('module');
+  }, []);
+
+  useEffect(() => {
     if (window.electronAPI?.onModuleChangeView) {
       window.electronAPI.onModuleChangeView((view, data) => {
         setCurrentView(view);
         setModuleData(data ?? null);
+        logEvent({
+          category: 'ui',
+          action: 'module_view',
+          entity: view,
+          message: `Module → ${view}`,
+        });
       });
     }
     return bindModuleBeforeCloseBridge();
   }, []);
 
+  const featureId = MODULE_VIEW_FEATURE[currentView] || currentView;
+  const title = VIEW_TITLES[currentView] || currentView;
+
+  if (isLoading) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center text-slate-500 text-sm">
+        Chargement…
+      </div>
+    );
+  }
+
   return (
     <div className="w-screen h-screen overflow-hidden bg-white flex flex-col">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {renderModuleView(currentView, moduleData)}
+        {canAccess('taskbar', featureId)
+          ? renderModuleView(currentView, moduleData)
+          : <ModuleDenied title={title} />}
       </div>
     </div>
   );

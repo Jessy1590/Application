@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { STAFF_ROLES } from '../../../core/roles.js';
 
 const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 export { DAY_LABELS };
@@ -287,7 +288,7 @@ export async function fetchTeamProfiles() {
     .schema('portail')
     .from('profiles')
     .select('id, display_name, role, job_title')
-    .in('role', ['admin', 'équipe'])
+    .in('role', STAFF_ROLES)
     .order('display_name');
   if (error) throw error;
   return (data || []).map((p) => ({

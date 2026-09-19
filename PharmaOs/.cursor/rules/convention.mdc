@@ -16,8 +16,9 @@ globs: "src/**/*.{js,jsx}"
 - IPC Electron uniquement via `src/shared/windowService.js` (jamais `window.electronAPI` ailleurs)
 
 ## Auth
-- `AuthContext` : `session`, `profile.display_name`, `role` (`admin` | `équipe`)
-- Dashboard : gate `role === 'admin'` ; rôle `équipe` = pas de bouton Dashboard (v1)
+- `AuthContext` : `session`, `profile.display_name`, `role` canonique (`pharmacien` | `administrateur` | `gestionnaire` | `préparateur` | `désactivé`) ; legacy `admin` / `équipe` / `member` mappés
+- Dashboard : pages filtrées par `role_access` ; bouton Dashboard si accès `dashboard`
+- Logs `PharmaOs.app_logs` ; bugs `PharmaOs.bugs` (plus de fichiers `bug/`)
 
 ## Contrats données (ne pas inventer de colonnes)
 - `call_logs.type` : `recu` | `envoye` (affichage : Appel reçu / Appel envoyé ; legacy `in`/`out`/`missed` mappés)

@@ -6,8 +6,13 @@ export const WINDOW_MODES = {
   REDUCED: 'reduced',
 };
 
-/** Rôles canoniques portail.profiles.role */
+/** Rôles canoniques portail.profiles.role (voir src/core/roles.js) */
 export const ROLES = {
+  PHARMACIEN: 'pharmacien',
+  ADMINISTRATEUR: 'administrateur',
+  GESTIONNAIRE: 'gestionnaire',
+  PREPARATEUR: 'préparateur',
+  DESACTIVE: 'désactivé',
   ADMIN: 'admin',
   EQUIPE: 'équipe',
 };

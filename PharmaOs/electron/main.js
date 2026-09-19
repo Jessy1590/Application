@@ -229,13 +229,6 @@ ipcMain.handle('window:openDashboard', (_event, options) => {
   return { ok: true, status: 'created' };
 });
 
-function getBugDir() {
-  if (isDev) {
-    return path.join(__dirname, '..', 'bug');
-  }
-  return path.join(app.getPath('userData'), 'bug');
-}
-
 ipcMain.handle('window:openBug', () => {
   if (bugWindow) {
     if (bugWindow.isMinimized()) bugWindow.restore();
@@ -285,31 +278,10 @@ app.on('before-quit', () => {
   contextTextBus.stopWatch();
 });
 
-ipcMain.handle('bug:submit', async (_event, text) => {
-  const body = typeof text === 'string' ? text.trim() : '';
-  if (!body) return { ok: false, error: 'empty' };
-  if (body.length > 20000) return { ok: false, error: 'too-long' };
-
-  try {
-    const fs = await import('fs/promises');
-    const dir = getBugDir();
-    await fs.mkdir(dir, { recursive: true });
-    const now = new Date();
-    const stamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const fileName = `bug-${stamp}.md`;
-    const filePath = path.join(dir, fileName);
-    const content = [
-      `# Bug — ${now.toLocaleString('fr-FR')}`,
-      '',
-      body,
-      '',
-    ].join('\n');
-    await fs.writeFile(filePath, content, 'utf8');
-    return { ok: true, path: filePath, fileName };
-  } catch (err) {
-    return { ok: false, error: err.message || 'write-failed' };
-  }
-});
+ipcMain.handle('bug:submit', async () => ({
+  ok: false,
+  error: 'deprecated-use-supabase',
+}));
 
 app.whenReady().then(createWindow);
 

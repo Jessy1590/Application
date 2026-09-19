@@ -1,6 +1,9 @@
-# SQL — module Location (`rental`)
+# SQL — module Location (`rental`) — LEGACY
 
-Schéma `PharmaOs`. Colonnes documentées d’après les services unifiés (aucune colonne inventée). Agrégation migrations : phase `sql`.
+> **Supersédé** par `src/modules/location/` (tables `location_*`, UI PhieEvreux).
+> Ne pas supprimer sans validation manuelle. L’UI taskbar / dashboard pointe désormais vers `location`.
+
+Schéma `PharmaOs`. Ancien modèle `rental_assets` / `rental_contracts` / `rental_events`.
 
 ## Tables
 

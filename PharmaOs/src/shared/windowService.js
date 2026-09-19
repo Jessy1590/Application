@@ -1,6 +1,7 @@
 /**
  * Pont IPC Electron — seul fichier autorisé à appeler window.electronAPI.
  */
+import { logEvent } from './logService.js';
 
 const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
 
@@ -9,7 +10,15 @@ export async function setWindowMode(mode) {
     console.warn('[PharmaOS] electronAPI indisponible (mode navigateur ?)');
     return null;
   }
-  return window.electronAPI.setWindowMode(mode);
+  const result = await window.electronAPI.setWindowMode(mode);
+  logEvent({
+    category: 'window',
+    action: 'set_mode',
+    entity: mode,
+    message: `Fenêtre → ${mode}`,
+    details: result,
+  });
+  return result;
 }
 
 export function loginWindow() {
@@ -26,7 +35,15 @@ export function reduceWindow() {
 
 export async function openModuleWindow(viewName, data = null) {
   if (window.electronAPI?.openModule) {
-    return window.electronAPI.openModule(viewName, data);
+    const result = await window.electronAPI.openModule(viewName, data);
+    logEvent({
+      category: 'window',
+      action: 'open_module',
+      entity: viewName,
+      message: `Module ${viewName}`,
+      details: { status: result?.status, hasData: !!data },
+    });
+    return result;
   }
   console.warn('[PharmaOS] electronAPI.openModule indisponible');
   return null;
@@ -34,7 +51,14 @@ export async function openModuleWindow(viewName, data = null) {
 
 export async function openDashboardWindow(options = null) {
   if (window.electronAPI?.openDashboard) {
-    return window.electronAPI.openDashboard(options || null);
+    const result = await window.electronAPI.openDashboard(options || null);
+    logEvent({
+      category: 'window',
+      action: 'open_dashboard',
+      message: 'Ouverture dashboard',
+      details: options,
+    });
+    return result;
   }
   console.warn('[PharmaOS] electronAPI.openDashboard indisponible');
   return null;
@@ -42,18 +66,17 @@ export async function openDashboardWindow(options = null) {
 
 export async function openBugWindow() {
   if (window.electronAPI?.openBug) {
-    return window.electronAPI.openBug();
+    const result = await window.electronAPI.openBug();
+    logEvent({ category: 'window', action: 'open_bug', message: 'Fenêtre bug' });
+    return result;
   }
   console.warn('[PharmaOS] electronAPI.openBug indisponible');
   return null;
 }
 
-export async function submitBugReport(text) {
-  if (window.electronAPI?.submitBugReport) {
-    return window.electronAPI.submitBugReport(text);
-  }
-  console.warn('[PharmaOS] electronAPI.submitBugReport indisponible');
-  return { ok: false, error: 'unavailable' };
+/** @deprecated Les bugs sont enregistrés en table via bugService.createBug */
+export async function submitBugReport() {
+  return { ok: false, error: 'deprecated-use-supabase' };
 }
 
 export async function closeModuleWindow() {

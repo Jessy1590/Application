@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Bug, Send, CheckCircle2 } from 'lucide-react';
-import { submitBugReport } from '../shared/windowService.js';
+import { useAuth } from '../core/AuthContext.jsx';
+import { createBug } from '../modules/admin/services/bugService.js';
 
 export default function BugReport() {
+  const { user, profile, isLoading } = useAuth();
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
@@ -13,18 +15,20 @@ export default function BugReport() {
     setErr('');
     setMsg('');
     try {
-      const result = await submitBugReport(text);
-      if (!result?.ok) {
-        throw new Error(
-          result?.error === 'empty'
-            ? 'Décrivez le problème avant d’envoyer.'
-            : (result?.error || 'Échec de l’enregistrement.'),
-        );
-      }
-      setMsg(`Bug enregistré : ${result.fileName}`);
+      if (!user?.id) throw new Error('Session requise pour envoyer un signalement.');
+      await createBug({
+        userId: user.id,
+        userName: profile?.display_name || user.email || 'Inconnu',
+        information: text,
+      });
+      setMsg('Bug enregistré. L’équipe administration pourra le traiter depuis le dashboard.');
       setText('');
     } catch (e) {
-      setErr(e.message || 'Erreur.');
+      setErr(
+        e.code === 'empty' || e.message === 'empty'
+          ? 'Décrivez le problème avant d’envoyer.'
+          : (e.message || 'Erreur.'),
+      );
     } finally {
       setLoading(false);
     }
@@ -36,8 +40,10 @@ export default function BugReport() {
         <Bug className="text-rose-600" /> Signalement bug
       </h1>
       <p className="text-sm text-slate-500 mb-4">
-        Décrivez ce qui ne va pas. Un fichier daté sera créé dans le dossier <code className="text-xs bg-slate-200 px-1 rounded">bug/</code>.
+        Décrivez ce qui ne va pas. Le ticket (date, votre nom, le détail) sera visible dans Administration → Bugs.
       </p>
+
+      {isLoading && <p className="text-sm text-slate-500 mb-3">Chargement de la session…</p>}
 
       {msg && (
         <div className="mb-3 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm flex items-center gap-2">
@@ -56,11 +62,11 @@ export default function BugReport() {
 
       <button
         type="button"
-        disabled={loading || !text.trim()}
+        disabled={loading || !text.trim() || !user}
         onClick={handleSubmit}
         className="mt-4 w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
       >
-        <Send size={18} /> {loading ? 'Envoi…' : 'Envoyer au développeur'}
+        <Send size={18} /> {loading ? 'Envoi…' : 'Envoyer'}
       </button>
     </div>
   );
