@@ -579,7 +579,7 @@
         default:
           state.appareil.champs_extra = {
             ...(state.appareil.champs_extra || {}),
-            [code]: v === '' ? null : v,
+            [code]: resolveChampExtraValue(code, value),
           };
       }
     }
@@ -872,17 +872,93 @@
       return '';
     }
 
-    function applyMappings(mappings) {
-      for (const m of mappings || []) {
-        if (!m || !m.code) continue;
-        /* type_appareil a un défaut UI (aerosol) : toujours appliquer le mapping OCR/IA */
-        const forceType = m.code === 'type_appareil';
-        if (!forceType && !isFieldEmpty(m.code)) continue;
+    function resolveChampExtraValue(code, value) {
+      const champ = (champsDef || []).find((c) => c && c.code === code);
+      if (!champ) {
+        if (value === true || value === false) return value;
+        const s = value == null ? '' : String(value).trim();
+        if (s === 'true' || s === 'oui' || s === '1') return true;
+        if (s === 'false' || s === 'non' || s === '0') return false;
+        return s === '' ? null : s;
+      }
+      if (champ.data_type === 'oui_non') {
+        return (
+          value === true ||
+          value === 'true' ||
+          value === 'oui' ||
+          value === '1' ||
+          String(value).toLowerCase() === 'oui'
+        );
+      }
+      if (champ.data_type === 'nombre') {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      }
+      if (champ.data_type === 'liste') {
+        const opts = LocationRules.parseJson(champ.options, {});
+        const choix = Array.isArray(opts.choix) ? opts.choix : [];
+        const raw = String(value == null ? '' : value).trim();
+        if (!raw) return null;
+        const exact = choix.find((c) => String(c) === raw);
+        if (exact != null) return exact;
+        const norm = (s) =>
+          String(s)
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+        const nRaw = norm(raw);
+        const byCase = choix.find((c) => norm(c) === nRaw);
+        if (byCase != null) return byCase;
+        const compact = (s) => norm(s).replace(/\s+/g, '');
+        const byCompact = choix.find((c) => compact(c) === compact(raw));
+        if (byCompact != null) return byCompact;
+        return raw;
+      }
+      if (champ.data_type === 'date') {
+        return LocationTranscriptionOcr.parseFrDate(value) || String(value || '').trim() || null;
+      }
+      const s = value == null ? '' : String(value).trim();
+      return s === '' ? null : s;
+    }
+
+    function applyMappings(mappings, opts) {
+      const overwrite = !opts || opts.overwrite !== false;
+      const list = (mappings || []).filter((m) => m && m.code != null && m.value != null);
+      const rank = { type_appareil: 0, source: 1, prestataire_id: 2, matricule: 3 };
+      list.sort((a, b) => (rank[a.code] ?? 40) - (rank[b.code] ?? 40));
+
+      for (const m of list) {
+        if (!overwrite && !isFieldEmpty(m.code)) continue;
         applyValueToState(m.code, m.value);
       }
+
       if (state.appareil.source === 'parc') {
         state.appareil.prestataire_id = '';
+        state.appareil.mode_obtention = null;
       }
+      if (state.appareil.source === 'prestataire') {
+        state.appareil.numero_pharmacie = '';
+        state.appareil.desinfection = false;
+      }
+    }
+
+    /** Retire le bruit heuristique quand l’IA a déjà couvert le dossier. */
+    function sanitizeMappingsForApply(result) {
+      const all = result?.mappings || [];
+      const aiCodes = new Set((result?.aiDebug?.mappings || []).map((m) => m.code));
+      const hasAi = aiCodes.size > 0;
+      return all.filter((m) => {
+        if (!m || !m.code) return false;
+        if (m.source !== 'heuristique') return true;
+        if (!hasAi) return true;
+        if (/^prolong_|^contact_/.test(m.code)) return false;
+        if (m.confidence != null && m.confidence < 0.75) return false;
+        const v = String(m.value == null ? '' : m.value).trim();
+        if (/^(NOM|DEBUT|TELEPHONE|ADRESSE|DATE|PRENOM|ORKYN)$/i.test(v)) return false;
+        return true;
+      });
     }
 
     /** Debug temporaire : réponse IA avant remplissage du formulaire */
@@ -913,13 +989,13 @@
             showMsg('Aucun mapping à appliquer.', true);
             return;
           }
-          collectAll();
-          applyMappings(pending);
+          /* Ne pas collectAll() avant : les défauts du formulaire (parc, date du jour…) écraseraient l’IA */
+          applyMappings(pending, { overwrite: true });
           state.pendingMappings = null;
           renderForm();
           showMsg('Mappings appliqués au formulaire.');
           setStatus(
-            `Formulaire mis à jour — type appareil : ${state.appareil.type_appareil || '—'}`
+            `Formulaire mis à jour — type ${state.appareil.type_appareil || '—'}, source ${state.appareil.source || '—'}, début ${state.date_debut || '—'}`
           );
         });
         panel.querySelector('#trAiHideBtn')?.addEventListener('click', () => {
@@ -930,7 +1006,8 @@
       const meta = panel.querySelector('#trAiDebugMeta');
       const pre = panel.querySelector('#trAiDebugPre');
       const dbg = result?.aiDebug || null;
-      const typeFinal = (result?.mappings || []).find((m) => m.code === 'type_appareil');
+      const toApply = sanitizeMappingsForApply(result);
+      const typeFinal = toApply.find((m) => m.code === 'type_appareil');
       const typeAi = (dbg?.mappings || []).find((m) => m.code === 'type_appareil');
       const typeHeur = (result?.heurMappings || []).find((m) => m.code === 'type_appareil');
 
@@ -951,9 +1028,15 @@
           type_appareil_final: typeFinal
             ? { value: typeFinal.value, source: typeFinal.source || null, previous: typeFinal.previous ?? null }
             : null,
+          source_final: toApply.find((m) => m.code === 'source')?.value ?? null,
+          prestataire_id_final: toApply.find((m) => m.code === 'prestataire_id')?.value ?? null,
+          date_debut_final: toApply.find((m) => m.code === 'date_debut')?.value ?? null,
+          modele_final: toApply.find((m) => m.code === 'modele')?.value ?? null,
           aiCount: result?.aiCount ?? 0,
           aiError: result?.aiError || null,
+          a_appliquer: toApply.length,
         },
+        mappings_a_appliquer: toApply,
         mappings_finaux: result?.mappings || [],
         mappings_ia_bruts: dbg?.mappings || [],
         mappings_heuristiques: result?.heurMappings || [],
@@ -962,7 +1045,7 @@
       };
       if (pre) pre.textContent = JSON.stringify(payload, null, 2);
       panel.hidden = false;
-      state.pendingMappings = result?.mappings || [];
+      state.pendingMappings = toApply;
     }
 
     function collectCustomFields(etapeId) {
