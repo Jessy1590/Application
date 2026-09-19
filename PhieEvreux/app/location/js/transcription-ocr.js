@@ -652,7 +652,47 @@
     return null;
   }
 
-  /** Prolongation écrite sur le document (durée extra / mot-clé). */
+  /** Toutes les prolongations manuscrites / ordo (hors période initiale). */
+  function detectProlongations(text) {
+    const raw = String(text || '');
+    const out = [];
+    const re =
+      /prolongation[^\n]{0,40}(?:ordo(?:nnance)?\s*(?:du)?\s*)?(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})?[\s\S]{0,100}?(\d+)\s*(mois|semaines?|jours?|trimestres?)/gi;
+    let m;
+    while ((m = re.exec(raw)) !== null) {
+      let duree = Number(m[2]);
+      let uniteRaw = m[3] || 'mois';
+      let unite = 'mois';
+      if (/trimestre/i.test(uniteRaw)) {
+        duree = duree * 3;
+        unite = 'mois';
+      } else if (/mois/i.test(uniteRaw)) unite = 'mois';
+      else if (/jour/i.test(uniteRaw)) unite = 'jours';
+      else unite = 'semaines';
+      if (!Number.isFinite(duree) || duree < 1) continue;
+      const date_ordo = parseFrDate(m[1] || '') || '';
+      const notes = raw
+        .slice(m.index, Math.min(raw.length, m.index + m[0].length))
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 140);
+      out.push({ date_ordo, duree, unite, notes });
+    }
+    if (!out.length) {
+      const one = detectProlongation(text);
+      if (one?.enabled && one.duree) {
+        out.push({
+          date_ordo: '',
+          duree: one.duree,
+          unite: one.unite || 'mois',
+          notes: one.notes || 'Prolongation détectée sur document',
+        });
+      }
+    }
+    return out;
+  }
+
+  /** Prolongation écrite sur le document (durée extra / mot-clé) — une seule (legacy). */
   function detectProlongation(text) {
     const n = normalizeText(text);
     const hasKw =
@@ -923,13 +963,9 @@
       push('unite', du.unite, 0.7);
     }
 
-    const prolong = detectProlongation(text);
-    if (prolong) {
-      push('prolong_enabled', true, 0.75);
-      if (prolong.duree) push('prolong_duree', prolong.duree, 0.7);
-      if (prolong.unite) push('prolong_unite', prolong.unite, 0.7);
-      if (prolong.notes) push('prolong_notes', prolong.notes, 0.5);
-      if (prolong.date_fin_hint) push('prolong_date_fin_hint', prolong.date_fin_hint, 0.55);
+    const prolongs = detectProlongations(text);
+    if (prolongs.length) {
+      push('prolongations', prolongs, prolongs.length > 1 ? 0.85 : 0.75);
     }
 
     const contact = detectContactHints(text);

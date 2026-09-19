@@ -108,8 +108,11 @@ Règles :
 3. Cases cochées = sélection active.
 4. Dates ISO YYYY-MM-DD.
 5. Téléphones / mails du patient : s’il y en a plusieurs, value = tableau JSON (ex. ["0612345678","0198765432"] ou ["a@mail.fr","b@mail.fr"]). Un seul : string ou tableau à 1 élément. Ignore tél/mail pharmacie ou prestataire. Format tél FR 0XXXXXXXXX si possible.
-6. Booléens true/false.
-7. confidence 0–1.`;
+6. Adresses patient : si plusieurs, value = tableau JSON (une adresse par élément) ; elles seront affichées une par ligne.
+7. Prolongations : si plusieurs prolongations manuscrites/ordo APRÈS la période initiale, code "prolongations" = tableau [{date_ordo,duree,unite,notes},…]. Ne pas y mettre la durée initiale (début/fin prévue du bon). unite = jours|semaines|mois.
+8. Contacts : si plusieurs contacts à créer, code "contacts" = tableau [{motif,appel_note?,…}].
+9. Booléens true/false.
+10. confidence 0–1.`;
 }
 
 function buildUserText(payload) {

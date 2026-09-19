@@ -161,22 +161,8 @@
       date_ordo: LocationRules.todayISO(),
       duree: 10,
       unite: 'semaines',
-      prolongation: {
-        enabled: false,
-        date_ordo: LocationRules.todayISO(),
-        duree: 1,
-        unite: 'semaines',
-        notes: '',
-      },
-      contact: {
-        enabled: false,
-        template_id: '',
-        motif: '',
-        appel_enabled: false,
-        appel_note: '',
-        appel_statut: '',
-        appel_mail: '',
-      },
+      prolongations: [],
+      contacts: [],
       busy: false,
     };
 
@@ -359,27 +345,31 @@
         case 'unite':
           return !state.unite;
         case 'prolong_enabled':
-          return !state.prolongation.enabled;
+          return !(state.prolongations && state.prolongations.length);
         case 'prolong_duree':
-          return !state.prolongation.enabled || !state.prolongation.duree;
+          return !(state.prolongations && state.prolongations[0]?.duree);
         case 'prolong_unite':
-          return !state.prolongation.enabled || !state.prolongation.unite;
+          return !(state.prolongations && state.prolongations[0]?.unite);
         case 'prolong_notes':
-          return !state.prolongation.enabled || !state.prolongation.notes;
+          return !(state.prolongations && state.prolongations[0]?.notes);
         case 'prolong_date_ordo':
-          return !state.prolongation.enabled || !state.prolongation.date_ordo;
+          return !(state.prolongations && state.prolongations[0]?.date_ordo);
+        case 'prolongations':
+          return !(state.prolongations && state.prolongations.length);
         case 'contact_enabled':
-          return !state.contact.enabled;
+          return !(state.contacts || []).some((c) => c.enabled);
         case 'contact_motif':
-          return !state.contact.enabled || !state.contact.motif;
+          return !(state.contacts || []).some((c) => c.enabled && c.motif);
         case 'contact_template_id':
-          return !state.contact.enabled || !state.contact.template_id;
+          return !(state.contacts || []).some((c) => c.enabled && c.template_id);
         case 'contact_appel_enabled':
-          return !state.contact.appel_enabled;
+          return !(state.contacts || []).some((c) => c.appel_enabled);
         case 'contact_appel_note':
         case 'contact_appel_statut':
         case 'contact_appel_mail':
-          return !state.contact.appel_enabled;
+          return !(state.contacts || []).some((c) => c.appel_enabled);
+        case 'contacts':
+          return !(state.contacts && state.contacts.length);
         default: {
           const v = state.appareil.champs_extra?.[code];
           return v == null || v === '';
@@ -466,9 +456,17 @@
             LocationTranscriptionOcr.parseFrDate(Array.isArray(v) ? v[0] : v) ||
             (Array.isArray(v) ? String(v[0] || '') : v);
           break;
-        case 'patient_adresse':
-          state.patient.adresse = Array.isArray(v) ? v.join(', ') : v;
+        case 'patient_adresse': {
+          const list = toMultiList(value);
+          if (list.length > 1) {
+            state.patient.adresse = list.join('\n');
+          } else if (list.length === 1) {
+            state.patient.adresse = list[0];
+          } else if (!Array.isArray(value) && v) {
+            state.patient.adresse = Array.isArray(v) ? v.join('\n') : v;
+          }
           break;
+        }
         case 'patient_telephone': {
           const list = extractPhonesFromValue(value);
           if (list.length) state.patient.telephones = list;
@@ -566,83 +564,125 @@
           if (code) state.unite = code;
           break;
         }
+        case 'prolongations': {
+          const list = normalizeProlongationsValue(value);
+          if (list.length) state.prolongations = list;
+          break;
+        }
         case 'prolong_enabled':
-          state.prolongation.enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          if (value === true || v === 'true' || v === 'oui' || v === '1') {
+            ensureProlongRow(0);
+          } else {
+            state.prolongations = [];
+          }
           break;
         case 'prolong_duree': {
-          const n = Number(v);
+          const n = Number(Array.isArray(v) ? v[0] : v);
           if (Number.isFinite(n) && n > 0) {
-            state.prolongation.duree = n;
-            state.prolongation.enabled = true;
+            ensureProlongRow(0).duree = n;
           }
           break;
         }
-        case 'prolong_unite':
-          if (v === 'jours' || v === 'semaines' || v === 'mois') {
-            state.prolongation.unite = v;
-            state.prolongation.enabled = true;
+        case 'prolong_unite': {
+          const u = Array.isArray(v) ? v[0] : v;
+          if (u === 'jours' || u === 'semaines' || u === 'mois') {
+            ensureProlongRow(0).unite = u;
           }
           break;
-        case 'prolong_notes':
-          if (v) {
-            state.prolongation.notes = v;
-            state.prolongation.enabled = true;
-          }
+        }
+        case 'prolong_notes': {
+          const note = Array.isArray(v) ? v.filter(Boolean).join('\n') : v;
+          if (note) ensureProlongRow(0).notes = note;
           break;
-        case 'prolong_date_ordo':
-          state.prolongation.date_ordo = LocationTranscriptionOcr.parseFrDate(v) || v;
-          state.prolongation.enabled = true;
+        }
+        case 'prolong_date_ordo': {
+          const d = LocationTranscriptionOcr.parseFrDate(Array.isArray(v) ? v[0] : v) || (Array.isArray(v) ? v[0] : v);
+          if (d) ensureProlongRow(0).date_ordo = d;
           break;
+        }
         case 'prolong_date_fin_hint':
-          /* indice OCR seulement — active la case prolongation */
-          state.prolongation.enabled = true;
+          ensureProlongRow(0);
           break;
+        case 'contacts': {
+          const list = normalizeContactsValue(value);
+          if (list.length) {
+            state.contacts = list.map((c) => {
+              const row = emptyContactRow();
+              Object.assign(row, c);
+              if (row.motif) {
+                const hit = findTemplateForMotif(row.motif);
+                if (hit) {
+                  row.template_id = hit.id;
+                  row.motif = hit.motif || row.motif;
+                }
+                row.enabled = true;
+              }
+              return row;
+            });
+          }
+          break;
+        }
         case 'contact_enabled':
-          state.contact.enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          if (value === true || v === 'true' || v === 'oui' || v === '1') {
+            ensureContactRow(0).enabled = true;
+          } else if (state.contacts[0]) {
+            state.contacts[0].enabled = false;
+          }
           break;
         case 'contact_motif':
           if (v) {
-            state.contact.motif = v;
-            state.contact.enabled = true;
-            pickTemplateForMotif(v);
+            const row = ensureContactRow(0);
+            row.motif = Array.isArray(v) ? String(v[0] || '') : v;
+            row.enabled = true;
+            const hit = findTemplateForMotif(row.motif);
+            if (hit) {
+              row.template_id = hit.id;
+              row.motif = hit.motif || row.motif;
+            }
           }
           break;
         case 'contact_template_id':
           if (v) {
-            state.contact.template_id = v;
-            state.contact.enabled = true;
+            const row = ensureContactRow(0);
+            row.template_id = Array.isArray(v) ? String(v[0] || '') : v;
+            row.enabled = true;
           }
           break;
         case 'contact_appel_enabled':
-          state.contact.appel_enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          ensureContactRow(0).appel_enabled =
+            value === true || v === 'true' || v === 'oui' || v === '1';
           break;
         case 'contact_appel_note':
           if (v) {
-            state.contact.appel_note = state.contact.appel_note
-              ? `${state.contact.appel_note} ${v}`.trim()
-              : v;
-            state.contact.appel_enabled = true;
+            const row = ensureContactRow(0);
+            const note = Array.isArray(v) ? v.filter(Boolean).join('\n') : v;
+            row.appel_note = row.appel_note ? `${row.appel_note} ${note}`.trim() : note;
+            row.appel_enabled = true;
           }
           break;
         case 'contact_appel_statut':
           if (v) {
-            const key = v.toLowerCase().replace(/\s+/g, '_');
-            if (/rappeler|a_rappeler/.test(key)) state.contact.appel_statut = 'a_rappeler';
-            else if (/terminer|termine|terminé/.test(key)) state.contact.appel_statut = 'termine';
-            else if (/perte/.test(key)) state.contact.appel_statut = 'PERTE';
-            else if (/appeler|a_appeler|à_appeler/.test(key)) state.contact.appel_statut = 'a_appeler';
-            else state.contact.appel_statut = v;
-            state.contact.appel_enabled = true;
+            const row = ensureContactRow(0);
+            const key = String(Array.isArray(v) ? v[0] : v)
+              .toLowerCase()
+              .replace(/\s+/g, '_');
+            if (/rappeler|a_rappeler/.test(key)) row.appel_statut = 'a_rappeler';
+            else if (/terminer|termine|terminé/.test(key)) row.appel_statut = 'termine';
+            else if (/perte/.test(key)) row.appel_statut = 'PERTE';
+            else if (/appeler|a_appeler|à_appeler/.test(key)) row.appel_statut = 'a_appeler';
+            else row.appel_statut = Array.isArray(v) ? String(v[0] || '') : v;
+            row.appel_enabled = true;
           }
           break;
         case 'contact_appel_mail':
           if (v) {
-            const key = v.toLowerCase();
-            if (/oui|yes|envoyé|envoye/.test(key)) state.contact.appel_mail = 'yes';
-            else if (/faire|afaire|à faire/.test(key)) state.contact.appel_mail = 'afaire';
-            else if (/non|no/.test(key)) state.contact.appel_mail = 'no';
-            else state.contact.appel_mail = v;
-            state.contact.appel_enabled = true;
+            const row = ensureContactRow(0);
+            const key = String(Array.isArray(v) ? v[0] : v).toLowerCase();
+            if (/oui|yes|envoyé|envoye/.test(key)) row.appel_mail = 'yes';
+            else if (/faire|afaire|à faire/.test(key)) row.appel_mail = 'afaire';
+            else if (/non|no/.test(key)) row.appel_mail = 'no';
+            else row.appel_mail = Array.isArray(v) ? String(v[0] || '') : v;
+            row.appel_enabled = true;
           }
           break;
         default:
@@ -653,6 +693,107 @@
       }
     }
 
+    function emptyProlongRow() {
+      return {
+        date_ordo: LocationRules.todayISO(),
+        duree: 12,
+        unite: 'mois',
+        notes: '',
+      };
+    }
+
+    function emptyContactRow() {
+      return {
+        enabled: false,
+        template_id: '',
+        motif: '',
+        appel_enabled: false,
+        appel_note: '',
+        appel_statut: '',
+        appel_mail: '',
+      };
+    }
+
+    function ensureProlongRow(idx) {
+      while (state.prolongations.length <= idx) state.prolongations.push(emptyProlongRow());
+      return state.prolongations[idx];
+    }
+
+    function ensureContactRow(idx) {
+      while (state.contacts.length <= idx) state.contacts.push(emptyContactRow());
+      return state.contacts[idx];
+    }
+
+    function normalizeUnite(raw) {
+      const s = String(raw || '').toLowerCase();
+      if (/trimestre/.test(s)) return 'mois';
+      if (/mois/.test(s)) return 'mois';
+      if (/jour/.test(s)) return 'jours';
+      if (/semain/.test(s)) return 'semaines';
+      if (s === 'jours' || s === 'semaines' || s === 'mois') return s;
+      return 'mois';
+    }
+
+    function normalizeProlongationsValue(value) {
+      const raw = Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
+      const out = [];
+      for (const item of raw) {
+        if (!item || typeof item !== 'object') continue;
+        let duree = Number(item.duree);
+        let unite = normalizeUnite(item.unite);
+        if (/trimestre/i.test(String(item.unite || ''))) duree = duree * 3;
+        if (!Number.isFinite(duree) || duree < 1) continue;
+        out.push({
+          date_ordo:
+            LocationTranscriptionOcr.parseFrDate(item.date_ordo) ||
+            String(item.date_ordo || '').trim() ||
+            '',
+          duree,
+          unite,
+          notes: String(item.notes || '').trim(),
+        });
+      }
+      return out;
+    }
+
+    function normalizeContactsValue(value) {
+      const raw = Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
+      return raw
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const row = emptyContactRow();
+          if (item.motif) row.motif = String(item.motif).trim();
+          if (item.template_id) row.template_id = String(item.template_id).trim();
+          if (item.appel_note) {
+            row.appel_note = String(item.appel_note).trim();
+            row.appel_enabled = true;
+          }
+          if (item.appel_statut) {
+            row.appel_statut = String(item.appel_statut).trim();
+            row.appel_enabled = true;
+          }
+          if (item.appel_mail) {
+            row.appel_mail = String(item.appel_mail).trim();
+            row.appel_enabled = true;
+          }
+          if (item.appel_enabled === true || item.appel_enabled === 'true') row.appel_enabled = true;
+          if (row.motif || row.template_id || row.appel_enabled) row.enabled = true;
+          if (item.enabled === false) row.enabled = false;
+          return row.enabled || row.appel_enabled ? row : null;
+        })
+        .filter(Boolean);
+    }
+
+    function findTemplateForMotif(motif) {
+      if (!motif) return null;
+      const list = templatesForType(state.appareil.type_appareil);
+      return (
+        list.find((t) => t.motif === motif && t.type_appareil === state.appareil.type_appareil) ||
+        list.find((t) => t.motif === motif) ||
+        null
+      );
+    }
+
     function templatesForType(type) {
       const t = type || state.appareil.type_appareil;
       const typed = templatesAll.filter((x) => x.type_appareil === t);
@@ -660,19 +801,18 @@
       return typed.length ? [...typed, ...generic.filter((g) => !typed.some((x) => x.id === g.id))] : generic.length ? generic : templatesAll;
     }
 
-    function pickTemplateForMotif(motif) {
+    function pickTemplateForMotif(motif, contactIdx) {
       if (!motif) return;
-      const list = templatesForType(state.appareil.type_appareil);
-      const hit =
-        list.find((t) => t.motif === motif && t.type_appareil === state.appareil.type_appareil) ||
-        list.find((t) => t.motif === motif) ||
-        null;
+      const hit = findTemplateForMotif(motif);
+      const idx = contactIdx == null ? 0 : contactIdx;
+      const row = ensureContactRow(idx);
       if (hit) {
-        state.contact.template_id = hit.id;
-        state.contact.motif = hit.motif || motif;
+        row.template_id = hit.id;
+        row.motif = hit.motif || motif;
       } else {
-        state.contact.motif = motif;
+        row.motif = motif;
       }
+      row.enabled = true;
     }
 
     /**
@@ -789,6 +929,12 @@
           if (f.code === 'patient_nom') {
             row.hint = (row.hint ? row.hint + ' — ' : '') + 'Pas la pharmacie / prestataire';
           }
+          if (f.code === 'patient_adresse') {
+            row.type = 'string_or_string[]';
+            row.hint =
+              (row.hint ? row.hint + ' — ' : '') +
+              'Si plusieurs adresses patient : value = tableau JSON, une adresse par élément. Elles seront jointes une par ligne.';
+          }
           if (f.code === 'patient_telephone') {
             row.type = 'string_or_string[]';
             row.hint =
@@ -842,61 +988,23 @@
         byType[typeCode].push(codeKey);
       }
 
-      /* 3) Blocs Transcription (prolongation / contacts) — hors catalogue création */
+      /* 3) Blocs Transcription (prolongations / contacts multi) — hors catalogue création */
       const extraBlocks = [
         {
-          code: 'prolong_enabled',
-          label: 'Ajouter une prolongation',
-          type: 'boolean',
+          code: 'prolongations',
+          label: 'Prolongations supplémentaires',
+          type: 'array',
           section: 'Prolongation',
+          hint:
+            'Tableau JSON d’objets {date_ordo,duree,unite,notes}. UNE entrée par prolongation manuscrite/ordonnancée APRÈS la période initiale (ex. 2 « Prolongation ORDO DU … » = 2 objets). unite = jours|semaines|mois. Ne pas y mettre la durée initiale du tableau (début/fin prévue).',
         },
         {
-          code: 'prolong_duree',
-          label: 'Durée prolongation',
-          type: 'number',
-          section: 'Prolongation',
-          only_if: { prolong_enabled: true },
-        },
-        {
-          code: 'prolong_unite',
-          label: 'Unité prolongation',
-          type: 'enum',
-          section: 'Prolongation',
-          enum: DROPDOWNS.unite,
-          only_if: { prolong_enabled: true },
-        },
-        {
-          code: 'prolong_notes',
-          label: 'Notes prolongation',
-          type: 'string',
-          section: 'Prolongation',
-          only_if: { prolong_enabled: true },
-        },
-        {
-          code: 'contact_enabled',
-          label: 'Créer un contact (phase commentaire)',
-          type: 'boolean',
+          code: 'contacts',
+          label: 'Contacts à créer',
+          type: 'array',
           section: 'Contacts',
-        },
-        {
-          code: 'contact_motif',
-          label: 'Motif contact',
-          type: 'string',
-          section: 'Contacts',
-          only_if: { contact_enabled: true },
-        },
-        {
-          code: 'contact_appel_enabled',
-          label: 'Créer un appel (phase appel)',
-          type: 'boolean',
-          section: 'Contacts',
-        },
-        {
-          code: 'contact_appel_note',
-          label: 'Commentaire appel',
-          type: 'string',
-          section: 'Contacts',
-          only_if: { contact_appel_enabled: true },
+          hint:
+            'Tableau JSON d’objets {motif, appel_note?, appel_statut?, appel_mail?}. Un objet par contact distinct si plusieurs. motif ex. prolongation, reclame_appareil.',
         },
       ];
       for (const row of extraBlocks) push(row);
@@ -1034,7 +1142,7 @@
         if (!m || !m.code) return false;
         if (m.source !== 'heuristique') return true;
         if (!hasAi) return true;
-        if (/^prolong_|^contact_/.test(m.code)) return false;
+        if (/^prolong_|^contact_/.test(m.code) && m.code !== 'prolongations' && m.code !== 'contacts') return false;
         if (m.confidence != null && m.confidence < 0.75) return false;
         const v = String(m.value == null ? '' : m.value).trim();
         if (/^(NOM|DEBUT|TELEPHONE|ADRESSE|DATE|PRENOM|ORKYN)$/i.test(v)) return false;
@@ -1140,39 +1248,47 @@
       }
       collectCustomFields('location');
 
-      const prEn = formEl.querySelector('[name=prolong_enabled]');
-      state.prolongation.enabled = !!prEn?.checked;
-      if (formEl.querySelector('[name=pr_ordo]')) {
-        state.prolongation.date_ordo = formEl.querySelector('[name=pr_ordo]').value || LocationRules.todayISO();
-      }
-      if (formEl.querySelector('[name=pr_duree]')) {
-        state.prolongation.duree = Number(formEl.querySelector('[name=pr_duree]').value || 0);
-      }
-      if (formEl.querySelector('[name=pr_unite]')) {
-        state.prolongation.unite = formEl.querySelector('[name=pr_unite]').value || 'semaines';
-      }
-      if (formEl.querySelector('[name=pr_notes]')) {
-        state.prolongation.notes = formEl.querySelector('[name=pr_notes]').value.trim() || '';
+      const prolongCards = formEl.querySelectorAll('[data-prolong-idx]');
+      if (prolongCards.length) {
+        state.prolongations = [...prolongCards].map((card) => {
+          const i = card.getAttribute('data-prolong-idx');
+          return {
+            date_ordo: formEl.querySelector('[name=pr_ordo_' + i + ']')?.value || LocationRules.todayISO(),
+            duree: Number(formEl.querySelector('[name=pr_duree_' + i + ']')?.value || 0),
+            unite: formEl.querySelector('[name=pr_unite_' + i + ']')?.value || 'semaines',
+            notes: (formEl.querySelector('[name=pr_notes_' + i + ']')?.value || '').trim() || '',
+          };
+        });
+      } else if (!formEl.querySelector('#trProlongList')) {
+        /* section absente */
+      } else {
+        state.prolongations = [];
       }
 
-      const coEn = formEl.querySelector('[name=contact_enabled]');
-      state.contact.enabled = !!coEn?.checked;
-      const tplSel = formEl.querySelector('[name=contact_template_id]');
-      if (tplSel) {
-        state.contact.template_id = tplSel.value || '';
-        const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
-        state.contact.motif = tpl?.motif || state.contact.motif || '';
+      const contactCards = formEl.querySelectorAll('[data-contact-idx]');
+      if (contactCards.length) {
+        state.contacts = [...contactCards].map((card) => {
+          const i = card.getAttribute('data-contact-idx');
+          const row = emptyContactRow();
+          row.enabled = !!formEl.querySelector('[name=contact_enabled_' + i + ']')?.checked;
+          const tplSel = formEl.querySelector('[name=contact_template_id_' + i + ']');
+          if (tplSel) {
+            row.template_id = tplSel.value || '';
+            const tpl = templatesAll.find((t) => t.id === row.template_id);
+            row.motif = tpl?.motif || row.motif || '';
+          }
+          row.appel_enabled = !!formEl.querySelector('[name=contact_appel_enabled_' + i + ']')?.checked;
+          row.appel_note = (formEl.querySelector('[name=contact_appel_note_' + i + ']')?.value || '').trim() || '';
+          row.appel_statut =
+            formEl.querySelector('[name=contact_appel_statut_' + i + ']:checked')?.value || '';
+          row.appel_mail =
+            formEl.querySelector('[name=contact_appel_mail_' + i + ']:checked')?.value || '';
+          return row;
+        });
+      } else if (formEl.querySelector('#trContactList')) {
+        state.contacts = [];
       }
-      const appelEn = formEl.querySelector('[name=contact_appel_enabled]');
-      if (appelEn) state.contact.appel_enabled = !!appelEn.checked;
-      const appelNote = formEl.querySelector('[name=contact_appel_note]');
-      if (appelNote) state.contact.appel_note = appelNote.value.trim() || '';
-      const appelSt = formEl.querySelector('[name=contact_appel_statut]:checked');
-      if (appelSt) state.contact.appel_statut = appelSt.value || '';
-      const appelMail = formEl.querySelector('[name=contact_appel_mail]:checked');
-      if (appelMail) state.contact.appel_mail = appelMail.value || '';
     }
-
     function validateCustomFields(etapeId) {
       for (const f of customFieldsForEtape(etapeId)) {
         if (!req(etapeId, f.code)) continue;
@@ -1444,7 +1560,7 @@
         ${show('patient', 'patient_nom') ? field('Nom', `<input name="nom" value="${esc(state.patient.nom)}" autocomplete="family-name">`, req('patient', 'patient_nom'), 'patient_nom') : ''}
         ${show('patient', 'patient_prenom') ? field('Prénom', `<input name="prenom" value="${esc(state.patient.prenom)}" autocomplete="given-name">`, req('patient', 'patient_prenom'), 'patient_prenom') : ''}
         ${show('patient', 'patient_date_naissance') ? field('Date de naissance', `<input name="date_naissance" type="date" value="${esc(state.patient.date_naissance || '')}">`, req('patient', 'patient_date_naissance'), 'patient_date_naissance') : ''}
-        ${show('patient', 'patient_adresse') ? field('Adresse', `<textarea name="adresse" rows="2">${esc(state.patient.adresse || '')}</textarea>`, req('patient', 'patient_adresse'), 'patient_adresse') : ''}
+        ${show('patient', 'patient_adresse') ? field('Adresse', `<textarea name="adresse" rows="3" placeholder="Une adresse par ligne si plusieurs">${esc(state.patient.adresse || '')}</textarea>`, req('patient', 'patient_adresse'), 'patient_adresse') : ''}
         ${show('patient', 'patient_telephone') ? `<div class="loc-multi-block" data-field-code="patient_telephone" data-multi="phones">
           <div class="loc-multi-head">
             <span>Téléphones${req('patient', 'patient_telephone') ? ' *' : ''}</span>
@@ -1552,34 +1668,43 @@
     }
 
     function renderProlongationSection() {
-      const pr = state.prolongation;
-      const base = locationFinBase();
-      const newFin =
-        pr.enabled && pr.duree > 0
-          ? LocationRules.addDuration(base, pr.duree, pr.unite)
-          : null;
+      const list = state.prolongations || [];
+      let running = locationFinBase();
+      const cards = list
+        .map((pr, i) => {
+          const fin =
+            pr.duree > 0 ? LocationRules.addDuration(running, pr.duree, pr.unite) : null;
+          if (fin) running = fin;
+          return `<div class="loc-tr-multi-card" data-prolong-idx="${i}">
+          <div class="loc-tr-multi-card-head">
+            <strong>Prolongation ${i + 1}</strong>
+            <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-remove-prolong="${i}">Retirer</button>
+          </div>
+          <div class="loc-grid-2">
+            ${field('Date ordo', `<input type="date" name="pr_ordo_${i}" value="${esc(pr.date_ordo || '')}">`, false, 'prolong_date_ordo')}
+            ${field('Durée', `<input type="number" min="1" name="pr_duree_${i}" value="${esc(pr.duree)}">`, false, 'prolong_duree')}
+            ${field(
+              'Unité',
+              `<select name="pr_unite_${i}">
+                <option value="jours"${pr.unite === 'jours' ? ' selected' : ''}>Jours</option>
+                <option value="semaines"${pr.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
+                <option value="mois"${pr.unite === 'mois' ? ' selected' : ''}>Mois</option>
+              </select>`,
+              false,
+              'prolong_unite'
+            )}
+            ${field('Notes', `<input name="pr_notes_${i}" value="${esc(pr.notes || '')}" placeholder="Optionnel">`, false, 'prolong_notes')}
+          </div>
+          <p class="loc-hint">Fin après celle-ci : <strong>${fin || '—'}</strong></p>
+        </div>`;
+        })
+        .join('');
       return `<div class="loc-tr-form-section" data-etape="prolongation">
-        <h3>Prolongation</h3>
-        <label class="loc-check" data-field-code="prolong_enabled">
-          <input type="checkbox" name="prolong_enabled"${pr.enabled ? ' checked' : ''}>
-          Ajouter une prolongation
-        </label>
-        <div class="loc-grid-2" id="trProlongFields"${pr.enabled ? '' : ' hidden'}>
-          ${field('Date ordo', `<input type="date" name="pr_ordo" value="${esc(pr.date_ordo || '')}">`, false, 'prolong_date_ordo')}
-          ${field('Durée', `<input type="number" min="1" name="pr_duree" value="${esc(pr.duree)}">`, false, 'prolong_duree')}
-          ${field(
-            'Unité',
-            `<select name="pr_unite">
-              <option value="jours"${pr.unite === 'jours' ? ' selected' : ''}>Jours</option>
-              <option value="semaines"${pr.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
-              <option value="mois"${pr.unite === 'mois' ? ' selected' : ''}>Mois</option>
-            </select>`,
-            false,
-            'prolong_unite'
-          )}
-          ${field('Notes', `<input name="pr_notes" value="${esc(pr.notes || '')}" placeholder="Optionnel">`, false, 'prolong_notes')}
-        </div>
-        <p class="loc-hint">Nouvelle fin après prolongation : <strong id="trProlongFinHint">${newFin || '—'}</strong></p>
+        <h3>Prolongations</h3>
+        <p class="loc-hint">Période initiale = dates Location ci-dessus. Ajoutez ici chaque prolongation (ex. 2 ordo manuscrites = 2 lignes).</p>
+        <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="trAddProlong">＋ Ajouter une prolongation</button>
+        <div id="trProlongList" class="loc-tr-multi-list">${cards || '<p class="loc-muted">Aucune prolongation supplémentaire.</p>'}</div>
+        <p class="loc-hint">Fin finale calculée : <strong id="trProlongFinHint">${list.length ? running : '—'}</strong></p>
       </div>`;
     }
 
@@ -1599,18 +1724,7 @@
 
     function renderContactsSection() {
       const list = templatesForType(state.appareil.type_appareil);
-      const co = state.contact;
-      let selectedId = co.template_id;
-      if (co.enabled && !selectedId && list.length) {
-        if (co.motif) {
-          const byMotif =
-            list.find((t) => t.motif === co.motif && t.type_appareil === state.appareil.type_appareil) ||
-            list.find((t) => t.motif === co.motif);
-          if (byMotif) selectedId = byMotif.id;
-        }
-        if (!selectedId) selectedId = list[0].id;
-      }
-      const selected = list.find((t) => t.id === selectedId) || null;
+      const contacts = state.contacts || [];
       const statutChoices = [
         ['a_appeler', 'À appeler'],
         ['a_rappeler', 'À rappeler'],
@@ -1622,69 +1736,127 @@
         ['afaire', 'À faire'],
         ['no', 'Non'],
       ];
-      return `<div class="loc-tr-form-section" data-etape="contact">
-        <h3>Contacts</h3>
-        <p class="loc-hint">Créé uniquement à la validation « Créer le dossier » (dossier actif).</p>
-        <label class="loc-check" data-field-code="contact_enabled">
-          <input type="checkbox" name="contact_enabled"${co.enabled ? ' checked' : ''}${list.length ? '' : ' disabled'}>
-          Créer un contact (phase commentaire)
-        </label>
-        ${
-          !list.length
-            ? '<p class="loc-muted">Aucun template contact actif. Configurez-en dans Paramètres.</p>'
-            : `<div id="trContactFields"${co.enabled ? '' : ' hidden'}>
-          ${field(
-            'Template',
-            `<select name="contact_template_id" data-field-code="contact_template_id">
-              ${list
-                .map((t) => {
-                  const typeBit = t.type_appareil
-                    ? LocationRules.typeLabel(t.type_appareil)
-                    : 'Tous types';
-                  const label = `${motifLabel(t.motif)} · ${typeBit}`;
-                  return `<option value="${esc(t.id)}"${t.id === selectedId ? ' selected' : ''}>${esc(label)}</option>`;
-                })
-                .join('')}
-            </select>`,
-            false,
-            'contact_template_id'
-          )}
-          <p class="loc-muted" style="margin:8px 0 4px">Aperçu message</p>
-          <div id="trContactPreview">${contactPreviewHtml(selected)}</div>
-        </div>`
-        }
-        <label class="loc-check" data-field-code="contact_appel_enabled" style="margin-top:12px">
-          <input type="checkbox" name="contact_appel_enabled"${co.appel_enabled ? ' checked' : ''}>
-          Créer un appel (phase appel)
-        </label>
-        <div id="trContactAppelFields"${co.appel_enabled ? '' : ' hidden'}>
-          <p class="loc-hint">Comme « Autres » dans Contact : commentaire, statut, puis mail.</p>
-          ${field(
-            'Commentaire appel',
-            `<textarea name="contact_appel_note" data-field-code="contact_appel_note" rows="3" placeholder="Obligatoire — ce qui a été dit">${esc(co.appel_note || '')}</textarea>`,
-            true,
-            'contact_appel_note'
-          )}
-          <p class="loc-muted" style="margin:8px 0 4px">Statut de l’appel</p>
-          <div class="loc-tr-choice-row" data-field-code="contact_appel_statut" role="group" aria-label="Statut appel">
-            ${statutChoices
-              .map(
-                ([code, label]) =>
-                  `<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_statut" value="${esc(code)}"${co.appel_statut === code ? ' checked' : ''}> ${esc(label)}</label>`
-              )
-              .join('')}
-          </div>
-          <p class="loc-muted" style="margin:12px 0 4px">Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?</p>
-          <div class="loc-tr-choice-row" data-field-code="contact_appel_mail" role="group" aria-label="Mail">
-            ${mailChoices
-              .map(
-                ([code, label]) =>
-                  `<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_mail" value="${esc(code)}"${co.appel_mail === code ? ' checked' : ''}> ${esc(label)}</label>`
-              )
-              .join('')}
-          </div>
-        </div>
-      </div>`;
+      const cards = contacts
+        .map((co, i) => {
+          let selectedId = co.template_id;
+          if (co.enabled && !selectedId && list.length) {
+            if (co.motif) {
+              const byMotif =
+                list.find((t) => t.motif === co.motif && t.type_appareil === state.appareil.type_appareil) ||
+                list.find((t) => t.motif === co.motif);
+              if (byMotif) selectedId = byMotif.id;
+            }
+            if (!selectedId) selectedId = list[0].id;
+          }
+          const selected = list.find((t) => t.id === selectedId) || null;
+          const tplOptions = list
+            .map((t) => {
+              const typeBit = t.type_appareil ? LocationRules.typeLabel(t.type_appareil) : 'Tous types';
+              const label = motifLabel(t.motif) + ' · ' + typeBit;
+              return (
+                '<option value="' +
+                esc(t.id) +
+                '"' +
+                (t.id === selectedId ? ' selected' : '') +
+                '>' +
+                esc(label) +
+                '</option>'
+              );
+            })
+            .join('');
+          const statutHtml = statutChoices
+            .map(
+              ([code, label]) =>
+                '<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_statut_' +
+                i +
+                '" value="' +
+                esc(code) +
+                '"' +
+                (co.appel_statut === code ? ' checked' : '') +
+                '> ' +
+                esc(label) +
+                '</label>'
+            )
+            .join('');
+          const mailHtml = mailChoices
+            .map(
+              ([code, label]) =>
+                '<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_mail_' +
+                i +
+                '" value="' +
+                esc(code) +
+                '"' +
+                (co.appel_mail === code ? ' checked' : '') +
+                '> ' +
+                esc(label) +
+                '</label>'
+            )
+            .join('');
+          const fieldsBlock = !list.length
+            ? '<p class="loc-muted">Aucun template contact actif.</p>'
+            : '<div' +
+              (co.enabled ? '' : ' hidden') +
+              ' data-contact-fields="' +
+              i +
+              '">' +
+              field(
+                'Template',
+                '<select name="contact_template_id_' + i + '">' + tplOptions + '</select>',
+                false,
+                'contact_template_id'
+              ) +
+              '<p class="loc-muted" style="margin:8px 0 4px">Aperçu message</p>' +
+              '<div data-contact-preview="' +
+              i +
+              '">' +
+              contactPreviewHtml(selected) +
+              '</div></div>';
+          return (
+            '<div class="loc-tr-multi-card" data-contact-idx="' +
+            i +
+            '"><div class="loc-tr-multi-card-head"><strong>Contact ' +
+            (i + 1) +
+            '</strong><button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-remove-contact="' +
+            i +
+            '">Retirer</button></div><label class="loc-check"><input type="checkbox" name="contact_enabled_' +
+            i +
+            '"' +
+            (co.enabled ? ' checked' : '') +
+            (list.length ? '' : ' disabled') +
+            '> Créer un contact (phase commentaire)</label>' +
+            fieldsBlock +
+            '<label class="loc-check" style="margin-top:12px"><input type="checkbox" name="contact_appel_enabled_' +
+            i +
+            '"' +
+            (co.appel_enabled ? ' checked' : '') +
+            '> Créer un appel (phase appel)</label><div' +
+            (co.appel_enabled ? '' : ' hidden') +
+            ' data-appel-fields="' +
+            i +
+            '"><p class="loc-hint">Comme « Autres » dans Contact : commentaire, statut, puis mail.</p>' +
+            field(
+              'Commentaire appel',
+              '<textarea name="contact_appel_note_' +
+                i +
+                '" rows="3" placeholder="Obligatoire — ce qui a été dit">' +
+                esc(co.appel_note || '') +
+                '</textarea>',
+              true,
+              'contact_appel_note'
+            ) +
+            '<p class="loc-muted" style="margin:8px 0 4px">Statut de l’appel</p><div class="loc-tr-choice-row" role="group" aria-label="Statut appel">' +
+            statutHtml +
+            '</div><p class="loc-muted" style="margin:12px 0 4px">Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?</p><div class="loc-tr-choice-row" role="group" aria-label="Mail">' +
+            mailHtml +
+            '</div></div></div>'
+          );
+        })
+        .join('');
+      return (
+        '<div class="loc-tr-form-section" data-etape="contact"><h3>Contacts</h3><p class="loc-hint">Créés uniquement à la validation « Créer le dossier » (dossier actif). Plusieurs contacts possibles.</p><button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" id="trAddContact">＋ Ajouter un contact</button><div id="trContactList" class="loc-tr-multi-list">' +
+        (cards || '<p class="loc-muted">Aucun contact prévu.</p>') +
+        '</div></div>'
+      );
     }
 
     function renderForm() {
@@ -1725,9 +1897,9 @@
           state.duree = 10;
           state.unite = 'semaines';
         }
-        if (state.contact.enabled && state.contact.motif) {
-          pickTemplateForMotif(state.contact.motif);
-        }
+        (state.contacts || []).forEach((c, idx) => {
+          if (c.enabled && c.motif) pickTemplateForMotif(c.motif, idx);
+        });
         renderForm();
       });
       formEl.querySelector('[name=source]')?.addEventListener('change', () => {
@@ -1742,66 +1914,78 @@
         const f = LocationRules.addDuration(dd || state.date_ordo, duree, unite);
         const hint = formEl.querySelector('#trFinHint');
         if (hint) hint.textContent = f || '—';
-        recalcProlongHint(f);
+        recalcProlongHint();
       };
 
-      function recalcProlongHint(baseFin) {
-        const enabled = !!formEl.querySelector('[name=prolong_enabled]')?.checked;
-        const fields = formEl.querySelector('#trProlongFields');
-        if (fields) fields.hidden = !enabled;
-        const prDuree = Number(formEl.querySelector('[name=pr_duree]')?.value || 0);
-        const prUnite = formEl.querySelector('[name=pr_unite]')?.value || 'semaines';
-        const base =
-          baseFin ||
-          LocationRules.addDuration(
-            formEl.querySelector('[name=date_debut]')?.value || state.date_debut || state.date_ordo,
-            Number(formEl.querySelector('[name=duree]')?.value || state.duree),
-            formEl.querySelector('[name=unite]')?.value || state.unite
-          );
+      function recalcProlongHint() {
+        let running = locationFinBase();
+        (state.prolongations || []).forEach((pr, i) => {
+          const duree = Number(formEl.querySelector('[name=pr_duree_' + i + ']')?.value || pr.duree || 0);
+          const unite = formEl.querySelector('[name=pr_unite_' + i + ']')?.value || pr.unite || 'semaines';
+          if (duree > 0) running = LocationRules.addDuration(running, duree, unite) || running;
+        });
         const ph = formEl.querySelector('#trProlongFinHint');
-        if (ph) {
-          ph.textContent =
-            enabled && prDuree > 0 ? LocationRules.addDuration(base, prDuree, prUnite) || '—' : '—';
-        }
+        if (ph) ph.textContent = (state.prolongations || []).length ? running || '—' : '—';
       }
+
+      formEl.querySelector('#trAddProlong')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        collectAll();
+        state.prolongations.push(emptyProlongRow());
+        renderForm();
+      });
+      formEl.querySelectorAll('[data-remove-prolong]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          collectAll();
+          const idx = Number(btn.getAttribute('data-remove-prolong'));
+          if (Number.isFinite(idx)) state.prolongations.splice(idx, 1);
+          renderForm();
+        });
+      });
+      formEl.querySelector('#trAddContact')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        collectAll();
+        const row = emptyContactRow();
+        row.enabled = true;
+        const list = templatesForType(state.appareil.type_appareil);
+        if (list[0]) {
+          row.template_id = list[0].id;
+          row.motif = list[0].motif || '';
+        }
+        state.contacts.push(row);
+        renderForm();
+      });
+      formEl.querySelectorAll('[data-remove-contact]').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          collectAll();
+          const idx = Number(btn.getAttribute('data-remove-contact'));
+          if (Number.isFinite(idx)) state.contacts.splice(idx, 1);
+          renderForm();
+        });
+      });
+      formEl.querySelectorAll('[name^="contact_enabled_"],[name^="contact_appel_enabled_"]').forEach((el) => {
+        el.addEventListener('change', () => {
+          collectAll();
+          renderForm();
+        });
+      });
+      formEl.querySelectorAll('[name^="contact_template_id_"]').forEach((el) => {
+        el.addEventListener('change', () => {
+          collectAll();
+          renderForm();
+        });
+      });
 
       formEl.querySelectorAll('[name=date_debut],[name=date_ordo],[name=duree],[name=unite]').forEach((i) => {
         i.addEventListener('change', recalc);
         i.addEventListener('input', recalc);
       });
-      formEl.querySelector('[name=prolong_enabled]')?.addEventListener('change', () => {
-        collectAll();
-        renderForm();
-      });
-      formEl.querySelectorAll('[name=pr_ordo],[name=pr_duree],[name=pr_unite],[name=pr_notes]').forEach((i) => {
+      formEl.querySelectorAll('[name^="pr_duree_"],[name^="pr_unite_"]').forEach((i) => {
         i.addEventListener('change', () => recalcProlongHint());
         i.addEventListener('input', () => recalcProlongHint());
       });
-      formEl.querySelector('[name=contact_enabled]')?.addEventListener('change', () => {
-        collectAll();
-        if (state.contact.enabled && !state.contact.template_id) {
-          const list = templatesForType(state.appareil.type_appareil);
-          if (list[0]) {
-            state.contact.template_id = list[0].id;
-            state.contact.motif = list[0].motif || '';
-          }
-        }
-        renderForm();
-      });
-      formEl.querySelector('[name=contact_appel_enabled]')?.addEventListener('change', () => {
-        collectAll();
-        renderForm();
-      });
-      formEl.querySelector('[name=contact_template_id]')?.addEventListener('change', () => {
-        collectAll();
-        const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
-        const preview = formEl.querySelector('#trContactPreview');
-        if (preview) preview.innerHTML = contactPreviewHtml(tpl || null);
-      });
-      formEl.querySelectorAll('[name=contact_appel_statut],[name=contact_appel_mail]').forEach((i) => {
-        i.addEventListener('change', () => collectAll());
-      });
-      formEl.querySelector('[name=contact_appel_note]')?.addEventListener('input', () => collectAll());
 
       bindDropZones();
     }
@@ -1874,22 +2058,8 @@
       state.date_ordo = LocationRules.todayISO();
       state.duree = 10;
       state.unite = 'semaines';
-      state.prolongation = {
-        enabled: false,
-        date_ordo: LocationRules.todayISO(),
-        duree: 1,
-        unite: 'semaines',
-        notes: '',
-      };
-      state.contact = {
-        enabled: false,
-        template_id: '',
-        motif: '',
-        appel_enabled: false,
-        appel_note: '',
-        appel_statut: '',
-        appel_mail: '',
-      };
+      state.prolongations = [];
+      state.contacts = [];
       renderDocs();
       renderForm();
     }
@@ -1902,40 +2072,42 @@
     }
 
     async function applyProlongationIfNeeded(dossier) {
-      const pr = state.prolongation;
-      if (!pr.enabled) return null;
-      const duree = Number(pr.duree);
-      const unite = pr.unite || 'semaines';
-      if (!Number.isFinite(duree) || duree < 1) {
-        throw new Error('Durée de prolongation invalide.');
-      }
+      const list = (state.prolongations || []).filter((pr) => Number(pr.duree) > 0);
+      if (!list.length) return null;
+      let current = dossier;
       const rules = await LocationData.loadRules();
-      const evalRes = LocationRules.evaluate(
-        { ...LocationData.dossierContext(dossier), prolong_duree: duree, prolong_unite: unite },
-        rules,
-        params
-      );
-      const block = evalRes.alerts.find((a) => a.action === 'bloquer_ou_alerter');
-      if (block && !confirm(block.message + '\n\nContinuer quand même ?')) {
-        throw new Error('Prolongation annulée.');
+      for (const pr of list) {
+        const duree = Number(pr.duree);
+        const unite = pr.unite || 'semaines';
+        if (!Number.isFinite(duree) || duree < 1) {
+          throw new Error('Durée de prolongation invalide.');
+        }
+        const evalRes = LocationRules.evaluate(
+          { ...LocationData.dossierContext(current), prolong_duree: duree, prolong_unite: unite },
+          rules,
+          params
+        );
+        const block = evalRes.alerts.find((a) => a.action === 'bloquer_ou_alerter');
+        if (block && !confirm(block.message + '\n\nContinuer quand même ?')) {
+          throw new Error('Prolongation annulée.');
+        }
+        await LocationData.addProlongation(
+          current.id,
+          {
+            date_ordo: pr.date_ordo || null,
+            duree,
+            unite,
+            notes: pr.notes || null,
+          },
+          ctx.userId
+        );
+        current = await LocationData.getDossier(current.id);
       }
-      await LocationData.addProlongation(
-        dossier.id,
-        {
-          date_ordo: pr.date_ordo || null,
-          duree,
-          unite,
-          notes: pr.notes || null,
-        },
-        ctx.userId
-      );
-      return LocationData.getDossier(dossier.id);
+      return current;
     }
 
-    async function applyContactIfNeeded(dossier) {
-      const co = state.contact;
-      if (!co.enabled && !co.appel_enabled) return null;
-
+    async function applyOneContact(dossier, co) {
+      if (!co || (!co.enabled && !co.appel_enabled)) return null;
       const d = dossier.date_fin ? dossier : await LocationData.getDossier(dossier.id);
       let motif = co.motif || 'prolongation';
       let lgoText = '';
@@ -1975,7 +2147,7 @@
         if (!motif) motif = 'prolongation';
 
         const isPerte = co.appel_statut === 'PERTE';
-        const commentaire = lgoText ? `${lgoText}\n\n--- Appel ---\n${note}` : note;
+        const commentaire = lgoText ? lgoText + '\n\n--- Appel ---\n' + note : note;
         const appelRow = {
           dossier_id: d.id,
           motif,
@@ -1994,6 +2166,15 @@
       return true;
     }
 
+    async function applyContactIfNeeded(dossier) {
+      const list = (state.contacts || []).filter((c) => c.enabled || c.appel_enabled);
+      if (!list.length) return null;
+      for (const co of list) {
+        await applyOneContact(dossier, co);
+      }
+      return true;
+    }
+
     async function persistExtras(dossier, { asActif }) {
       let current = dossier;
       current = (await applyProlongationIfNeeded(current)) || current;
@@ -2005,11 +2186,8 @@
     async function saveEnAttente() {
       if (state.busy) return;
       if (!validateEnAttente()) return;
-      if (state.prolongation.enabled) {
-        const duree = Number(state.prolongation.duree);
-        if (!Number.isFinite(duree) || duree < 1) {
-          return showMsg('Durée de prolongation invalide.', true);
-        }
+      if ((state.prolongations || []).some((pr) => !Number.isFinite(Number(pr.duree)) || Number(pr.duree) < 1)) {
+        return showMsg('Durée de prolongation invalide.', true);
       }
       state.busy = true;
       const btn = actionsEl.querySelector('#trHold');
@@ -2021,7 +2199,7 @@
         });
         await persistExtras(dossier, { asActif: false });
         showMsg(
-          state.contact.enabled || state.contact.appel_enabled
+          (state.contacts || []).some((c) => c.enabled || c.appel_enabled)
             ? 'Dossier mis en attente (contact / appel non créés — réservés au dossier actif).'
             : 'Dossier mis en attente.'
         );
@@ -2039,24 +2217,23 @@
       if (state.busy) return;
       collectAll();
       if (!validateActif()) return;
-      if (state.prolongation.enabled) {
-        const duree = Number(state.prolongation.duree);
-        if (!Number.isFinite(duree) || duree < 1) {
-          return showMsg('Durée de prolongation invalide.', true);
-        }
+      if ((state.prolongations || []).some((pr) => !Number.isFinite(Number(pr.duree)) || Number(pr.duree) < 1)) {
+        return showMsg('Durée de prolongation invalide.', true);
       }
-      if (state.contact.enabled && !state.contact.template_id) {
-        return showMsg('Choisissez un template contact.', true);
-      }
-      if (state.contact.appel_enabled) {
-        if (!String(state.contact.appel_note || '').trim()) {
-          return showMsg('Commentaire appel obligatoire.', true);
+      for (const co of state.contacts || []) {
+        if (co.enabled && !co.template_id) {
+          return showMsg('Choisissez un template contact.', true);
         }
-        if (!state.contact.appel_statut) {
-          return showMsg('Choisissez le statut de l’appel.', true);
-        }
-        if (!state.contact.appel_mail) {
-          return showMsg('Choisissez l’option mail (Oui / À faire / Non).', true);
+        if (co.appel_enabled) {
+          if (!String(co.appel_note || '').trim()) {
+            return showMsg('Commentaire appel obligatoire.', true);
+          }
+          if (!co.appel_statut) {
+            return showMsg('Choisissez le statut de l’appel.', true);
+          }
+          if (!co.appel_mail) {
+            return showMsg('Choisissez l’option mail (Oui / À faire / Non).', true);
+          }
         }
       }
       state.busy = true;
