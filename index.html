@@ -217,6 +217,13 @@
               <input type="checkbox" id="editSiteActive" disabled style="width:auto; accent-color:var(--teal);">
               <label for="editSiteActive" style="margin:0; cursor:pointer;">Site actif</label>
             </div>
+            <div class="field" style="display:flex; align-items:flex-start; gap:10px;">
+              <input type="checkbox" id="editSiteVisibleAccessOnly" disabled style="width:auto; accent-color:var(--teal); margin-top:3px;">
+              <label for="editSiteVisibleAccessOnly" style="margin:0; cursor:pointer;">
+                Visible uniquement si accès validé
+                <span style="display:block; font-size:11px; color:var(--muted); font-weight:400; margin-top:2px;">Masque la carte aux utilisateurs sans accès (les admins voient toujours tout).</span>
+              </label>
+            </div>
             <button type="submit" class="btn small" id="editSiteBtn" disabled>Enregistrer les modifications</button>
             <p id="editSiteMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
           </form>
@@ -266,7 +273,7 @@
   let CURRENT_USER = null, IS_ADMIN = false;
   let ADMIN_SITES = [];
 
-  const EDIT_SITE_FIELDS = ['editSiteName', 'editSiteUrl', 'editSiteDesc', 'editSiteIcon', 'editSiteColor', 'editSiteActive'];
+  const EDIT_SITE_FIELDS = ['editSiteName', 'editSiteUrl', 'editSiteDesc', 'editSiteIcon', 'editSiteColor', 'editSiteActive', 'editSiteVisibleAccessOnly'];
 
   function setEditSiteFieldsEnabled(enabled){
     EDIT_SITE_FIELDS.forEach(id => { el(id).disabled = !enabled; });
@@ -280,6 +287,7 @@
     el('editSiteIcon').value = '';
     el('editSiteColor').value = '#4FD1C5';
     el('editSiteActive').checked = true;
+    el('editSiteVisibleAccessOnly').checked = false;
     setEditSiteFieldsEnabled(false);
   }
 
@@ -305,6 +313,7 @@
     el('editSiteIcon').value = site.icon || '';
     el('editSiteColor').value = site.color || '#4FD1C5';
     el('editSiteActive').checked = site.is_active !== false;
+    el('editSiteVisibleAccessOnly').checked = !!site.visible_with_access_only;
     setEditSiteFieldsEnabled(true);
   }
 
@@ -398,13 +407,14 @@
     const icon = el('editSiteIcon').value.trim() || '🔗';
     const color = el('editSiteColor').value;
     const is_active = el('editSiteActive').checked;
+    const visible_with_access_only = el('editSiteVisibleAccessOnly').checked;
 
     btn.textContent = 'Enregistrement...';
     btn.disabled = true;
     msg.textContent = '';
 
     const { error } = await sb.from('sites').update({
-      name, url, description, icon, color, is_active
+      name, url, description, icon, color, is_active, visible_with_access_only
     }).eq('id', selectedId);
 
     btn.textContent = 'Enregistrer les modifications';
@@ -481,7 +491,7 @@
   // ---------- "Mes accès" ----------
   async function loadMineView(){
     const [{ data: sites, error }, { data: myAccess }, { data: myRequests }] = await Promise.all([
-      sb.from('sites').select('id, name, description, url, icon, color').order('name'),
+      sb.from('sites').select('id, name, description, url, icon, color, visible_with_access_only').order('name'),
       sb.from('site_access').select('site_id').eq('user_id', CURRENT_USER.id),
       sb.from('access_requests').select('id, site_id, status').eq('user_id', CURRENT_USER.id).eq('status', 'pending')
     ]);
@@ -498,7 +508,18 @@
     const grantedIds = new Set((myAccess || []).map(a => a.site_id));
     const pendingMap = new Map((myRequests || []).map(r => [r.site_id, r.id]));
 
-    el('cardsArea').innerHTML = `<div class="grid">${sites.map(s => {
+    const visibleSites = sites.filter(s => {
+      if (IS_ADMIN) return true;
+      if (s.visible_with_access_only && !grantedIds.has(s.id)) return false;
+      return true;
+    });
+
+    if (!visibleSites.length) {
+      el('cardsArea').innerHTML = `<div class="empty"><span class="eyebrow">Aucun accès</span>Aucun site n'est disponible pour ton compte.</div>`;
+      return;
+    }
+
+    el('cardsArea').innerHTML = `<div class="grid">${visibleSites.map(s => {
       if (IS_ADMIN || grantedIds.has(s.id)) return cardGranted(s);
       if (pendingMap.has(s.id)) return cardPending(s);
       return cardLocked(s);
@@ -560,7 +581,7 @@
       sb.from('access_requests').select('id, user_id, site_id, requested_at').eq('status', 'pending').order('requested_at'),
       sb.from('profiles').select('id, email, display_name, role').order('email'),
       sb.from('site_access').select('user_id, site_id'),
-      sb.from('sites').select('id, name, description, url, icon, color, is_active').order('name')
+      sb.from('sites').select('id, name, description, url, icon, color, is_active, visible_with_access_only').order('name')
     ]);
 
     ADMIN_SITES = sites || [];
