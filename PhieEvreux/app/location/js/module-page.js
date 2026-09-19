@@ -102,6 +102,8 @@
     const titleEl = document.getElementById('locModuleTitle');
     if (titleEl) titleEl.textContent = TITLES[name] || name;
 
+    PhieLogs?.setContext?.({ app: 'location', module: name || null });
+
     const root = document.getElementById('locModuleRoot');
     if (!root) return;
 
@@ -111,6 +113,9 @@
     } catch (_) {
       snap = null;
     }
+
+    void PhieLogs?.session?.({ page: 'location_module', module: name });
+    void PhieLogs?.navigate?.(name, { kind: 'module' });
 
     let matrix = null;
     try {

@@ -633,6 +633,11 @@
       measureA4: true,
       prepare: (doc) => fillFicheBlankRows(doc),
     });
+    try {
+      void global.PhieLogs?.action?.('print_fiche', {
+        dossier_id: dossier.id || null,
+      }, { app: 'location' });
+    } catch (_) { /* ignore */ }
   }
 
   function statutLabel(s) {

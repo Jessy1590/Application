@@ -255,6 +255,11 @@ el('newForm').addEventListener('submit', async (e) => {
   e.target.querySelector('input[value="Lit"]').checked = true;
   resetPhones(el('phonesList'), ['']);
   toast('Fiche créée');
+  try {
+    void window.PhieLogs?.action?.('fiche_create', {
+      type_location: payload.type_location || null,
+    }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
   await refresh();
 });
 
@@ -429,6 +434,13 @@ async function validateComment() {
 
   // Met à jour le cache local tout de suite (module 3 lira mail_envoye)
   Object.assign(row, patch);
+
+  try {
+    void window.PhieLogs?.action?.('commentaire_validate', {
+      fiche_id: row.id,
+      mail_envoye: !!mailAlready,
+    }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
 
   await animateSwipe(el('swipeCard'), 'right');
   toast(mailAlready ? 'ECRIS + mail noté' : 'Commentaire ECRIS');
@@ -1006,6 +1018,13 @@ async function handleNoMail(row) {
 async function applyCallUpdate(row, patch) {
   const { error } = await sb.from(TABLE).update(patch).eq('id', row.id);
   if (error) { toast(error.message, 'error'); return; }
+  try {
+    void window.PhieLogs?.action?.('appel_update', {
+      fiche_id: row.id,
+      appel_statut: patch.appel_statut || null,
+      appel_resultat: patch.appel_resultat || null,
+    }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
   toast(patch.appel_statut === 'PERTE' ? 'Statut PERTE' : 'Suivi enregistré');
   state.callStep = 'ask_call';
   state.draft = {};
@@ -1201,6 +1220,9 @@ el('editForm').addEventListener('submit', async (e) => {
 
   const { error } = await sb.from(TABLE).update(payload).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  try {
+    void window.PhieLogs?.action?.('fiche_update', { fiche_id: id }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
   toast('Fiche mise à jour');
   el('editFormSheet').hidden = true;
   await refresh();
@@ -1212,6 +1234,9 @@ el('deleteFicheBtn').addEventListener('click', async () => {
   if (!id || !confirm('Supprimer cette fiche ?')) return;
   const { error } = await sb.from(TABLE).delete().eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  try {
+    void window.PhieLogs?.action?.('fiche_delete', { fiche_id: id }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
   toast('Fiche supprimée');
   el('editFormSheet').hidden = true;
   await refresh();
@@ -1263,6 +1288,11 @@ el('fabPrint').addEventListener('click', async () => {
   el('printRoot').hidden = false;
   window.print();
   setTimeout(() => { el('printRoot').hidden = true; }, 500);
+  try {
+    void window.PhieLogs?.action?.('print_list', {
+      count: rows.length,
+    }, { app: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
 });
 
 /* FABs partagés Accueil + Bug */
@@ -1270,6 +1300,10 @@ el('fabPrint').addEventListener('click', async () => {
   try {
     if (window.PhieEquipe?.load) await PhieEquipe.load();
   } catch (_) { /* droits optionnels pour le signalement */ }
+  try {
+    window.PhieLogs?.setContext?.({ app: 'anciennelocation', module: null });
+    void window.PhieLogs?.session?.({ page: 'anciennelocation' });
+  } catch (_) { /* ignore */ }
   if (window.PhieFab?.mount) {
     PhieFab.mount({
       app: 'anciennelocation',

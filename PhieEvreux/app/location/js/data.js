@@ -11,6 +11,14 @@
     return client;
   }
 
+  function audit(action, detail) {
+    try {
+      void global.PhieLogs?.action?.(action, detail || {}, { app: 'location' });
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   function invalidateCache() {
     paramsCache = null;
     rulesCache = null;
@@ -632,7 +640,13 @@
       throw err;
     }
 
-    return getDossier(dossier.id);
+    const created = await getDossier(dossier.id);
+    audit('dossier_create', {
+      dossier_id: dossier.id,
+      statut,
+      type_appareil: payload?.appareil?.type_appareil || payload?.type_appareil || null,
+    });
+    return created;
   }
 
   /**
@@ -709,7 +723,9 @@
       if (pErr) throw pErr;
     }
 
-    return getDossier(dossierId);
+    const updated = await getDossier(dossierId);
+    audit('dossier_update', { dossier_id: dossierId, statut });
+    return updated;
   }
 
   async function updateAppareil(id, row) {
@@ -789,13 +805,16 @@
       patch.facturation_ok_le = null;
       patch.facturation_ok_op = null;
     }
-    return updateDossier(id, patch);
+    const out = await updateDossier(id, patch);
+    audit('dossier_cloture', { dossier_id: id });
+    return out;
   }
 
   /** Supprime un dossier ; appareils / prolongations / suivi_lignes / contacts via CASCADE. */
   async function deleteDossier(id) {
     const { error } = await sb().from('location_dossiers').delete().eq('id', id);
     if (error) throw error;
+    audit('dossier_delete', { dossier_id: id });
   }
 
   async function changerAppareil(dossierId, newApp, userId) {
@@ -817,6 +836,10 @@
       .select()
       .single();
     if (error) throw error;
+    audit('appareil_change', {
+      dossier_id: dossierId,
+      type_appareil: newApp?.type_appareil || null,
+    });
     return data;
   }
 
@@ -849,13 +872,15 @@
       .select()
       .single();
     if (error) throw error;
+    audit('prolongation_add', {
+      dossier_id: dossierId,
+      duree: row.duree,
+      unite: row.unite,
+      date_fin: dateFin,
+    });
     return data;
   }
 
-  /**
-   * Recalcule date_fin de chaque prolongation du dossier en chaîne chronologique
-   * (même logique qu’à l’ajout : 1ʳᵉ = date_debut|date_ordo + durée ; suivantes = fin précédente + durée).
-   */
   async function recalcProlongationChain(dossierId) {
     const dossier = await getDossier(dossierId);
     const list = (dossier.prolongations || []).slice().sort((a, b) =>
@@ -1166,6 +1191,12 @@
       ({ data, error } = await sb().from('location_contacts').insert(retry).select().single());
     }
     if (error) throw error;
+    audit('contact_upsert', {
+      dossier_id: data?.dossier_id || row.dossier_id || null,
+      motif: data?.motif || row.motif || null,
+      phase: data?.phase || row.phase || null,
+      statut: data?.statut || row.statut || null,
+    });
     return data;
   }
 

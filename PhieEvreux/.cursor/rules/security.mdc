@@ -21,5 +21,6 @@ alwaysApply: true
 ## Secrets & client
 - Ne pas committer `.env` / clés ; voir `PhieEvreux/.gitignore` (et monorepo parent).
 - Ne pas logger tokens ni mots de passe.
+- Journal `phieevreux.logs` : écriture authentifiée OK ; **lecture** réservée à `portail.is_admin()` (pas equipe administrateur).
 - CSP : conserver les restrictions existantes (cdn.jsdelivr, domaine Supabase projet).
 - Impression : iframe caché same-document uniquement — pas de pop-up / `window.open`.

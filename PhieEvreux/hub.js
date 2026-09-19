@@ -72,6 +72,7 @@
           if (!sel.value) return;
           try {
             await PhieEquipe.setRole(row.dataset.user, sel.value);
+            void PhieLogs?.action?.('equipe_set_role', { user_id: row.dataset.user, role: sel.value });
             toast('Rôle mis à jour');
             renderEquipe();
           } catch (err) {
@@ -87,6 +88,7 @@
           if (!confirm('Retirer le rôle équipe de ce membre ?')) return;
           try {
             await PhieEquipe.removeMember(row.dataset.user);
+            void PhieLogs?.action?.('equipe_remove_role', { user_id: row.dataset.user });
             toast('Rôle équipe retiré');
             renderEquipe();
           } catch (err) {
@@ -102,6 +104,7 @@
   async function boot() {
     PhieTheme.init();
     PhieFab.mount({ app: 'hub', homeHref: PhieFab.PORTAIL_URL });
+    PhieLogs?.setContext?.({ app: 'hub', module: null });
 
     let snap;
     try {
@@ -111,12 +114,25 @@
       return;
     }
 
+    void PhieLogs?.session?.({ page: 'hub' });
+
     const gear = el('hubGearBtn');
     if (snap.isAdmin) {
       gear.hidden = false;
     }
 
+    const logCard = el('hubCardLog');
+    if (logCard) logCard.hidden = !snap.portailAdmin;
+
+    document.querySelectorAll('.hub-card[href]').forEach((card) => {
+      card.addEventListener('click', () => {
+        const href = card.getAttribute('href') || '';
+        void PhieLogs?.navigate?.(href, { from: 'hub' });
+      });
+    });
+
     gear.addEventListener('click', () => {
+      void PhieLogs?.action?.('admin_open');
       el('hubAdminSheet').hidden = false;
       setAdminTab('equipe');
     });
@@ -156,6 +172,7 @@
           password: fd.get('password'),
           displayName: fd.get('display_name'),
         });
+        void PhieLogs?.action?.('invite_user', { email: String(fd.get('email') || '') });
         msg.hidden = false;
         msg.className = 'hub-msg ok';
         msg.textContent = 'Compte créé (accès Phie Evreux, rôle personnel).';

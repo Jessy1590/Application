@@ -20,6 +20,7 @@
       app: 'location',
       homeHref: '../../index.html',
     });
+    PhieLogs?.setContext?.({ app: 'location', module: 'home' });
 
     let snap = null;
     try {
@@ -27,6 +28,8 @@
     } catch (_) {
       snap = null;
     }
+
+    void PhieLogs?.session?.({ page: 'location_home' });
 
     let matrix = null;
     try {
@@ -47,6 +50,9 @@
       } else if (!allowed) {
         tile.hidden = true;
       }
+      tile.addEventListener('click', () => {
+        void PhieLogs?.navigate?.(href, { from: 'location_home' });
+      });
     });
 
     document.getElementById('locThemeBtn')?.addEventListener('click', () => {

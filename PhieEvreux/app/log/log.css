@@ -1,0 +1,220 @@
+/* App Log — consultation journal (admin portail) */
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --log-bg: #0a0a0f;
+  --log-elev: #14141c;
+  --log-text: #f5f5f7;
+  --log-muted: #8e8e9a;
+  --log-line: rgba(255, 255, 255, 0.12);
+  --log-accent: #4db8ff;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  --log-bg: #f4f5f8;
+  --log-elev: #ffffff;
+  --log-text: #121218;
+  --log-muted: #5c5c6a;
+  --log-line: rgba(0, 0, 0, 0.16);
+  --log-accent: #1a7ab8;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body.log-page {
+  min-height: 100dvh;
+  background: var(--log-bg);
+  color: var(--log-text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  padding: 16px 16px calc(100px + env(safe-area-inset-bottom, 0px));
+}
+
+.log-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1200px;
+  margin: 0 auto 20px;
+}
+
+.log-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--log-accent);
+  font-weight: 700;
+}
+
+.log-top h1 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 28px;
+}
+
+.log-sub {
+  margin: 4px 0 0;
+  color: var(--log-muted);
+  font-size: 14px;
+}
+
+.log-top-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.log-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--log-accent);
+  background: var(--log-accent);
+  color: #061018;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+html[data-theme="light"] .log-btn {
+  color: #fff;
+}
+
+.log-btn-ghost {
+  background: transparent;
+  color: var(--log-text);
+  border-color: var(--log-line);
+}
+
+.log-main {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.log-filters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  padding: 12px;
+  border: 1px solid var(--log-line);
+  border-radius: 12px;
+  background: var(--log-elev);
+  margin-bottom: 14px;
+}
+
+.log-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--log-muted);
+}
+
+.log-filters input,
+.log-filters select {
+  width: 100%;
+  border: 1px solid var(--log-line);
+  border-radius: 8px;
+  background: var(--log-bg);
+  color: var(--log-text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.log-filters-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.log-count {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--log-muted);
+}
+
+.log-msg {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.log-msg.error {
+  border: 1px solid color-mix(in srgb, #ff6b6b 50%, var(--log-line));
+  background: color-mix(in srgb, #ff6b6b 16%, var(--log-elev));
+}
+
+.log-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--log-line);
+  border-radius: 12px;
+  background: var(--log-elev);
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.log-table th,
+.log-table td {
+  border-bottom: 1px solid var(--log-line);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.log-table th {
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--log-elev) 88%, var(--log-bg));
+  color: var(--log-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.log-muted { color: var(--log-muted); }
+
+.log-level {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--log-line);
+  font-size: 11px;
+}
+
+.log-level-warn {
+  border-color: color-mix(in srgb, #e6b800 50%, var(--log-line));
+  color: #e6b800;
+}
+
+.log-level-error {
+  border-color: color-mix(in srgb, #ff6b6b 50%, var(--log-line));
+  color: #ff6b6b;
+}
+
+.log-detail {
+  max-width: 280px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--log-muted);
+}
+
+.log-pager {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}

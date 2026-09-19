@@ -8,8 +8,8 @@ alwaysApply: true
 ## Produit
 - Hub multi-apps vanilla sous `PhieEvreux/` (pas de framework SPA).
 - Entrée : `index.html` + `hub.js` / `hub.css` — choix d’apps + engrenage admin (équipe, invite, bugs).
-- Apps : `app/anciennelocation/`, `app/location/` (indépendantes, pas d’import croisé de données).
-- Partagé : `shared/` — FABs, bugs, thème, équipe, invite, client schéma (`supabase-apps.js`).
+- Apps : `app/anciennelocation/`, `app/location/`, `app/log/` (indépendantes, pas d’import croisé de données).
+- Partagé : `shared/` — FABs, bugs, thème, équipe, invite, logs, client schéma (`supabase-apps.js`).
 
 ## Chemins monorepo
 - Config Supabase : `Application/shared/supabase-config.js` → hub `../shared/…`, app `../../../shared/…`.
@@ -19,10 +19,16 @@ alwaysApply: true
 ## Données
 - Schéma métier : **`phieevreux`** (minuscules) via `shared/supabase-apps.js`.
 - Table historique : `anciennelocation`.
-- Transverse : `equipe`, `bugs`.
+- Transverse : `equipe`, `bugs`, `logs` (journal d’activité site).
 - Métier Location : tables **`location_*`**.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - SQL locaux : `PhieEvreux/sql/*.sql` = déjà appliqué (ne pas réappliquer sans check).
+
+## App Log
+- Chemin : `app/log/` — consultation du journal `phieevreux.logs`.
+- Accès lecture UI + RLS : **`portail.profiles.role === 'admin'`** uniquement (`portail.is_admin()`).
+- Écriture : tout utilisateur authentifié via `shared/logs.js` (`PhieLogs`).
+- Carte hub visible seulement si `PhieEquipe.portailAdmin`.
 
 ## App Location — vue d’ensemble
 - Tuiles (ordre) : Création → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Transcription → Paramètres.

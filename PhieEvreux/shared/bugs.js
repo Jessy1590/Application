@@ -124,6 +124,9 @@
     msg.hidden = false;
     msg.textContent = 'Signalement envoyé.';
     msg.className = 'phie-bugs-msg ok';
+    try {
+      void global.PhieLogs?.action?.('bug_report', { app: currentApp, type, titre });
+    } catch (_) { /* ignore */ }
   }
 
   async function renderAdminList() {
