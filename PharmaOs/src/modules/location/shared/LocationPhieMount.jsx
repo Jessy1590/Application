@@ -164,6 +164,12 @@ export default function LocationPhieMount({
   }
 
   const title = MODULE_TITLES[name] || name;
+  const mainClass =
+    name === 'parametres'
+      ? 'loc-params-page-main'
+      : name === 'transcription'
+        ? 'loc-module-page-main loc-transcription-main'
+        : 'loc-module-page-main';
 
   return (
     <div
@@ -181,18 +187,10 @@ export default function LocationPhieMount({
           </div>
         </header>
       )}
-      <main
-        className={
-          name === 'parametres'
-            ? 'loc-params-page-main'
-            : name === 'transcription'
-              ? 'loc-module-page-main loc-transcription-main'
-              : 'loc-module-page-main'
-        }
-        id="locModuleRoot"
-        ref={rootRef}
-      >
+      {/* Cible DOM vide : mount Phie via innerHTML — pas d’enfants React sur le ref. */}
+      <main className={mainClass}>
         {!ready && !err ? <p className="text-sm text-slate-500">Chargement…</p> : null}
+        <div id="locModuleRoot" ref={rootRef} />
       </main>
     </div>
   );
