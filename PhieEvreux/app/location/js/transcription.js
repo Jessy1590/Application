@@ -412,24 +412,39 @@
         case 'code_op':
           state.code_op = v;
           break;
-        case 'caution':
-          if (v === 'cheque_150' || v === 'especes' || v === '') state.caution = v;
-          else if (/150|cheque|chèque/i.test(v)) state.caution = 'cheque_150';
-          else if (/espec/i.test(v)) state.caution = 'especes';
-          else state.caution = v;
+        case 'caution': {
+          const code = resolveEnumCode(v, ['cheque_150', 'especes'], [
+            [/150|cheque|ch[eè]que/i, 'cheque_150'],
+            [/espec/i, 'especes'],
+          ]);
+          if (code) state.caution = code;
           break;
+        }
         case 'notes':
           state.notes = v;
           break;
-        case 'type_appareil':
-          if (TYPES.includes(v)) state.appareil.type_appareil = v;
+        case 'type_appareil': {
+          const code = resolveEnumCode(v, TYPES, [
+            [/neurostim|tens|neuro.?stim/i, 'tens'],
+            [/tire.?lait|tirelait|medela|symphony/i, 'tire_lait'],
+            [/a[eé]rosol|nebul/i, 'aerosol'],
+            [/p[eè]se.?b[eé]b|pesee/i, 'pese_bebe'],
+            [/fauteuil/i, 'fauteuil'],
+          ]);
+          if (code) state.appareil.type_appareil = code;
           break;
+        }
         case 'type_libelle':
           state.appareil.type_libelle = v;
           break;
-        case 'source':
-          if (v === 'parc' || v === 'prestataire') state.appareil.source = v;
+        case 'source': {
+          const code = resolveEnumCode(v, ['parc', 'prestataire'], [
+            [/orkyn|presta/i, 'prestataire'],
+            [/parc|pharmacie.?num|interne/i, 'parc'],
+          ]);
+          if (code) state.appareil.source = code;
           break;
+        }
         case 'prestataire_id':
           state.appareil.prestataire_id = v;
           break;
@@ -439,12 +454,22 @@
         case 'numero_pharmacie':
           state.appareil.numero_pharmacie = v;
           break;
-        case 'mode_obtention':
-          if (v === 'depot' || v === 'appel') state.appareil.mode_obtention = v;
+        case 'mode_obtention': {
+          const code = resolveEnumCode(v, ['depot', 'appel'], [
+            [/depot|d[eé]p[oô]t|stock/i, 'depot'],
+            [/appel|obtenir/i, 'appel'],
+          ]);
+          if (code) state.appareil.mode_obtention = code;
           break;
-        case 'livraison':
-          if (v === 'pharmacie' || v === 'patient') state.appareil.livraison = v;
+        }
+        case 'livraison': {
+          const code = resolveEnumCode(v, ['pharmacie', 'patient'], [
+            [/pharmacie|officine/i, 'pharmacie'],
+            [/patient|domicile|chez/i, 'patient'],
+          ]);
+          if (code) state.appareil.livraison = code;
           break;
+        }
         case 'desinfection':
           state.appareil.desinfection = v === true || v === 'true' || v === 'oui' || v === '1';
           break;
@@ -462,9 +487,15 @@
           if (Number.isFinite(n) && n > 0) state.duree = n;
           break;
         }
-        case 'unite':
-          if (v === 'jours' || v === 'semaines' || v === 'mois') state.unite = v;
+        case 'unite': {
+          const code = resolveEnumCode(v, ['jours', 'semaines', 'mois'], [
+            [/jour/i, 'jours'],
+            [/semain/i, 'semaines'],
+            [/mois|trimestre/i, 'mois'],
+          ]);
+          if (code) state.unite = code;
           break;
+        }
         case 'prolong_enabled':
           state.prolongation.enabled = value === true || v === 'true' || v === 'oui' || v === '1';
           break;
@@ -574,69 +605,270 @@
       }
     }
 
+    /**
+     * Schéma IA 100 % dérivé du catalogue Location (création_champs + spécificités appareil).
+     * Se met à jour seul quand Paramètres / types / champs changent.
+     */
     function buildAiFieldSchema() {
+      const typeLabels = LocationRules.TYPE_LABELS || {};
+      const typeCodes = Object.keys(typeLabels).length
+        ? Object.keys(typeLabels)
+        : TYPES.slice();
+
+      /** Listes déroulantes = mêmes options que le formulaire Création. */
+      const DROPDOWNS = {
+        type_appareil: typeCodes.map((value) => ({
+          value,
+          label: typeLabels[value] || value,
+          aliases: ({
+            aerosol: ['aérosol', 'aerosoltherapie', 'nébuliseur', 'nebuliseur'],
+            tire_lait: ['tire-lait', 'tire lait', 'medela', 'symphony'],
+            pese_bebe: ['pèse-bébé', 'pese bebe', 'pesée bébé'],
+            tens: ['neurostimulateur', 'neurostimulation', 'tens', 'tens eco', 'actitens'],
+            fauteuil: ['fauteuil'],
+            autre: ['autre'],
+          })[value] || [],
+        })),
+        caution: [
+          { value: 'cheque_150', label: 'Chèque 150 €' },
+          { value: 'especes', label: 'Espèces' },
+        ],
+        source: [
+          { value: 'parc', label: 'Parc pharmacie' },
+          { value: 'prestataire', label: 'Prestataire' },
+        ],
+        mode_obtention: [
+          { value: 'depot', label: 'Dépôt' },
+          { value: 'appel', label: 'Appel pour l’obtenir' },
+        ],
+        livraison: [
+          { value: 'pharmacie', label: 'À la pharmacie' },
+          { value: 'patient', label: 'Chez le patient' },
+        ],
+        unite: [
+          { value: 'jours', label: 'Jours' },
+          { value: 'semaines', label: 'Semaines' },
+          { value: 'mois', label: 'Mois' },
+        ],
+      };
+
+      /** Visibilité conditionnelle = même logique que Création. */
+      const ONLY_IF = {
+        type_libelle: { type_appareil: 'autre' },
+        prestataire_id: { source: 'prestataire' },
+        matricule: { source: 'prestataire' },
+        mode_obtention: { source: 'prestataire' },
+        livraison: { source: 'prestataire' },
+        numero_pharmacie: { source: 'parc' },
+      };
+
+      const DATE_CODES = new Set([
+        'patient_date_naissance',
+        'date_debut',
+        'date_ordo',
+        'prolong_date_ordo',
+      ]);
+      const NUMBER_CODES = new Set(['duree', 'prolong_duree']);
+      const BOOL_CODES = new Set([
+        'desinfection',
+        'prolong_enabled',
+        'contact_enabled',
+        'contact_appel_enabled',
+      ]);
+
+      function fieldType(code) {
+        if (DROPDOWNS[code]) return 'enum';
+        if (DATE_CODES.has(code)) return 'date';
+        if (NUMBER_CODES.has(code)) return 'number';
+        if (BOOL_CODES.has(code)) return 'boolean';
+        return 'string';
+      }
+
       const fields = [];
-      const push = (code, label, type, enumVals) => {
-        const row = { code, label, type: type || 'string' };
-        if (enumVals && enumVals.length) row.enum = enumVals;
+      const seen = new Set();
+      const push = (row, opts = {}) => {
+        if (!row?.code) return;
+        if (!opts.allowDup) {
+          if (seen.has(row.code)) return;
+          seen.add(row.code);
+        }
         fields.push(row);
       };
 
-      push('patient_nom', 'Nom patient', 'string');
-      push('patient_prenom', 'Prénom patient', 'string');
-      push('patient_date_naissance', 'Date de naissance (YYYY-MM-DD)', 'date');
-      push('patient_adresse', 'Adresse patient', 'string');
-      push('patient_telephone', 'Téléphone patient', 'string');
-      push('patient_mails', 'Email patient', 'string');
-      push('code_op', 'Code OP / opérateur', 'string');
-      push('caution', 'Caution', 'enum', ['cheque_150', 'especes']);
-      push('notes', 'Notes', 'string');
-      push(
-        'type_appareil',
-        'Type appareil (tens=neurostimulateur/TENS)',
-        'enum',
-        Object.keys(LocationRules.TYPE_LABELS || {})
-      );
-      push('type_libelle', 'Libellé si type autre', 'string');
-      push('source', 'Source appareil', 'enum', ['parc', 'prestataire']);
-      push('prestataire_id', 'UUID prestataire si source prestataire', 'string');
-      push('matricule', 'Matricule / n° série', 'string');
-      push('numero_pharmacie', 'N° appareil pharmacie', 'string');
-      push('mode_obtention', 'Obtention', 'enum', ['depot', 'appel']);
-      push('livraison', 'Livraison', 'enum', ['pharmacie', 'domicile']);
-      push('desinfection', 'Désinfection faite', 'boolean');
-      push('encart_texte', 'Commentaire appareil', 'string');
-      push('date_debut', 'Date début location YYYY-MM-DD', 'date');
-      push('date_ordo', 'Date ordonnance YYYY-MM-DD', 'date');
-      push('duree', 'Durée (nombre)', 'number');
-      push('unite', 'Unité durée', 'enum', ['jours', 'semaines', 'mois']);
-      push('prolong_enabled', 'Ajouter une prolongation', 'boolean');
-      push('prolong_duree', 'Durée prolongation', 'number');
-      push('prolong_unite', 'Unité prolongation', 'enum', ['jours', 'semaines', 'mois']);
-      push('prolong_notes', 'Notes prolongation', 'string');
-      push('contact_enabled', 'Créer contact commentaire', 'boolean');
-      push('contact_motif', 'Motif contact', 'string');
-      push('contact_appel_enabled', 'Créer appel', 'boolean');
-      push('contact_appel_note', 'Commentaire appel', 'string');
-
+      /* 1) Catalogue création (étapes + custom admin), filtrés par actif */
       for (const etape of LocationData.CREATION_ETAPES) {
         for (const f of LocationData.listCreationFieldsForEtape(params, etape.id)) {
-          if (!f.custom) continue;
-          if (fields.some((x) => x.code === f.code)) continue;
-          push(f.code, f.label || f.code, 'string');
+          if (!LocationData.isCreationActif(params, etape.id, f.code)) continue;
+          const meta = LocationData.getCreationChamp(params, etape.id, f.code);
+          const row = {
+            code: f.code,
+            label: meta.libelle || f.label || f.code,
+            type: fieldType(f.code),
+            section: etape.label || etape.id,
+            obligatoire: !!LocationData.isCreationRequired(params, etape.id, f.code),
+            custom: !!f.custom,
+          };
+          if (DROPDOWNS[f.code]) row.enum = DROPDOWNS[f.code];
+          if (DATE_CODES.has(f.code)) row.format = 'YYYY-MM-DD';
+          if (ONLY_IF[f.code]) {
+            row.only_if = ONLY_IF[f.code];
+            row.hint = `Uniquement si ${Object.entries(ONLY_IF[f.code])
+              .map(([k, v]) => `${k}="${v}"`)
+              .join(' et ')}`;
+          }
+          if (f.code === 'patient_nom' || f.code === 'patient_telephone') {
+            row.hint = (row.hint ? row.hint + ' — ' : '') + 'Pas la pharmacie / prestataire';
+          }
+          if (f.code === 'prestataire_id') {
+            row.hint =
+              (row.hint ? row.hint + ' — ' : '') +
+              'Mettre l’id UUID du prestataire (liste fournie), pas le nom seul';
+          }
+          push(row);
         }
       }
+
+      /* 2) Spécificités appareil (Paramètres) — conditionnel auto par type_appareil */
+      const byType = {};
       for (const champ of champsDef || []) {
-        if (!champ?.code || fields.some((x) => x.code === champ.code)) continue;
+        if (!champ?.code || champ.actif === false) continue;
+        if (champ.data_type === 'attention') continue;
+        const typeCode = String(champ.type_appareil || '');
+        if (!typeCode) continue;
         const t =
           champ.data_type === 'oui_non'
             ? 'boolean'
             : champ.data_type === 'nombre'
               ? 'number'
               : 'string';
-        push(champ.code, champ.label || champ.code, t);
+        const typeLabel = typeLabels[typeCode] || typeCode;
+        const codeKey = champ.code;
+        /* Préfixe section distincte ; code métier inchangé (champs_extra) */
+        push(
+          {
+            code: codeKey,
+            label: champ.libelle || champ.label || champ.code,
+            type: t,
+            section: `Spécificité · ${typeLabel}`,
+            only_if: { type_appareil: typeCode },
+            hint: `Renseigner UNIQUEMENT si type_appareil="${typeCode}" (${typeLabel})`,
+            obligatoire: !!champ.obligatoire,
+          },
+          { allowDup: true }
+        );
+        if (!byType[typeCode]) byType[typeCode] = [];
+        byType[typeCode].push(codeKey);
       }
-      return fields;
+
+      /* 3) Blocs Transcription (prolongation / contacts) — hors catalogue création */
+      const extraBlocks = [
+        {
+          code: 'prolong_enabled',
+          label: 'Ajouter une prolongation',
+          type: 'boolean',
+          section: 'Prolongation',
+        },
+        {
+          code: 'prolong_duree',
+          label: 'Durée prolongation',
+          type: 'number',
+          section: 'Prolongation',
+          only_if: { prolong_enabled: true },
+        },
+        {
+          code: 'prolong_unite',
+          label: 'Unité prolongation',
+          type: 'enum',
+          section: 'Prolongation',
+          enum: DROPDOWNS.unite,
+          only_if: { prolong_enabled: true },
+        },
+        {
+          code: 'prolong_notes',
+          label: 'Notes prolongation',
+          type: 'string',
+          section: 'Prolongation',
+          only_if: { prolong_enabled: true },
+        },
+        {
+          code: 'contact_enabled',
+          label: 'Créer un contact (phase commentaire)',
+          type: 'boolean',
+          section: 'Contacts',
+        },
+        {
+          code: 'contact_motif',
+          label: 'Motif contact',
+          type: 'string',
+          section: 'Contacts',
+          only_if: { contact_enabled: true },
+        },
+        {
+          code: 'contact_appel_enabled',
+          label: 'Créer un appel (phase appel)',
+          type: 'boolean',
+          section: 'Contacts',
+        },
+        {
+          code: 'contact_appel_note',
+          label: 'Commentaire appel',
+          type: 'string',
+          section: 'Contacts',
+          only_if: { contact_appel_enabled: true },
+        },
+      ];
+      for (const row of extraBlocks) push(row);
+
+      /* 4) Workflow généré automatiquement depuis enums + only_if + spécificités */
+      const workflowParts = [
+        'Pour chaque champ enum : value = code exact (enum[].value), jamais le libellé seul.',
+        'Parcours : Patient → Personnel → type_appareil → champs only_if de ce type → source → champs only_if de cette source → Location → Prolongation/Contacts si visibles.',
+      ];
+      for (const [typeCode, codes] of Object.entries(byType)) {
+        const lab = typeLabels[typeCode] || typeCode;
+        workflowParts.push(
+          `Si type_appareil="${typeCode}" (${lab}) alors remplir aussi : ${codes.join(', ')}.`
+        );
+      }
+      for (const [code, cond] of Object.entries(ONLY_IF)) {
+        if (!seen.has(code)) continue;
+        workflowParts.push(
+          `Champ "${code}" uniquement si ${Object.entries(cond)
+            .map(([k, v]) => `${k}="${v}"`)
+            .join(' et ')}.`
+        );
+      }
+
+      return {
+        fields,
+        workflow: workflowParts.join(' '),
+        generated_at: new Date().toISOString(),
+        types: typeCodes,
+      };
+    }
+
+    function resolveEnumCode(raw, allowed, aliases) {
+      const v = String(raw || '').trim();
+      if (!v) return '';
+      if (allowed.includes(v)) return v;
+      const n = v
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, '_');
+      if (allowed.includes(n)) return n;
+      for (const [re, code] of aliases || []) {
+        if (re.test(v) || re.test(n)) return code;
+      }
+      const labels = LocationRules.TYPE_LABELS || {};
+      for (const code of allowed) {
+        const lab = String(labels[code] || '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+        if (lab && (n === lab || n.includes(lab) || lab.includes(n))) return code;
+      }
+      return '';
     }
 
     function applyMappings(mappings) {
@@ -1705,9 +1937,11 @@
       showMsg('');
       try {
         setStatus(`OCR + IA de ${files.length} fichier(s)…`);
+        const schema = buildAiFieldSchema();
         const result = await LocationTranscriptionOcr.processFiles(files, {
           prestataires,
-          fields: buildAiFieldSchema(),
+          fields: schema.fields,
+          workflow: schema.workflow,
           onStatus: setStatus,
         });
         const added = result.pages || [];

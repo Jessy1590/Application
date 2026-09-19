@@ -166,6 +166,7 @@
         imagesBase64: (opts.imagesBase64 || []).slice(0, 8),
         ocrText: opts.ocrText || '',
         fields: opts.fields || [],
+        workflow: opts.workflow || '',
         prestataires: (opts.prestataires || []).map((p) => ({
           id: p.id,
           nom: p.nom,
@@ -930,6 +931,7 @@
           imagesBase64,
           ocrText: fullText,
           fields: opts.fields,
+          workflow: opts.workflow,
           prestataires: opts.prestataires,
         });
         onStatus(`IA : ${aiMappings.length} champ(s) proposés`);

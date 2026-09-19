@@ -90,26 +90,25 @@ function buildSystemPrompt() {
 Objectif : pour CHAQUE champ fourni, décider s'il y a une valeur fiable à remplir. Réponds UNIQUEMENT en JSON valide :
 {"fields":[{"code":"...","value":"...","confidence":0.0}]}
 
-IMPORTANT — couverture complète :
-- Tu DOIS examiner TOUTES les images fournies (pas seulement les 1–2 premières) et le texte OCR de chaque page.
-- Tu DOIS remplir autant que possible TOUTES les sections du formulaire : Patient, Personnel (OP, caution), Appareil (type, source, Orkyn/parc, matricule, dates), Location (début, ordo, durée, unité), Prolongation et Contacts si visibles.
-- Une info sur la page 3 ou 4 (bon Orkyn, ordonnance, durée) a la même priorité qu’une info page 1.
-- Ne t’arrête pas après le bloc patient / en-tête.
+IMPORTANT — schéma dynamique :
+- La liste des champs est générée depuis Paramètres Location (catalogue + spécificités appareil). Respecte chaque only_if et chaque enum[].value.
+- Si type_appareil=X, remplis tous les champs dont only_if.type_appareil=X (spécificités). Ignore les spécificités des autres types.
+- Si source=prestataire / parc, applique les only_if correspondants.
+- Enums : value = code exact, jamais le libellé seul.
 
-Règles strictes :
+IMPORTANT — couverture complète :
+- Examine TOUTES les images et le texte OCR de chaque page.
+- Remplis toutes les sections présentes dans le schéma (Patient → … → Contacts).
+- Ne t’arrête pas après le bloc patient.
+
+Règles :
 1. N'invente rien. Si doute, omets le champ.
-2. IGNORE l'identité de la pharmacie (Pharmacie Grand Evreux, SIRET, téléphone pharmacie, en-tête) et IGNORE le prestataire (Orkyn, etc.) comme patient. Le patient = destinataire / NOM PRENOM / ordonnance.
-3. Cases cochées (X, croix rouge, case remplie) = sélection active (type d'appareil, ORKYN, chèque caution, électrodes, modèle TENS, etc.).
-4. Dates au format ISO YYYY-MM-DD.
-5. Téléphones : chiffres, format FR 0XXXXXXXXX si possible.
-6. type_appareil : uniquement une des valeurs enum fournies (tens pour neurostimulateur/TENS, tire_lait, aerosol, pese_bebe, fauteuil, autre).
-7. caution : cheque_150 si chèque 150€ coché, especes si espèces.
-8. source : prestataire si Orkyn/prestataire, parc si n° pharmacie / parc interne.
-9. mode_obtention : depot | appel ; livraison : pharmacie | domicile si visible.
-10. unite : jours | semaines | mois.
-11. prestataire_id : utilise l'id exact de la liste prestataires si tu matchs le nom (ex. Orkyn).
-12. Pour les booléens oui/non : true/false.
-13. confidence entre 0 et 1.`;
+2. IGNORE pharmacie / prestataire comme patient.
+3. Cases cochées = sélection active.
+4. Dates ISO YYYY-MM-DD.
+5. Téléphones FR 0XXXXXXXXX si possible.
+6. Booléens true/false.
+7. confidence 0–1.`;
 }
 
 function buildUserText(payload) {
@@ -117,23 +116,28 @@ function buildUserText(payload) {
   const prestataires = Array.isArray(payload.prestataires) ? payload.prestataires : [];
   const ocrText = String(payload.ocrText || '').slice(0, 28000);
   const pageCount = Number(payload.pageCount) || 0;
+  const workflow = String(payload.workflow || '').trim();
 
   return [
     pageCount
       ? `Ce dossier comporte ${pageCount} page(s) image. Analyse-les toutes avant de répondre.`
       : 'Analyse toutes les images jointes avant de répondre.',
     '',
-    'Champs à remplir (code + label + type/enum) — couvre Patient + Personnel + Appareil + Location + Prolongation + Contacts :',
+    workflow ? `Mode opératoire (à suivre) :\n${workflow}` : '',
+    '',
+    'Champs à remplir (avec section, enum {value,label}, only_if conditionnel) :',
     JSON.stringify(fields, null, 0),
     '',
-    'Prestataires connus (id + nom) :',
+    'Prestataires connus (id + nom) — pour prestataire_id si source=prestataire :',
     JSON.stringify(prestataires.map((p) => ({ id: p.id, nom: p.nom })), null, 0),
     '',
     'Texte OCR brut (toutes pages concaténées, peut contenir des erreurs) :',
     ocrText || '(vide)',
     '',
-    'Les images suivent, une par une (étiquette Page N). Cases cochées et manuscrit inclus. Retourne le JSON {"fields":[...]}.',
-  ].join('\n');
+    'Les images suivent, une par une (étiquette Page N). Cases cochées et manuscrit inclus. Retourne le JSON {"fields":[{"code","value","confidence"}]} avec value = code enum quand applicable.',
+  ]
+    .filter((line, i, arr) => !(line === '' && arr[i - 1] === ''))
+    .join('\n');
 }
 
 function parseJsonResponse(raw) {
