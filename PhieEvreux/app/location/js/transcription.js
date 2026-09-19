@@ -182,13 +182,24 @@
 
     root.innerHTML = '';
     const wrap = el(`<div class="loc-tr-shell">
+      <div class="loc-info-banner" role="note">
+        <p class="loc-info-banner-title">Information</p>
+        <div class="loc-info-banner-body">
+          <ul>
+            <li><strong>Organisation</strong> — à gauche les documents scannés ; à droite le formulaire dossier (Patient → Personnel → Appareil → Location → Prolongation → Contacts), toujours ouvert en défilement.</li>
+            <li><strong>Import</strong> — bouton « Numériser / Importer » : plusieurs images et/ou PDF en une fois (les pages PDF sont séparées). « Photo » : plusieurs photos depuis la galerie. Un nouvel import s’ajoute aux documents déjà présents.</li>
+            <li><strong>Remplissage</strong> — OCR Azure + IA Gemini proposent les champs ; les pastilles affichent le texte détecté sur le document. Clic / Ctrl+clic / Maj+clic pour multi-sélection, puis glisser vers une case du formulaire. Cases manquantes : saisie manuelle.</li>
+            <li><strong>Pastilles</strong> — case « Afficher les pastilles » pour les masquer/afficher. Zoom − / + sur chaque document. Relisez avant Mise en attente ou Créer le dossier.</li>
+          </ul>
+        </div>
+      </div>
       <div class="loc-tr-toolbar">
         <button type="button" class="loc-btn" id="trImportBtn">Numériser / Importer</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="trPhotoBtn">Photo</button>
         <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,.pdf,application/pdf" multiple>
         <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" multiple>
         <label class="loc-check loc-tr-pills-toggle"><input type="checkbox" id="trShowPills" checked> Afficher les pastilles</label>
-        <p class="loc-muted" id="trStatus">Importez des images ou un PDF. OCR Azure (manuscrit amélioré) ; repli Tesseract si besoin.</p>
+        <p class="loc-muted loc-tr-status" id="trStatus" aria-live="polite"></p>
       </div>
       <div class="loc-tr-split">
         <section class="loc-tr-pane" id="trDocsPane" aria-label="Documents">
@@ -561,6 +572,71 @@
       } else {
         state.contact.motif = motif;
       }
+    }
+
+    function buildAiFieldSchema() {
+      const fields = [];
+      const push = (code, label, type, enumVals) => {
+        const row = { code, label, type: type || 'string' };
+        if (enumVals && enumVals.length) row.enum = enumVals;
+        fields.push(row);
+      };
+
+      push('patient_nom', 'Nom patient', 'string');
+      push('patient_prenom', 'Prénom patient', 'string');
+      push('patient_date_naissance', 'Date de naissance (YYYY-MM-DD)', 'date');
+      push('patient_adresse', 'Adresse patient', 'string');
+      push('patient_telephone', 'Téléphone patient', 'string');
+      push('patient_mails', 'Email patient', 'string');
+      push('code_op', 'Code OP / opérateur', 'string');
+      push('caution', 'Caution', 'enum', ['cheque_150', 'especes']);
+      push('notes', 'Notes', 'string');
+      push(
+        'type_appareil',
+        'Type appareil (tens=neurostimulateur/TENS)',
+        'enum',
+        Object.keys(LocationRules.TYPE_LABELS || {})
+      );
+      push('type_libelle', 'Libellé si type autre', 'string');
+      push('source', 'Source appareil', 'enum', ['parc', 'prestataire']);
+      push('prestataire_id', 'UUID prestataire si source prestataire', 'string');
+      push('matricule', 'Matricule / n° série', 'string');
+      push('numero_pharmacie', 'N° appareil pharmacie', 'string');
+      push('mode_obtention', 'Obtention', 'enum', ['depot', 'appel']);
+      push('livraison', 'Livraison', 'enum', ['pharmacie', 'domicile']);
+      push('desinfection', 'Désinfection faite', 'boolean');
+      push('encart_texte', 'Commentaire appareil', 'string');
+      push('date_debut', 'Date début location YYYY-MM-DD', 'date');
+      push('date_ordo', 'Date ordonnance YYYY-MM-DD', 'date');
+      push('duree', 'Durée (nombre)', 'number');
+      push('unite', 'Unité durée', 'enum', ['jours', 'semaines', 'mois']);
+      push('prolong_enabled', 'Ajouter une prolongation', 'boolean');
+      push('prolong_duree', 'Durée prolongation', 'number');
+      push('prolong_unite', 'Unité prolongation', 'enum', ['jours', 'semaines', 'mois']);
+      push('prolong_notes', 'Notes prolongation', 'string');
+      push('contact_enabled', 'Créer contact commentaire', 'boolean');
+      push('contact_motif', 'Motif contact', 'string');
+      push('contact_appel_enabled', 'Créer appel', 'boolean');
+      push('contact_appel_note', 'Commentaire appel', 'string');
+
+      for (const etape of LocationData.CREATION_ETAPES) {
+        for (const f of LocationData.listCreationFieldsForEtape(params, etape.id)) {
+          if (!f.custom) continue;
+          if (fields.some((x) => x.code === f.code)) continue;
+          push(f.code, f.label || f.code, 'string');
+        }
+      }
+      for (const champ of champsDef || []) {
+        if (!champ?.code || fields.some((x) => x.code === champ.code)) continue;
+        const t =
+          champ.data_type === 'oui_non'
+            ? 'boolean'
+            : champ.data_type === 'nombre'
+              ? 'number'
+              : 'string';
+        push(champ.code, champ.label || champ.code, t);
+      }
+      return fields;
     }
 
     function applyMappings(mappings) {
@@ -1628,9 +1704,10 @@
       wrap.querySelector('#trPhotoBtn').disabled = true;
       showMsg('');
       try {
-        setStatus(`OCR de ${files.length} fichier(s)…`);
+        setStatus(`OCR + IA de ${files.length} fichier(s)…`);
         const result = await LocationTranscriptionOcr.processFiles(files, {
           prestataires,
+          fields: buildAiFieldSchema(),
           onStatus: setStatus,
         });
         const added = result.pages || [];
@@ -1641,10 +1718,14 @@
         renderForm();
         if (result.errors && result.errors.length) {
           showMsg(`Certains fichiers ont échoué : ${result.errors.join(' — ')}`, true);
+        } else if (result.aiError) {
+          showMsg(`IA mapping : ${result.aiError} (heuristiques utilisées). Vérifiez GEMINI_API_KEY.`, true);
         }
         setStatus(
           state.pages.length
-            ? `${state.pages.length} page(s) — ${added.length} ajoutée(s). Clic / Ctrl+clic pour multi-sélection, puis glisser vers un champ. Manuscrit : relecture recommandée.`
+            ? `${state.pages.length} page(s) — ${added.length} ajoutée(s)${
+                result.aiCount ? `, IA ${result.aiCount} champs` : ''
+              }. Relisez les cases cochées / manuscrit.`
             : 'Aucun texte détecté.'
         );
       } catch (e) {

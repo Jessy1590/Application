@@ -12,6 +12,7 @@
   const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const MAX_OCR_WIDTH = 1600;
   const OCR_FN = 'ocr-document';
+  const MAP_FN = 'ocr-map-fields';
 
   /**
    * Identifiants en-tête Pharmacie Grand Evreux (docs types) — à exclure du patient.
@@ -138,6 +139,57 @@
       height: Number(body.height) || 0,
       engine: body.engine || 'azure-read',
     };
+  }
+
+  /**
+   * IA vision : remplit les champs du formulaire à partir des images + texte OCR.
+   * @returns {Promise<{ code: string, value: *, confidence: number }[]>}
+   */
+  async function callAiFieldMapping(opts) {
+    const apps = global.PhieEvreuxApps;
+    if (!apps) throw new Error('PhieEvreuxApps manquant');
+    const cfg = apps.getCfg();
+    const portail = apps.createPortailClient();
+    const {
+      data: { session },
+    } = await portail.auth.getSession();
+    if (!session?.access_token) throw new Error('Session expirée');
+
+    const res = await fetch(`${cfg.url}/functions/v1/${MAP_FN}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: cfg.anonKey,
+      },
+      body: JSON.stringify({
+        imagesBase64: (opts.imagesBase64 || []).slice(0, 4),
+        ocrText: opts.ocrText || '',
+        fields: opts.fields || [],
+        prestataires: (opts.prestataires || []).map((p) => ({
+          id: p.id,
+          nom: p.nom,
+        })),
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.error || `IA mapping HTTP ${res.status}`);
+    }
+    return Array.isArray(body.mappings) ? body.mappings : [];
+  }
+
+  function mergeMappings(heuristic, ai) {
+    const map = new Map();
+    for (const m of heuristic || []) {
+      if (m && m.code != null) map.set(m.code, m);
+    }
+    for (const m of ai || []) {
+      if (m && m.code != null && m.value != null && String(m.value).trim() !== '') {
+        map.set(m.code, m);
+      }
+    }
+    return Array.from(map.values());
   }
 
   function scaleWords(words, srcW, srcH, dstW, dstH) {
@@ -347,6 +399,7 @@
         height: resized.height,
         objectUrl: resized.objectUrl,
         blob: resized.blob,
+        base64,
         engine: azure.engine || 'azure-read',
       };
     } catch (azureErr) {
@@ -391,6 +444,7 @@
       height: resized.height,
       objectUrl: resized.objectUrl,
       blob: resized.blob,
+      base64,
       engine: 'tesseract-fallback',
     };
   }
@@ -812,6 +866,7 @@
     const list = Array.from(files || []);
     if (!list.length) return { pages: [], mappings: [] };
     const pages = [];
+    const imagesBase64 = [];
     const onStatus = opts?.onStatus || (() => {});
     const errors = [];
     let usedAzure = false;
@@ -840,6 +895,9 @@
             usedFallback = true;
             onStatus(`Repli Tesseract : ${src.label}`);
           }
+          if (ocr.base64 && imagesBase64.length < 4) {
+            imagesBase64.push(ocr.base64);
+          }
           pages.push({
             id: `p_${pages.length}_${Date.now()}`,
             label: src.label,
@@ -860,17 +918,39 @@
     }
 
     const fullText = pages.map((p) => p.text).join('\n\n');
-    const mappings = mapHeuristics(fullText, { prestataires: opts?.prestataires });
+    let heurMappings = mapHeuristics(fullText, { prestataires: opts?.prestataires });
+    let aiMappings = [];
+    let aiError = null;
+
+    if (pages.length && (opts?.fields || []).length) {
+      try {
+        onStatus('IA : lecture des cases / champs du formulaire…');
+        aiMappings = await callAiFieldMapping({
+          imagesBase64,
+          ocrText: fullText,
+          fields: opts.fields,
+          prestataires: opts.prestataires,
+        });
+        onStatus(`IA : ${aiMappings.length} champ(s) proposés`);
+      } catch (e) {
+        aiError = e && e.message ? e.message : String(e || 'erreur IA');
+        console.warn('[Transcription OCR] Mapping IA', aiError);
+        onStatus(`IA indisponible (${aiError}) — heuristiques seules`);
+      }
+    }
+
+    const mappings = mergeMappings(heurMappings, aiMappings);
     if (errors.length && !pages.length) {
       throw new Error(errors.join(' — '));
     }
     let doneMsg = `Terminé (${pages.length} page(s)`;
     if (usedAzure) doneMsg += ', Azure';
     if (usedFallback) doneMsg += ', repli Tesseract';
+    if (aiMappings.length) doneMsg += `, IA ${aiMappings.length} champs`;
     if (errors.length) doneMsg += `, ${errors.length} échec(s)`;
     doneMsg += ')';
     onStatus(doneMsg);
-    return { pages, mappings, fullText, errors };
+    return { pages, mappings, fullText, errors, aiError, aiCount: aiMappings.length };
   }
 
   async function terminateWorker() {
@@ -891,6 +971,7 @@
     parseFrDate,
     revokeUrl,
     terminateWorker,
+    callAiFieldMapping,
     MAX_OCR_WIDTH,
   };
 })(window);

@@ -77,17 +77,21 @@ Alternative : `SMTP_HTTP_URL` + `SMTP_PASS` + `SMTP_FROM` (voir `supabase/functi
 
 Si une délivrance MDS apparaît dans `psl_units` (statut `delivre`) mais pas au registre : vérifier / backfiller manuellement les lignes `psl_movements` (`movement_type = 'delivrance'`) — l’ancienne migration 009 n’est plus un fichier séparé (schéma inclus dans `006`).
 
-## 5c. OCR Transcription (Azure Document Intelligence)
-
-Secrets déjà à créer dans le dashboard Supabase (Edge Functions → Secrets) ou CLI :
+## 5c. OCR Transcription (Azure + mapping IA)
 
 ```bash
 supabase secrets set AZURE_DI_ENDPOINT="https://xxxx.cognitiveservices.azure.com/"
 supabase secrets set AZURE_DI_KEY="<clé Azure Document Intelligence>"
+supabase secrets set GEMINI_API_KEY="AIza..."
+# optionnel : supabase secrets set GEMINI_OCR_MODEL="gemini-3.8-flash"
 supabase functions deploy ocr-document
+supabase functions deploy ocr-map-fields
 ```
 
-Voir `supabase/functions/ocr-document/README.md`. Utilisé par le module Location **Transcription** (admins uniquement).
+- `ocr-document` : texte + pastilles (Azure Read)
+- `ocr-map-fields` : **Gemini 3.8 Flash** vision remplit chaque champ du formulaire (cases cochées, patient ≠ pharmacie)
+
+Voir `supabase/functions/ocr-document/README.md` et `ocr-map-fields/README.md`.
 
 ## 6. Rotation clé anon (après RLS verrouillée)
 
