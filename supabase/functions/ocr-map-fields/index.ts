@@ -12,7 +12,7 @@ const corsHeaders = {
 
 const SITE_ID = '9dd064a4-13ec-4cc2-9707-29210c3744ce';
 const MODEL = Deno.env.get('GEMINI_OCR_MODEL') || 'gemini-3.8-flash';
-const MAX_IMAGES = 4;
+const MAX_IMAGES = 8;
 
 function json(status, body) {
   return new Response(JSON.stringify(body), {
@@ -90,6 +90,12 @@ function buildSystemPrompt() {
 Objectif : pour CHAQUE champ fourni, décider s'il y a une valeur fiable à remplir. Réponds UNIQUEMENT en JSON valide :
 {"fields":[{"code":"...","value":"...","confidence":0.0}]}
 
+IMPORTANT — couverture complète :
+- Tu DOIS examiner TOUTES les images fournies (pas seulement les 1–2 premières) et le texte OCR de chaque page.
+- Tu DOIS remplir autant que possible TOUTES les sections du formulaire : Patient, Personnel (OP, caution), Appareil (type, source, Orkyn/parc, matricule, dates), Location (début, ordo, durée, unité), Prolongation et Contacts si visibles.
+- Une info sur la page 3 ou 4 (bon Orkyn, ordonnance, durée) a la même priorité qu’une info page 1.
+- Ne t’arrête pas après le bloc patient / en-tête.
+
 Règles strictes :
 1. N'invente rien. Si doute, omets le champ.
 2. IGNORE l'identité de la pharmacie (Pharmacie Grand Evreux, SIRET, téléphone pharmacie, en-tête) et IGNORE le prestataire (Orkyn, etc.) comme patient. Le patient = destinataire / NOM PRENOM / ordonnance.
@@ -109,19 +115,24 @@ Règles strictes :
 function buildUserText(payload) {
   const fields = Array.isArray(payload.fields) ? payload.fields : [];
   const prestataires = Array.isArray(payload.prestataires) ? payload.prestataires : [];
-  const ocrText = String(payload.ocrText || '').slice(0, 12000);
+  const ocrText = String(payload.ocrText || '').slice(0, 28000);
+  const pageCount = Number(payload.pageCount) || 0;
 
   return [
-    'Champs à remplir (code + label + type/enum) :',
+    pageCount
+      ? `Ce dossier comporte ${pageCount} page(s) image. Analyse-les toutes avant de répondre.`
+      : 'Analyse toutes les images jointes avant de répondre.',
+    '',
+    'Champs à remplir (code + label + type/enum) — couvre Patient + Personnel + Appareil + Location + Prolongation + Contacts :',
     JSON.stringify(fields, null, 0),
     '',
     'Prestataires connus (id + nom) :',
     JSON.stringify(prestataires.map((p) => ({ id: p.id, nom: p.nom })), null, 0),
     '',
-    'Texte OCR brut (aide, peut contenir des erreurs) :',
+    'Texte OCR brut (toutes pages concaténées, peut contenir des erreurs) :',
     ocrText || '(vide)',
     '',
-    'Analyse aussi les images jointes (cases cochées, manuscrit). Retourne le JSON {"fields":[...]}.',
+    'Les images suivent, une par une (étiquette Page N). Cases cochées et manuscrit inclus. Retourne le JSON {"fields":[...]}.',
   ].join('\n');
 }
 
@@ -143,16 +154,17 @@ async function callGemini({ imagesBase64, payload }) {
 
   const parts = [{ text: buildUserText(payload) }];
   const imgs = (imagesBase64 || []).slice(0, MAX_IMAGES);
-  for (const raw of imgs) {
+  imgs.forEach((raw, idx) => {
     const b64 = stripDataUrl(raw);
-    if (!b64) continue;
+    if (!b64) return;
+    parts.push({ text: `\n--- Page ${idx + 1} / ${imgs.length} ---` });
     parts.push({
       inline_data: {
         mime_type: 'image/jpeg',
         data: b64,
       },
     });
-  }
+  });
 
   if (parts.length < 2 && !payload.ocrText) {
     throw new Error('Aucune image ni texte OCR fourni');
@@ -175,7 +187,7 @@ async function callGemini({ imagesBase64, payload }) {
       generationConfig: {
         temperature: 0.1,
         responseMimeType: 'application/json',
-        thinkingConfig: { thinkingLevel: 'low' },
+        thinkingConfig: { thinkingLevel: 'medium' },
       },
     }),
   });
@@ -247,7 +259,10 @@ Deno.serve(async (req) => {
         ? [payload.imageBase64]
         : [];
 
-    const result = await callGemini({ imagesBase64, payload });
+    const result = await callGemini({
+      imagesBase64,
+      payload: { ...payload, pageCount: imagesBase64.length },
+    });
     return json(200, {
       mappings: result.fields,
       model: result.model,

@@ -163,13 +163,14 @@
         apikey: cfg.anonKey,
       },
       body: JSON.stringify({
-        imagesBase64: (opts.imagesBase64 || []).slice(0, 4),
+        imagesBase64: (opts.imagesBase64 || []).slice(0, 8),
         ocrText: opts.ocrText || '',
         fields: opts.fields || [],
         prestataires: (opts.prestataires || []).map((p) => ({
           id: p.id,
           nom: p.nom,
         })),
+        pageCount: (opts.imagesBase64 || []).length,
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -895,7 +896,7 @@
             usedFallback = true;
             onStatus(`Repli Tesseract : ${src.label}`);
           }
-          if (ocr.base64 && imagesBase64.length < 4) {
+          if (ocr.base64 && imagesBase64.length < 8) {
             imagesBase64.push(ocr.base64);
           }
           pages.push({
