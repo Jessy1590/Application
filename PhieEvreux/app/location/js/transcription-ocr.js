@@ -178,20 +178,73 @@
     if (!res.ok) {
       throw new Error(body.error || `IA mapping HTTP ${res.status}`);
     }
-    return Array.isArray(body.mappings) ? body.mappings : [];
+    return {
+      mappings: Array.isArray(body.mappings) ? body.mappings : [],
+      raw: body.raw != null ? body.raw : body.mappings,
+      model: body.model || null,
+      engine: body.engine || 'gemini-vision',
+      usage: body.usage || null,
+    };
   }
 
   function mergeMappings(heuristic, ai) {
     const map = new Map();
     for (const m of heuristic || []) {
-      if (m && m.code != null) map.set(m.code, m);
+      if (m && m.code != null) map.set(m.code, { ...m, source: m.source || 'heuristique' });
     }
     for (const m of ai || []) {
       if (m && m.code != null && m.value != null && String(m.value).trim() !== '') {
-        map.set(m.code, m);
+        map.set(m.code, { ...m, source: m.source || 'ia' });
       }
     }
     return Array.from(map.values());
+  }
+
+  /**
+   * Si le document montre clairement NEUROSTIMULATEUR / TENS, forcer type_appareil=tens
+   * (corrige IA qui omet ou met « autre »).
+   */
+  function enforceTypeFromDocument(mappings, fullText) {
+    const detected = detectTypeAppareil(fullText);
+    const n = normalizeText(fullText);
+    const map = new Map((mappings || []).map((m) => [m.code, m]));
+    const cur = map.get('type_appareil');
+    const curNorm = resolveLooseType(cur?.value);
+
+    let forced = detected;
+    if (/neurostim/.test(n) || (/\btens\b/.test(n) && !/tire.?lait/.test(n))) {
+      forced = 'tens';
+    }
+
+    if (forced && forced !== curNorm) {
+      map.set('type_appareil', {
+        code: 'type_appareil',
+        value: forced,
+        confidence: 0.95,
+        source: 'ocr-force',
+        previous: cur?.value ?? null,
+      });
+    } else if (forced && !curNorm) {
+      map.set('type_appareil', {
+        code: 'type_appareil',
+        value: forced,
+        confidence: 0.9,
+        source: 'ocr-force',
+      });
+    }
+    return Array.from(map.values());
+  }
+
+  function resolveLooseType(v) {
+    const s = String(v || '').trim().toLowerCase();
+    if (!s) return '';
+    if (['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'].includes(s)) return s;
+    if (/neurostim|tens/.test(s)) return 'tens';
+    if (/tire.?lait/.test(s)) return 'tire_lait';
+    if (/a[eé]rosol/.test(s)) return 'aerosol';
+    if (/p[eè]se/.test(s)) return 'pese_bebe';
+    if (/fauteuil/.test(s)) return 'fauteuil';
+    return '';
   }
 
   function scaleWords(words, srcW, srcH, dstW, dstH) {
@@ -563,9 +616,11 @@
 
   function detectTypeAppareil(text) {
     const n = normalizeText(text);
-    if (/neurostim|neuro.?stimul|tens\b|neurostimulation/.test(n)) return 'tens';
-    if (/tire.?lait|tirelait/.test(n)) return 'tire_lait';
-    if (/a[eé]rosol|nebuliseur|n[eé]buliseur/.test(n)) return 'aerosol';
+    /* Neurostimulateur / TENS en premier (fiche papier : section + case TENS) */
+    if (/neurostim|neuro.?stimul|neurostimulation/.test(n)) return 'tens';
+    if (/\btens\b|tens\s*eco|actitens|cefar/.test(n)) return 'tens';
+    if (/tire.?lait|tirelait|medela|symphony/.test(n)) return 'tire_lait';
+    if (/a[eé]rosol|nebuliseur|n[eé]buliseur|aerosoltherapie/.test(n)) return 'aerosol';
     if (/p[eè]se.?b[eé]b[eé]|pesee.?bebe|pesebebe/.test(n)) return 'pese_bebe';
     if (/fauteuil/.test(n)) return 'fauteuil';
     return null;
@@ -923,17 +978,26 @@
     let heurMappings = mapHeuristics(fullText, { prestataires: opts?.prestataires });
     let aiMappings = [];
     let aiError = null;
+    let aiDebug = null;
 
     if (pages.length && (opts?.fields || []).length) {
       try {
         onStatus('IA : lecture des cases / champs du formulaire…');
-        aiMappings = await callAiFieldMapping({
+        const aiRes = await callAiFieldMapping({
           imagesBase64,
           ocrText: fullText,
           fields: opts.fields,
           workflow: opts.workflow,
           prestataires: opts.prestataires,
         });
+        aiMappings = aiRes.mappings || [];
+        aiDebug = {
+          model: aiRes.model,
+          engine: aiRes.engine,
+          usage: aiRes.usage,
+          raw: aiRes.raw,
+          mappings: aiMappings,
+        };
         onStatus(`IA : ${aiMappings.length} champ(s) proposés`);
       } catch (e) {
         aiError = e && e.message ? e.message : String(e || 'erreur IA');
@@ -942,7 +1006,8 @@
       }
     }
 
-    const mappings = mergeMappings(heurMappings, aiMappings);
+    let mappings = mergeMappings(heurMappings, aiMappings);
+    mappings = enforceTypeFromDocument(mappings, fullText);
     if (errors.length && !pages.length) {
       throw new Error(errors.join(' — '));
     }
@@ -953,7 +1018,16 @@
     if (errors.length) doneMsg += `, ${errors.length} échec(s)`;
     doneMsg += ')';
     onStatus(doneMsg);
-    return { pages, mappings, fullText, errors, aiError, aiCount: aiMappings.length };
+    return {
+      pages,
+      mappings,
+      fullText,
+      errors,
+      aiError,
+      aiCount: aiMappings.length,
+      aiDebug,
+      heurMappings,
+    };
   }
 
   async function terminateWorker() {

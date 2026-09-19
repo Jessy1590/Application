@@ -94,6 +94,7 @@ IMPORTANT — schéma dynamique :
 - La liste des champs est générée depuis Paramètres Location (catalogue + spécificités appareil). Respecte chaque only_if et chaque enum[].value.
 - Si type_appareil=X, remplis tous les champs dont only_if.type_appareil=X (spécificités). Ignore les spécificités des autres types.
 - Si source=prestataire / parc, applique les only_if correspondants.
+- Si la section NEUROSTIMULATEUR est cochée et/ou la case TENS (ou TENS ECO / ACTITENS) est cochée → type_appareil = "tens" obligatoirement (jamais "autre").
 - Enums : value = code exact, jamais le libellé seul.
 
 IMPORTANT — couverture complète :
@@ -231,6 +232,7 @@ async function callGemini({ imagesBase64, payload }) {
 
   return {
     fields,
+    raw,
     model: MODEL,
     usage: body.usageMetadata || null,
   };
@@ -269,6 +271,7 @@ Deno.serve(async (req) => {
     });
     return json(200, {
       mappings: result.fields,
+      raw: result.raw,
       model: result.model,
       usage: result.usage,
       engine: 'gemini-vision',

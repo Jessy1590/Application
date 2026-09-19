@@ -132,6 +132,7 @@
       showPills: true,
       selectedPillKeys: new Set(),
       lastPillKey: null,
+      pendingMappings: null,
       patient_id: null,
       patient: {
         nom: '',
@@ -874,12 +875,94 @@
     function applyMappings(mappings) {
       for (const m of mappings || []) {
         if (!m || !m.code) continue;
-        if (!isFieldEmpty(m.code)) continue;
+        /* type_appareil a un défaut UI (aerosol) : toujours appliquer le mapping OCR/IA */
+        const forceType = m.code === 'type_appareil';
+        if (!forceType && !isFieldEmpty(m.code)) continue;
         applyValueToState(m.code, m.value);
       }
       if (state.appareil.source === 'parc') {
         state.appareil.prestataire_id = '';
       }
+    }
+
+    /** Debug temporaire : réponse IA avant remplissage du formulaire */
+    function renderAiDebug(result) {
+      let panel = wrap.querySelector('#trAiDebug');
+      if (!panel) {
+        panel = el(`<div class="loc-tr-ai-debug" id="trAiDebug" hidden>
+          <div class="loc-tr-ai-debug-head">
+            <strong>Debug IA (temporaire)</strong>
+            <span class="loc-muted" id="trAiDebugMeta"></span>
+          </div>
+          <p class="loc-muted loc-tr-ai-debug-hint">Vérifiez si type_appareil / TENS apparaît ci-dessous. Le formulaire n’est pas encore rempli.</p>
+          <pre class="loc-tr-ai-debug-pre" id="trAiDebugPre"></pre>
+          <div class="loc-tr-ai-debug-actions">
+            <button type="button" class="loc-btn" id="trAiApplyBtn">Appliquer au formulaire</button>
+            <button type="button" class="loc-btn loc-btn-ghost" id="trAiHideBtn">Masquer</button>
+          </div>
+        </div>`);
+        const toolbar = wrap.querySelector('.loc-tr-toolbar');
+        if (toolbar && toolbar.nextSibling) {
+          wrap.insertBefore(panel, toolbar.nextSibling);
+        } else {
+          wrap.appendChild(panel);
+        }
+        panel.querySelector('#trAiApplyBtn')?.addEventListener('click', () => {
+          const pending = state.pendingMappings;
+          if (!pending || !pending.length) {
+            showMsg('Aucun mapping à appliquer.', true);
+            return;
+          }
+          collectAll();
+          applyMappings(pending);
+          state.pendingMappings = null;
+          renderForm();
+          showMsg('Mappings appliqués au formulaire.');
+          setStatus(
+            `Formulaire mis à jour — type appareil : ${state.appareil.type_appareil || '—'}`
+          );
+        });
+        panel.querySelector('#trAiHideBtn')?.addEventListener('click', () => {
+          panel.hidden = true;
+        });
+      }
+
+      const meta = panel.querySelector('#trAiDebugMeta');
+      const pre = panel.querySelector('#trAiDebugPre');
+      const dbg = result?.aiDebug || null;
+      const typeFinal = (result?.mappings || []).find((m) => m.code === 'type_appareil');
+      const typeAi = (dbg?.mappings || []).find((m) => m.code === 'type_appareil');
+      const typeHeur = (result?.heurMappings || []).find((m) => m.code === 'type_appareil');
+
+      if (meta) {
+        meta.textContent = [
+          dbg?.engine || 'sans IA',
+          dbg?.model || '',
+          result?.aiError ? `erreur: ${result.aiError}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+      }
+
+      const payload = {
+        resume: {
+          type_appareil_ia: typeAi?.value ?? null,
+          type_appareil_heuristique: typeHeur?.value ?? null,
+          type_appareil_final: typeFinal
+            ? { value: typeFinal.value, source: typeFinal.source || null, previous: typeFinal.previous ?? null }
+            : null,
+          aiCount: result?.aiCount ?? 0,
+          aiError: result?.aiError || null,
+        },
+        mappings_finaux: result?.mappings || [],
+        mappings_ia_bruts: dbg?.mappings || [],
+        mappings_heuristiques: result?.heurMappings || [],
+        reponse_ia_raw: dbg?.raw ?? null,
+        usage: dbg?.usage ?? null,
+      };
+      if (pre) pre.textContent = JSON.stringify(payload, null, 2);
+      panel.hidden = false;
+      state.pendingMappings = result?.mappings || [];
     }
 
     function collectCustomFields(etapeId) {
@@ -1946,20 +2029,24 @@
         });
         const added = result.pages || [];
         state.pages = state.pages.concat(added);
-        collectAll();
-        applyMappings(result.mappings);
         renderDocs();
         renderForm();
+        renderAiDebug(result);
         if (result.errors && result.errors.length) {
           showMsg(`Certains fichiers ont échoué : ${result.errors.join(' — ')}`, true);
         } else if (result.aiError) {
           showMsg(`IA mapping : ${result.aiError} (heuristiques utilisées). Vérifiez GEMINI_API_KEY.`, true);
+        } else {
+          showMsg(
+            'Réponse IA affichée ci-dessus — cliquez « Appliquer au formulaire » pour remplir le dossier.',
+            false
+          );
         }
         setStatus(
           state.pages.length
             ? `${state.pages.length} page(s) — ${added.length} ajoutée(s)${
                 result.aiCount ? `, IA ${result.aiCount} champs` : ''
-              }. Relisez les cases cochées / manuscrit.`
+              }. Vérifiez le debug IA puis appliquez.`
             : 'Aucun texte détecté.'
         );
       } catch (e) {
