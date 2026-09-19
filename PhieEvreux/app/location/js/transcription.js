@@ -172,6 +172,10 @@
         enabled: false,
         template_id: '',
         motif: '',
+        appel_enabled: false,
+        appel_note: '',
+        appel_statut: '',
+        appel_mail: '',
       },
       busy: false,
     };
@@ -182,7 +186,7 @@
         <button type="button" class="loc-btn" id="trImportBtn">Numériser / Importer</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="trPhotoBtn">Photo</button>
         <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,.pdf,application/pdf" multiple>
-        <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" capture="environment">
+        <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" multiple>
         <label class="loc-check loc-tr-pills-toggle"><input type="checkbox" id="trShowPills" checked> Afficher les pastilles</label>
         <p class="loc-muted" id="trStatus">Importez des images ou un PDF scanné. Manuscrit : relecture / glisser-déposer recommandés.</p>
       </div>
@@ -359,6 +363,12 @@
           return !state.contact.enabled || !state.contact.motif;
         case 'contact_template_id':
           return !state.contact.enabled || !state.contact.template_id;
+        case 'contact_appel_enabled':
+          return !state.contact.appel_enabled;
+        case 'contact_appel_note':
+        case 'contact_appel_statut':
+        case 'contact_appel_mail':
+          return !state.contact.appel_enabled;
         default: {
           const v = state.appareil.champs_extra?.[code];
           return v == null || v === '';
@@ -489,6 +499,38 @@
           if (v) {
             state.contact.template_id = v;
             state.contact.enabled = true;
+          }
+          break;
+        case 'contact_appel_enabled':
+          state.contact.appel_enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          break;
+        case 'contact_appel_note':
+          if (v) {
+            state.contact.appel_note = state.contact.appel_note
+              ? `${state.contact.appel_note} ${v}`.trim()
+              : v;
+            state.contact.appel_enabled = true;
+          }
+          break;
+        case 'contact_appel_statut':
+          if (v) {
+            const key = v.toLowerCase().replace(/\s+/g, '_');
+            if (/rappeler|a_rappeler/.test(key)) state.contact.appel_statut = 'a_rappeler';
+            else if (/terminer|termine|terminé/.test(key)) state.contact.appel_statut = 'termine';
+            else if (/perte/.test(key)) state.contact.appel_statut = 'PERTE';
+            else if (/appeler|a_appeler|à_appeler/.test(key)) state.contact.appel_statut = 'a_appeler';
+            else state.contact.appel_statut = v;
+            state.contact.appel_enabled = true;
+          }
+          break;
+        case 'contact_appel_mail':
+          if (v) {
+            const key = v.toLowerCase();
+            if (/oui|yes|envoyé|envoye/.test(key)) state.contact.appel_mail = 'yes';
+            else if (/faire|afaire|à faire/.test(key)) state.contact.appel_mail = 'afaire';
+            else if (/non|no/.test(key)) state.contact.appel_mail = 'no';
+            else state.contact.appel_mail = v;
+            state.contact.appel_enabled = true;
           }
           break;
         default:
@@ -653,6 +695,14 @@
         const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
         state.contact.motif = tpl?.motif || state.contact.motif || '';
       }
+      const appelEn = formEl.querySelector('[name=contact_appel_enabled]');
+      if (appelEn) state.contact.appel_enabled = !!appelEn.checked;
+      const appelNote = formEl.querySelector('[name=contact_appel_note]');
+      if (appelNote) state.contact.appel_note = appelNote.value.trim() || '';
+      const appelSt = formEl.querySelector('[name=contact_appel_statut]:checked');
+      if (appelSt) state.contact.appel_statut = appelSt.value || '';
+      const appelMail = formEl.querySelector('[name=contact_appel_mail]:checked');
+      if (appelMail) state.contact.appel_mail = appelMail.value || '';
     }
 
     function validateCustomFields(etapeId) {
@@ -1093,9 +1143,20 @@
         if (!selectedId) selectedId = list[0].id;
       }
       const selected = list.find((t) => t.id === selectedId) || null;
+      const statutChoices = [
+        ['a_appeler', 'À appeler'],
+        ['a_rappeler', 'À rappeler'],
+        ['termine', 'Terminé'],
+        ['PERTE', 'PERTE'],
+      ];
+      const mailChoices = [
+        ['yes', 'Oui — j’envoie un mail'],
+        ['afaire', 'À faire'],
+        ['no', 'Non'],
+      ];
       return `<div class="loc-tr-form-section" data-etape="contact">
         <h3>Contacts</h3>
-        <p class="loc-hint">Créé uniquement à la validation « Créer le dossier » (dossier actif), via les templates admin.</p>
+        <p class="loc-hint">Créé uniquement à la validation « Créer le dossier » (dossier actif).</p>
         <label class="loc-check" data-field-code="contact_enabled">
           <input type="checkbox" name="contact_enabled"${co.enabled ? ' checked' : ''}${list.length ? '' : ' disabled'}>
           Créer un contact (phase commentaire)
@@ -1124,6 +1185,37 @@
           <div id="trContactPreview">${contactPreviewHtml(selected)}</div>
         </div>`
         }
+        <label class="loc-check" data-field-code="contact_appel_enabled" style="margin-top:12px">
+          <input type="checkbox" name="contact_appel_enabled"${co.appel_enabled ? ' checked' : ''}>
+          Créer un appel (phase appel)
+        </label>
+        <div id="trContactAppelFields"${co.appel_enabled ? '' : ' hidden'}>
+          <p class="loc-hint">Comme « Autres » dans Contact : commentaire, statut, puis mail.</p>
+          ${field(
+            'Commentaire appel',
+            `<textarea name="contact_appel_note" data-field-code="contact_appel_note" rows="3" placeholder="Obligatoire — ce qui a été dit">${esc(co.appel_note || '')}</textarea>`,
+            true,
+            'contact_appel_note'
+          )}
+          <p class="loc-muted" style="margin:8px 0 4px">Statut de l’appel</p>
+          <div class="loc-tr-choice-row" data-field-code="contact_appel_statut" role="group" aria-label="Statut appel">
+            ${statutChoices
+              .map(
+                ([code, label]) =>
+                  `<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_statut" value="${esc(code)}"${co.appel_statut === code ? ' checked' : ''}> ${esc(label)}</label>`
+              )
+              .join('')}
+          </div>
+          <p class="loc-muted" style="margin:12px 0 4px">Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?</p>
+          <div class="loc-tr-choice-row" data-field-code="contact_appel_mail" role="group" aria-label="Mail">
+            ${mailChoices
+              .map(
+                ([code, label]) =>
+                  `<label class="loc-check loc-tr-choice"><input type="radio" name="contact_appel_mail" value="${esc(code)}"${co.appel_mail === code ? ' checked' : ''}> ${esc(label)}</label>`
+              )
+              .join('')}
+          </div>
+        </div>
       </div>`;
     }
 
@@ -1228,12 +1320,20 @@
         }
         renderForm();
       });
+      formEl.querySelector('[name=contact_appel_enabled]')?.addEventListener('change', () => {
+        collectAll();
+        renderForm();
+      });
       formEl.querySelector('[name=contact_template_id]')?.addEventListener('change', () => {
         collectAll();
         const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
         const preview = formEl.querySelector('#trContactPreview');
         if (preview) preview.innerHTML = contactPreviewHtml(tpl || null);
       });
+      formEl.querySelectorAll('[name=contact_appel_statut],[name=contact_appel_mail]').forEach((i) => {
+        i.addEventListener('change', () => collectAll());
+      });
+      formEl.querySelector('[name=contact_appel_note]')?.addEventListener('input', () => collectAll());
 
       bindDropZones();
     }
@@ -1317,9 +1417,20 @@
         enabled: false,
         template_id: '',
         motif: '',
+        appel_enabled: false,
+        appel_note: '',
+        appel_statut: '',
+        appel_mail: '',
       };
       renderDocs();
       renderForm();
+    }
+
+    function mapAppelStatut(ancienne) {
+      if (ancienne === 'termine' || ancienne === 'PERTE') return 'resolu';
+      if (ancienne === 'a_rappeler') return 'reporte';
+      if (ancienne === 'a_appeler') return 'a_contacter';
+      return 'a_contacter';
     }
 
     async function applyProlongationIfNeeded(dossier) {
@@ -1355,29 +1466,63 @@
 
     async function applyContactIfNeeded(dossier) {
       const co = state.contact;
-      if (!co.enabled || !co.template_id) return null;
-      const tpl = templatesAll.find((t) => t.id === co.template_id);
-      if (!tpl || !String(tpl.corps || '').trim()) {
-        throw new Error('Template contact introuvable ou vide.');
+      if (!co.enabled && !co.appel_enabled) return null;
+
+      const d = dossier.date_fin ? dossier : await LocationData.getDossier(dossier.id);
+      let motif = co.motif || 'prolongation';
+      let lgoText = '';
+      let contactId = null;
+
+      if (co.enabled) {
+        if (!co.template_id) throw new Error('Template contact introuvable.');
+        const tpl = templatesAll.find((t) => t.id === co.template_id);
+        if (!tpl || !String(tpl.corps || '').trim()) {
+          throw new Error('Template contact introuvable ou vide.');
+        }
+        motif = tpl.motif || co.motif || 'prolongation';
+        const vars = LocationData.contactInterpVars(motif, await LocationData.loadRules(), d);
+        lgoText = LocationRules.interpolate(String(tpl.corps), vars);
+        const row = await LocationData.upsertContact({
+          dossier_id: d.id,
+          motif,
+          statut: 'a_contacter',
+          phase: 'commentaire',
+          commentaire: lgoText,
+          phase_date_fin: d.date_fin || null,
+          created_by: ctx.userId || null,
+        });
+        contactId = row?.id || null;
       }
-      const d = dossier.date_fin
-        ? dossier
-        : await LocationData.getDossier(dossier.id);
-      const vars = LocationData.contactInterpVars(
-        tpl.motif || co.motif || 'prolongation',
-        await LocationData.loadRules(),
-        d
-      );
-      const commentaire = LocationRules.interpolate(String(tpl.corps), vars);
-      await LocationData.upsertContact({
-        dossier_id: d.id,
-        motif: tpl.motif || co.motif || 'prolongation',
-        statut: 'a_contacter',
-        phase: 'commentaire',
-        commentaire,
-        phase_date_fin: d.date_fin || null,
-        created_by: ctx.userId || null,
-      });
+
+      if (co.appel_enabled) {
+        const note = String(co.appel_note || '').trim();
+        if (!note) throw new Error('Commentaire appel obligatoire.');
+        if (!co.appel_statut) throw new Error('Choisissez le statut de l’appel.');
+        if (!co.appel_mail) throw new Error('Choisissez l’option mail (Oui / À faire / Non).');
+
+        if (!motif && co.template_id) {
+          const tpl = templatesAll.find((t) => t.id === co.template_id);
+          motif = tpl?.motif || 'prolongation';
+        }
+        if (!motif) motif = 'prolongation';
+
+        const isPerte = co.appel_statut === 'PERTE';
+        const commentaire = lgoText ? `${lgoText}\n\n--- Appel ---\n${note}` : note;
+        const appelRow = {
+          dossier_id: d.id,
+          motif,
+          statut: mapAppelStatut(co.appel_statut),
+          phase: 'appel',
+          resultat: isPerte ? 'PERTE' : 'autre_raison',
+          commentaire,
+          commentaire_fait_at: co.enabled ? new Date().toISOString() : null,
+          phase_date_fin: d.date_fin || null,
+          mail_envoye: co.appel_mail === 'yes',
+        };
+        if (contactId) appelRow.id = contactId;
+        else appelRow.created_by = ctx.userId || null;
+        await LocationData.upsertContact(appelRow);
+      }
       return true;
     }
 
@@ -1408,8 +1553,8 @@
         });
         await persistExtras(dossier, { asActif: false });
         showMsg(
-          state.contact.enabled
-            ? 'Dossier mis en attente (contact non créé — réservé au dossier actif).'
+          state.contact.enabled || state.contact.appel_enabled
+            ? 'Dossier mis en attente (contact / appel non créés — réservés au dossier actif).'
             : 'Dossier mis en attente.'
         );
         resetAfterSave();
@@ -1434,6 +1579,17 @@
       }
       if (state.contact.enabled && !state.contact.template_id) {
         return showMsg('Choisissez un template contact.', true);
+      }
+      if (state.contact.appel_enabled) {
+        if (!String(state.contact.appel_note || '').trim()) {
+          return showMsg('Commentaire appel obligatoire.', true);
+        }
+        if (!state.contact.appel_statut) {
+          return showMsg('Choisissez le statut de l’appel.', true);
+        }
+        if (!state.contact.appel_mail) {
+          return showMsg('Choisissez l’option mail (Oui / À faire / Non).', true);
+        }
       }
       state.busy = true;
       const btn = actionsEl.querySelector('#trSave');
@@ -1511,8 +1667,10 @@
     fileInput.multiple = true;
     fileInput.accept = 'image/*,.pdf,application/pdf';
     fileInput.removeAttribute('capture');
-    photoInput.multiple = false;
+    /* Sans capture : la galerie autorise plusieurs photos ; capture forçait souvent 1 seule. */
+    photoInput.multiple = true;
     photoInput.accept = 'image/*';
+    photoInput.removeAttribute('capture');
 
     wrap.querySelector('#trImportBtn').addEventListener('click', (e) => {
       e.preventDefault();

@@ -223,6 +223,17 @@ body.loc-transcription-page .loc-top {
   transition: outline-color 0.15s ease;
 }
 
+.loc-tr-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.loc-tr-choice {
+  margin: 0;
+}
+
 .loc-tr-actions {
   display: flex;
   flex-wrap: wrap;
