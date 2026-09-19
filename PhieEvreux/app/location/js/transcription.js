@@ -188,7 +188,7 @@
         <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,.pdf,application/pdf" multiple>
         <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" multiple>
         <label class="loc-check loc-tr-pills-toggle"><input type="checkbox" id="trShowPills" checked> Afficher les pastilles</label>
-        <p class="loc-muted" id="trStatus">Importez des images ou un PDF scanné. Manuscrit : relecture / glisser-déposer recommandés.</p>
+        <p class="loc-muted" id="trStatus">Importez des images ou un PDF. OCR Azure (manuscrit amélioré) ; repli Tesseract si besoin.</p>
       </div>
       <div class="loc-tr-split">
         <section class="loc-tr-pane" id="trDocsPane" aria-label="Documents">

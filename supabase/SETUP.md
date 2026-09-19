@@ -76,6 +76,19 @@ supabase secrets set SMTP_FROM="Pharmacie <noreply@votredomaine.fr>"
 Alternative : `SMTP_HTTP_URL` + `SMTP_PASS` + `SMTP_FROM` (voir `supabase/functions/send-transactional-email/README.md`).
 
 Si une délivrance MDS apparaît dans `psl_units` (statut `delivre`) mais pas au registre : vérifier / backfiller manuellement les lignes `psl_movements` (`movement_type = 'delivrance'`) — l’ancienne migration 009 n’est plus un fichier séparé (schéma inclus dans `006`).
+
+## 5c. OCR Transcription (Azure Document Intelligence)
+
+Secrets déjà à créer dans le dashboard Supabase (Edge Functions → Secrets) ou CLI :
+
+```bash
+supabase secrets set AZURE_DI_ENDPOINT="https://xxxx.cognitiveservices.azure.com/"
+supabase secrets set AZURE_DI_KEY="<clé Azure Document Intelligence>"
+supabase functions deploy ocr-document
+```
+
+Voir `supabase/functions/ocr-document/README.md`. Utilisé par le module Location **Transcription** (admins uniquement).
+
 ## 6. Rotation clé anon (après RLS verrouillée)
 
 1. Settings → API → Regenerate anon key

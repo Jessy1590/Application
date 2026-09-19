@@ -1,15 +1,17 @@
 /**
- * OCR Transcription — Tesseract.js + pdf.js (CDN jsDelivr) + heuristiques FR.
+ * OCR Transcription — Azure Document Intelligence (Edge Function ocr-document)
+ * + pdf.js (CDN) + heuristiques FR. Repli Tesseract.js si Azure indisponible.
  * Images/PDF uniquement en mémoire (blob) — pas de stockage distant.
  *
  * Mapping patient / en-têtes : règles heuristiques uniquement (blacklist pharmacie,
- * noms prestataires, labels NOM/PRENOM) — pas d’IA payante ni de modèle ML externe.
+ * noms prestataires, labels NOM/PRENOM) — pas d’extraction LLM.
  */
 (function (global) {
   const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
   const PDFJS_CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
   const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const MAX_OCR_WIDTH = 1600;
+  const OCR_FN = 'ocr-document';
 
   /**
    * Identifiants en-tête Pharmacie Grand Evreux (docs types) — à exclure du patient.
@@ -30,7 +32,8 @@
   /** Sous-chaînes typiques d’en-tête (lignes), plus larges que le test sur une valeur champ. */
   const PHARMACIE_HEADER_EXTRA = ['grand evreux', '27000 evreux', 'evreux cedex', 'www.'];
 
-  let libsPromise = null;
+  let pdfPromise = null;
+  let tessPromise = null;
   let workerPromise = null;
 
   function loadScript(src) {
@@ -48,19 +51,32 @@
     });
   }
 
-  async function ensureLibs() {
-    if (libsPromise) return libsPromise;
-    libsPromise = (async () => {
-      await Promise.all([loadScript(TESSERACT_CDN), loadScript(PDFJS_CDN)]);
-      if (!global.Tesseract) throw new Error('Tesseract.js indisponible');
+  async function ensurePdfLib() {
+    if (pdfPromise) return pdfPromise;
+    pdfPromise = (async () => {
+      await loadScript(PDFJS_CDN);
       if (!global.pdfjsLib) throw new Error('pdf.js indisponible');
       global.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
     })();
-    return libsPromise;
+    return pdfPromise;
+  }
+
+  async function ensureTesseract() {
+    if (tessPromise) return tessPromise;
+    tessPromise = (async () => {
+      await loadScript(TESSERACT_CDN);
+      if (!global.Tesseract) throw new Error('Tesseract.js indisponible');
+    })();
+    return tessPromise;
+  }
+
+  /** @deprecated use ensurePdfLib / ensureTesseract */
+  async function ensureLibs() {
+    await Promise.all([ensurePdfLib(), ensureTesseract()]);
   }
 
   async function getWorker(onProgress) {
-    await ensureLibs();
+    await ensureTesseract();
     if (workerPromise) return workerPromise;
     workerPromise = (async () => {
       const worker = await global.Tesseract.createWorker('fra', 1, {
@@ -73,6 +89,71 @@
       return worker;
     })();
     return workerPromise;
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const s = String(reader.result || '');
+        const i = s.indexOf(',');
+        resolve(i >= 0 ? s.slice(i + 1) : s);
+      };
+      reader.onerror = () => reject(new Error('Lecture base64 impossible'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /**
+   * Appel Edge Function ocr-document (Azure Read).
+   * @returns {Promise<{ text: string, words: object[], width: number, height: number, engine: string }>}
+   */
+  async function callAzureOcr(imageBase64) {
+    const apps = global.PhieEvreuxApps;
+    if (!apps) throw new Error('PhieEvreuxApps manquant');
+    const cfg = apps.getCfg();
+    const portail = apps.createPortailClient();
+    const {
+      data: { session },
+    } = await portail.auth.getSession();
+    if (!session?.access_token) throw new Error('Session expirée');
+
+    const res = await fetch(`${cfg.url}/functions/v1/${OCR_FN}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: cfg.anonKey,
+      },
+      body: JSON.stringify({ imageBase64 }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body.error || `OCR Azure HTTP ${res.status}`);
+    }
+    return {
+      text: String(body.text || '').trim(),
+      words: Array.isArray(body.words) ? body.words : [],
+      width: Number(body.width) || 0,
+      height: Number(body.height) || 0,
+      engine: body.engine || 'azure-read',
+    };
+  }
+
+  function scaleWords(words, srcW, srcH, dstW, dstH) {
+    if (!srcW || !srcH || !dstW || !dstH) return words || [];
+    const sx = dstW / srcW;
+    const sy = dstH / srcH;
+    if (Math.abs(sx - 1) < 0.01 && Math.abs(sy - 1) < 0.01) return words || [];
+    return (words || []).map((w) => ({
+      ...w,
+      bbox: {
+        x0: (w.bbox?.x0 ?? 0) * sx,
+        y0: (w.bbox?.y0 ?? 0) * sy,
+        x1: (w.bbox?.x1 ?? 0) * sx,
+        y1: (w.bbox?.y1 ?? 0) * sy,
+      },
+    }));
   }
 
   function revokeUrl(url) {
@@ -172,7 +253,7 @@
   }
 
   async function pdfToCanvases(file, onPage) {
-    await ensureLibs();
+    await ensurePdfLib();
     const buf = await file.arrayBuffer();
     const pdf = await global.pdfjsLib.getDocument({ data: buf }).promise;
     const pages = [];
@@ -241,10 +322,40 @@
   }
 
   /**
-   * @returns {Promise<{ text: string, words: { text: string, bbox: { x0,y0,x1,y1 }, confidence: number }[], width: number, height: number, objectUrl: string, blob: Blob }>}
+   * OCR principal = Azure (Edge Function). Repli Tesseract si échec.
+   * @returns {Promise<{ text: string, words: { text: string, bbox: { x0,y0,x1,y1 }, confidence: number }[], width: number, height: number, objectUrl: string, blob: Blob, engine?: string }>}
    */
   async function ocrCanvasOrBlob(source, onProgress) {
     const resized = await resizeToCanvas(source, MAX_OCR_WIDTH);
+    const base64 = await blobToBase64(resized.blob);
+
+    try {
+      if (typeof onProgress === 'function') onProgress({ status: 'azure', progress: 0.2 });
+      const azure = await callAzureOcr(base64);
+      if (typeof onProgress === 'function') onProgress({ status: 'azure', progress: 1 });
+      const words = scaleWords(
+        azure.words,
+        azure.width,
+        azure.height,
+        resized.width,
+        resized.height
+      );
+      return {
+        text: azure.text,
+        words,
+        width: resized.width,
+        height: resized.height,
+        objectUrl: resized.objectUrl,
+        blob: resized.blob,
+        engine: azure.engine || 'azure-read',
+      };
+    } catch (azureErr) {
+      console.warn('[Transcription OCR] Azure indisponible, repli Tesseract', azureErr);
+      if (typeof onProgress === 'function') {
+        onProgress({ status: 'tesseract-fallback', progress: 0 });
+      }
+    }
+
     const enhanced = enhanceForOcr(resized.canvas);
     const worker = await getWorker(onProgress);
 
@@ -255,7 +366,6 @@
     let words2 = [];
     let text2 = '';
     try {
-      /* 2e passe PSM 6 : blocs / capitales manuscrites plus lisibles (best-effort gratuit). */
       await worker.setParameters({ tessedit_pageseg_mode: '6' });
       const result2 = await worker.recognize(enhanced);
       words2 = wordsFromData(result2?.data);
@@ -281,6 +391,7 @@
       height: resized.height,
       objectUrl: resized.objectUrl,
       blob: resized.blob,
+      engine: 'tesseract-fallback',
     };
   }
 
@@ -700,10 +811,11 @@
   async function processFiles(files, opts) {
     const list = Array.from(files || []);
     if (!list.length) return { pages: [], mappings: [] };
-    await ensureLibs();
     const pages = [];
     const onStatus = opts?.onStatus || (() => {});
     const errors = [];
+    let usedAzure = false;
+    let usedFallback = false;
 
     for (let fi = 0; fi < list.length; fi += 1) {
       const file = list[fi];
@@ -712,6 +824,7 @@
         onStatus(`Préparation ${file.name || 'fichier'} (${fi + 1}/${list.length})…`);
         let sources = [];
         if (isPdf) {
+          await ensurePdfLib();
           const canvases = await pdfToCanvases(file, (i, total) => {
             onStatus(`PDF ${file.name} — page ${i}/${total}`);
           });
@@ -720,8 +833,13 @@
           sources = [{ source: file, label: file.name || `Image ${fi + 1}` }];
         }
         for (const src of sources) {
-          onStatus(`OCR : ${src.label}`);
+          onStatus(`OCR Azure : ${src.label}`);
           const ocr = await ocrCanvasOrBlob(src.source, opts?.onProgress);
+          if (ocr.engine === 'azure-read') usedAzure = true;
+          if (ocr.engine === 'tesseract-fallback') {
+            usedFallback = true;
+            onStatus(`Repli Tesseract : ${src.label}`);
+          }
           pages.push({
             id: `p_${pages.length}_${Date.now()}`,
             label: src.label,
@@ -731,6 +849,7 @@
             height: ocr.height,
             objectUrl: ocr.objectUrl,
             zoom: 1,
+            engine: ocr.engine || 'azure-read',
           });
         }
       } catch (err) {
@@ -745,7 +864,12 @@
     if (errors.length && !pages.length) {
       throw new Error(errors.join(' — '));
     }
-    onStatus(errors.length ? `Terminé (${errors.length} échec(s), ${pages.length} page(s))` : 'Terminé');
+    let doneMsg = `Terminé (${pages.length} page(s)`;
+    if (usedAzure) doneMsg += ', Azure';
+    if (usedFallback) doneMsg += ', repli Tesseract';
+    if (errors.length) doneMsg += `, ${errors.length} échec(s)`;
+    doneMsg += ')';
+    onStatus(doneMsg);
     return { pages, mappings, fullText, errors };
   }
 
