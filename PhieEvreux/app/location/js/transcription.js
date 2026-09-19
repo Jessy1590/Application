@@ -181,7 +181,7 @@
       <div class="loc-tr-toolbar">
         <button type="button" class="loc-btn" id="trImportBtn">Numériser / Importer</button>
         <button type="button" class="loc-btn loc-btn-ghost" id="trPhotoBtn">Photo</button>
-        <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,application/pdf" multiple>
+        <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,.pdf,application/pdf" multiple>
         <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" capture="environment">
         <label class="loc-check loc-tr-pills-toggle"><input type="checkbox" id="trShowPills" checked> Afficher les pastilles</label>
         <p class="loc-muted" id="trStatus">Importez des images ou un PDF scanné. Manuscrit : relecture / glisser-déposer recommandés.</p>
@@ -226,11 +226,33 @@
 
     function selectedTextsJoined() {
       const texts = [];
-      docsEl.querySelectorAll('.loc-tr-pill.is-selected').forEach((pill) => {
+      docsEl.querySelectorAll('.loc-tr-pill').forEach((pill) => {
+        const key = pill.getAttribute('data-pill-key');
+        if (!key || !state.selectedPillKeys.has(key)) return;
         const t = pill.getAttribute('data-pill-text') || '';
         if (t) texts.push(t);
       });
       return texts.join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function syncPillSelectionUI(pillNodes) {
+      const nodes = pillNodes || docsEl.querySelectorAll('.loc-tr-pill');
+      nodes.forEach((p) => {
+        p.classList.toggle('is-selected', state.selectedPillKeys.has(p.getAttribute('data-pill-key')));
+      });
+      const n = state.selectedPillKeys.size;
+      if (n > 1) {
+        setStatus(`${n} pastilles sélectionnées — glissez vers un champ.`);
+      } else if (n === 1) {
+        const onlyKey = [...state.selectedPillKeys][0];
+        let text = '';
+        nodes.forEach((pill) => {
+          if (pill.getAttribute('data-pill-key') === onlyKey) {
+            text = pill.getAttribute('data-pill-text') || '';
+          }
+        });
+        setStatus(text ? `Sélection : ${text.slice(0, 48)}${text.length > 48 ? '…' : ''}` : '');
+      }
     }
 
     function applyPillsVisibility() {
@@ -782,7 +804,8 @@
                   (p, idx) => {
                     const key = `${page.id}:${idx}`;
                     const sel = state.selectedPillKeys.has(key) ? ' is-selected' : '';
-                    return `<button type="button" class="loc-tr-pill${sel}" draggable="true" data-pill-key="${esc(key)}" data-pill-text="${esc(p.text)}" style="left:${p.leftPct}%;top:${p.topPct}%;" title="${esc(p.text)}">${esc(p.text)}</button>`;
+                    /* span (pas button) : click + HTML5 drag cohabitent mieux pour la multi-sélection */
+                    return `<span role="button" tabindex="0" class="loc-tr-pill${sel}" draggable="true" data-pill-key="${esc(key)}" data-pill-text="${esc(p.text)}" style="left:${p.leftPct}%;top:${p.topPct}%;" title="${esc(p.text)}">${esc(p.text)}</span>`;
                   }
                 )
                 .join('')}
@@ -807,6 +830,7 @@
       });
 
       const pillNodes = [...docsEl.querySelectorAll('.loc-tr-pill')];
+      let suppressPillClick = false;
 
       function selectRange(fromKey, toKey) {
         const keys = pillNodes.map((p) => p.getAttribute('data-pill-key'));
@@ -818,46 +842,80 @@
         for (let i = lo; i <= hi; i += 1) state.selectedPillKeys.add(keys[i]);
       }
 
+      function applyPillPointerSelect(e, pill) {
+        const key = pill.getAttribute('data-pill-key');
+        if (!key) return;
+        if (e.shiftKey && state.lastPillKey) {
+          selectRange(state.lastPillKey, key);
+          state.lastPillKey = key;
+        } else if (e.ctrlKey || e.metaKey) {
+          if (state.selectedPillKeys.has(key)) state.selectedPillKeys.delete(key);
+          else state.selectedPillKeys.add(key);
+          state.lastPillKey = key;
+        } else if (state.selectedPillKeys.has(key) && state.selectedPillKeys.size > 1) {
+          /* garder la multi-sélection pour un drag éventuel */
+          state.lastPillKey = key;
+        } else {
+          state.selectedPillKeys.clear();
+          state.selectedPillKeys.add(key);
+          state.lastPillKey = key;
+        }
+        syncPillSelectionUI(pillNodes);
+      }
+
       pillNodes.forEach((pill) => {
+        pill.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          const multi = e.ctrlKey || e.metaKey || e.shiftKey;
+          /* Empêche le drag natif pendant Ctrl/Shift+clic (sinon sélection annulée) */
+          if (multi) e.preventDefault();
+          applyPillPointerSelect(e, pill);
+        });
+        pill.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          /* Après un drag, le click navigateur ne doit pas réduire la multi-sélection */
+          if (suppressPillClick) {
+            suppressPillClick = false;
+            return;
+          }
+          const key = pill.getAttribute('data-pill-key');
+          if (!key) return;
+          if (!e.ctrlKey && !e.metaKey && !e.shiftKey && state.selectedPillKeys.size > 1 && state.selectedPillKeys.has(key)) {
+            state.selectedPillKeys.clear();
+            state.selectedPillKeys.add(key);
+            state.lastPillKey = key;
+            syncPillSelectionUI(pillNodes);
+          }
+        });
+        pill.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          applyPillPointerSelect(e, pill);
+        });
         pill.addEventListener('dragstart', (e) => {
+          suppressPillClick = true;
           const key = pill.getAttribute('data-pill-key');
           if (key && !state.selectedPillKeys.has(key)) {
             state.selectedPillKeys.clear();
             state.selectedPillKeys.add(key);
-            pillNodes.forEach((p) => {
-              p.classList.toggle('is-selected', state.selectedPillKeys.has(p.getAttribute('data-pill-key')));
-            });
+            state.lastPillKey = key;
+            syncPillSelectionUI(pillNodes);
           }
           const text = selectedTextsJoined() || pill.getAttribute('data-pill-text') || '';
           e.dataTransfer.setData('text/plain', text);
           e.dataTransfer.effectAllowed = 'copy';
-          pill.classList.add('is-used');
-        });
-        pill.addEventListener('click', (e) => {
-          e.preventDefault();
-          const key = pill.getAttribute('data-pill-key');
-          if (!key) return;
-          if (e.shiftKey && state.lastPillKey) {
-            selectRange(state.lastPillKey, key);
-          } else if (e.ctrlKey || e.metaKey) {
-            if (state.selectedPillKeys.has(key)) state.selectedPillKeys.delete(key);
-            else state.selectedPillKeys.add(key);
-            state.lastPillKey = key;
-          } else {
-            state.selectedPillKeys.clear();
-            state.selectedPillKeys.add(key);
-            state.lastPillKey = key;
-          }
           pillNodes.forEach((p) => {
-            p.classList.toggle('is-selected', state.selectedPillKeys.has(p.getAttribute('data-pill-key')));
+            if (state.selectedPillKeys.has(p.getAttribute('data-pill-key'))) {
+              p.classList.add('is-used');
+            }
           });
-          const n = state.selectedPillKeys.size;
-          if (n > 1) {
-            setStatus(`${n} pastilles sélectionnées — glissez vers un champ.`);
-          } else {
-            const text = pill.getAttribute('data-pill-text') || '';
-            setStatus(text ? `Sélection : ${text.slice(0, 48)}${text.length > 48 ? '…' : ''}` : '');
-          }
+        });
+        pill.addEventListener('dragend', () => {
+          /* click post-drag : laisser suppressPillClick jusqu’au click ou fallback */
+          setTimeout(() => {
+            suppressPillClick = false;
+          }, 50);
         });
       });
     }
@@ -1397,9 +1455,18 @@
       }
     }
 
+    /** FileList figée : ne pas relire l’input après clear / pendant busy. */
+    const pendingImportFiles = [];
+
     async function handleFiles(fileList) {
-      const files = [...(fileList || [])];
-      if (!files.length || state.busy) return;
+      const incoming = Array.from(fileList || []).filter((f) => f && f.size >= 0);
+      if (!incoming.length) return;
+      if (state.busy) {
+        pendingImportFiles.push(...incoming);
+        setStatus(`OCR en cours — ${pendingImportFiles.length} fichier(s) en attente…`);
+        return;
+      }
+      const files = incoming;
       state.busy = true;
       wrap.querySelector('#trImportBtn').disabled = true;
       wrap.querySelector('#trPhotoBtn').disabled = true;
@@ -1416,6 +1483,9 @@
         applyMappings(result.mappings);
         renderDocs();
         renderForm();
+        if (result.errors && result.errors.length) {
+          showMsg(`Certains fichiers ont échoué : ${result.errors.join(' — ')}`, true);
+        }
         setStatus(
           state.pages.length
             ? `${state.pages.length} page(s) — ${added.length} ajoutée(s). Clic / Ctrl+clic pour multi-sélection, puis glisser vers un champ. Manuscrit : relecture recommandée.`
@@ -1430,13 +1500,38 @@
         wrap.querySelector('#trPhotoBtn').disabled = false;
         fileInput.value = '';
         photoInput.value = '';
+        if (pendingImportFiles.length) {
+          const queued = pendingImportFiles.splice(0, pendingImportFiles.length);
+          handleFiles(queued);
+        }
       }
     }
 
-    wrap.querySelector('#trImportBtn').addEventListener('click', () => fileInput.click());
-    wrap.querySelector('#trPhotoBtn').addEventListener('click', () => photoInput.click());
-    fileInput.addEventListener('change', () => handleFiles(fileInput.files));
-    photoInput.addEventListener('change', () => handleFiles(photoInput.files));
+    /* Garantit multi-fichiers côté propriété DOM (pas seulement l’attribut HTML). */
+    fileInput.multiple = true;
+    fileInput.accept = 'image/*,.pdf,application/pdf';
+    fileInput.removeAttribute('capture');
+    photoInput.multiple = false;
+    photoInput.accept = 'image/*';
+
+    wrap.querySelector('#trImportBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      fileInput.value = '';
+      fileInput.click();
+    });
+    wrap.querySelector('#trPhotoBtn').addEventListener('click', (e) => {
+      e.preventDefault();
+      photoInput.value = '';
+      photoInput.click();
+    });
+    fileInput.addEventListener('change', () => {
+      const list = Array.from(fileInput.files || []);
+      handleFiles(list);
+    });
+    photoInput.addEventListener('change', () => {
+      const list = Array.from(photoInput.files || []);
+      handleFiles(list);
+    });
     showPillsInput?.addEventListener('change', () => {
       state.showPills = !!showPillsInput.checked;
       applyPillsVisibility();

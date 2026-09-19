@@ -698,45 +698,55 @@
    * @param {{ onStatus?: function, onProgress?: function, prestataires?: object[] }} [opts]
    */
   async function processFiles(files, opts) {
-    const list = [...(files || [])];
+    const list = Array.from(files || []);
     if (!list.length) return { pages: [], mappings: [] };
     await ensureLibs();
     const pages = [];
     const onStatus = opts?.onStatus || (() => {});
+    const errors = [];
 
     for (let fi = 0; fi < list.length; fi += 1) {
       const file = list[fi];
-      const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
-      onStatus(`Préparation ${file.name || 'fichier'}…`);
-      let sources = [];
-      if (isPdf) {
-        const canvases = await pdfToCanvases(file, (i, total) => {
-          onStatus(`PDF ${file.name} — page ${i}/${total}`);
-        });
-        sources = canvases.map((c, idx) => ({ source: c, label: `${file.name} — p.${idx + 1}` }));
-      } else {
-        sources = [{ source: file, label: file.name || `Image ${fi + 1}` }];
-      }
-      for (const src of sources) {
-        onStatus(`OCR : ${src.label}`);
-        const ocr = await ocrCanvasOrBlob(src.source, opts?.onProgress);
-        pages.push({
-          id: `p_${pages.length}_${Date.now()}`,
-          label: src.label,
-          text: ocr.text,
-          words: ocr.words,
-          width: ocr.width,
-          height: ocr.height,
-          objectUrl: ocr.objectUrl,
-          zoom: 1,
-        });
+      try {
+        const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
+        onStatus(`Préparation ${file.name || 'fichier'} (${fi + 1}/${list.length})…`);
+        let sources = [];
+        if (isPdf) {
+          const canvases = await pdfToCanvases(file, (i, total) => {
+            onStatus(`PDF ${file.name} — page ${i}/${total}`);
+          });
+          sources = canvases.map((c, idx) => ({ source: c, label: `${file.name} — p.${idx + 1}` }));
+        } else {
+          sources = [{ source: file, label: file.name || `Image ${fi + 1}` }];
+        }
+        for (const src of sources) {
+          onStatus(`OCR : ${src.label}`);
+          const ocr = await ocrCanvasOrBlob(src.source, opts?.onProgress);
+          pages.push({
+            id: `p_${pages.length}_${Date.now()}`,
+            label: src.label,
+            text: ocr.text,
+            words: ocr.words,
+            width: ocr.width,
+            height: ocr.height,
+            objectUrl: ocr.objectUrl,
+            zoom: 1,
+          });
+        }
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err || 'erreur');
+        errors.push(`${file.name || 'fichier'}: ${msg}`);
+        onStatus(`Échec ${file.name || 'fichier'} — suite des autres fichiers…`);
       }
     }
 
     const fullText = pages.map((p) => p.text).join('\n\n');
     const mappings = mapHeuristics(fullText, { prestataires: opts?.prestataires });
-    onStatus('Terminé');
-    return { pages, mappings, fullText };
+    if (errors.length && !pages.length) {
+      throw new Error(errors.join(' — '));
+    }
+    onStatus(errors.length ? `Terminé (${errors.length} échec(s), ${pages.length} page(s))` : 'Terminé');
+    return { pages, mappings, fullText, errors };
   }
 
   async function terminateWorker() {

@@ -142,6 +142,7 @@ body.loc-transcription-page .loc-top {
   height: auto;
   border-radius: 6px;
   border: 1px solid var(--loc-line);
+  pointer-events: none;
 }
 
 .loc-tr-pane.is-pills-hidden .loc-tr-pill {
@@ -156,16 +157,20 @@ body.loc-transcription-page .loc-top {
   font-size: 11px;
   line-height: 1.25;
   font-weight: 600;
+  font-family: inherit;
   color: var(--loc-on-accent);
   background: color-mix(in srgb, var(--loc-accent) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--loc-accent) 60%, #000);
   border-radius: 4px;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: element;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
 }
 
 .loc-tr-pill:active {
@@ -177,9 +182,13 @@ body.loc-transcription-page .loc-top {
 }
 
 .loc-tr-pill.is-selected {
-  outline: 2px solid var(--loc-on-accent);
+  outline: 2px solid #fff;
   outline-offset: 1px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loc-accent) 40%, #000);
+  background: color-mix(in srgb, var(--loc-accent) 100%, #000 12%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--loc-accent) 55%, #000),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+  z-index: 3;
 }
 
 .loc-tr-form-section {
