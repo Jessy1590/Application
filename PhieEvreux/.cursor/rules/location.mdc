@@ -7,14 +7,16 @@ alwaysApply: false
 # Location (`app/location/`)
 
 ## Modules & pages
-- Tuiles : Création → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Paramètres.
+- Tuiles : Création → Transcription → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Paramètres.
 - `module-page.js` : boot commun, navigation `openSuivi` / `openProlongation` / `openCloture`.
 - Prolongation / Clôture : UI type Suivi (liste dossiers + flèches), pas de flux inventé.
 - Suivi : consultation vs édition via `edition_suivi` ; crayon / C / P = tooltips existants.
 - Création : peut sauver `statut: en_attente` (reprise plus tard).
+- Transcription (`transcription.html` / `LocationTranscription` + `LocationTranscriptionOcr`) : admin-only par défaut ; import images/PDF (mémoire seule) ; OCR Tesseract + pdf.js (CDN jsDelivr) ; UI 2 colonnes (docs+pastilles | formulaire création non replié) ; DnD pastille→champ ; persist `createDossierComplet` (`actif` / `en_attente`).
 
 ## Accès (`LocationAccess` / `acces_roles`)
-- Modules : `module_creation|suivi|contact|facture|parc|prolongation|cloture`.
+- Modules : `module_creation|transcription|suivi|contact|facture|parc|prolongation|cloture`.
+- `module_transcription` : défauts admin only (`personnel: false`, `gestionnaire: false`, `administrateur: true`).
 - Autres : `edition_suivi`, `impression_fiche`, `suppression_dossier`, `parametres_location` (admin forcé).
 - `hub_equipe_bugs` : info seule, non appliqué ici.
 - Alias legacy : `cloture_dossier` → `module_cloture` si absent en base.

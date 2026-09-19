@@ -1,10 +1,11 @@
 /**
- * Boot commun des pages modules Location (création, suivi, contact, facture, parc, prolongation, clôture).
+ * Boot commun des pages modules Location (création, transcription, suivi, contact, facture, parc, prolongation, clôture).
  * body[data-module="…"] + #locModuleRoot
  */
 (function () {
   const TITLES = {
     creation: 'Création',
+    transcription: 'Transcription',
     suivi: 'Suivi',
     contact: 'Contact',
     facture: 'Facture',
@@ -76,6 +77,7 @@
 
   async function mountModule(name, root, ctx) {
     if (name === 'creation') await LocationCreation.mount(root, ctx);
+    else if (name === 'transcription') await LocationTranscription.mount(root, ctx);
     else if (name === 'suivi') await LocationSuivi.mount(root, ctx);
     else if (name === 'contact') await LocationContact.mount(root, ctx);
     else if (name === 'facture') await LocationFacture.mount(root, ctx);

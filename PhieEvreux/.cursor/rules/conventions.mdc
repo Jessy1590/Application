@@ -15,17 +15,17 @@ alwaysApply: false
 - Hub à la racine `PhieEvreux/` ; une app = `app/<nom>/`.
 - Code transverse uniquement dans `shared/` (pas de duplication hub ↔ apps).
 - Location — fichiers réels :
-  - pages : `index|creation|prolongation|cloture|suivi|contact|facture|parc|parametres.html`
-  - shell : `js/app.js`, `js/module-page.js`, `css/shell.css`
+  - pages : `index|creation|transcription|prolongation|cloture|suivi|contact|facture|parc|parametres.html`
+  - shell : `js/app.js`, `js/module-page.js`, `css/shell.css`, `css/transcription.css`
   - data / droits : `js/data.js`, `js/access.js`, `js/fields.js`
-  - métier : `creation.js`, `prolongation.js`, `cloture.js`, `suivi.js`, `contact.js`, `facture.js`, `parc.js`
+  - métier : `creation.js`, `transcription.js`, `transcription-ocr.js`, `prolongation.js`, `cloture.js`, `suivi.js`, `contact.js`, `facture.js`, `parc.js`
   - impression : `js/impression.js` → **`LocationPrint`** (pas `LocationImpression`)
   - admin : `admin-location.js`, `parametres-page.js` → `LocationAdmin`
   - moteur : `modules/rules-engine.js` → `LocationRules`
 
 ## Globals
 - Hub / shared : `PhieEvreuxApps`, `PhieEquipe`, `PhieTheme`, `PhieFab`, `PhieBugs`, `PhieInvite`.
-- Location : `LocationData`, `LocationRules`, `LocationAccess`, `LocationFields`, `LocationPrint`, `LocationAdmin`, `LocationCreation`, `LocationProlongation`, `LocationCloture`, `LocationSuivi`, `LocationContact`, `LocationFacture`, `LocationParc`.
+- Location : `LocationData`, `LocationRules`, `LocationAccess`, `LocationFields`, `LocationPrint`, `LocationAdmin`, `LocationCreation`, `LocationTranscription`, `LocationTranscriptionOcr`, `LocationProlongation`, `LocationCloture`, `LocationSuivi`, `LocationContact`, `LocationFacture`, `LocationParc`.
 
 ## Nommage données
 - Schéma `phieevreux` ; préfixe `location_` pour le métier Location.

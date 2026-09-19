@@ -4,6 +4,7 @@
 (function () {
   const HREF_FEATURE = {
     'creation.html': 'module_creation',
+    'transcription.html': 'module_transcription',
     'suivi.html': 'module_suivi',
     'contact.html': 'module_contact',
     'facture.html': 'module_facture',

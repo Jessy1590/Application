@@ -12,6 +12,7 @@
   /** Features alignées sur le tableau Accès (comportement historique du code). */
   const FEATURES = Object.freeze([
     { key: 'module_creation', label: 'Module Création' },
+    { key: 'module_transcription', label: 'Module Transcription' },
     { key: 'module_suivi', label: 'Module Suivi (consultation)' },
     { key: 'edition_suivi', label: 'Édition dossier (Suivi)' },
     { key: 'module_contact', label: 'Module Contact' },
@@ -32,6 +33,7 @@
 
   const DEFAULTS = Object.freeze({
     module_creation: { personnel: true, gestionnaire: true, administrateur: true },
+    module_transcription: { personnel: false, gestionnaire: false, administrateur: true },
     module_suivi: { personnel: true, gestionnaire: true, administrateur: true },
     edition_suivi: { personnel: true, gestionnaire: true, administrateur: true },
     module_contact: { personnel: true, gestionnaire: true, administrateur: true },
@@ -48,6 +50,7 @@
   /** Feature → page module (body[data-module]). */
   const MODULE_FEATURE = Object.freeze({
     creation: 'module_creation',
+    transcription: 'module_transcription',
     suivi: 'module_suivi',
     contact: 'module_contact',
     facture: 'module_facture',
