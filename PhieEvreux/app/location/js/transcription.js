@@ -2071,6 +2071,36 @@
       return 'a_contacter';
     }
 
+    function afterCreate(dossier) {
+      const modal = el(`<div class="loc-modal" role="dialog" aria-modal="true" aria-labelledby="trDoneTitle">
+        <div class="loc-modal-backdrop" data-close></div>
+        <div class="loc-modal-panel">
+          <h3 id="trDoneTitle">Création terminée</h3>
+          <p>Le dossier a été créé. Vous pouvez imprimer la fiche de suivi, l’ouvrir, ou créer un nouveau dossier.</p>
+          <div class="loc-modal-actions">
+            <button type="button" class="loc-btn" data-act="print">Imprimer la fiche de suivi</button>
+            <button type="button" class="loc-btn loc-btn-ghost" data-act="suivi">Aller sur la fiche de suivi</button>
+            <button type="button" class="loc-btn loc-btn-ghost" data-act="new">Créer un nouveau dossier</button>
+          </div>
+        </div>
+      </div>`);
+      document.body.appendChild(modal);
+      const close = () => modal.remove();
+      const nouveau = () => {
+        close();
+        resetAfterSave();
+      };
+      modal.querySelector('[data-close]').addEventListener('click', nouveau);
+      modal.querySelector('[data-act=new]').addEventListener('click', nouveau);
+      modal.querySelector('[data-act=suivi]').addEventListener('click', () => {
+        close();
+        ctx.openSuivi?.(dossier.id);
+      });
+      modal.querySelector('[data-act=print]').addEventListener('click', () => {
+        void global.LocationPrint.printFiche(dossier);
+      });
+    }
+
     async function applyProlongationIfNeeded(dossier) {
       const list = (state.prolongations || []).filter((pr) => Number(pr.duree) > 0);
       if (!list.length) return null;
@@ -2245,9 +2275,10 @@
           statut: 'actif',
         });
         await persistExtras(dossier, { asActif: true });
+        const full = (await LocationData.getDossier(dossier.id)) || dossier;
         showMsg('Dossier créé.');
-        resetAfterSave();
         setStatus('Dossier créé.');
+        afterCreate(full);
       } catch (e) {
         showMsg(formatErr(e) || 'Erreur à la création', true);
       } finally {

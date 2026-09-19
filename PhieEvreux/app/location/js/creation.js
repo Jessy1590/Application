@@ -937,34 +937,31 @@
     }
 
     function afterCreate(dossier) {
-      const modal = el(`<div class="loc-modal" role="dialog">
+      const modal = el(`<div class="loc-modal" role="dialog" aria-modal="true" aria-labelledby="creDoneTitle">
         <div class="loc-modal-backdrop" data-close></div>
         <div class="loc-modal-panel">
-          <h3>Fiche créée</h3>
-          <p>Que souhaitez-vous faire ?</p>
+          <h3 id="creDoneTitle">Création terminée</h3>
+          <p>Le dossier a été créé. Vous pouvez imprimer la fiche de suivi, l’ouvrir, ou créer un nouveau dossier.</p>
           <div class="loc-modal-actions">
-            <button type="button" class="loc-btn" data-act="stay">Rester sur Création</button>
-            <button type="button" class="loc-btn loc-btn-ghost" data-act="suivi">Ouvrir le suivi</button>
-            <button type="button" class="loc-btn loc-btn-ghost" data-act="print">Imprimer</button>
+            <button type="button" class="loc-btn" data-act="print">Imprimer la fiche de suivi</button>
+            <button type="button" class="loc-btn loc-btn-ghost" data-act="suivi">Aller sur la fiche de suivi</button>
+            <button type="button" class="loc-btn loc-btn-ghost" data-act="new">Créer un nouveau dossier</button>
           </div>
         </div>
       </div>`);
       document.body.appendChild(modal);
       const close = () => modal.remove();
-      modal.querySelector('[data-close]').addEventListener('click', () => {
+      const nouveau = () => {
         close();
         resetForm();
-      });
-      modal.querySelector('[data-act=stay]').addEventListener('click', () => {
-        close();
-        resetForm();
-      });
+      };
+      modal.querySelector('[data-close]').addEventListener('click', nouveau);
+      modal.querySelector('[data-act=new]').addEventListener('click', nouveau);
       modal.querySelector('[data-act=suivi]').addEventListener('click', () => {
         close();
         ctx.openSuivi?.(dossier.id);
       });
       modal.querySelector('[data-act=print]').addEventListener('click', () => {
-        // dossier déjà enrichi par createDossierComplet → getDossier
         void LocationPrint.printFiche(dossier);
       });
     }
