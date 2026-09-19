@@ -1,5 +1,5 @@
 {
-  "source": "Calendrier des vaccinations et recommandations vaccinales 2026 (Ministère de la Santé, avril 2026) + Vaccination Info Service",
+  "source": "Calendrier des vaccinations 2026 (Ministère) + HAS juil. 2026 (pneumocoque VPC20/VPC21) + VIS VRS (MAJ sept. 2026) + campagne DGS VRS",
   "updated": "2026-09-17",
   "settings": {
     "pathologie": "__PARAMETRES__",
@@ -181,12 +181,12 @@
     },
     {
       "pathologie": "Pneumocoque",
-      "vaccins": "Nourrisson : Prevenar 13® (VPC13) / Vaxneuvance® (VPC15) — Adulte : Prevenar 20® (VPC20) / Capvaxive® (VPC21) — Enfant à risque + : Pneumovax® (VPP23)",
-      "calendrier": "Obligatoire : 2, 4, 11 mois (VPC13/15) — ≥65 ans et adultes à risque ≥18 ans : 1 dose VPC20 ou Capvaxive®",
+      "vaccins": "Nourrisson / enfant à risque : Prevenar 20® (VPC20) — Adulte : Capvaxive® (VPC21) préférentiel ; Prevenar 20® (VPC20) possible",
+      "calendrier": "Obligatoire nourrisson : VPC20 à 2, 4, 6 + 11 mois (3+1) — ≥65 ans et adultes à risque ≥18 ans : 1 dose Capvaxive® (VPC21) préférentiel",
       "couleur": "#C0392B",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Infections-a-pneumocoques",
-      "details": "<p><strong>Nourrisson :</strong> VPC13 ou VPC15 à M2-M4-M11. Prématurés/risque : M2-M3-M4 + M11.</p><p><strong>Adulte ≥65 ans (2026) :</strong> 1 dose unique Prevenar 20® <em>ou</em> Capvaxive®. Idem adultes ≥18 ans à risque élevé.</p><p><strong>2-17 ans à risque :</strong> séquence VPC13/15 + VPP23 (délais selon statut).</p><p><strong>Correspondance :</strong> VPC13↔Prevenar13® ; VPC15↔Vaxneuvance® ; VPC20↔Prevenar20® ; VPC21↔Capvaxive® ; VPP23↔Pneumovax®.</p>",
-      "rattrapage": "<p>7-11 mois non vaccinés : 2 doses + rappel 1 an. 12-23 mois : 2 doses. Adulte déjà VPC13 ou VPP23 seul : 1 VPC20/21 si &gt;1 an. Séquence VPC13-VPP23 : VPC20/21 après ≥5 ans post-VPP23.</p>",
+      "details": "<p><strong>HAS juil. 2026 :</strong> nouvelle stratégie haute valence.</p><p><strong>Nourrisson (dès 8 sem.) et prématurés (&lt;37 SA) :</strong> Prevenar 20® (VPC20) schéma <strong>3+1</strong> — M2, M4, M6 + rappel M11. Arrêt du VPC13/VPC15 en primo.</p><p><strong>Enfant à risque (15 mois–&lt;18 ans) :</strong> 1 dose VPC20 (délai ≥8 sem. après dernier VPC/VPP). Arrêt VPC13/15 et VPP23 chez l'enfant à risque.</p><p><strong>Adulte ≥65 ans et 18–64 ans à risque</strong> (dont soudeurs / métallurgie) : <strong>1 dose Capvaxive® (VPC21) à titre préférentiel</strong>. VPC20 possible si VPC21 indisponible. Pas de schéma séquentiel VPC20↔VPC21. Pas de rattrapage si déjà VPC20.</p><p><strong>Correspondance :</strong> VPC20↔Prevenar 20® ; VPC21↔Capvaxive®. (Anciens : VPC13↔Prevenar 13® ; VPC15↔Vaxneuvance® ; VPP23↔Pneumovax® — plus en stratégie pédiatrique reco.)</p>",
+      "rattrapage": "<p><strong>Schéma commencé VPC13/15 :</strong> poursuivre avec VPC20 selon 2-4-6-11 mois.</p><p><strong>Non vaccinés 7–&lt;12 mois :</strong> 2 doses VPC20 (intervalle ≥4 sem.) + rappel 2e année.</p><p><strong>12–&lt;24 mois :</strong> 2 doses (intervalle ≥8 sem.).</p><p><strong>Adulte déjà VPC20 :</strong> pas de rattrapage VPC21 à ce stade (HAS). Immunodéprimés : reco SPILF en cours.</p>",
       "hors_reco": false
     },
     {
@@ -221,12 +221,22 @@
     },
     {
       "pathologie": "Virus Respiratoire Syncytial (VRS)",
-      "vaccins": "Abrysvo® (femme enceinte / seniors) / Arexvy® / mRESVIA® — Immunisation passive nourrisson : Beyfortus® (nirsévimab) / Synagis® (palivizumab)",
-      "calendrier": "Grossesse : Abrysvo® 32-36 SA — Seniors ≥75 ans (ou ≥65 ans avec BPCO/IC) : 1 dose — Nourrisson : Beyfortus® (saison)",
+      "vaccins": "Abrysvo® (grossesse / seniors) / Arexvy® / mRESVIA® — Voir aussi fiche IG VRS (Beyfortus® / Enflonsia® / Synagis®)",
+      "calendrier": "Campagne saisonnière (métropole : ~sept.–fév., dates DGS) — Grossesse : Abrysvo® 32-36 SA — ≥75 ans (ou ≥65 ans BPCO/IC) : 1 dose — Nourrisson : IG (fiche dédiée)",
       "couleur": "#607D8B",
       "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS",
-      "details": "<p><strong>Protection nourrisson :</strong> soit Abrysvo® mère (32-36 SA), soit Beyfortus® enfant (pas les deux sauf inefficacité : préma, naissance &lt;14 j post-vaccin).</p><p><strong>Seniors :</strong> 1 dose Abrysvo® / Arexvy® / mRESVIA® sans préférence (prise en charge AM souvent absente à ce jour).</p><p>Intervalle ≥2 sem. entre dTcaP et Abrysvo®. Co-admin grippe/Covid OK.</p>",
-      "rattrapage": "<p>Beyfortus® : &lt;5 kg = 50 mg ; ≥5 kg = 100 mg ; 2e saison vulnérable = 200 mg (2×100). Synagis® : prématurés/haut risque, mensuel. Nouvelle grossesse après Abrysvo® : préférer Beyfortus® chez le NN.</p>",
+      "details": "<p><strong>Deux stratégies alternatives pour le nourrisson (choix parental éclairé) :</strong> 1) vaccination maternelle Abrysvo® 32–36 SA, ou 2) immunisation passive du NN/nourrisson par anticorps monoclonal (voir fiche <em>Immunoglobulines anti-VRS</em>). Pas les deux en routine ; rattrapage IG si naissance &lt;14 j post-vaccin, prématuré, ou mère immunodéprimée (Abrysvo® non reco).</p><p><strong>Campagne 2025-2026 (DGS) :</strong> démarrage 01/09/2025 métropole (01/08 Guyane ; 01/10 Mayotte) — clôture métropole 20/02/2026 (cas par cas jusqu'au 28/02) ; Antilles 31/03 ; Mayotte 31/05 ; Guyane continue. Campagne 2026-2027 : modalités à venir (Enflonsia® disponible depuis août 2026).</p><p><strong>Seniors :</strong> ≥75 ans tous, ou ≥65 ans avec pathologie respiratoire/cardiaque chronique (BPCO, IC) — 1 dose Abrysvo® / Arexvy® / mRESVIA® sans préférence. Pas de prise en charge AM seniors à ce jour. Pas de rappel établi.</p><p>Intervalle ≥2 sem. Abrysvo® / dTcaP. Co-admin grippe / Covid OK (sites distincts).</p>",
+      "rattrapage": "<p>Nouvelle grossesse après Abrysvo® antérieur : préférer IG chez le NN. Femme enceinte immunodéprimée : IG nourrisson. Voir fiche IG VRS pour posologies Beyfortus® / Enflonsia® / Synagis®.</p>",
+      "hors_reco": false
+    },
+    {
+      "pathologie": "Immunoglobulines anti-VRS (IG VRS)",
+      "vaccins": "Beyfortus® (nirsévimab) / Enflonsia® (clesrovimab) / Synagis® (palivizumab) — anticorps monoclonaux, ≠ vaccins",
+      "calendrier": "1re saison VRS : tous NN/nourrissons (Beyfortus® ou Enflonsia®) — 2e saison vulnérables / haut risque : Beyfortus® ou Synagis® — pendant campagne saisonnière DGS",
+      "couleur": "#607D8B",
+      "lien": "https://professionnels.vaccination-info-service.fr/Maladies-et-leurs-vaccins/Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS",
+      "details": "<p><strong>Immunisation passive</strong> (anticorps monoclonaux) — alternative à Abrysvo® maternel pour protéger le nourrisson. Disponible maternité + pharmacie de ville (Beyfortus®, Enflonsia®) ; Synagis® surtout circuit hospitalier.</p><p><strong>Beyfortus® (nirsévimab) :</strong> dose unique IM — &lt;5 kg = 50 mg ; ≥5 kg = 100 mg. 2e saison vulnérable (jusqu'à 24 mois) : 200 mg (2×100, sites distincts). Préférer avant sortie de maternité si né en saison ; rattrapage 1re année si né hors saison.</p><p><strong>Enflonsia® (clesrovimab) :</strong> option de 1re intention au même titre que Beyfortus® (HAS/CT 2026, remb. ville dès 12/08/2026). Dose unique 105 mg IM (1re saison). Dose supplémentaire 105 mg si CEC cardiaque en saison.</p><p><strong>Synagis® (palivizumab) :</strong> réservé haut risque (préma ≤35 SA &lt;6 mois début épidémie ; DBP &lt;2 ans ; cardiopathie hémodynamique &lt;2 ans) — injections mensuelles selon RCP. Alternative possible avec Beyfortus®/Enflonsia® selon avis.</p>",
+      "rattrapage": "<p>Si mère non vaccinée Abrysvo®, ou vaccination &lt;14 j avant naissance, ou prématuré : IG dès la naissance. Ne pas cumuler vaccin maternel efficace + IG en routine. Facturation/campagne : suivre DGS-Urgent saison en cours. ≠ badge « vaccin calendrier » officine.</p>",
       "hors_reco": false
     },
     {

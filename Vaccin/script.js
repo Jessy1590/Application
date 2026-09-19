@@ -7,7 +7,6 @@ const sbVaccin = supabase.createClient(cfg.url, cfg.anonKey, { db: { schema: 'au
 const TABLE_NAME = 'vaccins';
 
 const FAMILIES = [
-  { id: '', label: 'Toutes' },
   { id: 'dtp', label: 'DTP / Hib / Hexa' },
   { id: 'hep', label: 'Hépatites' },
   { id: 'men', label: 'Méningocoques' },
@@ -17,6 +16,8 @@ const FAMILIES = [
   { id: 'voyage', label: 'Voyage / tropicaux' },
   { id: 'autre', label: 'Autres' }
 ];
+
+const ALL_FAMILY_IDS = FAMILIES.map(f => f.id);
 
 const DEFAULT_SITUATIONS =
   "Officine : Faisable en pharmacie (pharmacien)\n" +
@@ -92,7 +93,7 @@ const OFFICINE_WHITELIST = [
   {
     re: /^pneumocoque$/i,
     label: 'Officine (≥18 ans)',
-    detail: 'Pneumocoque adultes (≥ 18 ans à risque / ≥ 65 ans : VPC20 / Capvaxive®). Primo nourrisson = hors âge officine.'
+    detail: 'Pneumocoque adultes (≥ 18 ans à risque / ≥ 65 ans : Capvaxive® VPC21 préférentiel ; Prevenar 20® VPC20 possible). Primo nourrisson VPC20 = hors âge officine.'
   },
   {
     re: /rougeole|oreillons|rub[eé]ole/i,
@@ -110,9 +111,9 @@ const OFFICINE_WHITELIST = [
     detail: 'Shingrix® : ≥ 65 ans immuno-compétents ; immunodéprimés ≥ 18 ans.'
   },
   {
-    re: /syncytial|\bvrs\b/i,
+    re: /^virus respiratoire syncytial/i,
     label: 'Officine (≥11 ans)',
-    detail: 'Vaccins VRS (Abrysvo® grossesse 32-36 SA ; Abrysvo® / Arexvy® / mRESVIA® seniors). Beyfortus® / Synagis® (anticorps) ≠ badge officine vaccin calendrier.'
+    detail: 'Vaccins VRS (Abrysvo® grossesse 32-36 SA ; Abrysvo® / Arexvy® / mRESVIA® seniors). IG (Beyfortus® / Enflonsia® / Synagis®) = fiche séparée, pas badge vaccin calendrier.'
   },
   {
     re: /enc[eé]phalite\s*[aà]\s*tiques/i,
@@ -148,7 +149,7 @@ const PATHO_VIS = [
   { re: /\bzona\b/i, label: 'Zona', slug: 'Zona' },
   { re: /grippe/i, label: 'Grippe', slug: 'Grippe-saisonniere' },
   { re: /covid/i, label: 'COVID-19', slug: 'COVID-19' },
-  { re: /\bvrs\b|syncytial|bronchiolite/i, label: 'VRS', slug: 'Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS' },
+  { re: /\bvrs\b|syncytial|bronchiolite|nirsévimab|beyfortus|enflonsia|clesrovimab|palivizumab|synagis|immunoglobuline/i, label: 'VRS', slug: 'Bronchiolites-et-infections-respiratoires-dues-aux-virus-respiratoires-syncitiaux-VRS' },
   { re: /rotavirus/i, label: 'Rotavirus', slug: 'Gastro-enterite-a-rotavirus' },
   { re: /fi[eè]vre jaune/i, label: 'Fièvre jaune', slug: 'Fievre-jaune' },
   { re: /dengue/i, label: 'Dengue', slug: 'Dengue' },
@@ -169,7 +170,8 @@ let settingsId = null;
 let isAdmin = false;
 let sortCol = 'pathologie';
 let sortAsc = true;
-let activeFamily = '';
+/** Familles incluses dans le filtre (toutes par défaut → « tous sauf X » = décocher X). */
+let includedFamilies = new Set(ALL_FAMILY_IDS);
 let showHorsReco = false;
 let quillDetails = null;
 let quillRattrapage = null;
@@ -311,7 +313,7 @@ function getFamily(patho) {
   if (/méningocoque/.test(p)) return 'men';
   if (/pneumocoque/.test(p)) return 'pneumo';
   if (/rougeole|oreillons|rubéole|varicelle|zona/.test(p)) return 'ror';
-  if (/grippe|covid|vrs|syncytial/.test(p)) return 'saison';
+  if (/grippe|covid|vrs|syncytial|immunoglobuline/.test(p)) return 'saison';
   if (/fièvre jaune|dengue|chikungunya|typhoïde|choléra|encéphalite|rage|leptospirose/.test(p)) return 'voyage';
   return 'autre';
 }
@@ -343,6 +345,7 @@ function getPharmacistInfo(v) {
   if (/fi[eè]vre jaune/.test(pl)) detail = 'Centres de vaccination agréés fièvre jaune — pas d’officine de droit commun.';
   else if (/typho[iï]de|chol[eé]ra|enc[eé]phalite japonaise/.test(pl)) detail = 'Vaccin voyageur hors calendrier général officine.';
   else if (/bcg|tuberculose|rotavirus/.test(pl)) detail = 'Schéma nourrisson — hors âge officine (< 11 ans).';
+  else if (/immunoglobuline|anti-vrs|\big\s*vrs\b/.test(pl)) detail = 'Anticorps monoclonaux (Beyfortus® / Enflonsia® / Synagis®) — immunisation passive, pas un vaccin calendrier officine.';
   else if (/haemophilus.*coqueluche|hexavalent|penta|hexa/.test(pl) || (pl.includes('haemophilus') && pl.includes('dipht'))) {
     detail = 'Combiné pédiatrique / nourrisson (< 11 ans).';
   } else if (/^haemophilus influenzae b/.test(pl) || pl === 'poliomyélite') {
@@ -429,59 +432,188 @@ function renderPathoLinks(links, compact = true) {
   ).join('');
 }
 
+function printCellHtml(text) {
+  return escapeHtml(text || '')
+    .replace(/\s*[—–]\s*/g, '<br>');
+}
+
+function printRowHtml(v) {
+  const color = v.couleur || getFallbackColor(v.pathologie);
+  return `<tr>
+      <td class="c-patho" style="background-color:${color};color:#fff;font-weight:700;">${printCellHtml(v.pathologie)}</td>
+      <td>${printCellHtml(v.vaccins)}</td>
+      <td>${printCellHtml(v.calendrier)}</td>
+    </tr>`;
+}
+
+const PRINT_CSS = `
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:system-ui,-apple-system,sans-serif;color:#111;font-size:7.5pt;line-height:1.25;}
+  h1{font-size:10pt;margin:0 0 2px;font-weight:700;}
+  .meta{color:#444;margin:0 0 4px;font-size:7pt;}
+  .sheet{
+    position:relative;
+    width:210mm;
+    height:277mm;
+    padding:3mm 2mm 8mm;
+    overflow:hidden;
+    page-break-inside:avoid;
+    break-inside:avoid;
+  }
+  .sheet + .sheet{
+    page-break-before:always;
+    break-before:page;
+  }
+  .sheet-head{margin-bottom:3px;}
+  .sheet-foot{
+    position:absolute;
+    left:2mm;right:2mm;bottom:2.5mm;
+    text-align:center;
+    font-size:7pt;
+    color:#333;
+    border-top:0.4pt solid #bbb;
+    padding-top:1.5mm;
+  }
+  table{width:100%;border-collapse:collapse;table-layout:fixed;}
+  th,td{border:1px solid #999;padding:2px 4px;vertical-align:top;text-align:left;font-size:7.5pt;word-wrap:break-word;overflow-wrap:anywhere;}
+  th{background:#e8e8e8;font-size:7pt;font-weight:700;}
+  .c-patho{font-size:7pt;}
+  col.c1{width:16%;} col.c2{width:36%;} col.c3{width:48%;}
+  #measure{position:absolute;left:-9999px;top:0;width:206mm;visibility:hidden;}
+  @page{size:A4 portrait;margin:10mm 0;}
+`;
+
+function buildPrintSheet(rowsHtml, dateTxt, page, total) {
+  return `<section class="sheet">
+  <header class="sheet-head">
+    <h1>Vaccins &amp; valences — France</h1>
+    <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
+  </header>
+  <table>
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
+    <tbody>${rowsHtml}</tbody>
+  </table>
+  <footer class="sheet-foot">Page ${page} / ${total}</footer>
+</section>`;
+}
+
+function paginatePrintRows(rowHeights, bodyBudget) {
+  const pages = [];
+  let current = [];
+  let used = 0;
+  rowHeights.forEach((h, i) => {
+    const height = Math.ceil(h);
+    if (current.length && used + height > bodyBudget) {
+      pages.push(current);
+      current = [];
+      used = 0;
+    }
+    // Ligne plus haute que la page : seule sur sa page
+    if (!current.length && height > bodyBudget) {
+      pages.push([i]);
+      return;
+    }
+    current.push(i);
+    used += height;
+  });
+  if (current.length) pages.push(current);
+  return pages.length ? pages : [[]];
+}
+
 function printTableOnly() {
   const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
   const printable = filteredData.filter(v => !isHorsReco(v));
-  const rowsHtml = printable.length
-    ? printable.map(v => {
-        const color = v.couleur || getFallbackColor(v.pathologie);
-        return `<tr>
-      <td style="background-color:${color};color:#fff;font-weight:700;">${escapeHtml(v.pathologie || '')}</td>
-      <td>${escapeHtml(v.vaccins || '')}</td>
-      <td>${escapeHtml(v.calendrier || '')}</td>
-    </tr>`;
-      }).join('')
-    : '<tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr>';
-
   const dateTxt = el('lastUpdated')?.textContent || '';
+
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;';
   document.body.appendChild(iframe);
 
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
-<style>
-  body{font-family:system-ui,sans-serif;color:#111;margin:12px;font-size:11px;}
-  h1{font-size:16px;margin:0 0 4px;}
-  .meta{color:#555;margin:0 0 12px;font-size:11px;}
-  table{width:100%;border-collapse:collapse;}
-  th,td{border:1px solid #bbb;padding:5px 7px;vertical-align:top;text-align:left;}
-  th{background:#eee;}
-  @page{size:A4 landscape;margin:0.8cm;}
-</style></head><body>
-<h1>Vaccins &amp; valences — France</h1>
-<p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
-<table>
-  <thead><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
-  <tbody>${rowsHtml}</tbody>
-</table>
-</body></html>`);
-  doc.close();
-
   const win = iframe.contentWindow;
+  const doc = win.document;
+
   const cleanup = () => {
     try { iframe.remove(); } catch (_) {}
     window.scrollTo(0, scrollY);
   };
 
-  win.addEventListener('afterprint', cleanup);
+  const runPrint = htmlBody => {
+    doc.open();
+    doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Vaccins &amp; valences — impression</title>
+<style>${PRINT_CSS}</style></head><body>${htmlBody}</body></html>`);
+    doc.close();
+    win.addEventListener('afterprint', cleanup);
+    setTimeout(() => {
+      win.focus();
+      win.print();
+      setTimeout(cleanup, 1500);
+    }, 80);
+  };
+
+  if (!printable.length) {
+    runPrint(buildPrintSheet(
+      '<tr><td colspan="3">Aucune fiche à imprimer (hors reco exclus).</td></tr>',
+      dateTxt, 1, 1
+    ));
+    return;
+  }
+
+  // 1) Mesure des hauteurs de lignes dans le même rendu que l’impression
+  doc.open();
+  doc.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><style>${PRINT_CSS}</style></head><body>
+<div id="measure">
+  <header class="sheet-head" id="mHead">
+    <h1>Vaccins &amp; valences — France</h1>
+    <p class="meta">${escapeHtml(dateTxt)} — hors recommandations exclus</p>
+  </header>
+  <table>
+    <colgroup><col class="c1"><col class="c2"><col class="c3"></colgroup>
+    <thead id="mThead"><tr><th>Valences / pathologies</th><th>Noms commerciaux</th><th>Schéma &amp; cibles</th></tr></thead>
+    <tbody id="mBody">${printable.map(printRowHtml).join('')}</tbody>
+  </table>
+  <footer class="sheet-foot" id="mFoot" style="position:static;border:none;padding:2mm 0 0;">Page 1 / 1</footer>
+</div>
+</body></html>`);
+  doc.close();
+
   setTimeout(() => {
-    win.focus();
-    win.print();
-    setTimeout(cleanup, 1500);
-  }, 100);
+    try {
+      const sheet = doc.createElement('div');
+      sheet.className = 'sheet';
+      sheet.style.visibility = 'hidden';
+      sheet.style.position = 'absolute';
+      sheet.style.left = '0';
+      sheet.style.top = '0';
+      doc.body.appendChild(sheet);
+      const sheetH = sheet.getBoundingClientRect().height || (277 / 25.4 * 96);
+      const padTop = 3 / 25.4 * 96;
+      const padBottom = 8 / 25.4 * 96;
+      sheet.remove();
+
+      const headH = doc.getElementById('mHead').getBoundingClientRect().height;
+      const theadH = doc.getElementById('mThead').getBoundingClientRect().height;
+      const footH = doc.getElementById('mFoot').getBoundingClientRect().height;
+      const bodyBudget = Math.max(40, sheetH - padTop - padBottom - headH - theadH - footH - 4);
+
+      const rowHeights = [...doc.getElementById('mBody').rows].map(tr =>
+        Math.max(tr.getBoundingClientRect().height, 12)
+      );
+      const pageIndexes = paginatePrintRows(rowHeights, bodyBudget);
+      const total = pageIndexes.length;
+      const sheetsHtml = pageIndexes.map((idxs, i) =>
+        buildPrintSheet(idxs.map(j => printRowHtml(printable[j])).join(''), dateTxt, i + 1, total)
+      ).join('');
+
+      runPrint(sheetsHtml);
+    } catch (err) {
+      console.error(err);
+      // Repli : une seule page continue
+      runPrint(buildPrintSheet(printable.map(printRowHtml).join(''), dateTxt, 1, 1));
+    }
+  }, 60);
 }
 
 function highlight(text, query) {
@@ -506,16 +638,44 @@ async function init() {
     }
   } catch (_) { /* accès lecture possible */ }
 
-  renderFamilyChips();
+  renderFamilyChecks();
   setupEventListeners();
   await loadData();
 }
 
-function renderFamilyChips() {
-  const host = el('familyChips');
-  host.innerHTML = FAMILIES.map(f =>
-    `<button type="button" class="chip${f.id === activeFamily ? ' active' : ''}" data-family="${f.id}">${escapeHtml(f.label)}</button>`
-  ).join('');
+function renderFamilyChecks() {
+  const host = el('familyChecks');
+  host.innerHTML = FAMILIES.map(f => {
+    const checked = includedFamilies.has(f.id) ? ' checked' : '';
+    return `<label class="family-check">
+      <input type="checkbox" data-family="${f.id}"${checked}>
+      <span>${escapeHtml(f.label)}</span>
+    </label>`;
+  }).join('');
+  updateFilterBadge();
+}
+
+function updateFilterBadge() {
+  const badge = el('filterBadge');
+  const excluded = ALL_FAMILY_IDS.length - includedFamilies.size;
+  const situation = el('filterParticularity')?.value || '';
+  const hors = showHorsReco ? 1 : 0;
+  const n = excluded + (situation ? 1 : 0) + hors;
+  if (n > 0) {
+    badge.textContent = String(n);
+    badge.classList.remove('hidden');
+  } else {
+    badge.textContent = '';
+    badge.classList.add('hidden');
+  }
+}
+
+function setFilterPanelOpen(open) {
+  const panel = el('filterPanel');
+  const trigger = el('filterTrigger');
+  panel.classList.toggle('hidden', !open);
+  trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  trigger.classList.toggle('open', open);
 }
 
 function setupEventListeners() {
@@ -540,9 +700,13 @@ function setupEventListeners() {
     filterTable();
     el('searchInput').focus();
   });
-  el('filterParticularity').addEventListener('change', filterTable);
+  el('filterParticularity').addEventListener('change', () => {
+    updateFilterBadge();
+    filterTable();
+  });
   el('toggleHorsReco')?.addEventListener('change', e => {
     showHorsReco = !!e.target.checked;
+    updateFilterBadge();
     filterTable();
   });
   el('saveSettingsBtn').addEventListener('click', saveSettings);
@@ -551,11 +715,34 @@ function setupEventListeners() {
   el('cancelEditBtn').addEventListener('click', resetForm);
   el('addForm').addEventListener('submit', saveEntry);
 
-  el('familyChips').addEventListener('click', e => {
-    const btn = e.target.closest('[data-family]');
-    if (!btn) return;
-    activeFamily = btn.getAttribute('data-family') || '';
-    renderFamilyChips();
+  el('filterTrigger').addEventListener('click', e => {
+    e.stopPropagation();
+    const open = el('filterPanel').classList.contains('hidden');
+    setFilterPanelOpen(open);
+  });
+  el('filterPanel').addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => setFilterPanelOpen(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') setFilterPanelOpen(false);
+  });
+
+  el('familyChecks').addEventListener('change', e => {
+    const input = e.target.closest('[data-family]');
+    if (!input) return;
+    const id = input.getAttribute('data-family');
+    if (input.checked) includedFamilies.add(id);
+    else includedFamilies.delete(id);
+    updateFilterBadge();
+    filterTable();
+  });
+  el('familiesAllBtn').addEventListener('click', () => {
+    includedFamilies = new Set(ALL_FAMILY_IDS);
+    renderFamilyChecks();
+    filterTable();
+  });
+  el('familiesNoneBtn').addEventListener('click', () => {
+    includedFamilies = new Set();
+    renderFamilyChecks();
     filterTable();
   });
 
@@ -703,7 +890,7 @@ function filterTable() {
   filteredData = currentData.filter(v => {
     // Masquer hors reco sauf toggle ON ou filtre situation « Hors reco »
     if (!showHorsReco && !filterHorsRecoOnly && isHorsReco(v)) return false;
-    if (activeFamily && getFamily(v.pathologie) !== activeFamily) return false;
+    if (!includedFamilies.has(getFamily(v.pathologie))) return false;
 
     const txtPatho = (v.pathologie || '').toLowerCase();
     const txtVaccins = (v.vaccins || '').toLowerCase();
