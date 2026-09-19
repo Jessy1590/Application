@@ -25,7 +25,7 @@ alwaysApply: true
 - SQL locaux : `PhieEvreux/sql/*.sql` = déjà appliqué (ne pas réappliquer sans check).
 
 ## App Location — vue d’ensemble
-- Tuiles (ordre) : Création → Transcription → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Paramètres.
+- Tuiles (ordre) : Création → Prolongation → Clôture → Suivi → Contact → Facture → Parc → Transcription → Paramètres.
 - Pages : `creation|transcription|prolongation|cloture|suivi|contact|facture|parc|parametres.html`.
 - Boot pages : `js/module-page.js` (`body[data-module]` + `#locModuleRoot`).
 - Détail métier / impression / LGO / accès : règle `location.mdc`.

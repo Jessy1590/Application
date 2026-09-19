@@ -1,12 +1,34 @@
 /**
  * OCR Transcription — Tesseract.js + pdf.js (CDN jsDelivr) + heuristiques FR.
  * Images/PDF uniquement en mémoire (blob) — pas de stockage distant.
+ *
+ * Mapping patient / en-têtes : règles heuristiques uniquement (blacklist pharmacie,
+ * noms prestataires, labels NOM/PRENOM) — pas d’IA payante ni de modèle ML externe.
  */
 (function (global) {
   const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
   const PDFJS_CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
   const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   const MAX_OCR_WIDTH = 1600;
+
+  /**
+   * Identifiants en-tête Pharmacie Grand Evreux (docs types) — à exclure du patient.
+   * Filtrage rule-based uniquement, pas d’IA.
+   */
+  const PHARMACIE_LETTERHEAD = [
+    'pharmacie grand evreux',
+    'phie grand evreux',
+    'phieevreux',
+    'pharmacie grand',
+    'siret',
+    'rcs evreux',
+    'code ape',
+    'tva intracommunautaire',
+    '@pharmacie',
+  ];
+
+  /** Sous-chaînes typiques d’en-tête (lignes), plus larges que le test sur une valeur champ. */
+  const PHARMACIE_HEADER_EXTRA = ['grand evreux', '27000 evreux', 'evreux cedex', 'www.'];
 
   let libsPromise = null;
   let workerPromise = null;
@@ -120,6 +142,35 @@
     });
   }
 
+  /** Contraste / N&B léger — aide Tesseract sur chiffres et capitales manuscrites. */
+  function enhanceForOcr(canvas) {
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(canvas, 0, 0);
+    const img = ctx.getImageData(0, 0, out.width, out.height);
+    const d = img.data;
+    let min = 255;
+    let max = 0;
+    const gray = new Float32Array(d.length / 4);
+    for (let i = 0, p = 0; i < d.length; i += 4, p += 1) {
+      const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      gray[p] = g;
+      if (g < min) min = g;
+      if (g > max) max = g;
+    }
+    const span = Math.max(1, max - min);
+    for (let i = 0, p = 0; i < d.length; i += 4, p += 1) {
+      let g = ((gray[p] - min) / span) * 255;
+      g = (g - 128) * 1.25 + 128;
+      g = Math.max(0, Math.min(255, g));
+      d[i] = d[i + 1] = d[i + 2] = g;
+    }
+    ctx.putImageData(img, 0, 0);
+    return out;
+  }
+
   async function pdfToCanvases(file, onPage) {
     await ensureLibs();
     const buf = await file.arrayBuffer();
@@ -140,15 +191,8 @@
     return pages;
   }
 
-  /**
-   * @returns {Promise<{ text: string, words: { text: string, bbox: { x0,y0,x1,y1 }, confidence: number }[], width: number, height: number, objectUrl: string, blob: Blob }>}
-   */
-  async function ocrCanvasOrBlob(source, onProgress) {
-    const resized = await resizeToCanvas(source, MAX_OCR_WIDTH);
-    const worker = await getWorker(onProgress);
-    const result = await worker.recognize(resized.canvas);
-    const data = result?.data || {};
-    const words = (data.words || [])
+  function wordsFromData(data) {
+    return (data?.words || [])
       .filter((w) => w && w.text && String(w.text).trim())
       .map((w) => ({
         text: String(w.text).trim(),
@@ -160,8 +204,78 @@
         },
         confidence: typeof w.confidence === 'number' ? w.confidence : 0,
       }));
+  }
+
+  function bboxOverlap(a, b) {
+    const ix0 = Math.max(a.x0, b.x0);
+    const iy0 = Math.max(a.y0, b.y0);
+    const ix1 = Math.min(a.x1, b.x1);
+    const iy1 = Math.min(a.y1, b.y1);
+    if (ix1 <= ix0 || iy1 <= iy0) return 0;
+    const inter = (ix1 - ix0) * (iy1 - iy0);
+    const areaA = Math.max(1, (a.x1 - a.x0) * (a.y1 - a.y0));
+    const areaB = Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0));
+    return inter / Math.min(areaA, areaB);
+  }
+
+  /** Fusionne 2 passes OCR (imprimé + PSM bloc) en gardant le meilleur conf par zone. */
+  function mergeWords(primary, secondary) {
+    const out = primary.map((w) => ({ ...w, bbox: { ...w.bbox } }));
+    for (const w of secondary || []) {
+      let best = -1;
+      let bestOv = 0;
+      for (let i = 0; i < out.length; i += 1) {
+        const ov = bboxOverlap(out[i].bbox, w.bbox);
+        if (ov > bestOv) {
+          bestOv = ov;
+          best = i;
+        }
+      }
+      if (best >= 0 && bestOv >= 0.45) {
+        if (w.confidence > out[best].confidence) out[best] = { ...w, bbox: { ...w.bbox } };
+      } else if (w.confidence >= 35 && w.text.length >= 1) {
+        out.push({ ...w, bbox: { ...w.bbox } });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * @returns {Promise<{ text: string, words: { text: string, bbox: { x0,y0,x1,y1 }, confidence: number }[], width: number, height: number, objectUrl: string, blob: Blob }>}
+   */
+  async function ocrCanvasOrBlob(source, onProgress) {
+    const resized = await resizeToCanvas(source, MAX_OCR_WIDTH);
+    const enhanced = enhanceForOcr(resized.canvas);
+    const worker = await getWorker(onProgress);
+
+    await worker.setParameters({ tessedit_pageseg_mode: '3' });
+    const result1 = await worker.recognize(enhanced);
+    const words1 = wordsFromData(result1?.data);
+
+    let words2 = [];
+    let text2 = '';
+    try {
+      /* 2e passe PSM 6 : blocs / capitales manuscrites plus lisibles (best-effort gratuit). */
+      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+      const result2 = await worker.recognize(enhanced);
+      words2 = wordsFromData(result2?.data);
+      text2 = String(result2?.data?.text || '').trim();
+    } catch (_) {
+      /* ignore 2e passe */
+    } finally {
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: '3' });
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    const words = mergeWords(words1, words2);
+    const text1 = String(result1?.data?.text || '').trim();
+    const text = [text1, text2].filter(Boolean).join('\n').trim() || text1;
+
     return {
-      text: String(data.text || '').trim(),
+      text,
       words,
       width: resized.width,
       height: resized.height,
@@ -215,6 +329,71 @@
     return null;
   }
 
+  function prestataireNames(ctx) {
+    return (ctx?.prestataires || [])
+      .map((p) => normalizeText(p.nom || ''))
+      .filter((n) => n.length >= 3);
+  }
+
+  function isLetterheadOrSenderLine(line, prestNames) {
+    const n = normalizeText(line);
+    if (!n || n.length < 3) return false;
+    if (/^pharmacie\b/.test(n) && n.length < 80) return true;
+    for (const s of PHARMACIE_LETTERHEAD) {
+      if (n.includes(s)) return true;
+    }
+    for (const s of PHARMACIE_HEADER_EXTRA) {
+      if (n.includes(s) && (n.includes('pharmacie') || n.includes('siret') || n.includes('tel') || /^[a-z0-9 ._-]{0,40}evreux/.test(n))) {
+        return true;
+      }
+    }
+    if (/\bsiret\b|\brcs\b|\bape\b|\btva\b/.test(n)) return true;
+    if (/\b(orkyn|air\s*liquide|vitalaire|bastide|santeo)\b/.test(n)) return true;
+    for (const pn of prestNames) {
+      if (n.includes(pn) || pn.includes(n)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Retire en-tête pharmacie / blocs prestataire avant mapping patient.
+   * Heuristiques seules — pas d’IA.
+   */
+  function stripSenderNoise(text, ctx) {
+    const prestNames = prestataireNames(ctx);
+    const lines = String(text || '').split(/\n/);
+    const kept = [];
+    let headerBudget = Math.min(12, lines.length);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const inHeaderZone = i < headerBudget;
+      if (inHeaderZone && isLetterheadOrSenderLine(line, prestNames)) continue;
+      if (!inHeaderZone && isLetterheadOrSenderLine(line, prestNames) && /^pharmacie\b/i.test(line.trim())) {
+        continue;
+      }
+      if (prestNames.some((pn) => normalizeText(line).includes(pn) && normalizeText(line).length < pn.length + 40)) {
+        /* bloc identité prestataire (ex. Orkyn) — ignorer pour patient */
+        continue;
+      }
+      kept.push(line);
+    }
+    return kept.join('\n');
+  }
+
+  function looksLikePharmacyOrPrestataireValue(value, ctx) {
+    const n = normalizeText(value);
+    if (!n) return true;
+    for (const s of PHARMACIE_LETTERHEAD) {
+      if (n.includes(s) || (s.length >= 8 && s.includes(n))) return true;
+    }
+    if (/^pharmacie\b/.test(n)) return true;
+    if (/pharmacie grand|phie grand evreux/.test(n)) return true;
+    for (const pn of prestataireNames(ctx)) {
+      if (n === pn || n.includes(pn) || (pn.length >= 5 && pn.includes(n))) return true;
+    }
+    return false;
+  }
+
   function detectTypeAppareil(text) {
     const n = normalizeText(text);
     if (/neurostim|neuro.?stimul|tens\b|neurostimulation/.test(n)) return 'tens';
@@ -251,6 +430,54 @@
     return null;
   }
 
+  /** Prolongation écrite sur le document (durée extra / mot-clé). */
+  function detectProlongation(text) {
+    const n = normalizeText(text);
+    const hasKw =
+      /\bprolongation\b|\bprolonger\b|\bprolonge\b|\brenouvellement\b|\brenouveler\b/.test(n);
+    let duree = null;
+    let unite = null;
+    let m =
+      n.match(/prolongation[^\d]{0,48}(\d+)\s*(mois|semaines?|jours?)/) ||
+      n.match(/prolonger[^\d]{0,48}(\d+)\s*(mois|semaines?|jours?)/) ||
+      n.match(/(\d+)\s*(mois|semaines?|jours?)[^\n]{0,40}prolong/);
+    if (m) {
+      duree = Number(m[1]);
+      const u = m[2];
+      unite = /^mois/.test(u) ? 'mois' : /^jour/.test(u) ? 'jours' : 'semaines';
+    }
+    const finRaw = afterLabel(
+      text,
+      ['fin de location', 'fin location', 'date de fin', 'jusqu au', "jusqu'au", 'au'],
+      { pattern: /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/ }
+    );
+    const finIso = parseFrDate(finRaw);
+    const enabled = hasKw || !!m || !!finIso;
+    if (!enabled) return null;
+    return {
+      enabled: true,
+      duree: duree && duree > 0 ? duree : null,
+      unite: unite || null,
+      date_fin_hint: finIso || null,
+      notes: hasKw ? 'Prolongation détectée sur document' : null,
+    };
+  }
+
+  /** Indices contact / à rappeler sur le document. */
+  function detectContactHints(text) {
+    const n = normalizeText(text);
+    const hasKw =
+      /a contacter|a rappeler|rappeler|joindre|contact patient|commentaire patient|message patient|\blgo\b|\bappel\b/.test(
+        n
+      );
+    if (!hasKw && !/reclam|retour.?appareil|ramener.?appareil/.test(n)) return null;
+    let motif = null;
+    if (/reclam|retour.?appareil|ramener/.test(n)) motif = 'reclame_appareil';
+    else if (/prolong/.test(n)) motif = 'prolongation';
+    else if (/tens/.test(n)) motif = 'reclame_appareil_tens';
+    return { enabled: true, motif };
+  }
+
   function findMatricule(text) {
     const m =
       text.match(/\b([A-Z]\d{6,12})\b/) ||
@@ -260,30 +487,82 @@
     return (m[2] || m[1] || '').replace(/^n[°o]\s*s[eé]rie[:\s]*/i, '').trim() || null;
   }
 
-  function findPhone(text) {
-    const m = text.match(/(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/);
-    if (!m) return null;
-    return m[0].replace(/[^\d+]/g, '').replace(/^33/, '0');
+  function findPhone(text, ctx) {
+    const re = /(?:\+33|0)\s*[1-9](?:[\s.-]*\d{2}){4}/g;
+    const matches = String(text || '').match(re) || [];
+    for (const raw of matches) {
+      const tel = raw.replace(/[^\d+]/g, '').replace(/^33/, '0');
+      /* ignorer numéros typiques en-tête si la ligne porte aussi « pharmacie » */
+      const idx = text.indexOf(raw);
+      const around = text.slice(Math.max(0, idx - 40), idx + raw.length + 40);
+      if (isLetterheadOrSenderLine(around, prestataireNames(ctx))) continue;
+      return tel;
+    }
+    return null;
   }
 
-  function findNomPrenom(text) {
-    let raw = afterLabel(text, ['nom / prenom', 'nom/prenom', 'nom et prenom', 'destinataire'], {
+  function findNomPrenom(text, ctx) {
+    const cleaned = stripSenderNoise(text, ctx);
+    const patientLabels = [
+      'nom / prenom',
+      'nom/prenom',
+      'nom et prenom',
+      'nom prenom',
+      'destinataire',
+      'patient',
+      'nom du patient',
+      'prenom',
+      'nom',
+    ];
+    let raw = afterLabel(cleaned, ['nom / prenom', 'nom/prenom', 'nom et prenom', 'destinataire', 'nom du patient'], {
       untilLine: true,
       maxLen: 80,
     });
     if (!raw) {
-      const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        const m = line.match(/^([A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ][A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ' -]{1,})[,\s]+([A-Za-zÀ-ÿ' -]{2,})$/);
-        if (m) return { nom: m[1].trim(), prenom: m[2].trim() };
-      }
-      return null;
+      raw = afterLabel(cleaned, ['nom', 'prenom'], { untilLine: true, maxLen: 80 });
     }
-    const parts = raw.split(/[\/,]/).map((p) => p.trim()).filter(Boolean);
-    if (parts.length >= 2) return { nom: parts[0], prenom: parts[1] };
-    const sp = raw.split(/\s+/);
-    if (sp.length >= 2) return { nom: sp[0], prenom: sp.slice(1).join(' ') };
-    return { nom: raw, prenom: '' };
+    if (raw && !looksLikePharmacyOrPrestataireValue(raw, ctx)) {
+      const parts = raw.split(/[\/,]/).map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const nom = parts[0];
+        const prenom = parts[1];
+        if (!looksLikePharmacyOrPrestataireValue(nom, ctx)) {
+          return { nom, prenom };
+        }
+      }
+      const sp = raw.split(/\s+/);
+      if (sp.length >= 2) {
+        const nom = sp[0];
+        const prenom = sp.slice(1).join(' ');
+        if (!looksLikePharmacyOrPrestataireValue(nom, ctx)) return { nom, prenom };
+      }
+      if (!looksLikePharmacyOrPrestataireValue(raw, ctx) && /nom/.test(normalizeText(raw)) === false) {
+        return { nom: raw, prenom: '' };
+      }
+    }
+
+    /* Préférer zone après label « ordonnance » / patient */
+    const ordoIdx = normalizeText(cleaned).search(/\bordonnance\b|\bpatient\b|\bdestinataire\b/);
+    const region = ordoIdx >= 0 ? cleaned.slice(Math.max(0, ordoIdx - 20)) : cleaned;
+    const lines = region
+      .split(/\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const line of lines) {
+      if (isLetterheadOrSenderLine(line, prestataireNames(ctx))) continue;
+      if (patientLabels.some((lb) => normalizeText(line).startsWith(normalizeText(lb)))) continue;
+      const m = line.match(
+        /^([A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ][A-ZÀÂÄÉÈÊËÏÎÔÖÙÛÜÇ' -]{1,})[,\s]+([A-Za-zÀ-ÿ' -]{2,})$/
+      );
+      if (m) {
+        const nom = m[1].trim();
+        const prenom = m[2].trim();
+        if (!looksLikePharmacyOrPrestataireValue(nom, ctx) && !looksLikePharmacyOrPrestataireValue(`${nom} ${prenom}`, ctx)) {
+          return { nom, prenom };
+        }
+      }
+    }
+    return null;
   }
 
   function matchPrestataireOrkyn(prestataires) {
@@ -294,35 +573,48 @@
 
   /**
    * Heuristiques FR → propositions de mapping (code → valeur).
+   * Rule-based only (pas d’IA) : labels + blacklist pharmacie/prestataires.
    * @param {string} fullText
    * @param {{ prestataires?: object[] }} [ctx]
    * @returns {{ code: string, value: string|number|boolean, confidence: number }[]}
    */
   function mapHeuristics(fullText, ctx) {
     const text = String(fullText || '');
+    const patientText = stripSenderNoise(text, ctx);
     const out = [];
     const push = (code, value, confidence) => {
       if (value == null || value === '') return;
       out.push({ code, value, confidence: confidence ?? 0.6 });
     };
 
-    const np = findNomPrenom(text);
+    const np = findNomPrenom(text, ctx);
     if (np) {
-      if (np.nom) push('patient_nom', np.nom, 0.7);
-      if (np.prenom) push('patient_prenom', np.prenom, 0.7);
+      if (np.nom && !looksLikePharmacyOrPrestataireValue(np.nom, ctx)) {
+        push('patient_nom', np.nom, 0.7);
+      }
+      if (np.prenom && !looksLikePharmacyOrPrestataireValue(np.prenom, ctx)) {
+        push('patient_prenom', np.prenom, 0.7);
+      }
     }
 
     const dn =
-      afterLabel(text, ['date de naissance', 'ne(e) le', 'nee le', 'né le', 'née le'], {
+      afterLabel(patientText, ['date de naissance', 'ne(e) le', 'nee le', 'né le', 'née le'], {
         pattern: /\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/,
-      }) || afterLabel(text, ['date de naissance'], { untilLine: true });
+      }) || afterLabel(patientText, ['date de naissance'], { untilLine: true });
     const dnIso = parseFrDate(dn);
     if (dnIso) push('patient_date_naissance', dnIso, 0.75);
 
-    const adresse = afterLabel(text, ['adresse'], { untilLine: true, maxLen: 120 });
-    if (adresse && adresse.length > 5) push('patient_adresse', adresse, 0.55);
+    const adresse = afterLabel(patientText, ['adresse'], { untilLine: true, maxLen: 120 });
+    if (
+      adresse &&
+      adresse.length > 5 &&
+      !looksLikePharmacyOrPrestataireValue(adresse, ctx) &&
+      !/pharmacie|siret/i.test(adresse)
+    ) {
+      push('patient_adresse', adresse, 0.55);
+    }
 
-    const tel = findPhone(text);
+    const tel = findPhone(patientText, ctx);
     if (tel) push('patient_telephone', tel, 0.7);
 
     const caution = detectCaution(text);
@@ -382,6 +674,21 @@
       push('unite', du.unite, 0.7);
     }
 
+    const prolong = detectProlongation(text);
+    if (prolong) {
+      push('prolong_enabled', true, 0.75);
+      if (prolong.duree) push('prolong_duree', prolong.duree, 0.7);
+      if (prolong.unite) push('prolong_unite', prolong.unite, 0.7);
+      if (prolong.notes) push('prolong_notes', prolong.notes, 0.5);
+      if (prolong.date_fin_hint) push('prolong_date_fin_hint', prolong.date_fin_hint, 0.55);
+    }
+
+    const contact = detectContactHints(text);
+    if (contact) {
+      push('contact_enabled', true, 0.7);
+      if (contact.motif) push('contact_motif', contact.motif, 0.65);
+    }
+
     return out;
   }
 
@@ -421,6 +728,7 @@
           width: ocr.width,
           height: ocr.height,
           objectUrl: ocr.objectUrl,
+          zoom: 1,
         });
       }
     }

@@ -4,6 +4,17 @@
 (function (global) {
   const TYPES = ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
 
+  const MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
+  function motifLabel(motif) {
+    return MOTIF_LABELS[motif] || motif || '—';
+  }
+
   function el(html) {
     const t = document.createElement('template');
     t.innerHTML = html.trim();
@@ -71,7 +82,7 @@
 
   /** Pastilles : regrouper mots proches en lignes / tokens utiles. */
   function buildPills(words, pageW, pageH) {
-    const usable = (words || []).filter((w) => w.confidence >= 40 && w.text.length >= 2);
+    const usable = (words || []).filter((w) => w.confidence >= 30 && w.text.length >= 1);
     const pills = [];
     const used = new Set();
     for (let i = 0; i < usable.length; i += 1) {
@@ -110,6 +121,7 @@
   async function mount(root, ctx) {
     const params = await LocationData.loadParams();
     const prestataires = await LocationData.listPrestataires(true);
+    const templatesAll = (await LocationData.listTemplates()).filter((t) => t.actif !== false);
     const show = (etape, code) => LocationData.isCreationActif(params, etape, code);
     const req = (etape, code) => LocationData.isCreationRequired(params, etape, code);
     const quiFactureDefaut = params.qui_facture_defaut === 'prestataire' ? 'prestataire' : 'pharmacie';
@@ -117,6 +129,9 @@
 
     const state = {
       pages: [],
+      showPills: true,
+      selectedPillKeys: new Set(),
+      lastPillKey: null,
       patient_id: null,
       patient: {
         nom: '',
@@ -146,6 +161,18 @@
       date_ordo: LocationRules.todayISO(),
       duree: 10,
       unite: 'semaines',
+      prolongation: {
+        enabled: false,
+        date_ordo: LocationRules.todayISO(),
+        duree: 1,
+        unite: 'semaines',
+        notes: '',
+      },
+      contact: {
+        enabled: false,
+        template_id: '',
+        motif: '',
+      },
       busy: false,
     };
 
@@ -156,10 +183,11 @@
         <button type="button" class="loc-btn loc-btn-ghost" id="trPhotoBtn">Photo</button>
         <input type="file" id="trFileInput" class="loc-tr-file-input" accept="image/*,application/pdf" multiple>
         <input type="file" id="trPhotoInput" class="loc-tr-file-input" accept="image/*" capture="environment">
-        <p class="loc-muted" id="trStatus">Importez des images ou un PDF scanné.</p>
+        <label class="loc-check loc-tr-pills-toggle"><input type="checkbox" id="trShowPills" checked> Afficher les pastilles</label>
+        <p class="loc-muted" id="trStatus">Importez des images ou un PDF scanné. Manuscrit : relecture / glisser-déposer recommandés.</p>
       </div>
       <div class="loc-tr-split">
-        <section class="loc-tr-pane" aria-label="Documents">
+        <section class="loc-tr-pane" id="trDocsPane" aria-label="Documents">
           <p class="loc-tr-pane-head">Documents</p>
           <div class="loc-tr-pane-scroll" id="trDocs"></div>
         </section>
@@ -176,12 +204,39 @@
     root.appendChild(wrap);
 
     const docsEl = wrap.querySelector('#trDocs');
+    const docsPane = wrap.querySelector('#trDocsPane');
     const formEl = wrap.querySelector('#trForm');
     const actionsEl = wrap.querySelector('#trActions');
     const msgEl = wrap.querySelector('#trMsg');
     const statusEl = wrap.querySelector('#trStatus');
     const fileInput = wrap.querySelector('#trFileInput');
     const photoInput = wrap.querySelector('#trPhotoInput');
+    const showPillsInput = wrap.querySelector('#trShowPills');
+
+    const ZOOM_MIN = 1;
+    const ZOOM_MAX = 2;
+    const ZOOM_STEP = 0.25;
+
+    function pageZoom(page) {
+      const z = Number(page.zoom);
+      if (!Number.isFinite(z) || z < ZOOM_MIN) return ZOOM_MIN;
+      if (z > ZOOM_MAX) return ZOOM_MAX;
+      return Math.round(z / ZOOM_STEP) * ZOOM_STEP;
+    }
+
+    function selectedTextsJoined() {
+      const texts = [];
+      docsEl.querySelectorAll('.loc-tr-pill.is-selected').forEach((pill) => {
+        const t = pill.getAttribute('data-pill-text') || '';
+        if (t) texts.push(t);
+      });
+      return texts.join(' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function applyPillsVisibility() {
+      docsPane.classList.toggle('is-pills-hidden', !state.showPills);
+      if (showPillsInput) showPillsInput.checked = !!state.showPills;
+    }
 
     function showMsg(text, isErr) {
       msgEl.hidden = !text;
@@ -266,6 +321,22 @@
           return state.duree == null || state.duree === '';
         case 'unite':
           return !state.unite;
+        case 'prolong_enabled':
+          return !state.prolongation.enabled;
+        case 'prolong_duree':
+          return !state.prolongation.enabled || !state.prolongation.duree;
+        case 'prolong_unite':
+          return !state.prolongation.enabled || !state.prolongation.unite;
+        case 'prolong_notes':
+          return !state.prolongation.enabled || !state.prolongation.notes;
+        case 'prolong_date_ordo':
+          return !state.prolongation.enabled || !state.prolongation.date_ordo;
+        case 'contact_enabled':
+          return !state.contact.enabled;
+        case 'contact_motif':
+          return !state.contact.enabled || !state.contact.motif;
+        case 'contact_template_id':
+          return !state.contact.enabled || !state.contact.template_id;
         default: {
           const v = state.appareil.champs_extra?.[code];
           return v == null || v === '';
@@ -351,11 +422,80 @@
         case 'unite':
           if (v === 'jours' || v === 'semaines' || v === 'mois') state.unite = v;
           break;
+        case 'prolong_enabled':
+          state.prolongation.enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          break;
+        case 'prolong_duree': {
+          const n = Number(v);
+          if (Number.isFinite(n) && n > 0) {
+            state.prolongation.duree = n;
+            state.prolongation.enabled = true;
+          }
+          break;
+        }
+        case 'prolong_unite':
+          if (v === 'jours' || v === 'semaines' || v === 'mois') {
+            state.prolongation.unite = v;
+            state.prolongation.enabled = true;
+          }
+          break;
+        case 'prolong_notes':
+          if (v) {
+            state.prolongation.notes = v;
+            state.prolongation.enabled = true;
+          }
+          break;
+        case 'prolong_date_ordo':
+          state.prolongation.date_ordo = LocationTranscriptionOcr.parseFrDate(v) || v;
+          state.prolongation.enabled = true;
+          break;
+        case 'prolong_date_fin_hint':
+          /* indice OCR seulement — active la case prolongation */
+          state.prolongation.enabled = true;
+          break;
+        case 'contact_enabled':
+          state.contact.enabled = value === true || v === 'true' || v === 'oui' || v === '1';
+          break;
+        case 'contact_motif':
+          if (v) {
+            state.contact.motif = v;
+            state.contact.enabled = true;
+            pickTemplateForMotif(v);
+          }
+          break;
+        case 'contact_template_id':
+          if (v) {
+            state.contact.template_id = v;
+            state.contact.enabled = true;
+          }
+          break;
         default:
           state.appareil.champs_extra = {
             ...(state.appareil.champs_extra || {}),
             [code]: v === '' ? null : v,
           };
+      }
+    }
+
+    function templatesForType(type) {
+      const t = type || state.appareil.type_appareil;
+      const typed = templatesAll.filter((x) => x.type_appareil === t);
+      const generic = templatesAll.filter((x) => !x.type_appareil);
+      return typed.length ? [...typed, ...generic.filter((g) => !typed.some((x) => x.id === g.id))] : generic.length ? generic : templatesAll;
+    }
+
+    function pickTemplateForMotif(motif) {
+      if (!motif) return;
+      const list = templatesForType(state.appareil.type_appareil);
+      const hit =
+        list.find((t) => t.motif === motif && t.type_appareil === state.appareil.type_appareil) ||
+        list.find((t) => t.motif === motif) ||
+        null;
+      if (hit) {
+        state.contact.template_id = hit.id;
+        state.contact.motif = hit.motif || motif;
+      } else {
+        state.contact.motif = motif;
       }
     }
 
@@ -467,6 +607,30 @@
         state.unite = formEl.querySelector('[name=unite]').value || 'semaines';
       }
       collectCustomFields('location');
+
+      const prEn = formEl.querySelector('[name=prolong_enabled]');
+      state.prolongation.enabled = !!prEn?.checked;
+      if (formEl.querySelector('[name=pr_ordo]')) {
+        state.prolongation.date_ordo = formEl.querySelector('[name=pr_ordo]').value || LocationRules.todayISO();
+      }
+      if (formEl.querySelector('[name=pr_duree]')) {
+        state.prolongation.duree = Number(formEl.querySelector('[name=pr_duree]').value || 0);
+      }
+      if (formEl.querySelector('[name=pr_unite]')) {
+        state.prolongation.unite = formEl.querySelector('[name=pr_unite]').value || 'semaines';
+      }
+      if (formEl.querySelector('[name=pr_notes]')) {
+        state.prolongation.notes = formEl.querySelector('[name=pr_notes]').value.trim() || '';
+      }
+
+      const coEn = formEl.querySelector('[name=contact_enabled]');
+      state.contact.enabled = !!coEn?.checked;
+      const tplSel = formEl.querySelector('[name=contact_template_id]');
+      if (tplSel) {
+        state.contact.template_id = tplSel.value || '';
+        const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
+        state.contact.motif = tpl?.motif || state.contact.motif || '';
+      }
     }
 
     function validateCustomFields(etapeId) {
@@ -590,22 +754,36 @@
     }
 
     function renderDocs() {
+      applyPillsVisibility();
       if (!state.pages.length) {
         docsEl.innerHTML =
           '<p class="loc-tr-docs-empty">Aucun document. Utilisez « Numériser / Importer ».</p>';
+        state.selectedPillKeys.clear();
+        state.lastPillKey = null;
         return;
       }
       docsEl.innerHTML = state.pages
         .map((page) => {
+          const zoom = pageZoom(page);
           const pills = buildPills(page.words, page.width, page.height);
           return `<article class="loc-tr-page" data-page-id="${esc(page.id)}">
-            <p class="loc-tr-page-label">${esc(page.label)}</p>
-            <div class="loc-tr-page-stage">
+            <div class="loc-tr-page-bar">
+              <p class="loc-tr-page-label">${esc(page.label)}</p>
+              <div class="loc-tr-zoom" data-page-id="${esc(page.id)}">
+                <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-zoom="-">−</button>
+                <span class="loc-tr-zoom-label">${Math.round(zoom * 100)} %</span>
+                <button type="button" class="loc-btn loc-btn-ghost loc-btn-sm" data-zoom="+">+</button>
+              </div>
+            </div>
+            <div class="loc-tr-page-stage" style="--tr-zoom:${zoom}">
               <img src="${esc(page.objectUrl)}" alt="${esc(page.label)}" width="${page.width}" height="${page.height}">
               ${pills
                 .map(
-                  (p) =>
-                    `<button type="button" class="loc-tr-pill" draggable="true" data-pill-text="${esc(p.text)}" style="left:${p.leftPct}%;top:${p.topPct}%;" title="${esc(p.text)}">${esc(p.text)}</button>`
+                  (p, idx) => {
+                    const key = `${page.id}:${idx}`;
+                    const sel = state.selectedPillKeys.has(key) ? ' is-selected' : '';
+                    return `<button type="button" class="loc-tr-pill${sel}" draggable="true" data-pill-key="${esc(key)}" data-pill-text="${esc(p.text)}" style="left:${p.leftPct}%;top:${p.topPct}%;" title="${esc(p.text)}">${esc(p.text)}</button>`;
+                  }
                 )
                 .join('')}
             </div>
@@ -613,20 +791,72 @@
         })
         .join('');
 
-      docsEl.querySelectorAll('.loc-tr-pill').forEach((pill) => {
+      docsEl.querySelectorAll('.loc-tr-zoom').forEach((bar) => {
+        const pageId = bar.getAttribute('data-page-id');
+        bar.querySelectorAll('[data-zoom]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const page = state.pages.find((p) => p.id === pageId);
+            if (!page) return;
+            let z = pageZoom(page);
+            if (btn.getAttribute('data-zoom') === '+') z = Math.min(ZOOM_MAX, z + ZOOM_STEP);
+            else z = Math.max(ZOOM_MIN, z - ZOOM_STEP);
+            page.zoom = z;
+            renderDocs();
+          });
+        });
+      });
+
+      const pillNodes = [...docsEl.querySelectorAll('.loc-tr-pill')];
+
+      function selectRange(fromKey, toKey) {
+        const keys = pillNodes.map((p) => p.getAttribute('data-pill-key'));
+        const a = keys.indexOf(fromKey);
+        const b = keys.indexOf(toKey);
+        if (a < 0 || b < 0) return;
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        for (let i = lo; i <= hi; i += 1) state.selectedPillKeys.add(keys[i]);
+      }
+
+      pillNodes.forEach((pill) => {
         pill.addEventListener('dragstart', (e) => {
-          const text = pill.getAttribute('data-pill-text') || pill.textContent || '';
+          const key = pill.getAttribute('data-pill-key');
+          if (key && !state.selectedPillKeys.has(key)) {
+            state.selectedPillKeys.clear();
+            state.selectedPillKeys.add(key);
+            pillNodes.forEach((p) => {
+              p.classList.toggle('is-selected', state.selectedPillKeys.has(p.getAttribute('data-pill-key')));
+            });
+          }
+          const text = selectedTextsJoined() || pill.getAttribute('data-pill-text') || '';
           e.dataTransfer.setData('text/plain', text);
           e.dataTransfer.effectAllowed = 'copy';
           pill.classList.add('is-used');
         });
-        pill.addEventListener('click', () => {
-          const text = pill.getAttribute('data-pill-text') || '';
-          try {
-            navigator.clipboard?.writeText(text);
-            setStatus(`Copié : ${text.slice(0, 40)}${text.length > 40 ? '…' : ''}`);
-          } catch (_) {
-            setStatus(text);
+        pill.addEventListener('click', (e) => {
+          e.preventDefault();
+          const key = pill.getAttribute('data-pill-key');
+          if (!key) return;
+          if (e.shiftKey && state.lastPillKey) {
+            selectRange(state.lastPillKey, key);
+          } else if (e.ctrlKey || e.metaKey) {
+            if (state.selectedPillKeys.has(key)) state.selectedPillKeys.delete(key);
+            else state.selectedPillKeys.add(key);
+            state.lastPillKey = key;
+          } else {
+            state.selectedPillKeys.clear();
+            state.selectedPillKeys.add(key);
+            state.lastPillKey = key;
+          }
+          pillNodes.forEach((p) => {
+            p.classList.toggle('is-selected', state.selectedPillKeys.has(p.getAttribute('data-pill-key')));
+          });
+          const n = state.selectedPillKeys.size;
+          if (n > 1) {
+            setStatus(`${n} pastilles sélectionnées — glissez vers un champ.`);
+          } else {
+            const text = pill.getAttribute('data-pill-text') || '';
+            setStatus(text ? `Sélection : ${text.slice(0, 48)}${text.length > 48 ? '…' : ''}` : '');
           }
         });
       });
@@ -736,12 +966,117 @@
       </div>`;
     }
 
+    function locationFinBase() {
+      return (
+        LocationRules.addDuration(state.date_debut || state.date_ordo, state.duree, state.unite) ||
+        state.date_debut ||
+        state.date_ordo ||
+        LocationRules.todayISO()
+      );
+    }
+
+    function renderProlongationSection() {
+      const pr = state.prolongation;
+      const base = locationFinBase();
+      const newFin =
+        pr.enabled && pr.duree > 0
+          ? LocationRules.addDuration(base, pr.duree, pr.unite)
+          : null;
+      return `<div class="loc-tr-form-section" data-etape="prolongation">
+        <h3>Prolongation</h3>
+        <label class="loc-check" data-field-code="prolong_enabled">
+          <input type="checkbox" name="prolong_enabled"${pr.enabled ? ' checked' : ''}>
+          Ajouter une prolongation
+        </label>
+        <div class="loc-grid-2" id="trProlongFields"${pr.enabled ? '' : ' hidden'}>
+          ${field('Date ordo', `<input type="date" name="pr_ordo" value="${esc(pr.date_ordo || '')}">`, false, 'prolong_date_ordo')}
+          ${field('Durée', `<input type="number" min="1" name="pr_duree" value="${esc(pr.duree)}">`, false, 'prolong_duree')}
+          ${field(
+            'Unité',
+            `<select name="pr_unite">
+              <option value="jours"${pr.unite === 'jours' ? ' selected' : ''}>Jours</option>
+              <option value="semaines"${pr.unite === 'semaines' ? ' selected' : ''}>Semaines</option>
+              <option value="mois"${pr.unite === 'mois' ? ' selected' : ''}>Mois</option>
+            </select>`,
+            false,
+            'prolong_unite'
+          )}
+          ${field('Notes', `<input name="pr_notes" value="${esc(pr.notes || '')}" placeholder="Optionnel">`, false, 'prolong_notes')}
+        </div>
+        <p class="loc-hint">Nouvelle fin après prolongation : <strong id="trProlongFinHint">${newFin || '—'}</strong></p>
+      </div>`;
+    }
+
+    function contactPreviewHtml(tpl) {
+      if (!tpl || !String(tpl.corps || '').trim()) {
+        return '<p class="loc-muted">Aucun texte template.</p>';
+      }
+      const fin = locationFinBase();
+      const typeCode = state.appareil.type_appareil;
+      const vars = {
+        date_min: LocationRules.formatDateFr(fin) || fin || '',
+        type_appareil: typeCode ? LocationRules.typeLabel(typeCode) : '',
+      };
+      const body = LocationRules.interpolate(String(tpl.corps), vars);
+      return `<div class="loc-lgo-box">${esc(body)}</div>`;
+    }
+
+    function renderContactsSection() {
+      const list = templatesForType(state.appareil.type_appareil);
+      const co = state.contact;
+      let selectedId = co.template_id;
+      if (co.enabled && !selectedId && list.length) {
+        if (co.motif) {
+          const byMotif =
+            list.find((t) => t.motif === co.motif && t.type_appareil === state.appareil.type_appareil) ||
+            list.find((t) => t.motif === co.motif);
+          if (byMotif) selectedId = byMotif.id;
+        }
+        if (!selectedId) selectedId = list[0].id;
+      }
+      const selected = list.find((t) => t.id === selectedId) || null;
+      return `<div class="loc-tr-form-section" data-etape="contact">
+        <h3>Contacts</h3>
+        <p class="loc-hint">Créé uniquement à la validation « Créer le dossier » (dossier actif), via les templates admin.</p>
+        <label class="loc-check" data-field-code="contact_enabled">
+          <input type="checkbox" name="contact_enabled"${co.enabled ? ' checked' : ''}${list.length ? '' : ' disabled'}>
+          Créer un contact (phase commentaire)
+        </label>
+        ${
+          !list.length
+            ? '<p class="loc-muted">Aucun template contact actif. Configurez-en dans Paramètres.</p>'
+            : `<div id="trContactFields"${co.enabled ? '' : ' hidden'}>
+          ${field(
+            'Template',
+            `<select name="contact_template_id" data-field-code="contact_template_id">
+              ${list
+                .map((t) => {
+                  const typeBit = t.type_appareil
+                    ? LocationRules.typeLabel(t.type_appareil)
+                    : 'Tous types';
+                  const label = `${motifLabel(t.motif)} · ${typeBit}`;
+                  return `<option value="${esc(t.id)}"${t.id === selectedId ? ' selected' : ''}>${esc(label)}</option>`;
+                })
+                .join('')}
+            </select>`,
+            false,
+            'contact_template_id'
+          )}
+          <p class="loc-muted" style="margin:8px 0 4px">Aperçu message</p>
+          <div id="trContactPreview">${contactPreviewHtml(selected)}</div>
+        </div>`
+        }
+      </div>`;
+    }
+
     function renderForm() {
       formEl.innerHTML =
         renderPatientSection() +
         renderPersonnelSection() +
         renderAppareilSection() +
-        renderLocationSection();
+        renderLocationSection() +
+        renderProlongationSection() +
+        renderContactsSection();
 
       if (show('patient', 'patient_telephone')) {
         LocationFields.mountPhones(
@@ -772,6 +1107,9 @@
           state.duree = 10;
           state.unite = 'semaines';
         }
+        if (state.contact.enabled && state.contact.motif) {
+          pickTemplateForMotif(state.contact.motif);
+        }
         renderForm();
       });
       formEl.querySelector('[name=source]')?.addEventListener('change', () => {
@@ -786,10 +1124,57 @@
         const f = LocationRules.addDuration(dd || state.date_ordo, duree, unite);
         const hint = formEl.querySelector('#trFinHint');
         if (hint) hint.textContent = f || '—';
+        recalcProlongHint(f);
       };
+
+      function recalcProlongHint(baseFin) {
+        const enabled = !!formEl.querySelector('[name=prolong_enabled]')?.checked;
+        const fields = formEl.querySelector('#trProlongFields');
+        if (fields) fields.hidden = !enabled;
+        const prDuree = Number(formEl.querySelector('[name=pr_duree]')?.value || 0);
+        const prUnite = formEl.querySelector('[name=pr_unite]')?.value || 'semaines';
+        const base =
+          baseFin ||
+          LocationRules.addDuration(
+            formEl.querySelector('[name=date_debut]')?.value || state.date_debut || state.date_ordo,
+            Number(formEl.querySelector('[name=duree]')?.value || state.duree),
+            formEl.querySelector('[name=unite]')?.value || state.unite
+          );
+        const ph = formEl.querySelector('#trProlongFinHint');
+        if (ph) {
+          ph.textContent =
+            enabled && prDuree > 0 ? LocationRules.addDuration(base, prDuree, prUnite) || '—' : '—';
+        }
+      }
+
       formEl.querySelectorAll('[name=date_debut],[name=date_ordo],[name=duree],[name=unite]').forEach((i) => {
         i.addEventListener('change', recalc);
         i.addEventListener('input', recalc);
+      });
+      formEl.querySelector('[name=prolong_enabled]')?.addEventListener('change', () => {
+        collectAll();
+        renderForm();
+      });
+      formEl.querySelectorAll('[name=pr_ordo],[name=pr_duree],[name=pr_unite],[name=pr_notes]').forEach((i) => {
+        i.addEventListener('change', () => recalcProlongHint());
+        i.addEventListener('input', () => recalcProlongHint());
+      });
+      formEl.querySelector('[name=contact_enabled]')?.addEventListener('change', () => {
+        collectAll();
+        if (state.contact.enabled && !state.contact.template_id) {
+          const list = templatesForType(state.appareil.type_appareil);
+          if (list[0]) {
+            state.contact.template_id = list[0].id;
+            state.contact.motif = list[0].motif || '';
+          }
+        }
+        renderForm();
+      });
+      formEl.querySelector('[name=contact_template_id]')?.addEventListener('change', () => {
+        collectAll();
+        const tpl = templatesAll.find((t) => t.id === state.contact.template_id);
+        const preview = formEl.querySelector('#trContactPreview');
+        if (preview) preview.innerHTML = contactPreviewHtml(tpl || null);
       });
 
       bindDropZones();
@@ -832,6 +1217,8 @@
     function resetAfterSave() {
       state.pages.forEach((p) => LocationTranscriptionOcr.revokeUrl(p.objectUrl));
       state.pages = [];
+      state.selectedPillKeys.clear();
+      state.lastPillKey = null;
       state.patient_id = null;
       state.patient = {
         nom: '',
@@ -861,20 +1248,112 @@
       state.date_ordo = LocationRules.todayISO();
       state.duree = 10;
       state.unite = 'semaines';
+      state.prolongation = {
+        enabled: false,
+        date_ordo: LocationRules.todayISO(),
+        duree: 1,
+        unite: 'semaines',
+        notes: '',
+      };
+      state.contact = {
+        enabled: false,
+        template_id: '',
+        motif: '',
+      };
       renderDocs();
       renderForm();
+    }
+
+    async function applyProlongationIfNeeded(dossier) {
+      const pr = state.prolongation;
+      if (!pr.enabled) return null;
+      const duree = Number(pr.duree);
+      const unite = pr.unite || 'semaines';
+      if (!Number.isFinite(duree) || duree < 1) {
+        throw new Error('Durée de prolongation invalide.');
+      }
+      const rules = await LocationData.loadRules();
+      const evalRes = LocationRules.evaluate(
+        { ...LocationData.dossierContext(dossier), prolong_duree: duree, prolong_unite: unite },
+        rules,
+        params
+      );
+      const block = evalRes.alerts.find((a) => a.action === 'bloquer_ou_alerter');
+      if (block && !confirm(block.message + '\n\nContinuer quand même ?')) {
+        throw new Error('Prolongation annulée.');
+      }
+      await LocationData.addProlongation(
+        dossier.id,
+        {
+          date_ordo: pr.date_ordo || null,
+          duree,
+          unite,
+          notes: pr.notes || null,
+        },
+        ctx.userId
+      );
+      return LocationData.getDossier(dossier.id);
+    }
+
+    async function applyContactIfNeeded(dossier) {
+      const co = state.contact;
+      if (!co.enabled || !co.template_id) return null;
+      const tpl = templatesAll.find((t) => t.id === co.template_id);
+      if (!tpl || !String(tpl.corps || '').trim()) {
+        throw new Error('Template contact introuvable ou vide.');
+      }
+      const d = dossier.date_fin
+        ? dossier
+        : await LocationData.getDossier(dossier.id);
+      const vars = LocationData.contactInterpVars(
+        tpl.motif || co.motif || 'prolongation',
+        await LocationData.loadRules(),
+        d
+      );
+      const commentaire = LocationRules.interpolate(String(tpl.corps), vars);
+      await LocationData.upsertContact({
+        dossier_id: d.id,
+        motif: tpl.motif || co.motif || 'prolongation',
+        statut: 'a_contacter',
+        phase: 'commentaire',
+        commentaire,
+        phase_date_fin: d.date_fin || null,
+        created_by: ctx.userId || null,
+      });
+      return true;
+    }
+
+    async function persistExtras(dossier, { asActif }) {
+      let current = dossier;
+      current = (await applyProlongationIfNeeded(current)) || current;
+      if (asActif) {
+        await applyContactIfNeeded(current);
+      }
     }
 
     async function saveEnAttente() {
       if (state.busy) return;
       if (!validateEnAttente()) return;
+      if (state.prolongation.enabled) {
+        const duree = Number(state.prolongation.duree);
+        if (!Number.isFinite(duree) || duree < 1) {
+          return showMsg('Durée de prolongation invalide.', true);
+        }
+      }
       state.busy = true;
       const btn = actionsEl.querySelector('#trHold');
       if (btn) btn.disabled = true;
       showMsg('Mise en attente…');
       try {
-        await LocationData.createDossierComplet(buildPayload(), ctx.userId, { statut: 'en_attente' });
-        showMsg('Dossier mis en attente.');
+        const dossier = await LocationData.createDossierComplet(buildPayload(), ctx.userId, {
+          statut: 'en_attente',
+        });
+        await persistExtras(dossier, { asActif: false });
+        showMsg(
+          state.contact.enabled
+            ? 'Dossier mis en attente (contact non créé — réservé au dossier actif).'
+            : 'Dossier mis en attente.'
+        );
         resetAfterSave();
         setStatus('Dossier en attente enregistré.');
       } catch (e) {
@@ -889,14 +1368,24 @@
       if (state.busy) return;
       collectAll();
       if (!validateActif()) return;
+      if (state.prolongation.enabled) {
+        const duree = Number(state.prolongation.duree);
+        if (!Number.isFinite(duree) || duree < 1) {
+          return showMsg('Durée de prolongation invalide.', true);
+        }
+      }
+      if (state.contact.enabled && !state.contact.template_id) {
+        return showMsg('Choisissez un template contact.', true);
+      }
       state.busy = true;
       const btn = actionsEl.querySelector('#trSave');
       if (btn) btn.disabled = true;
       showMsg('Enregistrement…');
       try {
-        await LocationData.createDossierComplet(buildPayload(), ctx.userId, {
+        const dossier = await LocationData.createDossierComplet(buildPayload(), ctx.userId, {
           statut: 'actif',
         });
+        await persistExtras(dossier, { asActif: true });
         showMsg('Dossier créé.');
         resetAfterSave();
         setStatus('Dossier créé.');
@@ -916,20 +1405,20 @@
       wrap.querySelector('#trPhotoBtn').disabled = true;
       showMsg('');
       try {
-        setStatus('Chargement OCR…');
+        setStatus(`OCR de ${files.length} fichier(s)…`);
         const result = await LocationTranscriptionOcr.processFiles(files, {
           prestataires,
           onStatus: setStatus,
         });
-        state.pages.forEach((p) => LocationTranscriptionOcr.revokeUrl(p.objectUrl));
-        state.pages = result.pages || [];
+        const added = result.pages || [];
+        state.pages = state.pages.concat(added);
         collectAll();
         applyMappings(result.mappings);
         renderDocs();
         renderForm();
         setStatus(
           state.pages.length
-            ? `${state.pages.length} page(s) — glissez une pastille vers un champ.`
+            ? `${state.pages.length} page(s) — ${added.length} ajoutée(s). Clic / Ctrl+clic pour multi-sélection, puis glisser vers un champ. Manuscrit : relecture recommandée.`
             : 'Aucun texte détecté.'
         );
       } catch (e) {
@@ -948,7 +1437,12 @@
     wrap.querySelector('#trPhotoBtn').addEventListener('click', () => photoInput.click());
     fileInput.addEventListener('change', () => handleFiles(fileInput.files));
     photoInput.addEventListener('change', () => handleFiles(photoInput.files));
+    showPillsInput?.addEventListener('change', () => {
+      state.showPills = !!showPillsInput.checked;
+      applyPillsVisibility();
+    });
 
+    applyPillsVisibility();
     renderDocs();
     renderForm();
     renderActions();

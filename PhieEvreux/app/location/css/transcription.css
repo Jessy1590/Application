@@ -31,6 +31,11 @@ body.loc-transcription-page .loc-top {
   flex: 1 1 160px;
 }
 
+.loc-tr-pills-toggle {
+  margin: 0;
+  white-space: nowrap;
+}
+
 .loc-tr-split {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(300px, 1fr);
@@ -71,7 +76,7 @@ body.loc-transcription-page .loc-top {
 .loc-tr-pane-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding: 12px;
   -webkit-overflow-scrolling: touch;
   max-height: calc(100dvh - 220px);
@@ -93,24 +98,54 @@ body.loc-transcription-page .loc-top {
 }
 
 .loc-tr-page-label {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 12px;
   color: var(--loc-muted);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.loc-tr-page-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.loc-tr-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.loc-tr-zoom-label {
+  font-size: 12px;
+  color: var(--loc-muted);
+  min-width: 3.2em;
+  text-align: center;
 }
 
 .loc-tr-page-stage {
   position: relative;
   display: inline-block;
-  max-width: 100%;
+  max-width: none;
+  width: calc(100% * var(--tr-zoom, 1));
   vertical-align: top;
 }
 
 .loc-tr-page-stage img {
   display: block;
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   height: auto;
   border-radius: 6px;
   border: 1px solid var(--loc-line);
+}
+
+.loc-tr-pane.is-pills-hidden .loc-tr-pill {
+  display: none;
 }
 
 .loc-tr-pill {
@@ -139,6 +174,12 @@ body.loc-transcription-page .loc-top {
 
 .loc-tr-pill.is-used {
   opacity: 0.45;
+}
+
+.loc-tr-pill.is-selected {
+  outline: 2px solid var(--loc-on-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--loc-accent) 40%, #000);
 }
 
 .loc-tr-form-section {
