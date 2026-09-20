@@ -46,7 +46,7 @@ export const RECEPTION_CHECKLIST_KEYS = Object.freeze([
 export const EMPTY_FORM = Object.freeze({
   pharmacie: { nom: '', adresse: '', email: '', interlocuteur: '' },
   demande: {
-    nature: 'devis',
+    nature: 'commande',
     historique: 'premiere',
     prescripteur: '',
     date_ordo: '',
@@ -275,11 +275,18 @@ export async function createMagistralOrder(userId, form, { asDraft = false, ordo
     throw new Error('Valider l’analyse (dose/posologie) avant envoi au sous-traitant.');
   }
 
-  const statut = asDraft ? 'brouillon' : (form.demande?.nature === 'commande' ? 'commande' : 'devis');
+  // Création comptoir (hors brouillon) = commande directe, attente réception ST
+  const statut = asDraft ? 'brouillon' : 'commande';
+  const formCmd = asDraft
+    ? form
+    : {
+        ...form,
+        demande: { ...(form.demande || {}), nature: 'commande' },
+      };
   let ordonnance_path = null;
-  const row = formToRow(userId, form, {
+  const row = formToRow(userId, formCmd, {
     statut,
-    analyseValidated: !asDraft && form.analyse?.decision === 'st',
+    analyseValidated: !asDraft && formCmd.analyse?.decision === 'st',
   });
 
   const { data, error } = await supabase.from('magistral_orders').insert([row]).select().single();
@@ -295,13 +302,14 @@ export async function createMagistralOrder(userId, form, { asDraft = false, ordo
     }
   }
 
-  if (!asDraft && !form.preparation_interne && settings?.provider_email) {
+  if (!asDraft && !formCmd.preparation_interne && settings?.provider_email) {
     try {
-      const subjKey = statut === 'commande' ? 'commande' : 'devis';
-      const fallback = statut === 'commande'
-        ? `Commande préparation magistrale #${data.id.slice(0, 8)}`
-        : 'Demande de devis — préparation magistrale';
-      await sendProviderEmail(data, settings, subjKey, fallback);
+      await sendProviderEmail(
+        data,
+        settings,
+        'commande',
+        `Commande préparation magistrale #${data.id.slice(0, 8)}`,
+      );
     } catch (mailErr) {
       console.warn('[magistral] e-mail prestataire non envoyé:', mailErr.message);
     }
@@ -398,6 +406,7 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
   form.demande = {
     ...form.demande,
     historique: 'renouvellement',
+    nature: 'commande',
   };
 
   const phone = (form.patient?.phone || source.patient_phone || '').trim();
@@ -408,7 +417,8 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
     throw new Error('Valider l’analyse (dose/posologie) avant envoi au sous-traitant.');
   }
 
-  const statut = form.demande?.nature === 'commande' ? 'commande' : 'devis';
+  // Renouvellement = commande directe, attente réception ST (pas de devis)
+  const statut = 'commande';
   const row = formToRow(userId, form, {
     statut,
     ordonnance_path: null,
@@ -417,7 +427,7 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
   row.form_data = {
     ...row.form_data,
     renouvellement_de: source.id,
-    demande: { ...row.form_data.demande, historique: 'renouvellement' },
+    demande: { ...row.form_data.demande, historique: 'renouvellement', nature: 'commande' },
   };
   row.status_history = [{
     at: new Date().toISOString(),
@@ -450,11 +460,12 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
 
   if (!form.preparation_interne && settings?.provider_email) {
     try {
-      const subjKey = statut === 'commande' ? 'commande' : 'devis';
-      const fallback = statut === 'commande'
-        ? `Commande préparation magistrale #${data.id.slice(0, 8)} (renouvellement)`
-        : 'Demande de devis — préparation magistrale (renouvellement)';
-      await sendProviderEmail(data, settings, subjKey, fallback);
+      await sendProviderEmail(
+        data,
+        settings,
+        'commande',
+        `Commande préparation magistrale #${data.id.slice(0, 8)} (renouvellement)`,
+      );
     } catch (mailErr) {
       console.warn('[magistral] e-mail prestataire non envoyé:', mailErr.message);
     }
@@ -913,4 +924,194 @@ export async function saveOrderEdit(orderId, formData, opts = {}) {
     analyse: formData.analyse,
     patient_email: formData.patient_email,
   }, opts);
+}
+
+function emptyToNull(v) {
+  if (v == null) return null;
+  if (typeof v === 'string' && v.trim() === '') return null;
+  return v;
+}
+
+function numOrNull(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * État brouillon admin (Suivi dashboard) — colonnes + form_data + checklist / appel.
+ */
+export function orderToAdminDraft(order, settings = null) {
+  const form = orderToForm(order, settings);
+  const checklist = { ...(order?.reception_checklist || {}) };
+  RECEPTION_CHECKLIST_KEYS.forEach((k) => {
+    if (checklist[k.key] == null) checklist[k.key] = false;
+  });
+  const call = order?.patient_call && typeof order.patient_call === 'object' ? order.patient_call : {};
+  const lastAttempt = Array.isArray(call.attempts) && call.attempts.length
+    ? call.attempts[call.attempts.length - 1]
+    : null;
+  return {
+    statut: order?.statut || 'devis',
+    formule: order?.formule || form.demande?.formule || '',
+    forme: order?.forme || form.demande?.forme || '',
+    quantite: order?.quantite != null ? String(order.quantite) : (form.demande?.quantite || '1'),
+    patient_initiales: order?.patient_initiales || '',
+    patient_phone: order?.patient_phone || form.patient?.phone || '',
+    patient_email: order?.patient_email || form.patient_email || '',
+    form,
+    provider_ref: order?.provider_ref || '',
+    provider_lot: order?.provider_lot || '',
+    provider_ordonnancier: order?.provider_ordonnancier || '',
+    date_fabrication: order?.date_fabrication || '',
+    date_peremption: order?.date_peremption || '',
+    reception_checklist: checklist,
+    prix_ht_net: order?.prix_ht_net != null ? String(order.prix_ht_net) : '',
+    tva_rate: order?.tva_rate != null ? String(order.tva_rate) : String(settings?.tva_rate ?? '5.5'),
+    prix_calcule: order?.prix_calcule != null ? String(order.prix_calcule) : '',
+    port_override: '',
+    call_last_statut: call.last_statut || lastAttempt?.statut || '',
+    call_last_resultat: call.last_resultat || lastAttempt?.resultat || '',
+    call_note: lastAttempt?.note || call.admin_note || '',
+    ordonnancier_number: order?.ordonnancier_number || '',
+    dispensed_at: order?.dispensed_at ? String(order.dispensed_at).slice(0, 16) : '',
+    dispensed_by: order?.dispensed_by || '',
+    closed_at: order?.closed_at ? String(order.closed_at).slice(0, 16) : '',
+    closed_reason: order?.closed_reason || '',
+    notes: order?.notes || '',
+    nc_reason: order?.nc_reason || '',
+    preparation_interne: !!order?.preparation_interne,
+    ordonnance_path: order?.ordonnance_path || '',
+    liberation_path: order?.liberation_path || '',
+  };
+}
+
+/**
+ * Sauvegarde admin complète d’un dossier (pharmacien / administrateur).
+ * @param {string} orderId
+ * @param {ReturnType<typeof orderToAdminDraft>} draft
+ * @param {{ userId?: string, ordonnanceFile?: File|null, liberationFile?: File|null, recalcPrice?: boolean }} [opts]
+ */
+export async function saveOrderAdmin(orderId, draft, opts = {}) {
+  if (!orderId) throw new Error('Identifiant dossier manquant.');
+  if (!draft?.statut || !MAGISTRAL_STATUTS[draft.statut]) {
+    throw new Error('Statut invalide.');
+  }
+
+  const settings = await ensureSettings();
+  const order = await fetchOrderById(orderId);
+  const form = draft.form || {};
+  const patient = { ...(form.patient || {}) };
+  const dem = { ...(form.demande || {}) };
+
+  const formule = (draft.formule != null && String(draft.formule).trim() !== '')
+    ? draft.formule
+    : (dem.formule || '');
+  const forme = emptyToNull(draft.forme) ?? emptyToNull(dem.forme);
+  const quantite = numOrNull(draft.quantite) ?? numOrNull(dem.quantite) ?? 1;
+  dem.formule = formule;
+  if (forme != null) dem.forme = forme;
+  dem.quantite = quantite;
+
+  if (draft.patient_phone != null) patient.phone = draft.patient_phone;
+
+  const patient_email = emptyToNull(draft.patient_email ?? form.patient_email);
+  const patient_initiales = (draft.patient_initiales || '').trim()
+    || maskPatient(patient.nom, patient.prenom);
+
+  let ordonnance_path = emptyToNull(draft.ordonnance_path) ?? order.ordonnance_path ?? null;
+  let liberation_path = emptyToNull(draft.liberation_path) ?? order.liberation_path ?? null;
+  if (opts.ordonnanceFile) {
+    ordonnance_path = await uploadMagistralFile(orderId, opts.ordonnanceFile, 'ordonnance');
+  }
+  if (opts.liberationFile) {
+    liberation_path = await uploadMagistralFile(orderId, opts.liberationFile, 'liberation');
+  }
+
+  const prixHt = numOrNull(draft.prix_ht_net);
+  const tva = numOrNull(draft.tva_rate);
+  const portOv = draft.port_override !== '' && draft.port_override != null
+    ? Number(draft.port_override)
+    : null;
+  let prix_calcule = numOrNull(draft.prix_calcule);
+  if (opts.recalcPrice !== false && prixHt != null && tva != null) {
+    const calc = calcMagistralPrice(settings, prixHt, tva, portOv);
+    if (calc != null) prix_calcule = calc;
+  }
+
+  const prevCall = order.patient_call && typeof order.patient_call === 'object' ? order.patient_call : {};
+  const attempts = Array.isArray(prevCall.attempts) ? [...prevCall.attempts] : [];
+  const call_last_statut = emptyToNull(draft.call_last_statut);
+  const call_last_resultat = emptyToNull(draft.call_last_resultat);
+  const call_note = emptyToNull(draft.call_note);
+  if (call_last_statut || call_last_resultat || call_note) {
+    if (attempts.length > 0) {
+      const last = { ...attempts[attempts.length - 1] };
+      if (call_last_statut) last.statut = call_last_statut;
+      if (call_last_resultat) last.resultat = call_last_resultat;
+      if (call_note != null) last.note = call_note;
+      attempts[attempts.length - 1] = last;
+    }
+  }
+  const patient_call = {
+    ...prevCall,
+    attempts,
+    last_statut: call_last_statut || prevCall.last_statut || null,
+    last_resultat: call_last_resultat || prevCall.last_resultat || null,
+    last_at: prevCall.last_at || null,
+    last_by: prevCall.last_by || null,
+    admin_note: call_note,
+  };
+
+  const patch = {
+    statut: draft.statut,
+    formule,
+    forme,
+    quantite,
+    patient_initiales: patient_initiales || null,
+    patient_phone: emptyToNull(draft.patient_phone || patient.phone),
+    patient_email,
+    form_data: {
+      pharmacie: form.pharmacie || {},
+      demande: dem,
+      patient: {
+        ...patient,
+        nom: (patient.nom || '').slice(0, 2).toUpperCase(),
+        prenom: (patient.prenom || '').slice(0, 2).toUpperCase(),
+      },
+      analyse: form.analyse || {},
+      patient_email,
+      dispensation: order.form_data?.dispensation || undefined,
+    },
+    provider_ref: emptyToNull(draft.provider_ref),
+    provider_lot: emptyToNull(draft.provider_lot),
+    provider_ordonnancier: emptyToNull(draft.provider_ordonnancier),
+    date_fabrication: emptyToNull(draft.date_fabrication),
+    date_peremption: emptyToNull(draft.date_peremption),
+    reception_checklist: draft.reception_checklist || {},
+    prix_ht_net: prixHt,
+    tva_rate: tva,
+    prix_calcule,
+    patient_call,
+    ordonnancier_number: emptyToNull(draft.ordonnancier_number),
+    dispensed_at: draft.dispensed_at
+      ? new Date(draft.dispensed_at).toISOString()
+      : null,
+    dispensed_by: emptyToNull(draft.dispensed_by),
+    closed_at: draft.closed_at
+      ? new Date(draft.closed_at).toISOString()
+      : null,
+    closed_reason: emptyToNull(draft.closed_reason),
+    notes: emptyToNull(draft.notes),
+    nc_reason: emptyToNull(draft.nc_reason),
+    preparation_interne: !!draft.preparation_interne,
+    ordonnance_path,
+    liberation_path,
+  };
+
+  if (draft.statut !== order.statut) {
+    patch.status_history = pushHistory(order, draft.statut, opts.userId || null, 'édition admin');
+  }
+
+  return updateOrder(orderId, patch);
 }

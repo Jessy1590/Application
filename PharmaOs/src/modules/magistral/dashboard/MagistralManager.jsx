@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  FlaskConical, Send, XCircle, Printer, ChevronLeft, ChevronRight, Package, Trash2,
+  FlaskConical, Send, XCircle, Printer, ChevronLeft, ChevronRight, Package, Trash2, Shield,
 } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
+import { isPharmacistLevel } from '../../../core/roles.js';
 import MagistralOrderForm from '../shared/MagistralOrderForm.jsx';
+import MagistralAdminEdit from '../shared/MagistralAdminEdit.jsx';
 import MagistralReceptionCall from '../shared/MagistralReceptionCall.jsx';
 import {
   MAGISTRAL_STATUTS,
@@ -17,6 +19,8 @@ import {
   reopenNonConforme,
   saveOrderFromForm,
   orderToForm,
+  orderToAdminDraft,
+  saveOrderAdmin,
   countAlerts,
   deleteOrder,
 } from '../services/magistralService.js';
@@ -45,12 +49,19 @@ const Field = ({ label, children, hint }) => (
  * @param {{ onNavigate?: Function }} props
  */
 export default function MagistralManager({ onNavigate: _onNavigate = null }) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const canAdminEdit = isPharmacistLevel(role);
+
   const [settings, setSettings] = useState(null);
   const [orders, setOrders] = useState([]);
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [adminMode, setAdminMode] = useState(false);
+  const [adminDraft, setAdminDraft] = useState(null);
+  const [adminOrdoFile, setAdminOrdoFile] = useState(null);
+  const [adminLibFile, setAdminLibFile] = useState(null);
+  const [adminSaving, setAdminSaving] = useState(false);
   const [alerts, setAlerts] = useState(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
@@ -83,8 +94,14 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
       setEditForm(orderToForm(selected, settings));
       setOrdoNum(selected.ordonnancier_number || '');
       setRecvMode(false);
+      setAdminMode(false);
+      setAdminDraft(null);
+      setAdminOrdoFile(null);
+      setAdminLibFile(null);
     } else {
       setEditForm(null);
+      setAdminMode(false);
+      setAdminDraft(null);
     }
   }, [selected?.id, settings]);
 
@@ -93,6 +110,49 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
   };
   const selectNext = () => {
     if (selectedIdx >= 0 && selectedIdx < filtered.length - 1) setSelectedId(filtered[selectedIdx + 1].id);
+  };
+
+  const enterAdminMode = () => {
+    if (!selected || !canAdminEdit) return;
+    setAdminDraft(orderToAdminDraft(selected, settings));
+    setAdminOrdoFile(null);
+    setAdminLibFile(null);
+    setAdminMode(true);
+    setRecvMode(false);
+    setMsg('');
+    setErr('');
+  };
+
+  const cancelAdminMode = () => {
+    setAdminMode(false);
+    setAdminDraft(null);
+    setAdminOrdoFile(null);
+    setAdminLibFile(null);
+  };
+
+  const handleAdminSave = async () => {
+    if (!selected || !adminDraft) return;
+    if (!window.confirm(
+      `Enregistrer les modifications admin sur « ${selected.patient_initiales || selected.id.slice(0, 8)} » ?`,
+    )) return;
+    setAdminSaving(true);
+    setErr('');
+    setMsg('');
+    try {
+      await saveOrderAdmin(selected.id, adminDraft, {
+        userId: user?.id,
+        ordonnanceFile: adminOrdoFile,
+        liberationFile: adminLibFile,
+        recalcPrice: true,
+      });
+      setMsg('Dossier mis à jour (mode admin)');
+      cancelAdminMode();
+      await load();
+    } catch (ex) {
+      setErr(ex.message);
+    } finally {
+      setAdminSaving(false);
+    }
   };
 
   const handleDeleteOrder = async (order) => {
@@ -107,6 +167,7 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
       await deleteOrder(order.id);
       setSelectedId(null);
       setRecvMode(false);
+      cancelAdminMode();
       setMsg('Dossier supprimé');
       await load();
     } catch (ex) {
@@ -209,6 +270,15 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={() => printFeuilleSuivi(selected, settings)} className="text-xs px-2 py-1.5 border rounded-lg flex items-center gap-1"><Printer size={12} /> Feuille de suivi</button>
                   <button type="button" onClick={() => printFicheDemande(selected, settings)} className="text-xs px-2 py-1.5 border rounded-lg flex items-center gap-1"><Printer size={12} /> Fiche ST</button>
+                  {canAdminEdit && !adminMode && (
+                    <button
+                      type="button"
+                      onClick={enterAdminMode}
+                      className="text-xs px-2 py-1.5 border border-amber-300 bg-amber-50 text-amber-900 rounded-lg flex items-center gap-1"
+                    >
+                      <Shield size={12} /> Mode admin
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleDeleteOrder(selected)}
@@ -218,118 +288,182 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
                   </button>
                 </div>
 
-                {selected.statut === 'devis' && (
-                  <div className="space-y-2 p-3 bg-slate-50 rounded-lg">
-                    <label className="flex items-center gap-2 text-xs">
-                      <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
-                      E-mail prestataire à la validation
-                    </label>
-                    <button type="button" onClick={async () => {
-                      try {
-                        await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate, userId: user.id });
-                        setMsg('Devis → commande'); await load();
-                      } catch (ex) { setErr(ex.message); }
-                    }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider & commander</button>
-                    <button type="button" onClick={async () => {
-                      try {
-                        await validateDevis(selected.id, { launchOrder: false, userId: user.id });
-                        setMsg('Devis refusé'); await load();
-                      } catch (ex) { setErr(ex.message); }
-                    }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser</button>
-                  </div>
-                )}
-
-                {['commande', 'en_transit'].includes(selected.statut) && (
-                  <div className="flex gap-2">
-                    {selected.statut === 'commande' && (
-                      <button type="button" onClick={async () => { await markInTransit(selected.id, user.id); load(); }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">En transit</button>
-                    )}
-                    <button type="button" onClick={async () => { await markArrived(selected.id, user.id); load(); }} className="flex-1 bg-amber-100 py-2 rounded-lg text-xs font-semibold flex justify-center gap-1"><Package size={14} /> Arrivé / à contrôler</button>
-                  </div>
-                )}
-
-                {['a_controler', 'a_rappeler', 'commande', 'en_transit'].includes(selected.statut) && (
-                  <div>
-                    {!recvMode ? (
-                      <button type="button" onClick={() => setRecvMode(true)} className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">
-                        Réception / contrôle + appel patient
-                      </button>
-                    ) : (
-                      <MagistralReceptionCall
-                        order={selected}
-                        settings={settings}
-                        userId={user.id}
-                        onCancel={() => setRecvMode(false)}
-                        onDone={async (updated, opts) => {
-                          if (opts?.stay) {
-                            await load();
-                            setSelectedId(updated.id);
-                            return;
-                          }
-                          setRecvMode(false);
-                          setMsg(`→ ${MAGISTRAL_STATUTS[updated.statut]}`);
-                          await load();
-                        }}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {selected.statut === 'receptionne' && (
-                  <div className="space-y-2 p-3 bg-emerald-50 rounded-lg">
-                    <Field label="N° ordonnancier DO *">
-                      <input value={ordoNum} onChange={(e) => setOrdoNum(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="N°" />
-                    </Field>
-                    <button type="button" disabled={!ordoNum.trim()} onClick={async () => {
-                      try {
-                        let o = await dispenseOrder(selected.id, user.id, { ordonnancier_number: ordoNum });
-                        o = await closeOrder(o.id, 'Dispensé', user.id);
-                        printFeuilleSuivi(o, settings);
-                        setMsg('Dispensé & clôturé'); await load();
-                      } catch (ex) { setErr(ex.message); }
-                    }} className="w-full bg-emerald-600 text-white py-2 rounded-lg font-semibold disabled:opacity-50">
-                      Dispenser, imprimer & clôturer
-                    </button>
-                  </div>
-                )}
-
-                {selected.statut === 'non_conforme' && (
-                  <button type="button" onClick={async () => { await reopenNonConforme(selected.id, user.id); load(); }} className="w-full bg-amber-100 py-2 rounded-lg text-sm font-semibold">
-                    Relancer (retour devis)
-                  </button>
-                )}
-
-                {selected.statut === 'dispense' && (
-                  <button type="button" onClick={async () => { await closeOrder(selected.id, 'Archivage', user.id); load(); }} className="w-full bg-slate-600 text-white py-2 rounded-lg">
-                    Clôturer / archiver
-                  </button>
-                )}
-
-                <details className="border rounded-lg p-3">
-                  <summary className="cursor-pointer font-semibold text-xs text-slate-700">Modifier le dossier (formulaire)</summary>
-                  <div className="mt-3 space-y-3">
-                    <MagistralOrderForm
-                      form={editForm}
-                      onChange={(p) => setEditForm((f) => ({ ...f, ...p }))}
-                      step="full"
-                      compact
+                {adminMode && adminDraft ? (
+                  <div className="space-y-3 border border-amber-200 rounded-xl p-3 bg-amber-50/30">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1">
+                        <Shield size={14} /> Édition admin — dossier complet
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={adminSaving}
+                          onClick={cancelAdminMode}
+                          className="text-xs px-3 py-1.5 border rounded-lg bg-white"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="button"
+                          disabled={adminSaving}
+                          onClick={handleAdminSave}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-amber-600 text-white font-semibold disabled:opacity-50"
+                        >
+                          {adminSaving ? 'Enregistrement…' : 'Enregistrer'}
+                        </button>
+                      </div>
+                    </div>
+                    <MagistralAdminEdit
+                      draft={adminDraft}
+                      settings={settings}
+                      ordonnanceFile={adminOrdoFile}
+                      liberationFile={adminLibFile}
+                      onOrdonnanceFile={setAdminOrdoFile}
+                      onLiberationFile={setAdminLibFile}
+                      onChange={(p) => setAdminDraft((d) => ({ ...d, ...p }))}
                     />
-                    <div className="flex gap-2">
-                      <button type="button" onClick={async () => {
-                        try {
-                          await saveOrderFromForm(selected.id, editForm, { sendEmail: false, userId: user.id });
-                          setMsg('Dossier enregistré'); await load();
-                        } catch (ex) { setErr(ex.message); }
-                      }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">Sauver</button>
-                      <button type="button" onClick={async () => {
-                        try {
-                          await saveOrderFromForm(selected.id, editForm, { sendEmail: true, userId: user.id });
-                          setMsg('Sauvé + mail ST'); await load();
-                        } catch (ex) { setErr(ex.message); }
-                      }} className="flex-1 bg-fuchsia-600 text-white py-2 rounded-lg text-xs font-semibold">Sauver + mail</button>
+                    <div className="flex gap-2 pt-1 border-t border-amber-200">
+                      <button
+                        type="button"
+                        disabled={adminSaving}
+                        onClick={cancelAdminMode}
+                        className="flex-1 text-xs py-2 border rounded-lg bg-white"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        disabled={adminSaving}
+                        onClick={handleAdminSave}
+                        className="flex-1 text-xs py-2 rounded-lg bg-amber-600 text-white font-semibold disabled:opacity-50"
+                      >
+                        {adminSaving ? 'Enregistrement…' : 'Enregistrer les modifications'}
+                      </button>
                     </div>
                   </div>
-                </details>
+                ) : (
+                  <>
+                    {selected.statut === 'devis' && (
+                      <div className="space-y-2 p-3 bg-slate-50 rounded-lg">
+                        <label className="flex items-center gap-2 text-xs">
+                          <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
+                          E-mail prestataire à la validation
+                        </label>
+                        <button type="button" onClick={async () => {
+                          try {
+                            await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate, userId: user.id });
+                            setMsg('Devis → commande'); await load();
+                          } catch (ex) { setErr(ex.message); }
+                        }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider & commander</button>
+                        <button type="button" onClick={async () => {
+                          try {
+                            await validateDevis(selected.id, { launchOrder: false, userId: user.id });
+                            setMsg('Devis refusé'); await load();
+                          } catch (ex) { setErr(ex.message); }
+                        }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser</button>
+                      </div>
+                    )}
+
+                    {['commande', 'en_transit'].includes(selected.statut) && (
+                      <div className="flex gap-2">
+                        {selected.statut === 'commande' && (
+                          <button type="button" onClick={async () => { await markInTransit(selected.id, user.id); load(); }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">En transit</button>
+                        )}
+                        <button type="button" onClick={async () => { await markArrived(selected.id, user.id); load(); }} className="flex-1 bg-amber-100 py-2 rounded-lg text-xs font-semibold flex justify-center gap-1"><Package size={14} /> Arrivé / à contrôler</button>
+                      </div>
+                    )}
+
+                    {['a_controler', 'a_rappeler', 'commande', 'en_transit'].includes(selected.statut) && (
+                      <div>
+                        {!recvMode ? (
+                          <button type="button" onClick={() => setRecvMode(true)} className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">
+                            Réception / contrôle + appel patient
+                          </button>
+                        ) : (
+                          <MagistralReceptionCall
+                            order={selected}
+                            settings={settings}
+                            userId={user.id}
+                            onCancel={() => setRecvMode(false)}
+                            onDone={async (updated, opts) => {
+                              if (opts?.stay) {
+                                await load();
+                                setSelectedId(updated.id);
+                                return;
+                              }
+                              setRecvMode(false);
+                              setMsg(`→ ${MAGISTRAL_STATUTS[updated.statut]}`);
+                              await load();
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {selected.statut === 'receptionne' && (
+                      <div className="space-y-2 p-3 bg-emerald-50 rounded-lg">
+                        <Field label="N° ordonnancier DO *">
+                          <input value={ordoNum} onChange={(e) => setOrdoNum(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="N°" />
+                        </Field>
+                        <button type="button" disabled={!ordoNum.trim()} onClick={async () => {
+                          try {
+                            let o = await dispenseOrder(selected.id, user.id, { ordonnancier_number: ordoNum });
+                            o = await closeOrder(o.id, 'Dispensé', user.id);
+                            printFeuilleSuivi(o, settings);
+                            setMsg('Dispensé & clôturé'); await load();
+                          } catch (ex) { setErr(ex.message); }
+                        }} className="w-full bg-emerald-600 text-white py-2 rounded-lg font-semibold disabled:opacity-50">
+                          Dispenser, imprimer & clôturer
+                        </button>
+                      </div>
+                    )}
+
+                    {selected.statut === 'non_conforme' && (
+                      <button type="button" onClick={async () => { await reopenNonConforme(selected.id, user.id); load(); }} className="w-full bg-amber-100 py-2 rounded-lg text-sm font-semibold">
+                        Relancer (retour devis)
+                      </button>
+                    )}
+
+                    {selected.statut === 'dispense' && (
+                      <button type="button" onClick={async () => { await closeOrder(selected.id, 'Archivage', user.id); load(); }} className="w-full bg-slate-600 text-white py-2 rounded-lg">
+                        Clôturer / archiver
+                      </button>
+                    )}
+
+                    {/* Édition formulaire standard (tous rôles Suivi) — champs demande/patient/analyse */}
+                    <details className="border rounded-lg p-3">
+                      <summary className="cursor-pointer font-semibold text-xs text-slate-700">Modifier le dossier (formulaire)</summary>
+                      <div className="mt-3 space-y-3">
+                        <MagistralOrderForm
+                          form={editForm}
+                          onChange={(p) => setEditForm((f) => ({ ...f, ...p }))}
+                          step="full"
+                          compact
+                        />
+                        <div className="flex gap-2">
+                          <button type="button" onClick={async () => {
+                            try {
+                              await saveOrderFromForm(selected.id, editForm, { sendEmail: false, userId: user.id });
+                              setMsg('Dossier enregistré'); await load();
+                            } catch (ex) { setErr(ex.message); }
+                          }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">Sauver</button>
+                          <button type="button" onClick={async () => {
+                            try {
+                              await saveOrderFromForm(selected.id, editForm, { sendEmail: true, userId: user.id });
+                              setMsg('Sauvé + mail ST'); await load();
+                            } catch (ex) { setErr(ex.message); }
+                          }} className="flex-1 bg-fuchsia-600 text-white py-2 rounded-lg text-xs font-semibold">Sauver + mail</button>
+                        </div>
+                        {canAdminEdit && (
+                          <p className="text-[11px] text-slate-500">
+                            Pour statut, réception, dispensation, fichiers : utilisez{' '}
+                            <button type="button" className="underline text-amber-800" onClick={enterAdminMode}>Mode admin</button>.
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  </>
+                )}
               </div>
             )}
           </div>

@@ -51,7 +51,9 @@ export default function MagistralCreate() {
         }
       }
       await createMagistralOrder(user.id, form, { asDraft, ordonnanceFile: ordoFile });
-      setMsg(asDraft ? 'Brouillon enregistré.' : 'Demande envoyée au sous-traitant (si e-mail configuré).');
+      setMsg(asDraft
+        ? 'Brouillon enregistré.'
+        : 'Commande créée (attente réception) — prestataire prévenu si e-mail configuré.');
       setForm(formFromSettings(settings));
       setOrdoFile(null);
       setWizardStep(0);

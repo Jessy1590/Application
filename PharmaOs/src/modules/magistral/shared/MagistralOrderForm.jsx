@@ -65,10 +65,10 @@ export default function MagistralOrderForm({
           <fieldset className="border rounded-lg p-3 space-y-2" disabled={readOnly}>
             <legend className="font-bold px-1 text-fuchsia-800">Demande / prescription</legend>
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Nature *">
-                <select value={form.demande?.nature || 'devis'} onChange={(e) => patch('demande', 'nature', e.target.value)} className={inputCls}>
-                  <option value="devis">Devis</option>
+              <Field label="Nature *" hint="Création / renouvellement → commande (attente réception)">
+                <select value={form.demande?.nature || 'commande'} onChange={(e) => patch('demande', 'nature', e.target.value)} className={inputCls}>
                   <option value="commande">Commande</option>
+                  <option value="devis">Devis</option>
                 </select>
               </Field>
               <Field label="Historique *">

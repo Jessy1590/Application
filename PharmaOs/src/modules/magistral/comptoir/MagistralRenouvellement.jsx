@@ -153,7 +153,7 @@ export default function MagistralRenouvellement() {
                 <dt className="text-slate-500">Ordonnance</dt>
                 <dd>{selected.ordonnance_path ? 'Oui (sera dupliquée)' : 'Absente'}</dd>
                 <dt className="text-slate-500">Nature</dt>
-                <dd>{dem.nature === 'commande' ? 'Commande' : 'Devis'}</dd>
+                <dd>Commande (attente réception)</dd>
               </dl>
 
               <button
@@ -165,7 +165,7 @@ export default function MagistralRenouvellement() {
                   setWarn('');
                   try {
                     const { order, ordonnanceWarning } = await renewMagistralOrder(user.id, selected.id);
-                    setMsg(`Dossier renouvelé — #${order.id.slice(0, 8)}`);
+                    setMsg(`Commande renouvelée #${order.id.slice(0, 8)} — attente réception`);
                     if (ordonnanceWarning) setWarn(ordonnanceWarning);
                     setSelected(null);
                     setResults([]);
