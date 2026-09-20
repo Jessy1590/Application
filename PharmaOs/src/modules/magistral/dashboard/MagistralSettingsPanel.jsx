@@ -20,7 +20,7 @@ const Field = ({ label, children, hint }) => (
 
 const inputCls = 'w-full p-2 border rounded-lg bg-white';
 const TABS = [
-  { id: 'general', label: 'Général' },
+  { id: 'general', label: 'Prestataire' },
   { id: 'tarif', label: 'Tarif' },
   { id: 'creation', label: 'Création dossier' },
 ];
@@ -88,10 +88,6 @@ export default function MagistralSettingsPanel() {
         .map((s) => s.trim())
         .filter(Boolean);
       await updateSettings({
-        pharmacy_name: setForm.pharmacy_name,
-        pharmacy_address: setForm.pharmacy_address,
-        pharmacy_email: setForm.pharmacy_email,
-        pharmacy_interlocuteur: setForm.pharmacy_interlocuteur,
         provider_name: setForm.provider_name,
         provider_email: setForm.provider_email,
         provider_ars_auth: setForm.provider_ars_auth,
@@ -122,7 +118,7 @@ export default function MagistralSettingsPanel() {
   return (
     <div className="space-y-4 max-w-4xl">
       <p className="text-sm text-slate-500">
-        Donneur d’ordre → sous-traitant · les templates mail sont dans Paramètres → Templates mail
+        Sous-traitant &amp; création — identité pharmacie dans Paramètres → Général
       </p>
       {msg && <p className="text-sm text-emerald-700 bg-emerald-50 p-2 rounded">{msg}</p>}
       {err && <p className="text-sm text-red-700 bg-red-50 p-2 rounded">{err}</p>}
@@ -145,22 +141,8 @@ export default function MagistralSettingsPanel() {
       {tab === 'general' && (
         <form onSubmit={saveParams} className="bg-white p-5 rounded-xl border grid md:grid-cols-2 gap-3 text-sm">
           <h2 className="md:col-span-2 font-semibold flex items-center gap-2">
-            <Settings size={18} /> Pharmacie donneur d’ordre
+            <Settings size={18} /> Prestataire sous-traitant
           </h2>
-          <Field label="Nom pharmacie">
-            <input value={setForm.pharmacy_name || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_name: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="Adresse">
-            <input value={setForm.pharmacy_address || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_address: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="E-mail">
-            <input type="email" value={setForm.pharmacy_email || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_email: e.target.value })} className={inputCls} />
-          </Field>
-          <Field label="Interlocuteur">
-            <input value={setForm.pharmacy_interlocuteur || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_interlocuteur: e.target.value })} className={inputCls} />
-          </Field>
-
-          <h2 className="md:col-span-2 font-semibold mt-2">Prestataire sous-traitant</h2>
           <Field label="Nom prestataire">
             <input value={setForm.provider_name || ''} onChange={(e) => setSetForm({ ...setForm, provider_name: e.target.value })} className={inputCls} />
           </Field>

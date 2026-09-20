@@ -3,6 +3,11 @@
 ## Tables
 - `PharmaOs.tasks` — `id`, `titre`, `description` (json texte), `created_by`, `created_at`
 - `PharmaOs.task_assignments` — `id`, `task_id`, `user_id`, `statut` (`en_cours` | `terminee`), `commentaire`, `completed_at`, `completion_time_seconds`
+- `PharmaOs.task_role_rules` — matrice catégorie × rôle (`mode` never|immediate|after_delay)
+
+## Catalogue UI
+- `src/modules/tasks/shared/taskCatalog.js` — modules + catégories + descriptions (tooltips Assignation)
+- Seeds : `031_task_role_rules.sql` + `035_task_role_rules_catalog.sql`
 
 ## RLS
 - SELECT tasks : admin OR créateur OR assigné (`is_task_assignee` SECURITY DEFINER — pas d’EXISTS croisé)

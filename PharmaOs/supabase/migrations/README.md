@@ -29,6 +29,7 @@ Ordre :
 25. `032_tasks_rls_scope.sql` — RLS tasks / assignments (soi vs admin)
 26. `033_tasks_rls_no_recursion.sql` — casse la récursion tasks ↔ task_assignments (helpers SECURITY DEFINER)
 27. `034_magistral_creation_champs.sql` — `magistral_settings.creation_champs` (champs actifs/obligatoires création)
+28. `035_task_role_rules_catalog.sql` — seeds catégories tâches Magistrales / Location / Caisse / étalonnage
 
 Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
 

@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { logEvent, logMailEvent, logSoftFail } from '../../../shared/logService.js';
 import {
   buildDefaultCreationChamps,
   validateCreationForm,
@@ -6,6 +7,10 @@ import {
   buildMailContext,
 } from './magistralParams.js';
 import { renderAppMail } from '../../admin/services/mailTemplatesService.js';
+import {
+  fetchPharmacySettings,
+  loadSettingsWithPharmacy,
+} from '../../admin/services/pharmacySettingsService.js';
 
 export {
   CREATION_ETAPES,
@@ -151,22 +156,36 @@ async function sendTemplatedMail(to, settings, key, order, { subjectFallback, bo
   const html = (rendered.body && rendered.body.trim())
     ? rendered.body
     : (bodyFallback || `<p>${escHtml(subject)}</p>`);
-  return sendTransactionalEmail(to, subject, html);
+  return sendTransactionalEmail(to, subject, html, {
+    templateKey: key,
+    entityId: order?.id || null,
+  });
 }
 
 /** Prix vente = (HT net réception + frais port) × (1 + TVA%) × coefficient */
 export async function fetchSettings() {
   const { data, error } = await supabase.from('magistral_settings').select('*').limit(1).maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  if (!data) return null;
+  return loadSettingsWithPharmacy(data);
 }
 
-/** Upsert : crée une ligne si absente. */
+/** Upsert : crée une ligne si absente. Pharmacie = Paramètres → Général. */
 export async function ensureSettings(seed = {}) {
-  const existing = await fetchSettings();
-  if (existing) return existing;
+  const { data: existing, error: fetchErr } = await supabase
+    .from('magistral_settings')
+    .select('*')
+    .limit(1)
+    .maybeSingle();
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (existing) return loadSettingsWithPharmacy(existing);
+
+  const pharmacy = await fetchPharmacySettings();
   const row = {
-    pharmacy_name: seed.pharmacy_name || 'Pharmacie',
+    pharmacy_name: seed.pharmacy_name || pharmacy.name || 'Pharmacie',
+    pharmacy_address: seed.pharmacy_address || pharmacy.address || null,
+    pharmacy_email: seed.pharmacy_email || pharmacy.email || null,
+    pharmacy_interlocuteur: seed.pharmacy_interlocuteur || pharmacy.interlocuteur || null,
     frais_port: seed.frais_port ?? 0,
     coefficient: seed.coefficient ?? 1,
     tva_rate: seed.tva_rate ?? 5.5,
@@ -178,7 +197,7 @@ export async function ensureSettings(seed = {}) {
   };
   const { data, error } = await supabase.from('magistral_settings').insert([row]).select().single();
   if (error) throw new Error(error.message);
-  return data;
+  return loadSettingsWithPharmacy(data);
 }
 
 export async function updateSettings(payload, id) {
@@ -189,7 +208,16 @@ export async function updateSettings(payload, id) {
   }
   const { data, error } = await supabase.from('magistral_settings').update(row).eq('id', id).select().single();
   if (error) throw new Error(error.message);
-  return data;
+  logEvent({
+    category: 'settings',
+    action: 'save_magistral_settings',
+    entity: 'magistral_settings',
+    entityId: id,
+    message: 'Paramètres préparations magistrales enregistrés',
+    details: { keys: Object.keys(payload || {}) },
+    flush: true,
+  });
+  return loadSettingsWithPharmacy(data);
 }
 
 export async function uploadMagistralFile(orderId, file, kind = 'ordonnance') {
@@ -204,15 +232,32 @@ export async function uploadMagistralFile(orderId, file, kind = 'ordonnance') {
   return path;
 }
 
-export async function sendTransactionalEmail(to, subject, html) {
+export async function sendTransactionalEmail(to, subject, html, meta = {}) {
   if (!to) throw new Error('Adresse e-mail destinataire manquante.');
   const { data, error } = await supabase.functions.invoke('send-transactional-email', {
     body: { to, subject, html },
   });
   if (error || data?.error) {
     const msg = data?.error || error?.message || 'Échec envoi e-mail';
+    logMailEvent({
+      module: 'magistral',
+      templateKey: meta.templateKey || null,
+      to,
+      success: false,
+      error: msg,
+      entity: 'magistral_orders',
+      entityId: meta.entityId || null,
+    });
     throw new Error(msg);
   }
+  logMailEvent({
+    module: 'magistral',
+    templateKey: meta.templateKey || null,
+    to,
+    success: true,
+    entity: 'magistral_orders',
+    entityId: meta.entityId || null,
+  });
   return data;
 }
 
@@ -268,7 +313,10 @@ export async function sendProviderEmail(order, settings, subjectKey, subjectFall
   const html = (rendered.body && rendered.body.trim())
     ? rendered.body
     : buildOrderHtml(order, settings, subject);
-  await sendTransactionalEmail(settings.provider_email, subject, html);
+  await sendTransactionalEmail(settings.provider_email, subject, html, {
+    templateKey: subjectKey,
+    entityId: order?.id || null,
+  });
   return updateOrder(order.id, { email_sent_at: new Date().toISOString() });
 }
 
@@ -339,6 +387,11 @@ export async function createMagistralOrder(userId, form, { asDraft = false, ordo
       data.ordonnance_path = ordonnance_path;
     } catch (upErr) {
       console.warn('[magistral] upload ordonnance:', upErr.message);
+      logSoftFail('upload_ordonnance', upErr, {
+        category: 'magistral',
+        entity: 'magistral_orders',
+        entityId: data.id,
+      });
     }
   }
 
@@ -490,6 +543,11 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
       data.ordonnance_path = newPath;
     } catch (copyErr) {
       console.warn('[magistral] copie ordonnance:', copyErr.message);
+      logSoftFail('copy_ordonnance', copyErr, {
+        category: 'magistral',
+        entity: 'magistral_orders',
+        entityId: data.id,
+      });
       ordonnanceWarning =
         'Ordonnance : copie Storage échouée — référence du dossier source conservée.';
       try {
@@ -497,6 +555,11 @@ export async function renewMagistralOrder(userId, sourceOrderId) {
         data.ordonnance_path = source.ordonnance_path;
       } catch (e) {
         console.warn('[magistral] fallback path ordonnance:', e.message);
+        logSoftFail('copy_ordonnance_fallback', e, {
+          category: 'magistral',
+          entity: 'magistral_orders',
+          entityId: data.id,
+        });
       }
     }
   }
@@ -524,6 +587,63 @@ export async function updateOrder(id, payload) {
   return data;
 }
 
+/** Catégories tâches liées au workflow magistral (matrice Assignation). */
+const MAGISTRAL_TASK_CATEGORIES = Object.freeze([
+  'magistral_devis',
+  'magistral_a_controler',
+  'magistral_a_rappeler',
+  'magistral_a_dispenser',
+  'magistral_non_conforme',
+]);
+
+const MAGISTRAL_STATUT_TO_TASK = Object.freeze({
+  devis: 'magistral_devis',
+  a_controler: 'magistral_a_controler',
+  a_rappeler: 'magistral_a_rappeler',
+  receptionne: 'magistral_a_dispenser',
+  non_conforme: 'magistral_non_conforme',
+});
+
+/**
+ * Aligne les tâches d’équipe sur le statut courant du dossier.
+ * Clôture les anciennes catégories magistrales pour ce order_id, puis crée celle du statut.
+ */
+async function syncMagistralWorkflowTasks(order, createdBy) {
+  if (!order?.id) return;
+  try {
+    const { ensureCategoryTask, completeCategoryTasks } = await import('../../tasks/services/taskService.js');
+    const target = MAGISTRAL_STATUT_TO_TASK[order.statut] || null;
+    for (const cat of MAGISTRAL_TASK_CATEGORIES) {
+      if (cat === target) continue;
+      await completeCategoryTasks(cat, 'order_id', order.id, `Magistrale → ${order.statut}`);
+    }
+    if (!target) return;
+    const label = MAGISTRAL_STATUTS[order.statut] || order.statut;
+    const patient = order.patient_initiales || 'patient';
+    const titre = `Magistrale — ${label} : ${patient}`;
+    await ensureCategoryTask(
+      target,
+      titre,
+      {
+        type: target,
+        order_id: order.id,
+        patient_initiales: order.patient_initiales || null,
+        formule: String(order.formule || '').slice(0, 80),
+        statut: order.statut,
+      },
+      createdBy || order.created_by || null,
+    );
+  } catch (e) {
+    console.warn('[magistral] sync tâches:', e.message);
+    logSoftFail('sync_tasks', e, {
+      category: 'magistral',
+      entity: 'magistral_orders',
+      entityId: order?.id,
+      module: 'magistral',
+    });
+  }
+}
+
 /**
  * Supprime un dossier magistral quel que soit son statut.
  * Best-effort : retire ordonnance / libération du Storage avant le DELETE BDD.
@@ -541,9 +661,21 @@ export async function deleteOrder(id) {
   if (paths.length > 0) {
     try {
       const { error: storageErr } = await supabase.storage.from('magistral-ordonnances').remove(paths);
-      if (storageErr) console.warn('[magistral] purge storage:', storageErr.message);
+      if (storageErr) {
+        console.warn('[magistral] purge storage:', storageErr.message);
+        logSoftFail('purge_storage', storageErr, {
+          category: 'magistral',
+          entity: 'magistral_orders',
+          entityId: id,
+        });
+      }
     } catch (e) {
       console.warn('[magistral] purge storage:', e?.message || e);
+      logSoftFail('purge_storage', e, {
+        category: 'magistral',
+        entity: 'magistral_orders',
+        entityId: id,
+      });
     }
   }
 
@@ -664,6 +796,7 @@ export async function submitDraftToProvider(orderId, userId) {
       console.warn('[magistral] mail ST:', e.message);
     }
   }
+  await syncMagistralWorkflowTasks(updated, userId);
   return updated;
 }
 
@@ -673,12 +806,14 @@ export async function validateDevis(orderId, { launchOrder = true, sendEmail: do
 
   if (!launchOrder) {
     // Refus patient → clôture (plus de suivi)
-    return updateOrder(orderId, {
+    const closed = await updateOrder(orderId, {
       statut: 'cloture',
       closed_at: new Date().toISOString(),
       closed_reason: 'Devis refusé par le patient',
       status_history: pushHistory(order, 'cloture', userId, 'devis refusé par le patient'),
     });
+    await syncMagistralWorkflowTasks(closed, userId);
+    return closed;
   }
 
   const updated = await updateOrder(orderId, {
@@ -697,6 +832,7 @@ export async function validateDevis(orderId, { launchOrder = true, sendEmail: do
       subjectFallback: 'Votre devis est validé',
     });
   }
+  await syncMagistralWorkflowTasks(updated, userId);
   return updated;
 }
 
@@ -718,13 +854,15 @@ export async function recordProviderQuote(orderId, userId, { prixHt, tvaRate = 5
     received_at: new Date().toISOString(),
     by: userId,
   };
-  return updateOrder(orderId, {
+  const updated = await updateOrder(orderId, {
     form_data: fd,
     prix_ht_net: ht,
     tva_rate: tva,
     prix_calcule: ttc,
     status_history: pushHistory(order, 'devis', userId, 'devis ST reçu — à présenter au patient'),
   });
+  await syncMagistralWorkflowTasks({ ...updated, statut: 'devis' }, userId);
+  return updated;
 }
 
 export function hasProviderQuote(order) {
@@ -739,15 +877,19 @@ export async function markInTransit(orderId, userId, providerRef = null) {
     status_history: pushHistory(order, 'en_transit', userId),
   };
   if (providerRef) patch.provider_ref = providerRef;
-  return updateOrder(orderId, patch);
+  const updated = await updateOrder(orderId, patch);
+  await syncMagistralWorkflowTasks(updated, userId);
+  return updated;
 }
 
 export async function markArrived(orderId, userId) {
   const order = await fetchOrderById(orderId);
-  return updateOrder(orderId, {
+  const updated = await updateOrder(orderId, {
     statut: 'a_controler',
     status_history: pushHistory(order, 'a_controler', userId, 'arrivage physique'),
   });
+  await syncMagistralWorkflowTasks(updated, userId);
+  return updated;
 }
 
 /**
@@ -799,6 +941,7 @@ export async function saveReceptionControl(orderId, userId, payload) {
         console.warn('[magistral] mail NC:', e.message);
       }
     }
+    await syncMagistralWorkflowTasks(updated, userId);
     return updated;
   }
 
@@ -808,7 +951,7 @@ export async function saveReceptionControl(orderId, userId, payload) {
     liberation_path = await uploadMagistralFile(orderId, liberationFile, 'liberation');
   }
 
-  return updateOrder(orderId, {
+  const okUpdated = await updateOrder(orderId, {
     reception_checklist: checklist,
     reception_validated_by: userId,
     prix_ht_net: prixHtNet,
@@ -825,6 +968,8 @@ export async function saveReceptionControl(orderId, userId, payload) {
     statut: 'a_controler',
     status_history: pushHistory(order, 'a_controler', userId, 'checklist BPP OK — appel patient'),
   });
+  await syncMagistralWorkflowTasks(okUpdated, userId);
+  return okUpdated;
 }
 
 /**
@@ -875,6 +1020,7 @@ export async function recordPatientCall(orderId, userId, attempt) {
       console.warn('[magistral] mail patient:', e.message);
     }
   }
+  await syncMagistralWorkflowTasks(updated, userId);
   return updated;
 }
 
@@ -896,6 +1042,7 @@ export async function markOrderReceived(orderId, prixHtNet, tvaRate, notifyPatie
       subjectFallback: 'Votre préparation magistrale est disponible',
     });
   }
+  await syncMagistralWorkflowTasks(updated, order.created_by);
   return updated;
 }
 
@@ -908,7 +1055,7 @@ export async function dispenseOrder(orderId, userId, { ordonnancier_number, cons
   const order = await fetchOrderById(orderId);
   const fd = { ...(order.form_data || {}) };
   if (conseil_note) fd.dispensation = { ...(fd.dispensation || {}), conseil_note };
-  return updateOrder(orderId, {
+  const updated = await updateOrder(orderId, {
     statut: 'dispense',
     ordonnancier_number: ordonnancier_number.trim(),
     dispensed_at: new Date().toISOString(),
@@ -916,25 +1063,31 @@ export async function dispenseOrder(orderId, userId, { ordonnancier_number, cons
     form_data: fd,
     status_history: pushHistory(order, 'dispense', userId),
   });
+  await syncMagistralWorkflowTasks(updated, userId);
+  return updated;
 }
 
 export async function closeOrder(orderId, reason = '', userId = null) {
   const order = await fetchOrderById(orderId);
-  return updateOrder(orderId, {
+  const updated = await updateOrder(orderId, {
     statut: 'cloture',
     closed_at: new Date().toISOString(),
     closed_reason: reason || null,
     status_history: pushHistory(order, 'cloture', userId, reason),
   });
+  await syncMagistralWorkflowTasks(updated, userId);
+  return updated;
 }
 
 export async function reopenNonConforme(orderId, userId) {
   const order = await fetchOrderById(orderId);
-  return updateOrder(orderId, {
+  const updated = await updateOrder(orderId, {
     statut: 'devis',
     nc_reason: null,
     status_history: pushHistory(order, 'devis', userId, 'relance après NC'),
   });
+  await syncMagistralWorkflowTasks(updated, userId);
+  return updated;
 }
 
 /** Convertit une ligne BDD en état formulaire partagé. */

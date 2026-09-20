@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Settings, BedDouble, FlaskConical, Package, Wallet, Mail } from 'lucide-react';
+import { Settings, BedDouble, FlaskConical, Package, Wallet, Mail, Building2 } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import LocationManager from '../../location/dashboard/LocationManager.jsx';
 import MagistralSettingsPanel from '../../magistral/dashboard/MagistralSettingsPanel.jsx';
 import PerimesEmplacementsSettings from '../../perimes/dashboard/PerimesEmplacementsSettings.jsx';
 import CashSettingsPanel from '../../cash/dashboard/CashSettingsPanel.jsx';
 import MailTemplatesSettings from './MailTemplatesSettings.jsx';
+import GeneralSettingsPanel from './GeneralSettingsPanel.jsx';
 import { SETTINGS_TABS, resolveSettingsTab } from '../services/settingsNav.js';
 
 const TAB_ICONS = {
+  general: Building2,
   location: BedDouble,
   preparations: FlaskConical,
   perimes: Package,
@@ -71,7 +73,7 @@ export default function SettingsManager({
           <Settings className="text-slate-600" /> Paramètres
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Configuration par module — Location, préparations, stock, caisse — et templates mail.
+          Pharmacie (général), modules métier et templates mail.
         </p>
       </div>
 
@@ -98,6 +100,7 @@ export default function SettingsManager({
       </div>
 
       <div>
+        {tab === 'general' && <GeneralSettingsPanel />}
         {tab === 'location' && (
           <LocationManager view="parametres" onNavigate={_onNavigate} pageData={pageData} />
         )}

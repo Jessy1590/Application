@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollText, Filter } from 'lucide-react';
-import { fetchAppLogs } from '../services/adminLogService.js';
+import { fetchAppLogs, fetchAppLogStats } from '../services/adminLogService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
+import LogsCharts from './LogsCharts.jsx';
 
 const LEVELS = [
   { id: 'all', label: 'Tous niveaux' },
@@ -19,6 +20,11 @@ const CATEGORIES = [
   { id: 'window', label: 'Fenêtres' },
   { id: 'bug', label: 'Bugs' },
   { id: 'access', label: 'Accès' },
+  { id: 'mail', label: 'Mails' },
+  { id: 'settings', label: 'Paramètres' },
+  { id: 'magistral', label: 'Magistrales' },
+  { id: 'location', label: 'Location' },
+  { id: 'cash', label: 'Caisse' },
   { id: 'error', label: 'Erreurs' },
 ];
 
@@ -44,7 +50,9 @@ function formatTs(iso) {
 
 export default function LogsManager() {
   const [rows, setRows] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [level, setLevel] = useState('all');
   const [category, setCategory] = useState('all');
   const [sinceHours, setSinceHours] = useState(48);
@@ -64,8 +72,26 @@ export default function LogsManager() {
     }
   }, [level, category, search, sinceHours]);
 
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      setStats(await fetchAppLogStats({ sinceHours }));
+    } catch {
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [sinceHours]);
+
   useEffect(() => { load(); }, [load]);
-  useRealtimeRefresh(load, { tables: ['app_logs'] });
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  const refreshAll = useCallback(() => {
+    load();
+    loadStats();
+  }, [load, loadStats]);
+
+  useRealtimeRefresh(refreshAll, { tables: ['app_logs'] });
 
   return (
     <div>
@@ -73,7 +99,7 @@ export default function LogsManager() {
         <ScrollText className="text-slate-600" /> Logs
       </h1>
       <p className="text-sm text-slate-500 mb-4">
-        Journal détaillé : actions interface, auth, fenêtres, et chaque INSERT / UPDATE / DELETE métier.
+        Journal détaillé : actions interface, auth, mails, paramètres, fenêtres, et chaque INSERT / UPDATE / DELETE métier.
       </p>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
@@ -95,6 +121,8 @@ export default function LogsManager() {
         />
         <span className="text-xs text-slate-400">{rows.length} entrée(s)</span>
       </div>
+
+      <LogsCharts stats={stats} loading={statsLoading} />
 
       {err && <div className="mb-3 p-3 bg-red-50 text-red-700 rounded-lg text-sm">{err}</div>}
       {loading && rows.length === 0 && <p className="text-sm text-slate-500">Chargement…</p>}

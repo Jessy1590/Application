@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Info, Mail } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info, Mail } from 'lucide-react';
 import {
   MAIL_MODULES,
   MAIL_PLACEHOLDERS_BY_MODULE,
@@ -9,14 +9,65 @@ import {
 import { getMailTemplatesForEdit, saveMailTemplates } from '../services/mailTemplatesService.js';
 
 const inputCls = 'w-full p-2 border rounded-lg bg-white';
+const BANNER_LS_KEY = 'pharmaos.mail_placeholders_banner_collapsed';
 
-function InfoBanner({ children }) {
+function PlaceholdersBanner({ placeholders, onInsert }) {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(BANNER_LS_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(BANNER_LS_KEY, next ? '1' : '0');
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   return (
-    <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-      <p className="font-semibold flex items-center gap-1.5 text-sky-900 mb-1">
-        <Info size={16} /> Information
-      </p>
-      <div className="text-xs leading-relaxed space-y-1">{children}</div>
+    <div className="rounded-xl border border-sky-200 bg-sky-50 text-sm text-sky-950 overflow-hidden">
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-sky-100/60 transition-colors"
+        aria-expanded={!collapsed}
+      >
+        <span className="font-semibold flex items-center gap-1.5 text-sky-900">
+          <Info size={16} /> Masques disponibles ({placeholders.length})
+        </span>
+        <span className="text-[11px] text-sky-700 flex items-center gap-1 shrink-0">
+          {collapsed ? 'Afficher' : 'Masquer'}
+          {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </span>
+      </button>
+      {!collapsed && (
+        <div className="px-3 pb-3 text-xs leading-relaxed space-y-2 border-t border-sky-100">
+          <p className="pt-2 text-sky-900/90">
+            Cliquez un masque pour l’insérer au curseur dans l’objet ou le corps.
+            Format : <code className="bg-white/80 px-1 rounded">{'{nom}'}</code>
+          </p>
+          <div className="flex flex-wrap gap-1.5 max-h-56 overflow-y-auto pr-1">
+            {placeholders.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                title={p.label}
+                onClick={() => onInsert(`{${p.key}}`)}
+                className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded-md bg-white border border-sky-200 text-sky-900 hover:bg-sky-100 text-left"
+              >
+                <span className="font-mono text-[11px]">{`{${p.key}}`}</span>
+                <span className="text-[10px] text-sky-700/90 font-normal">{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -147,25 +198,7 @@ export default function MailTemplatesSettings() {
       </div>
 
       <div className="bg-white p-5 rounded-xl border space-y-4 text-sm">
-        <InfoBanner>
-          <p className="mb-2">
-            Placez des masques <code className="bg-white/80 px-1 rounded">{'{nom}'}</code> dans l’objet ou le corps.
-            Cliquez un bouton pour l’insérer au curseur :
-          </p>
-          <div className="flex flex-wrap gap-1">
-            {placeholders.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                title={p.label}
-                onClick={() => insertPlaceholder(`{${p.key}}`)}
-                className="px-2 py-0.5 rounded-md bg-white border border-sky-200 text-[11px] font-mono text-sky-900 hover:bg-sky-100"
-              >
-                {`{${p.key}}`}
-              </button>
-            ))}
-          </div>
-        </InfoBanner>
+        <PlaceholdersBanner placeholders={placeholders} onInsert={insertPlaceholder} />
 
         <div className="flex flex-wrap gap-1.5">
           {moduleMails.map((m) => (

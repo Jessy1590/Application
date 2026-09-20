@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { logEvent } from '../../../shared/logService.js';
 import {
   DEFAULT_MAIL_TEMPLATES,
   asTemplateObj,
@@ -59,6 +60,19 @@ export async function saveMailTemplates(tree) {
   });
   if (error) throw new Error(error.message);
   invalidateMailTemplatesCache();
+  const modules = Object.keys(tree || {});
+  logEvent({
+    category: 'settings',
+    action: 'save_mail_templates',
+    entity: 'app_settings',
+    entityId: SETTINGS_KEY,
+    message: 'Templates mail enregistrés',
+    details: {
+      modules,
+      keys_count: modules.reduce((n, m) => n + Object.keys(tree?.[m] || {}).length, 0),
+    },
+    flush: true,
+  });
   return tree;
 }
 

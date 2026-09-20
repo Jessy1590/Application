@@ -1,5 +1,10 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { logEvent, logMailEvent, logSoftFail } from '../../../shared/logService.js';
 import { renderAppMail } from '../../admin/services/mailTemplatesService.js';
+import {
+  fetchPharmacySettings,
+  pharmacyToMailFields,
+} from '../../admin/services/pharmacySettingsService.js';
 
 export async function submitCashClosure(userId, authorName, payload) {
   const { data, error } = await supabase
@@ -23,6 +28,51 @@ export async function submitCashClosure(userId, authorName, payload) {
     .select()
     .single();
   if (error) throw new Error(error.message);
+
+  const ecart = calcEcart(data);
+  logEvent({
+    category: 'cash',
+    action: 'closure_submit',
+    entity: 'cash_closures',
+    entityId: data.id,
+    message: `Clôture caisse ${data.closure_date}`,
+    details: {
+      closure_date: data.closure_date,
+      ecart,
+      garde: !!data.garde,
+      sortie_particuliere: !!data.sortie_particuliere,
+    },
+  });
+
+  if (Math.abs(ecart) > 0.009) {
+    try {
+      const { ensureCategoryTask } = await import('../../tasks/services/taskService.js');
+      const signe = ecart > 0 ? '+' : '';
+      await ensureCategoryTask(
+        'cash_ecart',
+        `Écart caisse ${signe}${ecart.toFixed(2)} € — ${data.closure_date}`,
+        {
+          type: 'cash_ecart',
+          closure_id: data.id,
+          closure_date: data.closure_date,
+          author_name: data.author_name,
+          fond_reel: data.fond_reel,
+          fond_logiciel: data.fond_logiciel,
+          ecart,
+        },
+        userId,
+      );
+    } catch (e) {
+      console.warn('[cash] tâche écart:', e.message);
+      logSoftFail('cash_ecart_task', e, {
+        category: 'cash',
+        entity: 'cash_closures',
+        entityId: data.id,
+        module: 'cash',
+      });
+    }
+  }
+
   return data;
 }
 
@@ -123,6 +173,15 @@ export async function setAccountantEmail(email) {
     updated_at: new Date().toISOString(),
   });
   if (error) throw new Error(error.message);
+  logEvent({
+    category: 'settings',
+    action: 'save_cash_accountant_email',
+    entity: 'app_settings',
+    entityId: 'cash_accountant_email',
+    message: 'E-mail comptable caisse mis à jour',
+    details: { to_host: email?.includes('@') ? email.split('@')[1] : null },
+    flush: true,
+  });
 }
 
 function extractEmailError(data, error) {
@@ -158,13 +217,14 @@ export async function emailMonthlyReport(closures, yearMonth, toEmail) {
       ${closures.map((c) => `<tr><td>${c.closure_date}</td><td>${c.author_name || ''}</td><td>${c.fond_reel}</td><td>${calcEcart(c).toFixed(2)}</td><td>${c.montant_cb}</td></tr>`).join('')}
     </table>`;
 
+  const pharmacy = pharmacyToMailFields(await fetchPharmacySettings());
   const rendered = await renderAppMail('cash', 'rapport_mensuel', {
     year_month: yearMonth,
     closures_count: String(closures.length),
     total_ecart: totalEcart.toFixed(2),
     table_html: tableHtml,
-    pharmacy_name: '',
     date_aujourdhui: new Date().toLocaleDateString('fr-FR'),
+    ...pharmacy,
   });
 
   const subject = rendered.subject || `Clôtures caisse ${yearMonth}`;
@@ -180,7 +240,25 @@ export async function emailMonthlyReport(closures, yearMonth, toEmail) {
   });
 
   if (error || data?.error) {
-    throw new Error(extractEmailError(data, error));
+    const msg = extractEmailError(data, error);
+    logMailEvent({
+      module: 'cash',
+      templateKey: 'rapport_mensuel',
+      to: email,
+      success: false,
+      error: msg,
+      entity: 'cash_closures',
+      details: { year_month: yearMonth, closures_count: closures.length },
+    });
+    throw new Error(msg);
   }
+  logMailEvent({
+    module: 'cash',
+    templateKey: 'rapport_mensuel',
+    to: email,
+    success: true,
+    entity: 'cash_closures',
+    details: { year_month: yearMonth, closures_count: closures.length },
+  });
   return data;
 }

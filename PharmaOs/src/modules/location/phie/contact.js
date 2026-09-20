@@ -667,6 +667,26 @@
       go('ask_mail');
     }
 
+    async function handleMailSendPharmaos(contact) {
+      const d = contact.dossier || {};
+      const mails = mailsOf(d);
+      if (!mails.length) {
+        showMsg('Aucun e-mail patient — choisissez une autre option.', true);
+        return;
+      }
+      try {
+        showMsg('Envoi du mail…');
+        await LocationData.sendContactProblemEmail(d, contact, {
+          note: (draft.note || '').trim(),
+          resultat: draft.resultat || draft.noReason || contact.resultat || '',
+        });
+        await handleMailYes(contact);
+        showMsg('Mail envoyé au patient.');
+      } catch (e) {
+        showMsg(e.message || 'Échec envoi mail', true);
+      }
+    }
+
     async function handleMailYes(contact) {
       const after = draft.afterMail;
 
@@ -956,14 +976,28 @@
           `<label class="loc-field">Précisez<textarea id="coNoNote" rows="3" placeholder="Obligatoire"></textarea></label>`
         );
       } else if (callStep === 'ask_mail') {
+        const mails = mailsOf(d);
+        const hasMail = mails.length > 0;
+        const mailHint = hasMail
+          ? `E-mail patient disponible : ${mails.join(' · ')}. Envoyer un mail ?`
+          : 'Aucun e-mail patient sur le dossier. Vous pouvez noter un envoi LGO ou continuer sans mail.';
         body = stepCard(
-          'Adresse mail disponible pour envoyer un mail (depuis le logiciel métier) ?',
+          mailHint,
           [
-            btn('Oui — j’envoie un mail', 'data-mail="yes"'),
+            hasMail
+              ? btn('Oui — envoyer via PharmaOS', 'data-mail="send"')
+              : '',
+            btn(
+              hasMail ? 'Oui — déjà envoyé (LGO)' : 'Oui — j’envoie un mail (LGO)',
+              'data-mail="yes"',
+              hasMail ? 'loc-btn-ghost' : ''
+            ),
             btn('À faire', 'data-mail="afaire"', 'loc-btn-ghost'),
             btn('Non', 'data-mail="no"', 'loc-btn-ghost'),
             btn('Retour', 'id="coBackMail"', 'loc-btn-ghost'),
-          ].join('')
+          ]
+            .filter(Boolean)
+            .join('')
         );
       }
 
@@ -1160,6 +1194,7 @@
         handleCallNo(current);
       });
 
+      flowEl.querySelector('[data-mail="send"]')?.addEventListener('click', () => handleMailSendPharmaos(current));
       flowEl.querySelector('[data-mail="yes"]')?.addEventListener('click', () => handleMailYes(current));
       flowEl.querySelector('[data-mail="afaire"]')?.addEventListener('click', () => handleMailAFaire(current));
       flowEl.querySelector('[data-mail="no"]')?.addEventListener('click', () => handleNoMail(current));

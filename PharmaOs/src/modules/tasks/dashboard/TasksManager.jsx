@@ -179,6 +179,32 @@ function renderTaskBody(task) {
       </div>
     );
   }
+  if (details.type?.startsWith('magistral_')) {
+    return (
+      <div className="text-sm text-fuchsia-800 space-y-0.5 mt-1 bg-fuchsia-50 p-2 rounded border border-fuchsia-100">
+        <p><strong>{TASK_CATEGORY_LABELS[details.type] || 'Magistrale'}</strong></p>
+        <p>{details.patient_initiales || '—'}{details.formule ? ` — ${details.formule}` : ''}</p>
+      </div>
+    );
+  }
+  if (details.type === 'location_a_rappeler' || details.type === 'location_attente_suite') {
+    return (
+      <div className="text-sm text-cyan-800 space-y-0.5 mt-1 bg-cyan-50 p-2 rounded border border-cyan-100">
+        <p><strong>{TASK_CATEGORY_LABELS[details.type]}</strong></p>
+        <p>{details.patient || details.motif || '—'}</p>
+        {details.resultat && <p className="italic">{details.resultat}</p>}
+      </div>
+    );
+  }
+  if (details.type === 'cash_ecart') {
+    return (
+      <div className="text-sm text-emerald-800 space-y-0.5 mt-1 bg-emerald-50 p-2 rounded border border-emerald-100">
+        <p><strong>Écart caisse</strong> — {details.closure_date}</p>
+        <p>{Number(details.ecart).toFixed(2)} € (réel {details.fond_reel} / logiciel {details.fond_logiciel})</p>
+        {details.author_name && <p className="text-xs">Par {details.author_name}</p>}
+      </div>
+    );
+  }
 
   const cat = getTaskCategory(task.description, titre);
   if (cat === 'commande') {
@@ -297,7 +323,13 @@ export default function TasksManager({ onNavigate }) {
     return map;
   }, [filteredTasks]);
 
-  const categoryOrder = ['libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock', 'perimes', 'perime_decision', 'perime_mea', 'perime_promo', 'perime_challenge', 'etalonnage', 'hr', 'autre'];
+  const categoryOrder = [
+    'libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock',
+    'perimes', 'perime_decision', 'perime_mea', 'perime_promo', 'perime_challenge',
+    'magistral_devis', 'magistral_a_controler', 'magistral_a_rappeler', 'magistral_a_dispenser', 'magistral_non_conforme',
+    'location_a_rappeler', 'location_attente_suite',
+    'cash_ecart', 'etalonnage', 'hr', 'autre',
+  ];
 
   return (
     <div className="p-8 max-w-7xl mx-auto w-full">

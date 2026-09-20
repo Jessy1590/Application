@@ -1,10 +1,11 @@
 /** Sous-onglets Administration → Paramètres (liés aux features dashboard module). */
 export const SETTINGS_TABS = Object.freeze([
+  /** Identité officielle partagée — visible si accès Paramètres. */
+  { id: 'general', label: 'Général', feature: 'parametres' },
   { id: 'location', label: 'Location', feature: 'location' },
   { id: 'preparations', label: 'Préparations', feature: 'magistral' },
   { id: 'perimes', label: 'Périmés', feature: 'perimes' },
   { id: 'cash', label: 'Caisse', feature: 'cash' },
-  /** Onglet transverse : visible si accès Paramètres (au moins un module configurable). */
   { id: 'mails', label: 'Templates mail', feature: 'parametres' },
 ]);
 
@@ -12,6 +13,7 @@ export const SETTINGS_TABS = Object.freeze([
 export function resolveSettingsTab(raw) {
   const v = String(raw || '').toLowerCase();
   if (!v) return null;
+  if (v === 'general' || v === 'generale' || v === 'pharmacy' || v === 'pharmacie') return 'general';
   if (v === 'location' || v === 'location_parametres') return 'location';
   if (v === 'preparations' || v === 'magistral' || v === 'magistral_parametres' || v === 'prepa') {
     return 'preparations';

@@ -131,6 +131,64 @@ export function logError(action, error, extra = {}) {
   });
 }
 
+/** Domaine e-mail uniquement (pas d’adresse complète / PII). */
+export function emailHost(to) {
+  const s = String(to || '').trim();
+  const i = s.lastIndexOf('@');
+  return i >= 0 ? s.slice(i + 1).toLowerCase() : null;
+}
+
+/**
+ * Journal envoi mail transactionnel (succès ou échec).
+ * Ne jamais passer subject/html/tokens dans details.
+ */
+export function logMailEvent({
+  module: mod = 'app',
+  templateKey = null,
+  to = null,
+  success = true,
+  error = null,
+  entity = null,
+  entityId = null,
+  details = null,
+} = {}) {
+  logEvent({
+    category: 'mail',
+    action: success ? 'send' : 'send_failed',
+    entity: entity || mod || 'mail',
+    entityId: entityId != null ? String(entityId) : null,
+    level: success ? 'info' : 'warn',
+    message: success
+      ? `Mail ${mod}${templateKey ? ` · ${templateKey}` : ''} envoyé`
+      : `Échec mail ${mod}${templateKey ? ` · ${templateKey}` : ''}: ${error?.message || error || 'erreur'}`,
+    details: {
+      module: mod,
+      templateKey,
+      to_host: emailHost(to),
+      ...(details && typeof details === 'object' ? details : {}),
+      ...(error ? { error: String(error?.message || error).slice(0, 500) } : {}),
+    },
+    flush: !success,
+  });
+}
+
+/** Soft-fail : opération non bloquante (upload, sync tâche, mail optionnel…). */
+export function logSoftFail(action, error, extra = {}) {
+  logEvent({
+    category: extra.category || 'error',
+    action: action || 'soft_fail',
+    entity: extra.entity || null,
+    entityId: extra.entityId != null ? String(extra.entityId) : null,
+    level: 'warn',
+    message: error?.message || String(error || 'soft-fail'),
+    details: {
+      soft_fail: true,
+      ...sanitizeDetails(extra.details || {}),
+      ...(extra.module ? { module: extra.module } : {}),
+    },
+  });
+}
+
 export function bindGlobalErrorLogging() {
   if (typeof window === 'undefined') return () => {};
   const onError = (event) => {

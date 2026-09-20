@@ -175,6 +175,7 @@ export function buildMailContext(order, settings, extra = {}) {
     pharmacy_name: settings?.pharmacy_name || fd.pharmacie?.nom || '',
     pharmacy_address: settings?.pharmacy_address || fd.pharmacie?.adresse || '',
     pharmacy_email: settings?.pharmacy_email || fd.pharmacie?.email || '',
+    pharmacy_phone: settings?.pharmacy_phone || '',
     pharmacy_interlocuteur: settings?.pharmacy_interlocuteur || fd.pharmacie?.interlocuteur || '',
     provider_name: settings?.provider_name || '',
     provider_email: settings?.provider_email || '',

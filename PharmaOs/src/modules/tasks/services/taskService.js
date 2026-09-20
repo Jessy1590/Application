@@ -1,6 +1,12 @@
 import { supabase } from '../../../shared/supabaseClient.js';
 import { STAFF_ROLES, canonicalRole } from '../../../core/roles.js';
 import { getTaskCategory, parseTaskDetails } from '../shared/taskDisplay.js';
+import {
+  TASK_RULE_CATEGORIES,
+  TASK_MODULES,
+  taskCategoriesForModule,
+  getTaskRuleCategory,
+} from '../shared/taskCatalog.js';
 
 /**
  * Service unifié tâches (comptoir + dashboard).
@@ -8,29 +14,12 @@ import { getTaskCategory, parseTaskDetails } from '../shared/taskDisplay.js';
  * Assignation via matrice task_role_rules (resolveAssigneeIds / ensureTaskEscalations).
  */
 
-/** Catégories exposées dans la matrice admin. */
-export const TASK_RULE_CATEGORIES = Object.freeze([
-  { id: 'appel_attente_pharmacien', label: 'Appel — attente pharmacien' },
-  { id: 'hr_absence_demande', label: 'RH — demande d’absence' },
-  { id: 'hr_horaire_demande', label: 'RH — demande horaire' },
-  { id: 'hr_absence_reponse', label: 'RH — réponse absence' },
-  { id: 'hr_horaire_reponse', label: 'RH — réponse horaire' },
-  { id: 'stock_error', label: 'Erreur de stock' },
-  { id: 'stock_recompte', label: 'Recomptage stock' },
-  { id: 'stock_recompte_result', label: 'Résultat recomptage' },
-  { id: 'perime_decision', label: 'Périmé à décider' },
-  { id: 'perime_mea', label: 'Mise en avant périmé' },
-  { id: 'perime_promo', label: 'Promo périmé' },
-  { id: 'perime_challenge', label: 'Challenge périmé' },
-  { id: 'retrait_lot', label: 'Retrait de lot' },
-  { id: 'commande', label: 'Commande médicament' },
-  { id: 'facturation', label: 'Facturation' },
-  { id: 'appel_brouillon', label: 'Appel brouillon' },
-  { id: 'nc_brouillon', label: 'NC brouillon' },
-  { id: 'litige_brouillon', label: 'Litige brouillon' },
-  { id: 'ip_brouillon', label: 'IP brouillon' },
-  { id: 'libre', label: 'Tâche libre' },
-]);
+export {
+  TASK_RULE_CATEGORIES,
+  TASK_MODULES,
+  taskCategoriesForModule,
+  getTaskRuleCategory,
+};
 
 function rolesForMode(rules, mode) {
   return (rules || [])
@@ -298,6 +287,77 @@ export async function createTaskForCategory(category, titre, description, create
   return createTask(titre, description, userIds, createdBy);
 }
 
+/**
+ * Recherche une tâche ouverte récente dont details matche le prédicat.
+ * @param {(details: object, task: object) => boolean} matchFn
+ */
+export async function findOpenTask(matchFn, { limit = 250 } = {}) {
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('id, titre, description, created_at, task_assignments(id, statut)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (tasks || []).find((t) => {
+    const open = (t.task_assignments || []).some((a) => a.statut === 'en_cours');
+    if (!open) return false;
+    try {
+      const details = parseTaskDetails(t.description);
+      return matchFn(details, t);
+    } catch {
+      return false;
+    }
+  }) || null;
+}
+
+/**
+ * Crée une tâche catégorie si aucune ouverte ne matche déjà (évite les doublons).
+ * `details` doit contenir `type` (= category) + une clé métier stable.
+ */
+export async function ensureCategoryTask(category, titre, details, createdBy, {
+  extraIds = [],
+  matchKey,
+  matchValue,
+} = {}) {
+  const key = matchKey || Object.keys(details).find((k) => k.endsWith('_id')) || null;
+  const value = matchValue ?? (key ? details[key] : null);
+  if (key && value != null) {
+    const existing = await findOpenTask(
+      (d) => d.type === category && d[key] === value,
+    );
+    if (existing) return existing.id;
+  }
+  const payload = { ...details, type: category };
+  return createTaskForCategory(
+    category,
+    titre,
+    JSON.stringify(payload),
+    createdBy,
+    extraIds,
+  );
+}
+
+/** Clôture les tâches ouvertes d’une catégorie + clé métier. */
+export async function completeCategoryTasks(category, matchKey, matchValue, commentaire = 'Clos automatiquement') {
+  if (!category || !matchKey || matchValue == null) return 0;
+  const { data: tasks, error } = await supabase
+    .from('tasks')
+    .select('id, description, task_assignments(statut)')
+    .order('created_at', { ascending: false })
+    .limit(250);
+  if (error) throw error;
+  let n = 0;
+  for (const t of tasks || []) {
+    const open = (t.task_assignments || []).some((a) => a.statut === 'en_cours');
+    if (!open) continue;
+    const d = parseTaskDetails(t.description);
+    if (d.type !== category || d[matchKey] !== matchValue) continue;
+    await completeAssignmentByTaskId(t.id, commentaire);
+    n += 1;
+  }
+  return n;
+}
+
 export async function completeTaskGlobal(taskId, commentaire, timeSeconds, completedBy) {
   const { error } = await supabase
     .from('task_assignments')
@@ -341,6 +401,7 @@ export async function createComptoirQuickAction(type, form, userId) {
   const assignees = await resolveAssigneeIds(category);
 
   const baseDetails = {
+    type: category,
     nom: form.nom.toUpperCase(),
     prenom: form.prenom.toUpperCase(),
     dob: form.dob,
@@ -365,6 +426,7 @@ export async function createComptoirQuickAction(type, form, userId) {
       const titreTache = `Commande : ${baseDetails.medicament} (${i + 1}/${reps}) - Pour le ${displayDate}`;
       const detailsJson = {
         ...baseDetails,
+        type: 'commande',
         seriesIndex: i + 1,
         totalSeries: reps,
         date: isoDate.split('T')[0],

@@ -3,6 +3,12 @@
  */
 import { supabase } from '../../../shared/supabaseClient.js';
 import * as LocationRules from './locationRules.js';
+import { renderAppMail } from '../../admin/services/mailTemplatesService.js';
+import {
+  fetchPharmacySettings,
+  pharmacyToMailFields,
+} from '../../admin/services/pharmacySettingsService.js';
+import { logEvent, logMailEvent } from '../../../shared/logService.js';
 
 
   let paramsCache = null;
@@ -12,8 +18,16 @@ import * as LocationRules from './locationRules.js';
     return supabase;
   }
 
-  function audit(_action, _detail) {
-    /* pas de PhieLogs dans PharmaOS v1 */
+  function audit(action, detail) {
+    const d = detail && typeof detail === 'object' ? detail : {};
+    logEvent({
+      category: 'location',
+      action: String(action || 'action').slice(0, 80),
+      entity: d.dossier_id ? 'location_dossiers' : 'location',
+      entityId: d.dossier_id || d.contact_id || d.appareil_id || null,
+      message: `Location · ${action}`,
+      details: d,
+    });
   }
 
   function invalidateCache() {
@@ -979,6 +993,134 @@ import * as LocationRules from './locationRules.js';
     });
   }
 
+  const CONTACT_MOTIF_LABELS = {
+    prolongation: 'Prolongation',
+    prolongation_tire_lait: 'Prolongation tire-lait',
+    reclame_appareil: 'Réclamer appareil',
+    reclame_appareil_tens: 'Réclamer TENS',
+  };
+
+  function yesNo(v) {
+    return v ? 'oui' : 'non';
+  }
+
+  /** Contexte placeholders mail Location (champs Suivi + contact). */
+  function buildLocationMailContext(dossier, contact = null, extra = {}) {
+    const d = dossier || {};
+    const p = d.patient || {};
+    const a = d.appareil_actif || {};
+    const mails = Array.isArray(p.mails) ? p.mails.filter(Boolean) : [];
+    const phones = Array.isArray(p.telephones) ? p.telephones.filter(Boolean) : [];
+    const firstProlong = Array.isArray(d.prolongations) && d.prolongations.length
+      ? d.prolongations[0]
+      : null;
+    const motif = contact?.motif || extra.contact_motif || '';
+    const motifLabel =
+      CONTACT_MOTIF_LABELS[motif] ||
+      (LocationRules.templateMotifFor?.(motif)
+        ? CONTACT_MOTIF_LABELS[LocationRules.templateMotifFor(motif)]
+        : null) ||
+      motif ||
+      '';
+    const typeCode = a.type_appareil || '';
+    return {
+      patient_nom: p.nom || '',
+      patient_prenom: p.prenom || '',
+      patient_date_naissance: p.date_naissance || '',
+      patient_adresse: p.adresse || '',
+      patient_telephones: phones.join(' · '),
+      patient_mails: mails.join(' · '),
+      patient_email: mails[0] || '',
+      code_op: d.code_op || '',
+      caution: d.caution || '',
+      statut: d.statut || '',
+      qui_facture: d.qui_facture || '',
+      date_debut: d.date_debut || '',
+      date_fin: d.date_fin || '',
+      date_ordo: firstProlong?.date_ordo || '',
+      appareil_rendu: yesNo(!!d.appareil_rendu),
+      caution_rendue: yesNo(!!d.caution_rendue),
+      caution_rendue_le: d.caution_rendue_le || '',
+      caution_rendue_op: d.caution_rendue_op || '',
+      date_cloture: d.date_cloture || '',
+      cloture_op: d.cloture_op || '',
+      notes: d.notes || '',
+      type_appareil: typeCode ? LocationRules.typeLabel(typeCode) : '',
+      type_appareil_code: typeCode,
+      type_libelle: a.type_libelle || '',
+      source: a.source || (a.prestataire_id ? 'prestataire' : 'parc'),
+      matricule: a.matricule || '',
+      numero_pharmacie: a.numero_pharmacie || '',
+      mode_obtention: a.mode_obtention || '',
+      livraison: a.livraison || '',
+      desinfection: yesNo(!!a.desinfection),
+      encart_texte: a.encart_texte || '',
+      facturation_prestataire: yesNo(!!a.facturation_prestataire),
+      pese_bebe_regler_avance: yesNo(!!a.pese_bebe_regler_avance),
+      pese_bebe_periode: a.pese_bebe_periode || '',
+      date_accouchement: a.date_accouchement || '',
+      dossier_id: d.id || '',
+      dossier_id_short: d.id ? String(d.id).slice(0, 8) : '',
+      contact_motif: motif,
+      contact_motif_label: motifLabel,
+      contact_commentaire: contact?.commentaire || extra.contact_commentaire || '',
+      contact_resultat: contact?.resultat || extra.contact_resultat || '',
+      contact_note: extra.contact_note || contact?.note || '',
+      contact_statut: contact?.statut || '',
+      date_aujourdhui: new Date().toLocaleDateString('fr-FR'),
+      ...extra,
+    };
+  }
+
+  /**
+   * Envoie le template location.contact_probleme au 1er mail patient (ou `to`).
+   * @returns {{ to: string, subject: string }}
+   */
+  async function sendContactProblemEmail(dossier, contact = null, { to, note, resultat } = {}) {
+    const mails = dossier?.patient?.mails || [];
+    const dest = String(to || mails[0] || '').trim();
+    if (!dest || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dest)) {
+      throw new Error('Aucun e-mail patient valide pour l’envoi.');
+    }
+    const ctx = {
+      ...buildLocationMailContext(dossier, contact, {
+        contact_note: note || '',
+        contact_resultat: resultat || contact?.resultat || '',
+      }),
+      ...pharmacyToMailFields(await fetchPharmacySettings()),
+    };
+    const rendered = await renderAppMail('location', 'contact_probleme', ctx);
+    const subject = rendered.subject || 'Votre location — contact pharmacie';
+    const html = (rendered.body && rendered.body.trim())
+      ? rendered.body
+      : `<p>Bonjour ${ctx.patient_prenom || ''},</p><p>Nous vous contactons au sujet de votre location.</p>`;
+    const { data, error } = await sb().functions.invoke('send-transactional-email', {
+      body: { to: dest, subject, html },
+    });
+    if (error || data?.error) {
+      const msg = data?.error || error?.message || 'Échec envoi e-mail';
+      logMailEvent({
+        module: 'location',
+        templateKey: 'contact_probleme',
+        to: dest,
+        success: false,
+        error: msg,
+        entity: 'location_dossiers',
+        entityId: dossier?.id || null,
+      });
+      throw new Error(msg);
+    }
+    logMailEvent({
+      module: 'location',
+      templateKey: 'contact_probleme',
+      to: dest,
+      success: true,
+      entity: 'location_dossiers',
+      entityId: dossier?.id || null,
+    });
+    return { to: dest, subject };
+  }
+
   async function listChampsCreation(typeAppareil, actifsOnly) {
     let q = sb()
       .from('location_champs_creation')
@@ -1083,6 +1225,64 @@ import * as LocationRules from './locationRules.js';
   const OPEN_CONTACT_STATUTS = ['a_contacter', 'en_cours', 'reporte'];
   const OUTCOME_RESULTATS = ['ramene_semaine', 'ordo_mail', 'autre_raison', 'mauvais_numero', 'PERTE'];
 
+  /**
+   * Tâches équipe liées au flux Contact Location (matrice Assignation).
+   * - File ouverte → location_a_rappeler
+   * - Résolu + résultat « suite métier » → location_attente_suite
+   * - Sinon (annulé / clos) → clôture des deux catégories
+   */
+  async function syncLocationContactTasks(contact) {
+    if (!contact?.id) return;
+    try {
+      const { ensureCategoryTask, completeCategoryTasks } = await import('../../tasks/services/taskService.js');
+      const open = OPEN_CONTACT_STATUTS.includes(contact.statut);
+      const attente = contact.statut === 'resolu' && OUTCOME_RESULTATS.includes(contact.resultat);
+      const patientLabel =
+        contact.dossier?.patient
+          ? `${contact.dossier.patient.nom || ''} ${contact.dossier.patient.prenom || ''}`.trim()
+          : '';
+      const motif = contact.motif || 'contact';
+      const createdBy = contact.created_by || null;
+
+      if (open) {
+        await completeCategoryTasks('location_attente_suite', 'contact_id', contact.id, 'Contact rouvert');
+        await ensureCategoryTask(
+          'location_a_rappeler',
+          `Location à rappeler — ${patientLabel || motif}`,
+          {
+            type: 'location_a_rappeler',
+            contact_id: contact.id,
+            dossier_id: contact.dossier_id,
+            motif: contact.motif,
+            statut: contact.statut,
+            patient: patientLabel || null,
+          },
+          createdBy,
+        );
+      } else if (attente) {
+        await completeCategoryTasks('location_a_rappeler', 'contact_id', contact.id, 'Appel abouti');
+        await ensureCategoryTask(
+          'location_attente_suite',
+          `Location — suite (${contact.resultat}) — ${patientLabel || motif}`,
+          {
+            type: 'location_attente_suite',
+            contact_id: contact.id,
+            dossier_id: contact.dossier_id,
+            motif: contact.motif,
+            resultat: contact.resultat,
+            patient: patientLabel || null,
+          },
+          createdBy,
+        );
+      } else {
+        await completeCategoryTasks('location_a_rappeler', 'contact_id', contact.id, `Contact ${contact.statut}`);
+        await completeCategoryTasks('location_attente_suite', 'contact_id', contact.id, `Contact ${contact.statut}`);
+      }
+    } catch (e) {
+      console.warn('[location] sync tâches:', e.message);
+    }
+  }
+
   function mapContactRows(data) {
     return (data || []).map((c) => ({
       ...c,
@@ -1179,6 +1379,7 @@ import * as LocationRules from './locationRules.js';
           .single());
       }
       if (error) throw error;
+      await syncLocationContactTasks(data);
       return data;
     }
     let { data, error } = await sb().from('location_contacts').insert(row).select().single();
@@ -1194,6 +1395,7 @@ import * as LocationRules from './locationRules.js';
       phase: data?.phase || row.phase || null,
       statut: data?.statut || row.statut || null,
     });
+    await syncLocationContactTasks(data);
     return data;
   }
 
@@ -1592,6 +1794,8 @@ export {
   findTemplateByMotif,
   findTemplateById,
   contactInterpVars,
+  buildLocationMailContext,
+  sendContactProblemEmail,
   listChampsCreation,
   upsertChampCreation,
   deleteChampCreation,

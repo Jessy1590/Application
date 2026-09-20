@@ -6,15 +6,17 @@
 
 export const MAIL_MODULES = Object.freeze([
   { id: 'magistral', label: 'Préparations magistrales' },
+  { id: 'location', label: 'Location' },
   { id: 'cash', label: 'Caisse' },
 ]);
 
-/** Placeholders communs + par module (affichés dans le bandeau). */
+/** Placeholders communs + par module (affichés dans le bandeau : clé + signification). */
 export const MAIL_PLACEHOLDERS_BY_MODULE = Object.freeze({
   magistral: [
     { key: 'pharmacy_name', label: 'Nom pharmacie' },
     { key: 'pharmacy_address', label: 'Adresse pharmacie' },
     { key: 'pharmacy_email', label: 'E-mail pharmacie' },
+    { key: 'pharmacy_phone', label: 'Tél. pharmacie' },
     { key: 'pharmacy_interlocuteur', label: 'Interlocuteur' },
     { key: 'provider_name', label: 'Nom prestataire' },
     { key: 'provider_email', label: 'E-mail prestataire' },
@@ -40,12 +42,68 @@ export const MAIL_PLACEHOLDERS_BY_MODULE = Object.freeze({
     { key: 'date_aujourdhui', label: 'Date du jour' },
     { key: 'nc_reason', label: 'Motif NC' },
   ],
+  /** Alignés sur les champs Suivi Location (patient / dossier / appareil / contact) + pharmacie générale. */
+  location: [
+    { key: 'pharmacy_name', label: 'Nom pharmacie (Paramètres → Général)' },
+    { key: 'pharmacy_address', label: 'Adresse pharmacie' },
+    { key: 'pharmacy_email', label: 'E-mail pharmacie' },
+    { key: 'pharmacy_phone', label: 'Tél. pharmacie' },
+    { key: 'pharmacy_interlocuteur', label: 'Interlocuteur pharmacie' },
+    { key: 'patient_nom', label: 'Nom patient' },
+    { key: 'patient_prenom', label: 'Prénom patient' },
+    { key: 'patient_date_naissance', label: 'Date de naissance' },
+    { key: 'patient_adresse', label: 'Adresse' },
+    { key: 'patient_telephones', label: 'Téléphones (liste)' },
+    { key: 'patient_mails', label: 'Mails patient (liste)' },
+    { key: 'patient_email', label: '1er e-mail patient (destinataire)' },
+    { key: 'code_op', label: 'Code OP' },
+    { key: 'caution', label: 'Caution' },
+    { key: 'statut', label: 'Statut dossier' },
+    { key: 'qui_facture', label: 'Qui facture' },
+    { key: 'date_debut', label: 'Date début location' },
+    { key: 'date_fin', label: 'Date fin courante' },
+    { key: 'date_ordo', label: 'Date ordonnance (1re prolong.)' },
+    { key: 'appareil_rendu', label: 'Appareil rendu (oui/non)' },
+    { key: 'caution_rendue', label: 'Caution rendue (oui/non)' },
+    { key: 'caution_rendue_le', label: 'Caution rendue le' },
+    { key: 'caution_rendue_op', label: 'OP caution rendue' },
+    { key: 'date_cloture', label: 'Date clôture' },
+    { key: 'cloture_op', label: 'OP clôture' },
+    { key: 'notes', label: 'Notes initiales dossier' },
+    { key: 'type_appareil', label: 'Type d’appareil (libellé)' },
+    { key: 'type_appareil_code', label: 'Type d’appareil (code)' },
+    { key: 'type_libelle', label: 'Libellé type « autre »' },
+    { key: 'source', label: 'Source (parc / prestataire)' },
+    { key: 'matricule', label: 'Matricule' },
+    { key: 'numero_pharmacie', label: 'N° appareil pharmacie' },
+    { key: 'mode_obtention', label: 'Mode obtention' },
+    { key: 'livraison', label: 'Livraison' },
+    { key: 'desinfection', label: 'Désinfection faite (oui/non)' },
+    { key: 'encart_texte', label: 'Commentaire appareil' },
+    { key: 'facturation_prestataire', label: 'Facturation prestataire (oui/non)' },
+    { key: 'pese_bebe_regler_avance', label: 'Pèse-bébé régler d’avance' },
+    { key: 'pese_bebe_periode', label: 'Pèse-bébé période' },
+    { key: 'date_accouchement', label: 'Date accouchement' },
+    { key: 'dossier_id', label: 'Id dossier' },
+    { key: 'dossier_id_short', label: 'Id dossier court (8)' },
+    { key: 'contact_motif', label: 'Motif contact' },
+    { key: 'contact_motif_label', label: 'Motif contact (libellé)' },
+    { key: 'contact_commentaire', label: 'Message LGO / commentaire contact' },
+    { key: 'contact_resultat', label: 'Résultat d’appel' },
+    { key: 'contact_note', label: 'Note d’appel' },
+    { key: 'contact_statut', label: 'Statut contact' },
+    { key: 'date_aujourdhui', label: 'Date du jour' },
+  ],
   cash: [
     { key: 'year_month', label: 'Mois (AAAA-MM)' },
     { key: 'closures_count', label: 'Nb clôtures' },
     { key: 'total_ecart', label: 'Écart total €' },
     { key: 'table_html', label: 'Tableau HTML des clôtures' },
-    { key: 'pharmacy_name', label: 'Nom pharmacie' },
+    { key: 'pharmacy_name', label: 'Nom pharmacie (Paramètres → Général)' },
+    { key: 'pharmacy_address', label: 'Adresse pharmacie' },
+    { key: 'pharmacy_email', label: 'E-mail pharmacie' },
+    { key: 'pharmacy_phone', label: 'Tél. pharmacie' },
+    { key: 'pharmacy_interlocuteur', label: 'Interlocuteur' },
     { key: 'date_aujourdhui', label: 'Date du jour' },
   ],
 });
@@ -59,6 +117,9 @@ export const MAIL_TEMPLATE_DEFS = Object.freeze({
     { id: 'maj', label: 'Mise à jour → ST', dest: 'prestataire' },
     { id: 'disponible_patient', label: 'Disponible → patient', dest: 'patient' },
     { id: 'devis_valide_patient', label: 'Devis accepté → patient', dest: 'patient' },
+  ],
+  location: [
+    { id: 'contact_probleme', label: 'Contact problème → patient', dest: 'patient' },
   ],
   cash: [
     { id: 'rapport_mensuel', label: 'Rapport mensuel → comptable', dest: 'comptable' },
@@ -129,6 +190,18 @@ Formule :</p>
 <p>Votre devis de préparation magistrale a été accepté. La commande est lancée auprès de notre prestataire.</p>
 <p>Montant : {prix_ttc}</p>
 <p>Pharmacie {pharmacy_name}</p>`,
+    },
+  },
+  location: {
+    contact_probleme: {
+      subject: 'Votre location {type_appareil} — suite à notre contact',
+      body: `<p>Bonjour {patient_prenom},</p>
+<p>Nous vous contactons au sujet de votre location de <strong>{type_appareil}</strong>
+(fin prévue le <strong>{date_fin}</strong>).</p>
+<p>Motif : {contact_motif_label}</p>
+<p>{contact_commentaire}</p>
+<p>N’hésitez pas à nous rappeler ou à répondre à ce message.</p>
+<p>Cordialement,<br>{pharmacy_name}<br>{pharmacy_phone}<br>{pharmacy_email}</p>`,
     },
   },
   cash: {

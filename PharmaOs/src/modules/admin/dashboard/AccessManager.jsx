@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Shield } from 'lucide-react';
+import {
+  Shield, HelpCircle, Users, Tags, LayoutGrid, LayoutDashboard, ListTodo,
+} from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import {
   ACCESS_ROLES, CANONICAL_ROLES, ROLE_LABELS, canonicalRole, labelRole, isDisabledRole,
@@ -17,7 +19,7 @@ import {
   fetchCasquettes, fetchCasquetteFeatures, fetchAllProfileCasquettes,
   createCasquette, updateCasquette, setCasquetteFeatures, setProfileCasquettes,
 } from '../services/casquetteService.js';
-import { TASK_RULE_CATEGORIES } from '../../tasks/services/taskService.js';
+import { TASK_MODULES, taskCategoriesForModule } from '../../tasks/services/taskService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
 const TASK_MODES = [
@@ -25,6 +27,14 @@ const TASK_MODES = [
   { value: 'immediate', label: 'Immédiat' },
   { value: 'after_delay', label: 'Après délai' },
 ];
+
+const ACCESS_TABS = Object.freeze([
+  { id: 'utilisateurs', label: 'Utilisateurs', Icon: Users },
+  { id: 'casquettes', label: 'Casquettes', Icon: Tags },
+  { id: 'modules', label: 'Modules', Icon: LayoutGrid },
+  { id: 'widgets', label: 'Widgets', Icon: LayoutDashboard },
+  { id: 'taches', label: 'Assignation tâches', Icon: ListTodo },
+]);
 
 function MatrixTable({ title, surface, features, overrides, onToggle, disabled }) {
   return (
@@ -79,6 +89,8 @@ export default function AccessManager() {
   const [profileCasquettes, setProfileCasquettesState] = useState([]);
   const [widgets, setWidgets] = useState([]);
   const [taskRules, setTaskRules] = useState([]);
+  const [pageTab, setPageTab] = useState('utilisateurs');
+  const [taskModuleTab, setTaskModuleTab] = useState(TASK_MODULES[0]?.id || 'taches');
   const [selectedCasquetteId, setSelectedCasquetteId] = useState(null);
   const [newCasq, setNewCasq] = useState({ slug: '', label: '', description: '' });
   const [loading, setLoading] = useState(true);
@@ -254,6 +266,10 @@ export default function AccessManager() {
   };
 
   const activeCasquettes = casquettes.filter((c) => c.active);
+  const taskCatsForTab = useMemo(
+    () => taskCategoriesForModule(taskModuleTab),
+    [taskModuleTab],
+  );
 
   return (
     <div>
@@ -270,8 +286,29 @@ export default function AccessManager() {
       {msg && <div className="mb-3 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm">{msg}</div>}
       {loading && profiles.length === 0 && <p className="text-sm text-slate-500 mb-4">Chargement…</p>}
 
-      {/* 1. Utilisateurs */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-6">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-px mb-5">
+        {ACCESS_TABS.map(({ id, label, Icon }) => {
+          const active = pageTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setPageTab(id)}
+              className={`inline-flex items-center gap-2 px-3 py-2 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
+                active
+                  ? 'border-slate-800 text-slate-900 font-semibold bg-white'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {pageTab === 'utilisateurs' && (
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Utilisateurs</h2>
         </div>
@@ -330,9 +367,10 @@ export default function AccessManager() {
           Désactivé = connexion refusée. Casquettes surtout utiles pour les préparateurs.
         </p>
       </div>
+      )}
 
-      {/* 2. Casquettes catalogue */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-6">
+      {pageTab === 'casquettes' && (
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Casquettes (catalogue)</h2>
         </div>
@@ -451,8 +489,10 @@ export default function AccessManager() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* 3. Modules */}
+      {pageTab === 'modules' && (
+      <div>
       <MatrixTable
         title="Modules — missions taskbar"
         surface="taskbar"
@@ -469,9 +509,11 @@ export default function AccessManager() {
         onToggle={handleToggle}
         disabled={!isAppAdministrateur}
       />
+      </div>
+      )}
 
-      {/* 4. Widgets accueil */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-6">
+      {pageTab === 'widgets' && (
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Accueil dashboard — widgets</h2>
         </div>
@@ -509,27 +551,70 @@ export default function AccessManager() {
           </table>
         </div>
       </div>
+      )}
 
-      {/* 5. Assignation tâches */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-6">
+      {pageTab === 'taches' && (
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Assignation des tâches</h2>
-          <p className="text-xs text-slate-500 mt-1">never | immediate | after_delay (+ heures)</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Jamais / Immédiat / Après délai (+ heures). Survolez l’icône ? pour le détail de chaque tâche.
+          </p>
+        </div>
+        <div className="px-3 flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50/50">
+          {TASK_MODULES.map((mod) => {
+            const count = taskCategoriesForModule(mod.id).length;
+            if (!count) return null;
+            const active = taskModuleTab === mod.id;
+            return (
+              <button
+                key={mod.id}
+                type="button"
+                onClick={() => setTaskModuleTab(mod.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-sm rounded-t-lg border-b-2 -mb-px transition-colors ${
+                  active
+                    ? 'border-slate-800 text-slate-900 font-semibold bg-white'
+                    : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-white/70'
+                }`}
+              >
+                {mod.label}
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                    active ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/80 text-slate-500'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="p-2.5 text-left font-semibold">Catégorie</th>
+                <th className="p-2.5 text-left font-semibold">Tâche</th>
                 {ACCESS_ROLES.map((role) => (
                   <th key={role} className="p-2.5 text-center font-semibold">{ROLE_LABELS[role]}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {TASK_RULE_CATEGORIES.map((cat) => (
+              {taskCatsForTab.map((cat) => (
                 <tr key={cat.id} className="border-t border-slate-100">
-                  <td className="p-2.5 text-slate-700">{cat.label}</td>
+                  <td className="p-2.5 text-slate-700">
+                    <div className="flex items-start gap-1.5">
+                      <span>{cat.label}</span>
+                      <span
+                        className="inline-flex text-slate-400 hover:text-sky-600 cursor-help shrink-0 mt-0.5"
+                        title={cat.description}
+                        aria-label={cat.description}
+                      >
+                        <HelpCircle size={14} />
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">{cat.id}</p>
+                  </td>
                   {ACCESS_ROLES.map((role) => {
                     const rule = taskRule(cat.id, role);
                     return (
@@ -561,10 +646,18 @@ export default function AccessManager() {
                   })}
                 </tr>
               ))}
+              {!taskCatsForTab.length && (
+                <tr>
+                  <td colSpan={1 + ACCESS_ROLES.length} className="p-4 text-sm text-slate-400 text-center">
+                    Aucune tâche dans ce module.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

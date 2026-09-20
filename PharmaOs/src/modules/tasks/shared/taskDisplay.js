@@ -27,7 +27,6 @@ export function isPlainTaskDetails(details) {
 
 /**
  * Catégories pour filtres / regroupement.
- * @returns {'commande'|'facturation'|'retrait_lot'|'stock'|'perimes'|'ip'|'appel'|'etalonnage'|'hr'|'autre'|'libre'}
  */
 export function getTaskCategory(description, titre = '') {
   const d = parseTaskDetails(description);
@@ -44,6 +43,17 @@ export function getTaskCategory(description, titre = '') {
   if (d.type === 'nc_brouillon') return 'nc';
   if (d.type === 'appel_attente_pharmacien') return 'appel';
   if (d.type === 'etalonnage_rdv') return 'etalonnage';
+  if (d.type === 'commande') return 'commande';
+  if (d.type === 'facturation') return 'facturation';
+  if (
+    d.type === 'magistral_devis'
+    || d.type === 'magistral_a_controler'
+    || d.type === 'magistral_a_rappeler'
+    || d.type === 'magistral_a_dispenser'
+    || d.type === 'magistral_non_conforme'
+  ) return d.type;
+  if (d.type === 'location_a_rappeler' || d.type === 'location_attente_suite') return d.type;
+  if (d.type === 'cash_ecart') return 'cash_ecart';
   if (
     d.type === 'hr_absence_demande'
     || d.type === 'hr_absence_reponse'
@@ -75,6 +85,14 @@ export const TASK_CATEGORY_LABELS = {
   appel: 'Appels pharmacien',
   etalonnage: 'Étalonnage',
   hr: 'RH',
+  magistral_devis: 'Magistrale — devis',
+  magistral_a_controler: 'Magistrale — à contrôler',
+  magistral_a_rappeler: 'Magistrale — à rappeler',
+  magistral_a_dispenser: 'Magistrale — à dispenser',
+  magistral_non_conforme: 'Magistrale — non conforme',
+  location_a_rappeler: 'Location — à rappeler',
+  location_attente_suite: 'Location — attente suite',
+  cash_ecart: 'Caisse — écart',
   autre: 'Autres',
 };
 

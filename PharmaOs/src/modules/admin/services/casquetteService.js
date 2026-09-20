@@ -99,6 +99,15 @@ export async function updateCasquette(id, patch, userId) {
     .select()
     .single();
   if (error) throw error;
+  logEvent({
+    category: 'access',
+    action: 'update_casquette',
+    entity: 'casquettes',
+    entityId: id,
+    message: `Casquette mise à jour : ${data.slug || id}`,
+    details: { keys: Object.keys(patch || {}) },
+    flush: true,
+  });
   return data;
 }
 
