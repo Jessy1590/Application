@@ -51,9 +51,12 @@ export default function MagistralCreate() {
         }
       }
       await createMagistralOrder(user.id, form, { asDraft, ordonnanceFile: ordoFile });
+      const isDevis = !asDraft && form.demande?.nature === 'devis';
       setMsg(asDraft
         ? 'Brouillon enregistré.'
-        : 'Commande créée (attente réception) — prestataire prévenu si e-mail configuré.');
+        : isDevis
+          ? 'Demande de devis envoyée au prestataire — à la réponse ST, bouton Devis → appel patient.'
+          : 'Commande créée (attente réception) — prestataire prévenu si e-mail configuré.');
       setForm(formFromSettings(settings));
       setOrdoFile(null);
       setWizardStep(0);

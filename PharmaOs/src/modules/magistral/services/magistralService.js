@@ -1,4 +1,28 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import {
+  buildDefaultCreationChamps,
+  validateCreationForm,
+  renderMailTemplate,
+  getMailTemplate,
+} from './magistralParams.js';
+
+export {
+  CREATION_ETAPES,
+  CREATION_FIELD_DEFS,
+  MAIL_PLACEHOLDERS,
+  MAIL_TEMPLATE_KEYS,
+  DEFAULT_MAIL_TEMPLATES,
+  getCreationChamp,
+  listCreationFieldsForEtape,
+  buildDefaultCreationChamps,
+  normalizeCreationChamps,
+  isFieldActive,
+  isFieldRequired,
+  validateCreationForm,
+  getMailTemplate,
+  renderMailTemplate,
+  buildMailContext,
+} from './magistralParams.js';
 
 export const MAGISTRAL_STATUTS = Object.freeze({
   brouillon: 'Brouillon',
@@ -108,13 +132,24 @@ function pushHistory(order, statut, userId, note = null) {
   return hist;
 }
 
+function templateOr(settings, key, fallback) {
+  const t = getMailTemplate(settings, key);
+  return (t.subject && String(t.subject).trim()) || fallback;
+}
+
 function escHtml(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function templateOr(settings, key, fallback) {
-  const t = settings?.mail_templates?.[key];
-  return (t && String(t).trim()) || fallback;
+/** Envoi avec subject+body depuis mail_templates (placeholders rendus). */
+async function sendTemplatedMail(to, settings, key, order, { subjectFallback, bodyFallback, extra } = {}) {
+  if (!to) throw new Error('Adresse e-mail destinataire manquante.');
+  const rendered = renderMailTemplate(settings, key, order || {}, extra || {});
+  const subject = rendered.subject || subjectFallback || key;
+  const html = (rendered.body && rendered.body.trim())
+    ? rendered.body
+    : (bodyFallback || `<p>${escHtml(subject)}</p>`);
+  return sendTransactionalEmail(to, subject, html);
 }
 
 /** Prix vente = (HT net réception + frais port) × (1 + TVA%) × coefficient */
@@ -135,6 +170,7 @@ export async function ensureSettings(seed = {}) {
     tva_rate: seed.tva_rate ?? 5.5,
     internal_prep_enabled: false,
     mail_templates: {},
+    creation_champs: buildDefaultCreationChamps(),
     provider_forms: [],
     updated_at: new Date().toISOString(),
   };
@@ -224,8 +260,11 @@ function buildHtmlShort(order, settings, title) {
 }
 
 export async function sendProviderEmail(order, settings, subjectKey, subjectFallback) {
-  const subject = templateOr(settings, subjectKey, subjectFallback);
-  const html = buildOrderHtml(order, settings, subject);
+  const rendered = renderMailTemplate(settings, subjectKey, order);
+  const subject = rendered.subject || subjectFallback || templateOr(settings, subjectKey, subjectFallback);
+  const html = (rendered.body && rendered.body.trim())
+    ? rendered.body
+    : buildOrderHtml(order, settings, subject);
   await sendTransactionalEmail(settings.provider_email, subject, html);
   return updateOrder(order.id, { email_sent_at: new Date().toISOString() });
 }
@@ -269,24 +308,22 @@ function formToRow(userId, form, { statut, ordonnance_path = null, analyseValida
 
 export async function createMagistralOrder(userId, form, { asDraft = false, ordonnanceFile = null } = {}) {
   const settings = await ensureSettings();
-  const phone = (form.patient?.phone || '').trim();
-  if (!asDraft && !phone) throw new Error('Téléphone patient obligatoire.');
-  if (!asDraft && form.analyse?.decision === 'st' && !form.analyse?.dose_posologie_ok) {
-    throw new Error('Valider l’analyse (dose/posologie) avant envoi au sous-traitant.');
-  }
+  const cfgErr = validateCreationForm(form, settings, { asDraft, ordonnanceFile });
+  if (cfgErr) throw new Error(cfgErr);
 
-  // Création comptoir (hors brouillon) = commande directe, attente réception ST
-  const statut = asDraft ? 'brouillon' : 'commande';
-  const formCmd = asDraft
-    ? form
-    : {
-        ...form,
-        demande: { ...(form.demande || {}), nature: 'commande' },
-      };
+  // Commande / renouvellement → commande. Nature devis → devis (mail ST, puis accord patient).
+  const nature = asDraft
+    ? (form.demande?.nature || 'commande')
+    : (form.demande?.nature === 'devis' ? 'devis' : 'commande');
+  const statut = asDraft ? 'brouillon' : nature;
+  const formNorm = {
+    ...form,
+    demande: { ...(form.demande || {}), nature },
+  };
   let ordonnance_path = null;
-  const row = formToRow(userId, formCmd, {
+  const row = formToRow(userId, formNorm, {
     statut,
-    analyseValidated: !asDraft && formCmd.analyse?.decision === 'st',
+    analyseValidated: !asDraft && formNorm.analyse?.decision === 'st',
   });
 
   const { data, error } = await supabase.from('magistral_orders').insert([row]).select().single();
@@ -302,13 +339,16 @@ export async function createMagistralOrder(userId, form, { asDraft = false, ordo
     }
   }
 
-  if (!asDraft && !formCmd.preparation_interne && settings?.provider_email) {
+  if (!asDraft && !formNorm.preparation_interne && settings?.provider_email) {
     try {
+      const isCmd = statut === 'commande';
       await sendProviderEmail(
         data,
         settings,
-        'commande',
-        `Commande préparation magistrale #${data.id.slice(0, 8)}`,
+        isCmd ? 'commande' : 'devis',
+        isCmd
+          ? `Commande préparation magistrale #${data.id.slice(0, 8)}`
+          : 'Demande de devis — préparation magistrale',
       );
     } catch (mailErr) {
       console.warn('[magistral] e-mail prestataire non envoyé:', mailErr.message);
@@ -533,11 +573,10 @@ export async function saveOrderFromForm(orderId, form, { sendEmail: doSend = fal
     patient_email: form.patient_email || null,
   });
   if (doSend && settings?.provider_email) {
-    await sendTransactionalEmail(
-      settings.provider_email,
-      templateOr(settings, 'maj', 'Mise à jour préparation magistrale'),
-      buildHtmlShort(order, settings, 'Mise à jour'),
-    );
+    await sendTemplatedMail(settings.provider_email, settings, 'maj', order, {
+      subjectFallback: 'Mise à jour préparation magistrale',
+      bodyFallback: buildHtmlShort(order, settings, 'Mise à jour'),
+    });
     await updateOrder(orderId, { email_sent_at: new Date().toISOString() });
   }
   return order;
@@ -630,34 +669,64 @@ export async function validateDevis(orderId, { launchOrder = true, sendEmail: do
   const order = await fetchOrderById(orderId);
 
   if (!launchOrder) {
+    // Refus patient → clôture (plus de suivi)
     return updateOrder(orderId, {
-      statut: 'refuse',
+      statut: 'cloture',
       closed_at: new Date().toISOString(),
-      closed_reason: 'Devis refusé',
-      status_history: pushHistory(order, 'refuse', userId, 'devis refusé'),
+      closed_reason: 'Devis refusé par le patient',
+      status_history: pushHistory(order, 'cloture', userId, 'devis refusé par le patient'),
     });
   }
 
   const updated = await updateOrder(orderId, {
     statut: 'commande',
-    status_history: pushHistory(order, 'commande', userId, 'devis accepté'),
+    status_history: pushHistory(order, 'commande', userId, 'devis accepté par le patient → commande'),
   });
   if (doSend && settings?.provider_email) {
-    await sendTransactionalEmail(
-      settings.provider_email,
-      templateOr(settings, 'commande', `Commande préparation magistrale #${orderId.slice(0, 8)}`),
-      buildHtmlShort(order, settings, 'Commande confirmée'),
-    );
+    await sendTemplatedMail(settings.provider_email, settings, 'commande', order, {
+      subjectFallback: `Commande préparation magistrale #${orderId.slice(0, 8)}`,
+      bodyFallback: buildHtmlShort(order, settings, 'Commande confirmée (devis accepté)'),
+    });
     await updateOrder(orderId, { email_sent_at: new Date().toISOString() });
   }
   if (notifyPatient && order.patient_email) {
-    await sendTransactionalEmail(
-      order.patient_email,
-      templateOr(settings, 'devis_valide_patient', 'Votre devis est validé'),
-      '<p>Votre demande de préparation magistrale a été validée. La commande est lancée.</p>',
-    );
+    await sendTemplatedMail(order.patient_email, settings, 'devis_valide_patient', order, {
+      subjectFallback: 'Votre devis est validé',
+    });
   }
   return updated;
+}
+
+/** Enregistre le devis reçu du prestataire (e-mail ST) avant appel patient. */
+export async function recordProviderQuote(orderId, userId, { prixHt, tvaRate = 5.5, note = null } = {}) {
+  if (prixHt == null || prixHt === '') throw new Error('Montant HT du devis prestataire obligatoire.');
+  const settings = await ensureSettings();
+  const order = await fetchOrderById(orderId);
+  if (order.statut !== 'devis') throw new Error('Seuls les dossiers en statut devis peuvent recevoir un devis ST.');
+  const ht = Number(prixHt);
+  const tva = Number(tvaRate) || 0;
+  const ttc = calcMagistralPrice(settings, ht, tva);
+  const fd = { ...(order.form_data || {}) };
+  fd.devis_st = {
+    ht,
+    tva,
+    ttc,
+    note: note || null,
+    received_at: new Date().toISOString(),
+    by: userId,
+  };
+  return updateOrder(orderId, {
+    form_data: fd,
+    prix_ht_net: ht,
+    tva_rate: tva,
+    prix_calcule: ttc,
+    status_history: pushHistory(order, 'devis', userId, 'devis ST reçu — à présenter au patient'),
+  });
+}
+
+export function hasProviderQuote(order) {
+  const st = order?.form_data?.devis_st;
+  return !!(st && (st.ht != null || st.ttc != null));
 }
 
 export async function markInTransit(orderId, userId, providerRef = null) {
@@ -718,11 +787,11 @@ export async function saveReceptionControl(orderId, userId, payload) {
     });
     if (settings?.provider_email) {
       try {
-        await sendTransactionalEmail(
-          settings.provider_email,
-          templateOr(settings, 'non_conforme', `Non-conformité préparation #${orderId.slice(0, 8)}`),
-          `${buildHtmlShort(updated, settings, 'Non-conformité')}<p>${escHtml(nc_reason || '')}</p>`,
-        );
+        await sendTemplatedMail(settings.provider_email, settings, 'non_conforme', updated, {
+          subjectFallback: `Non-conformité préparation #${orderId.slice(0, 8)}`,
+          bodyFallback: `${buildHtmlShort(updated, settings, 'Non-conformité')}<p>${escHtml(nc_reason || '')}</p>`,
+          extra: { nc_reason: nc_reason || '' },
+        });
       } catch (e) {
         console.warn('[magistral] mail NC:', e.message);
       }
@@ -796,12 +865,9 @@ export async function recordPatientCall(orderId, userId, attempt) {
 
   if (attempt.notifyEmail && updated.patient_email && nextStatut === 'receptionne') {
     try {
-      await sendTransactionalEmail(
-        updated.patient_email,
-        templateOr(settings, 'disponible_patient', 'Votre préparation magistrale est disponible'),
-        `<p>Bonjour,</p><p>Votre préparation magistrale est réceptionnée et disponible en pharmacie.</p>
-         ${updated.prix_calcule != null ? `<p>Montant : <strong>${escHtml(updated.prix_calcule)} €</strong></p>` : ''}`,
-      );
+      await sendTemplatedMail(updated.patient_email, settings, 'disponible_patient', updated, {
+        subjectFallback: 'Votre préparation magistrale est disponible',
+      });
     } catch (e) {
       console.warn('[magistral] mail patient:', e.message);
     }
@@ -823,12 +889,9 @@ export async function markOrderReceived(orderId, prixHtNet, tvaRate, notifyPatie
     status_history: pushHistory(order, 'receptionne', null, 'réception rapide'),
   });
   if (notifyPatient && updated.patient_email) {
-    await sendTransactionalEmail(
-      updated.patient_email,
-      'Votre préparation magistrale est disponible',
-      `<p>Bonjour,</p><p>Votre préparation magistrale est réceptionnée et disponible en pharmacie.</p>
-       ${prix != null ? `<p>Montant : <strong>${prix} €</strong></p>` : ''}`,
-    );
+    await sendTemplatedMail(updated.patient_email, settings, 'disponible_patient', updated, {
+      subjectFallback: 'Votre préparation magistrale est disponible',
+    });
   }
   return updated;
 }

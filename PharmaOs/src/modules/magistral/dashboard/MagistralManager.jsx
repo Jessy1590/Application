@@ -12,6 +12,7 @@ import {
   ensureSettings,
   fetchOrders,
   validateDevis,
+  hasProviderQuote,
   markInTransit,
   markArrived,
   dispenseOrder,
@@ -344,23 +345,34 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
                 ) : (
                   <>
                     {selected.statut === 'devis' && (
-                      <div className="space-y-2 p-3 bg-slate-50 rounded-lg">
-                        <label className="flex items-center gap-2 text-xs">
+                      <div className="space-y-2 p-3 bg-slate-50 rounded-lg text-xs">
+                        <p className="font-semibold text-fuchsia-900">
+                          {hasProviderQuote(selected)
+                            ? 'Devis ST enregistré — accord patient'
+                            : 'En attente du devis prestataire (puis appel patient)'}
+                        </p>
+                        {!hasProviderQuote(selected) && (
+                          <p className="text-slate-500">
+                            Utilisez le bouton taskbar <strong>Devis</strong> pour saisir le devis ST et appeler le patient,
+                            ou validez ici après saisie admin du montant.
+                          </p>
+                        )}
+                        <label className="flex items-center gap-2">
                           <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
-                          E-mail prestataire à la validation
+                          E-mail commande au prestataire si acceptation
                         </label>
-                        <button type="button" onClick={async () => {
+                        <button type="button" disabled={!hasProviderQuote(selected)} onClick={async () => {
                           try {
                             await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate, userId: user.id });
-                            setMsg('Devis → commande'); await load();
+                            setMsg('Patient accepte → commande'); await load();
                           } catch (ex) { setErr(ex.message); }
-                        }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider & commander</button>
+                        }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1 disabled:opacity-50"><Send size={14} /> Patient accepte → commander</button>
                         <button type="button" onClick={async () => {
                           try {
                             await validateDevis(selected.id, { launchOrder: false, userId: user.id });
-                            setMsg('Devis refusé'); await load();
+                            setMsg('Patient refuse → clôturé'); await load();
                           } catch (ex) { setErr(ex.message); }
-                        }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser</button>
+                        }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Patient refuse → clôturer</button>
                       </div>
                     )}
 

@@ -208,7 +208,7 @@ export default function Taskbar() {
             <TbBtn title="Magistrale — commander / nouvelle demande" onClick={open('magistral_creation', 'magistral')} className="text-fuchsia-300">
               <span className="relative inline-flex"><FlaskConical size={16} /><Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} /></span>
             </TbBtn>
-            <TbBtn title="Magistrale — valider ou refuser un devis" onClick={open('magistral_devis', 'magistral')} className="text-fuchsia-300">
+            <TbBtn title="Magistrale — devis ST puis accord patient" onClick={open('magistral_devis', 'magistral')} className="text-fuchsia-300">
               <ClipboardCheck size={18} />
             </TbBtn>
             <TbBtn title="Magistrale — réception / rappel patient" onClick={open('magistral_rappel', 'magistral')} className="text-fuchsia-300">

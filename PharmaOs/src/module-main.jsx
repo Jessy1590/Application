@@ -54,7 +54,7 @@ const VIEW_TITLES = {
   disputes: 'Litiges',
   lot_alerts: 'Alertes lot',
   magistral_creation: 'Magistrales — Commander',
-  magistral_devis: 'Magistrales — Devis',
+  magistral_devis: 'Magistrales — Devis ST / patient',
   magistral_rappel: 'Magistrales — Rappel patient',
   magistral_dispenser: 'Magistrales — Dispenser',
   magistral_renouvellement: 'Magistrales — Renouvellement',
