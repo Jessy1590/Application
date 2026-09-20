@@ -3,10 +3,11 @@ import {
   Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
   AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
-  Users, Plus, X,
+  Users, Plus, X, Pill, ClipboardCheck, RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import { supabase } from '../shared/supabaseClient.js';
+import { ensureTaskEscalations } from '../modules/tasks/services/taskService.js';
 import {
   expandWindow, reduceWindow, openModuleWindow, openDashboardWindow, openBugWindow,
 } from '../shared/windowService.js';
@@ -59,6 +60,9 @@ export default function Taskbar() {
     if (!user?.id) return;
 
     const fetchPendingTasksCount = async () => {
+      try {
+        await ensureTaskEscalations();
+      } catch { /* best-effort */ }
       const { data, error } = await supabase
         .schema('PharmaOs')
         .from('task_assignments')
@@ -191,12 +195,32 @@ export default function Taskbar() {
           <TbBtn title="Litiges fournisseurs" onClick={open('disputes')} className="text-amber-300"><Scale size={18} /></TbBtn>
         )}
 
-        {(show('magistral') || show('psl')) && <SectionSep label="Métier" />}
-        {show('magistral') && (
-          <TbBtn title="Préparations magistrales" onClick={open('magistral')} className="text-fuchsia-300"><FlaskConical size={18} /></TbBtn>
-        )}
         {show('psl') && (
-          <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+          <>
+            <SectionSep label="Métier" />
+            <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+          </>
+        )}
+
+        {show('magistral') && (
+          <>
+            <SectionSep label="Prépa." />
+            <TbBtn title="Magistrale — commander / nouvelle demande" onClick={open('magistral_creation', 'magistral')} className="text-fuchsia-300">
+              <span className="relative inline-flex"><FlaskConical size={16} /><Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} /></span>
+            </TbBtn>
+            <TbBtn title="Magistrale — valider ou refuser un devis" onClick={open('magistral_devis', 'magistral')} className="text-fuchsia-300">
+              <ClipboardCheck size={18} />
+            </TbBtn>
+            <TbBtn title="Magistrale — réception / rappel patient" onClick={open('magistral_rappel', 'magistral')} className="text-fuchsia-300">
+              <Phone size={18} />
+            </TbBtn>
+            <TbBtn title="Magistrale — dispenser" onClick={open('magistral_dispenser', 'magistral')} className="text-fuchsia-300">
+              <Pill size={18} />
+            </TbBtn>
+            <TbBtn title="Magistrale — renouvellement" onClick={open('magistral_renouvellement', 'magistral')} className="text-fuchsia-300">
+              <RefreshCw size={18} />
+            </TbBtn>
+          </>
         )}
 
         {show('location') && (

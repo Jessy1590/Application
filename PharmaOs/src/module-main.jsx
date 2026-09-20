@@ -53,6 +53,11 @@ const VIEW_TITLES = {
   location: 'Location',
   disputes: 'Litiges',
   lot_alerts: 'Alertes lot',
+  magistral_creation: 'Magistrales — Commander',
+  magistral_devis: 'Magistrales — Devis',
+  magistral_rappel: 'Magistrales — Rappel patient',
+  magistral_dispenser: 'Magistrales — Dispenser',
+  magistral_renouvellement: 'Magistrales — Renouvellement',
   magistral: 'Magistrales',
   psl: 'MDS',
   cash: 'Clôture de caisse',
@@ -79,8 +84,13 @@ function renderModuleView(view, moduleData) {
     case 'location_contact':
     case 'location':
       return <Location view={view} data={moduleData} />;
+    case 'magistral_creation':
+    case 'magistral_devis':
+    case 'magistral_rappel':
+    case 'magistral_dispenser':
+    case 'magistral_renouvellement':
     case 'magistral':
-      return <Magistral />;
+      return <Magistral view={view} />;
     case 'psl':
       return <Psl />;
     case 'cash':

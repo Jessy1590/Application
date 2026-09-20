@@ -1,11 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { FlaskConical, Send, PackageCheck, XCircle, Settings, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  fetchSettings, updateSettings, fetchOrders, validateDevis, receiveOrder, closeOrder,
-  saveOrderEdit, calcMagistralPrice,
+  FlaskConical, Send, XCircle, Printer, ChevronLeft, ChevronRight, Package, Trash2,
+} from 'lucide-react';
+import { useAuth } from '../../../core/AuthContext.jsx';
+import MagistralOrderForm from '../shared/MagistralOrderForm.jsx';
+import MagistralReceptionCall from '../shared/MagistralReceptionCall.jsx';
+import {
+  MAGISTRAL_STATUTS,
+  ensureSettings,
+  fetchOrders,
+  validateDevis,
+  markInTransit,
+  markArrived,
+  dispenseOrder,
+  closeOrder,
+  reopenNonConforme,
+  saveOrderFromForm,
+  orderToForm,
+  countAlerts,
+  deleteOrder,
 } from '../services/magistralService.js';
+import { printFeuilleSuivi, printFicheDemande, printListeDossiers } from '../services/magistralPrint.js';
 
-const STATUTS = { devis: 'Devis', commande: 'Commandé', receptionne: 'Réceptionné', cloture: 'Clôturé' };
+const FILTERS = [
+  { id: 'all', label: 'Tous' },
+  { id: 'devis', label: 'Devis' },
+  { id: 'attente_st', label: 'Attente ST', statuts: ['commande', 'en_transit'] },
+  { id: 'a_controler', label: 'À contrôler', statuts: ['a_controler'] },
+  { id: 'a_rappeler', label: 'À rappeler' },
+  { id: 'a_dispenser', label: 'À dispenser', statuts: ['receptionne'] },
+];
 
 const Field = ({ label, children, hint }) => (
   <div>
@@ -15,180 +39,301 @@ const Field = ({ label, children, hint }) => (
   </div>
 );
 
-export default function MagistralManager() {
-  const [tab, setTab] = useState('orders');
+/**
+ * Suivi dashboard magistrales.
+ * Paramètres → Administration → Paramètres (sous-onglet Préparations).
+ * @param {{ onNavigate?: Function }} props
+ */
+export default function MagistralManager({ onNavigate: _onNavigate = null }) {
+  const { user } = useAuth();
   const [settings, setSettings] = useState(null);
   const [orders, setOrders] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [editJson, setEditJson] = useState('');
-  const [recvHt, setRecvHt] = useState('');
-  const [recvTva, setRecvTva] = useState('5.5');
+  const [filter, setFilter] = useState('all');
+  const [selectedId, setSelectedId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [alerts, setAlerts] = useState(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
-  const [setForm, setSetForm] = useState({});
   const [sendMailOnValidate, setSendMailOnValidate] = useState(true);
+  const [recvMode, setRecvMode] = useState(false);
+  const [ordoNum, setOrdoNum] = useState('');
 
-  const load = async () => {
-    const s = await fetchSettings();
+  const load = useCallback(async () => {
+    const s = await ensureSettings();
     setSettings(s);
-    setSetForm(s || {});
-    setOrders(await fetchOrders());
-  };
-  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+    const list = await fetchOrders();
+    setOrders(list);
+    setAlerts(await countAlerts());
+  }, []);
 
-  const openEdit = (o) => {
-    setSelected(o);
-    setEditJson(JSON.stringify(o.form_data || {}, null, 2));
-    setRecvHt(o.prix_ht_net != null ? String(o.prix_ht_net) : '');
-    setRecvTva(o.tva_rate != null ? String(o.tva_rate) : '5.5');
+  useEffect(() => { load().catch((e) => setErr(e.message)); }, [load]);
+
+  const filtered = useMemo(() => {
+    const f = FILTERS.find((x) => x.id === filter);
+    if (!f || filter === 'all') return orders;
+    if (f.statuts) return orders.filter((o) => f.statuts.includes(o.statut));
+    return orders.filter((o) => o.statut === f.id);
+  }, [orders, filter]);
+
+  const selectedIdx = filtered.findIndex((o) => o.id === selectedId);
+  const selected = selectedIdx >= 0 ? filtered[selectedIdx] : null;
+
+  useEffect(() => {
+    if (selected) {
+      setEditForm(orderToForm(selected, settings));
+      setOrdoNum(selected.ordonnancier_number || '');
+      setRecvMode(false);
+    } else {
+      setEditForm(null);
+    }
+  }, [selected?.id, settings]);
+
+  const selectPrev = () => {
+    if (selectedIdx > 0) setSelectedId(filtered[selectedIdx - 1].id);
+  };
+  const selectNext = () => {
+    if (selectedIdx >= 0 && selectedIdx < filtered.length - 1) setSelectedId(filtered[selectedIdx + 1].id);
+  };
+
+  const handleDeleteOrder = async (order) => {
+    if (!order?.id) return;
+    const label = order.patient_initiales || order.id.slice(0, 8);
+    if (!window.confirm(
+      `Supprimer définitivement le dossier « ${label} » (${MAGISTRAL_STATUTS[order.statut] || order.statut}) ?\n\nCette action est irréversible.`,
+    )) return;
     setErr('');
+    setMsg('');
+    try {
+      await deleteOrder(order.id);
+      setSelectedId(null);
+      setRecvMode(false);
+      setMsg('Dossier supprimé');
+      await load();
+    } catch (ex) {
+      setErr(ex.message);
+    }
   };
-
-  const previewPrice = recvHt && settings && recvTva !== ''
-    ? calcMagistralPrice(settings, Number(recvHt), Number(recvTva))
-    : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><FlaskConical className="text-fuchsia-600" /> Préparations magistrales</h1>
-        <p className="text-sm text-slate-500">Tarif = (HT net réception + frais port) × (1 + TVA à la réception) × coefficient</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <FlaskConical className="text-fuchsia-600" />
+            Suivi — préparations magistrales
+          </h1>
+          <p className="text-sm text-slate-500">Donneur d’ordre → sous-traitant unique · BPP §7</p>
+        </div>
+        {alerts && (
+          <div className="flex gap-2 text-xs">
+            {[
+              ['devis', 'Devis', alerts.devis],
+              ['a_controler', 'À contrôler', alerts.a_controler],
+              ['a_rappeler', 'À rappeler', alerts.a_rappeler],
+              ['a_dispenser', 'À dispenser', alerts.a_dispenser],
+            ].map(([fid, lab, n]) => (
+              <button
+                key={fid}
+                type="button"
+                onClick={() => setFilter(fid)}
+                className={`px-2.5 py-1.5 rounded-lg border ${n > 0 ? 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900 font-bold' : 'bg-white text-slate-500'}`}
+              >
+                {lab} <span className="ml-1">{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
       {msg && <p className="text-sm text-emerald-700 bg-emerald-50 p-2 rounded">{msg}</p>}
       {err && <p className="text-sm text-red-700 bg-red-50 p-2 rounded">{err}</p>}
 
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setTab('orders')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'orders' ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}>Commandes</button>
-        <button type="button" onClick={() => setTab('parametres')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'parametres' ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}>Paramètres</button>
-      </div>
-
-      {tab === 'parametres' && settings && (
-        <form onSubmit={async (e) => {
-          e.preventDefault();
-          try {
-            await updateSettings({
-              pharmacy_name: setForm.pharmacy_name, pharmacy_address: setForm.pharmacy_address,
-              pharmacy_email: setForm.pharmacy_email, pharmacy_interlocuteur: setForm.pharmacy_interlocuteur,
-              provider_name: setForm.provider_name, provider_email: setForm.provider_email,
-              frais_port: Number(setForm.frais_port) || 0, coefficient: Number(setForm.coefficient) || 1,
-              internal_prep_enabled: !!setForm.internal_prep_enabled,
-            }, settings.id);
-            setMsg('Paramètres enregistrés'); load();
-          } catch (ex) { setErr(ex.message); }
-        }} className="bg-white p-5 rounded-xl border grid md:grid-cols-2 gap-3 text-sm max-w-3xl">
-          <h2 className="md:col-span-2 font-semibold flex items-center gap-2"><Settings size={18} /> Paramètres globaux</h2>
-          <Field label="Nom pharmacie"><input value={setForm.pharmacy_name || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_name: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="Adresse pharmacie"><input value={setForm.pharmacy_address || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_address: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="E-mail pharmacie"><input type="email" value={setForm.pharmacy_email || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_email: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="Interlocuteur"><input value={setForm.pharmacy_interlocuteur || ''} onChange={(e) => setSetForm({ ...setForm, pharmacy_interlocuteur: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="Nom du prestataire (unique)"><input value={setForm.provider_name || ''} onChange={(e) => setSetForm({ ...setForm, provider_name: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="E-mail du prestataire"><input type="email" value={setForm.provider_email || ''} onChange={(e) => setSetForm({ ...setForm, provider_email: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="Frais de port (€)"><input type="number" step="0.01" value={setForm.frais_port ?? ''} onChange={(e) => setSetForm({ ...setForm, frais_port: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <Field label="Coefficient"><input type="number" step="0.0001" value={setForm.coefficient ?? ''} onChange={(e) => setSetForm({ ...setForm, coefficient: e.target.value })} className="w-full p-2 border rounded-lg" /></Field>
-          <label className="flex items-center gap-2 md:col-span-2"><input type="checkbox" checked={!!setForm.internal_prep_enabled} onChange={(e) => setSetForm({ ...setForm, internal_prep_enabled: e.target.checked })} /> Autoriser la préparation interne (rare)</label>
-          <button type="submit" className="md:col-span-2 bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">Enregistrer les paramètres</button>
-        </form>
-      )}
-
-      {tab === 'orders' && (
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white rounded-xl border overflow-hidden">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b"><tr>
-                <th className="p-3">Date</th><th className="p-3">Patient</th><th className="p-3">Prix TTC</th><th className="p-3">Statut</th><th className="p-3" />
-              </tr></thead>
-              <tbody className="divide-y">
-                {orders.map((o) => (
-                  <tr key={o.id} className={selected?.id === o.id ? 'bg-fuchsia-50' : ''}>
-                    <td className="p-3">{new Date(o.created_at).toLocaleDateString('fr-FR')}</td>
-                    <td className="p-3">{o.patient_initiales || '—'}</td>
-                    <td className="p-3">{o.prix_calcule ?? '—'}{o.prix_calcule != null ? ' €' : ''}</td>
-                    <td className="p-3">{STATUTS[o.statut] || o.statut}</td>
-                    <td className="p-3"><button type="button" onClick={() => openEdit(o)} className="text-fuchsia-700 text-xs flex items-center gap-1"><Edit2 size={14} /> Gérer</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="grid lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-2 space-y-2">
+            <div className="flex flex-wrap gap-1">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setFilter(f.id)}
+                  className={`text-[11px] px-2 py-1 rounded-lg ${filter === f.id ? 'bg-fuchsia-600 text-white' : 'bg-white border'}`}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <button type="button" onClick={() => printListeDossiers(filtered)} className="text-[11px] px-2 py-1 rounded-lg border flex items-center gap-1 ml-auto">
+                <Printer size={12} /> Liste
+              </button>
+            </div>
+            <div className="bg-white rounded-xl border overflow-hidden max-h-[70vh] overflow-y-auto">
+              {filtered.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => setSelectedId(o.id)}
+                  className={`w-full text-left px-3 py-2.5 border-b text-sm hover:bg-fuchsia-50 ${selectedId === o.id ? 'bg-fuchsia-50' : ''}`}
+                >
+                  <div className="flex justify-between gap-2">
+                    <span className="font-semibold">{o.patient_initiales || '—'}</span>
+                    <span className="text-[10px] text-slate-500">{MAGISTRAL_STATUTS[o.statut]}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">{o.formule}</p>
+                  <p className="text-[10px] text-slate-400">{new Date(o.created_at).toLocaleDateString('fr-FR')}{o.patient_phone ? ` · ${o.patient_phone}` : ''}</p>
+                </button>
+              ))}
+              {filtered.length === 0 && <p className="p-4 text-sm text-slate-500">Aucun dossier.</p>}
+            </div>
           </div>
 
-          {selected && (
-            <div className="bg-white p-4 rounded-xl border space-y-3 text-sm">
-              <h3 className="font-bold">Commande {selected.patient_initiales}</h3>
-              <p className="text-xs text-slate-500">Statut : {STATUTS[selected.statut]}</p>
-
-              {selected.statut === 'devis' && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-xs">
-                    <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
-                    Envoyer un e-mail au prestataire à la validation
-                  </label>
-                  <button type="button" onClick={async () => {
-                    try {
-                      await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate });
-                      setMsg('Devis validé → commande'); load(); setSelected(null);
-                    } catch (ex) { setErr(ex.message); }
-                  }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider devis & commander</button>
-                  <button type="button" onClick={async () => {
-                    try {
-                      await validateDevis(selected.id, { launchOrder: false });
-                      setMsg('Devis refusé — clôturé'); load(); setSelected(null);
-                    } catch (ex) { setErr(ex.message); }
-                  }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser & clôturer</button>
-                </div>
-              )}
-
-              {selected.statut === 'commande' && (
-                <div className="space-y-2">
-                  <Field label="Prix HT net à la réception (€)">
-                    <input type="number" step="0.01" value={recvHt} onChange={(e) => setRecvHt(e.target.value)} className="w-full p-2 border rounded" />
-                  </Field>
-                  <Field label="Taux de TVA (%) *" hint="Saisi pour chaque préparation">
-                    <input type="number" step="0.01" value={recvTva} onChange={(e) => setRecvTva(e.target.value)} className="w-full p-2 border rounded" placeholder="Ex. 5.5" />
-                  </Field>
-                  {previewPrice != null && <p className="text-fuchsia-700 text-xs">Prix TTC calculé : <strong>{previewPrice} €</strong></p>}
-                  <button type="button" onClick={async () => {
-                    try {
-                      await receiveOrder(selected.id, Number(recvHt), { tvaRate: Number(recvTva), notifyPatient: true });
-                      setMsg('Réceptionnée'); load(); setSelected(null);
-                    } catch (ex) { setErr(ex.message); }
-                  }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><PackageCheck size={14} /> Réceptionner</button>
-                </div>
-              )}
-
-              {selected.statut === 'receptionne' && (
-                <button type="button" onClick={async () => {
-                  try {
-                    await closeOrder(selected.id, 'Terminé');
-                    setMsg('Clôturée'); load(); setSelected(null);
-                  } catch (ex) { setErr(ex.message); }
-                }} className="w-full bg-slate-600 text-white py-2 rounded-lg">Clôturer</button>
-              )}
-
-              <div>
-                <Field label="Modifier les données du formulaire (JSON)" hint="Admin : édition avancée — sauver avec ou sans e-mail prestataire">
-                  <textarea rows={8} value={editJson} onChange={(e) => setEditJson(e.target.value)} className="w-full p-2 border rounded font-mono text-xs" />
-                </Field>
-                <div className="flex gap-2 mt-2">
-                  <button type="button" onClick={async () => {
-                    try {
-                      const fd = JSON.parse(editJson);
-                      await saveOrderEdit(selected.id, fd, { sendEmail: false });
-                      setMsg('Modifié sans e-mail'); load();
-                    } catch (ex) { setErr(ex.message); }
-                  }} className="flex-1 bg-slate-100 py-2 rounded text-xs">Sauver sans mail</button>
-                  <button type="button" onClick={async () => {
-                    try {
-                      const fd = JSON.parse(editJson);
-                      await saveOrderEdit(selected.id, fd, { sendEmail: true });
-                      setMsg('Modifié + mail prestataire'); load();
-                    } catch (ex) { setErr(ex.message); }
-                  }} className="flex-1 bg-fuchsia-600 text-white py-2 rounded text-xs">Sauver + mail</button>
-                </div>
+          <div className="lg:col-span-3">
+            {!selected || !editForm ? (
+              <div className="bg-white border rounded-xl p-8 text-center text-slate-400 text-sm">
+                Sélectionnez un dossier
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="bg-white border rounded-xl p-4 space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-bold text-lg">{selected.patient_initiales}</h3>
+                    <p className="text-xs text-slate-500">
+                      #{selected.id.slice(0, 8)} · {MAGISTRAL_STATUTS[selected.statut]}
+                      {selected.patient_phone && <> · <span className="font-mono text-fuchsia-700 text-sm">{selected.patient_phone}</span></>}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <button type="button" disabled={selectedIdx <= 0} onClick={selectPrev} className="p-2 border rounded-lg disabled:opacity-30"><ChevronLeft size={16} /></button>
+                    <button type="button" disabled={selectedIdx < 0 || selectedIdx >= filtered.length - 1} onClick={selectNext} className="p-2 border rounded-lg disabled:opacity-30"><ChevronRight size={16} /></button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => printFeuilleSuivi(selected, settings)} className="text-xs px-2 py-1.5 border rounded-lg flex items-center gap-1"><Printer size={12} /> Feuille de suivi</button>
+                  <button type="button" onClick={() => printFicheDemande(selected, settings)} className="text-xs px-2 py-1.5 border rounded-lg flex items-center gap-1"><Printer size={12} /> Fiche ST</button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteOrder(selected)}
+                    className="text-xs px-2 py-1.5 border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 rounded-lg flex items-center gap-1 ml-auto"
+                  >
+                    <Trash2 size={12} /> Supprimer
+                  </button>
+                </div>
+
+                {selected.statut === 'devis' && (
+                  <div className="space-y-2 p-3 bg-slate-50 rounded-lg">
+                    <label className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={sendMailOnValidate} onChange={(e) => setSendMailOnValidate(e.target.checked)} />
+                      E-mail prestataire à la validation
+                    </label>
+                    <button type="button" onClick={async () => {
+                      try {
+                        await validateDevis(selected.id, { launchOrder: true, sendEmail: sendMailOnValidate, userId: user.id });
+                        setMsg('Devis → commande'); await load();
+                      } catch (ex) { setErr(ex.message); }
+                    }} className="w-full bg-emerald-600 text-white py-2 rounded-lg flex justify-center gap-1"><Send size={14} /> Valider & commander</button>
+                    <button type="button" onClick={async () => {
+                      try {
+                        await validateDevis(selected.id, { launchOrder: false, userId: user.id });
+                        setMsg('Devis refusé'); await load();
+                      } catch (ex) { setErr(ex.message); }
+                    }} className="w-full bg-slate-200 py-2 rounded-lg flex justify-center gap-1"><XCircle size={14} /> Refuser</button>
+                  </div>
+                )}
+
+                {['commande', 'en_transit'].includes(selected.statut) && (
+                  <div className="flex gap-2">
+                    {selected.statut === 'commande' && (
+                      <button type="button" onClick={async () => { await markInTransit(selected.id, user.id); load(); }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">En transit</button>
+                    )}
+                    <button type="button" onClick={async () => { await markArrived(selected.id, user.id); load(); }} className="flex-1 bg-amber-100 py-2 rounded-lg text-xs font-semibold flex justify-center gap-1"><Package size={14} /> Arrivé / à contrôler</button>
+                  </div>
+                )}
+
+                {['a_controler', 'a_rappeler', 'commande', 'en_transit'].includes(selected.statut) && (
+                  <div>
+                    {!recvMode ? (
+                      <button type="button" onClick={() => setRecvMode(true)} className="w-full bg-fuchsia-600 text-white py-2 rounded-lg font-semibold">
+                        Réception / contrôle + appel patient
+                      </button>
+                    ) : (
+                      <MagistralReceptionCall
+                        order={selected}
+                        settings={settings}
+                        userId={user.id}
+                        onCancel={() => setRecvMode(false)}
+                        onDone={async (updated, opts) => {
+                          if (opts?.stay) {
+                            await load();
+                            setSelectedId(updated.id);
+                            return;
+                          }
+                          setRecvMode(false);
+                          setMsg(`→ ${MAGISTRAL_STATUTS[updated.statut]}`);
+                          await load();
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {selected.statut === 'receptionne' && (
+                  <div className="space-y-2 p-3 bg-emerald-50 rounded-lg">
+                    <Field label="N° ordonnancier DO *">
+                      <input value={ordoNum} onChange={(e) => setOrdoNum(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="N°" />
+                    </Field>
+                    <button type="button" disabled={!ordoNum.trim()} onClick={async () => {
+                      try {
+                        let o = await dispenseOrder(selected.id, user.id, { ordonnancier_number: ordoNum });
+                        o = await closeOrder(o.id, 'Dispensé', user.id);
+                        printFeuilleSuivi(o, settings);
+                        setMsg('Dispensé & clôturé'); await load();
+                      } catch (ex) { setErr(ex.message); }
+                    }} className="w-full bg-emerald-600 text-white py-2 rounded-lg font-semibold disabled:opacity-50">
+                      Dispenser, imprimer & clôturer
+                    </button>
+                  </div>
+                )}
+
+                {selected.statut === 'non_conforme' && (
+                  <button type="button" onClick={async () => { await reopenNonConforme(selected.id, user.id); load(); }} className="w-full bg-amber-100 py-2 rounded-lg text-sm font-semibold">
+                    Relancer (retour devis)
+                  </button>
+                )}
+
+                {selected.statut === 'dispense' && (
+                  <button type="button" onClick={async () => { await closeOrder(selected.id, 'Archivage', user.id); load(); }} className="w-full bg-slate-600 text-white py-2 rounded-lg">
+                    Clôturer / archiver
+                  </button>
+                )}
+
+                <details className="border rounded-lg p-3">
+                  <summary className="cursor-pointer font-semibold text-xs text-slate-700">Modifier le dossier (formulaire)</summary>
+                  <div className="mt-3 space-y-3">
+                    <MagistralOrderForm
+                      form={editForm}
+                      onChange={(p) => setEditForm((f) => ({ ...f, ...p }))}
+                      step="full"
+                      compact
+                    />
+                    <div className="flex gap-2">
+                      <button type="button" onClick={async () => {
+                        try {
+                          await saveOrderFromForm(selected.id, editForm, { sendEmail: false, userId: user.id });
+                          setMsg('Dossier enregistré'); await load();
+                        } catch (ex) { setErr(ex.message); }
+                      }} className="flex-1 bg-slate-100 py-2 rounded-lg text-xs font-semibold">Sauver</button>
+                      <button type="button" onClick={async () => {
+                        try {
+                          await saveOrderFromForm(selected.id, editForm, { sendEmail: true, userId: user.id });
+                          setMsg('Sauvé + mail ST'); await load();
+                        } catch (ex) { setErr(ex.message); }
+                      }} className="flex-1 bg-fuchsia-600 text-white py-2 rounded-lg text-xs font-semibold">Sauver + mail</button>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
         </div>
-      )}
     </div>
   );
 }

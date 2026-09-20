@@ -20,6 +20,14 @@ Ordre :
 16. `021`–`023` — BDPM, conseils, sites
 17. `024_roles_logs_bugs.sql` — rôles, `app_logs`, `bugs`, `role_access`
 18. `025_roles_logs_harden.sql` — search_path / GRANT helpers
+19. `026_role_desactive.sql` — rôle `désactivé`
+20. `027_magistral_refonte.sql` — Magistrales : statuts élargis, traçabilité ST/réception/appel, Storage
+21. `028_drop_gestionnaire.sql` — suppression rôle portail gestionnaire → préparateur
+22. `029_casquettes.sql` — catalogue casquettes + features + attribution
+23. `030_role_dashboard_widgets.sql` — widgets accueil par rôle
+24. `031_task_role_rules.sql` — matrice assignation tâches
+25. `032_tasks_rls_scope.sql` — RLS tasks / assignments (soi vs admin)
+26. `033_tasks_rls_no_recursion.sql` — casse la récursion tasks ↔ task_assignments (helpers SECURITY DEFINER)
 
 Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
 

@@ -1,50 +1,26 @@
 /**
- * Matrice fine Location (location_parametres.acces_roles) — sous-permissions module.
- * Gate shell PharmaOS : src/core/access.js + role_access (canAccess / isFeatureAllowed).
+ * Compat LocationAccess (modules DOM Phie).
+ * Les sous-permissions `acces_roles` sont désactivées : seul le gate PharmaOS
+ * (canAccess / role_access OU casquette location) contrôle l’accès Location.
+ *
+ * IMPORTANT — sous-rôle métier Phie `gestionnaire` :
+ * ce n’est PAS le rôle portail (supprimé → préparateur). C’est un libellé
+ * interne Location (personnel | gestionnaire | administrateur) pour l’UI Phie.
+ * Mapping : administrateur portail → administrateur Phie ;
+ * casquette `location` (ou équipeRole legacy) → gestionnaire Phie ;
+ * sinon → personnel.
  */
-import { isFeatureAllowed } from '../../../core/access.js';
-import { canonicalRole, isAppAdministrateur } from '../../../core/roles.js';
-import { loadParams } from './locationService.js';
+import { isFeatureAllowed, hasCasquetteGrant } from '../../../core/access.js';
+import { isAppAdministrateur } from '../../../core/roles.js';
 
 export const PARAM_KEY = 'acces_roles';
 
+/** Sous-rôles métier Location Phie (≠ rôles portail.profiles). */
 export const ROLES = Object.freeze(['personnel', 'gestionnaire', 'administrateur']);
 
-export const FEATURES = Object.freeze([
-  { key: 'module_creation', label: 'Module Création' },
-  { key: 'module_transcription', label: 'Module Transcription' },
-  { key: 'module_suivi', label: 'Module Suivi (consultation)' },
-  { key: 'edition_suivi', label: 'Édition dossier (Suivi)' },
-  { key: 'module_contact', label: 'Module Contact' },
-  { key: 'module_facture', label: 'Module Facture' },
-  { key: 'module_parc', label: 'Module Parc' },
-  { key: 'module_prolongation', label: 'Module Prolongation' },
-  { key: 'module_cloture', label: 'Module Clôture' },
-  { key: 'impression_fiche', label: 'Impression fiche (Suivi)' },
-  { key: 'suppression_dossier', label: 'Suppression de dossier (Suivi)' },
-  { key: 'parametres_location', label: 'Paramètres Location (tuile + page)' },
-  {
-    key: 'hub_equipe_bugs',
-    label: 'Hub — équipe, invitations, gestion bugs',
-    locationEnforced: false,
-  },
-]);
+export const FEATURES = Object.freeze([]);
 
-export const DEFAULTS = Object.freeze({
-  module_creation: { personnel: true, gestionnaire: true, administrateur: true },
-  module_transcription: { personnel: false, gestionnaire: false, administrateur: true },
-  module_suivi: { personnel: true, gestionnaire: true, administrateur: true },
-  edition_suivi: { personnel: true, gestionnaire: true, administrateur: true },
-  module_contact: { personnel: true, gestionnaire: true, administrateur: true },
-  module_facture: { personnel: true, gestionnaire: true, administrateur: true },
-  module_parc: { personnel: true, gestionnaire: true, administrateur: true },
-  module_prolongation: { personnel: true, gestionnaire: true, administrateur: true },
-  module_cloture: { personnel: true, gestionnaire: true, administrateur: true },
-  impression_fiche: { personnel: true, gestionnaire: true, administrateur: true },
-  suppression_dossier: { personnel: false, gestionnaire: true, administrateur: true },
-  parametres_location: { personnel: false, gestionnaire: false, administrateur: true },
-  hub_equipe_bugs: { personnel: false, gestionnaire: false, administrateur: true },
-});
+export const DEFAULTS = Object.freeze({});
 
 export const MODULE_FEATURE = Object.freeze({
   creation: 'module_creation',
@@ -57,108 +33,60 @@ export const MODULE_FEATURE = Object.freeze({
   cloture: 'module_cloture',
 });
 
-let cachedMatrix = null;
-
 export function cloneDefaults() {
-  const out = {};
-  for (const f of FEATURES) {
-    const d = DEFAULTS[f.key];
-    out[f.key] = {
-      personnel: !!d.personnel,
-      gestionnaire: !!d.gestionnaire,
-      administrateur: !!d.administrateur,
-    };
-  }
-  return out;
+  return {};
 }
 
-function boolOrDefault(val, def) {
-  if (val === true) return true;
-  if (val === false) return false;
-  return !!def;
+export function normalize() {
+  return {};
 }
 
-export function normalize(raw) {
-  const out = cloneDefaults();
-  if (!raw || typeof raw !== 'object') return out;
-  for (const f of FEATURES) {
-    const row = raw[f.key];
-    if (!row || typeof row !== 'object') continue;
-    const def = DEFAULTS[f.key];
-    out[f.key] = {
-      personnel: boolOrDefault(row.personnel, def.personnel),
-      gestionnaire: boolOrDefault(row.gestionnaire, def.gestionnaire),
-      administrateur: boolOrDefault(row.administrateur, def.administrateur),
-    };
-  }
-  const legacyCloture = raw.cloture_dossier;
-  if (
-    legacyCloture
-    && typeof legacyCloture === 'object'
-    && !(raw.module_cloture && typeof raw.module_cloture === 'object')
-  ) {
-    const def = DEFAULTS.module_cloture;
-    out.module_cloture = {
-      personnel: boolOrDefault(legacyCloture.personnel, def.personnel),
-      gestionnaire: boolOrDefault(legacyCloture.gestionnaire, def.gestionnaire),
-      administrateur: boolOrDefault(legacyCloture.administrateur, def.administrateur),
-    };
-  }
-  out.parametres_location.administrateur = true;
-  return out;
+export function isLocked() {
+  return false;
 }
 
-export function isLocked(featureKey, role) {
-  return featureKey === 'parametres_location' && role === 'administrateur';
+export function isEditableFeature() {
+  return false;
 }
 
-export function isEditableFeature(featureKey) {
-  const f = FEATURES.find((x) => x.key === featureKey);
-  return !!(f && f.locationEnforced !== false);
-}
-
-export function can(role, feature, matrix) {
-  const r = ROLES.includes(role) ? role : 'personnel';
-  if (isLocked(feature, r)) return true;
-  const m = matrix || cachedMatrix || cloneDefaults();
-  const row = m[feature] || DEFAULTS[feature];
-  if (!row) return false;
-  return !!row[r];
+/** Toujours autorisé une fois le shell Location ouvert (plus de sous-perms). */
+export function can() {
+  return true;
 }
 
 /**
- * Mappe le rôle portail PharmaOS → rôle matrice fine Location.
- * administrateur (legacy admin) → administrateur ;
- * gestionnaire → gestionnaire ; pharmacien / préparateur → personnel.
+ * Mappe le rôle portail PharmaOS → libellé interne Location (admin / UI).
+ * @param {string} portailRole
+ * @param {{ hasLocationCasquette?: boolean, equipeRole?: string }} [opts]
  */
-export function resolveRoleFromPortail(portailRole) {
+export function resolveRoleFromPortail(portailRole, opts = {}) {
   if (isAppAdministrateur(portailRole)) return 'administrateur';
-  const r = canonicalRole(portailRole);
-  if (r === 'gestionnaire') return 'gestionnaire';
+  /* Casquette location → sous-rôle Phie « gestionnaire » (métier, pas portail). */
+  if (opts.hasLocationCasquette) return 'gestionnaire';
+  if (opts.equipeRole === 'gestionnaire') return 'gestionnaire';
   return 'personnel';
 }
 
-/** Compat snapshot PhieEquipe. */
 export function resolveRole(snap) {
   if (!snap) return 'personnel';
-  if (snap.role) return resolveRoleFromPortail(snap.role);
+  if (snap.role) {
+    return resolveRoleFromPortail(snap.role, {
+      hasLocationCasquette: !!snap.hasLocationCasquette,
+      equipeRole: snap.equipeRole,
+    });
+  }
   if (snap.isAdmin || snap.portailAdmin || snap.equipeRole === 'administrateur') {
     return 'administrateur';
   }
-  if (snap.equipeRole === 'gestionnaire') return 'gestionnaire';
+  if (snap.equipeRole === 'gestionnaire' || snap.hasLocationCasquette) return 'gestionnaire';
   return 'personnel';
 }
 
-export async function loadMatrix(force) {
-  if (cachedMatrix && !force) return cachedMatrix;
-  const params = await loadParams();
-  cachedMatrix = normalize(params[PARAM_KEY]);
-  return cachedMatrix;
+export async function loadMatrix() {
+  return {};
 }
 
-export function invalidate() {
-  cachedMatrix = null;
-}
+export function invalidate() {}
 
 export function featureForModule(moduleName) {
   return MODULE_FEATURE[moduleName] || null;
@@ -168,24 +96,20 @@ export function featureForView(view) {
   return MODULE_FEATURE[view] || (view === 'parametres' ? 'parametres_location' : null);
 }
 
-/**
- * Gate shell : matrice PharmaOS (taskbar/dashboard × location).
- * Feature fine optionnelle : sous-matrice Location une fois le shell ouvert.
- */
-export function canAccessLocation(role, feature = null, overrides = []) {
-  const shellOk = isFeatureAllowed(role, 'dashboard', 'location', overrides)
-    || isFeatureAllowed(role, 'taskbar', 'location', overrides);
-  if (!shellOk) return false;
-  if (!feature) return true;
-  return can(resolveRoleFromPortail(role), feature, cachedMatrix || cloneDefaults());
+/** Gate shell : matrice PharmaOS OU grant casquette location. */
+export function canAccessLocation(role, _feature = null, overrides = [], casquetteGrants = []) {
+  return (
+    isFeatureAllowed(role, 'dashboard', 'location', overrides)
+    || isFeatureAllowed(role, 'taskbar', 'location', overrides)
+    || hasCasquetteGrant(casquetteGrants, 'dashboard', 'location')
+    || hasCasquetteGrant(casquetteGrants, 'taskbar', 'location')
+  );
 }
 
-export function canAccessLocationView(role, view, overrides = []) {
-  const feature = featureForView(view);
-  return canAccessLocation(role, feature, overrides);
+export function canAccessLocationView(role, _view, overrides = [], casquetteGrants = []) {
+  return canAccessLocation(role, null, overrides, casquetteGrants);
 }
 
-/** Objet global LocationAccess (modules UI montés en DOM). */
 export const LocationAccessApi = {
   PARAM_KEY,
   ROLES,

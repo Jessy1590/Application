@@ -78,6 +78,13 @@
   background: #155e75;
 }
 
+/* Fenêtre module Electron : air entre contenu et bords (évite l’effet étriqué) */
+.loc-shell.loc-surface-module {
+  padding: 1.25rem 1.25rem 1.5rem;
+  box-sizing: border-box;
+  min-height: 100%;
+}
+
 .loc-params-page-main,
 .loc-module-page-main {
   max-width: 64rem;

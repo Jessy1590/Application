@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
-import { STAFF_ROLES, ADMIN_ROLES } from '../../../core/roles.js';
+import { resolveAssigneeIds } from '../../tasks/services/taskService.js';
 
 export const STOCK_STATUS_LABELS = {
   ouvert: 'En attente admin',
@@ -25,15 +25,8 @@ export async function declareStockError(userId, payload) {
     date: new Date().toISOString().split('T')[0],
   };
 
-  const { data: admins, error: admErr } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', ADMIN_ROLES);
-  if (admErr) throw new Error(admErr.message);
-
-  const assignees = admins?.map((a) => a.id) || [];
-  if (assignees.length === 0) assignees.push(userId);
+  let assignees = await resolveAssigneeIds('stock_error');
+  if (assignees.length === 0) assignees = [userId];
 
   const titre = `ERREUR STOCK — ${payload.medicament}`;
   const { data: task, error: taskError } = await supabase
@@ -123,12 +116,8 @@ export async function resolveStockError(id, decision, adminNotes, adminUserId) {
   if (fetchErr) throw fetchErr;
 
   if (decision === 'recompter') {
-    const { data: profiles } = await supabase
-      .schema('portail')
-      .from('profiles')
-      .select('id')
-      .in('role', STAFF_ROLES);
-    const assignees = profiles?.map((p) => p.id) || [adminUserId];
+    let assignees = await resolveAssigneeIds('stock_recompte');
+    if (!assignees.length) assignees = [adminUserId];
     const details = {
       type: 'stock_recompte',
       stock_error_id: id,
@@ -261,12 +250,8 @@ export async function submitRecountResult({
   }).eq('id', stockErrorId);
   if (updErr) throw new Error(updErr.message);
 
-  const { data: admins } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', ADMIN_ROLES);
-  const assignees = admins?.map((a) => a.id) || [userId];
+  let assignees = await resolveAssigneeIds('stock_recompte_result');
+  if (!assignees.length) assignees = [userId];
 
   const details = {
     type: 'stock_recompte_result',

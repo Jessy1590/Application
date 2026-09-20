@@ -573,8 +573,8 @@ export async function deleteAbsence(id) {
 }
 
 export async function createAbsenceRequestTask(absenceRow, createdBy) {
-  const { createTask, fetchAdminIds } = await import('../../tasks/services/taskService.js');
-  const adminIds = await fetchAdminIds();
+  const { createTask, resolveAssigneeIds } = await import('../../tasks/services/taskService.js');
+  const adminIds = await resolveAssigneeIds('hr_absence_demande');
   const assignees = adminIds.length ? adminIds : (createdBy ? [createdBy] : []);
   if (!assignees.length) return null;
 
@@ -714,8 +714,8 @@ export async function deleteScheduleChange(id) {
 }
 
 export async function createScheduleChangeRequestTask(changeRow, createdBy) {
-  const { createTask, fetchAdminIds } = await import('../../tasks/services/taskService.js');
-  const adminIds = await fetchAdminIds();
+  const { createTask, resolveAssigneeIds } = await import('../../tasks/services/taskService.js');
+  const adminIds = await resolveAssigneeIds('hr_horaire_demande');
   const assignees = adminIds.length ? adminIds : (createdBy ? [createdBy] : []);
   if (!assignees.length) return null;
 

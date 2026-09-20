@@ -3,7 +3,6 @@
 export const ACCESS_ROLES = Object.freeze([
   'pharmacien',
   'administrateur',
-  'gestionnaire',
   'préparateur',
 ]);
 
@@ -20,19 +19,25 @@ export const DISABLED_ACCOUNT_MESSAGE =
 export const ROLE_LABELS = Object.freeze({
   pharmacien: 'Pharmacien',
   administrateur: 'Administrateur',
-  gestionnaire: 'Gestionnaire',
   préparateur: 'Préparateur',
   désactivé: 'Désactivé',
   admin: 'Administrateur (legacy)',
   équipe: 'Préparateur (legacy)',
   member: 'Préparateur (legacy)',
+  /** Legacy portail — mappé en préparateur ; ≠ sous-rôle Location Phie. */
+  gestionnaire: 'Préparateur (ex-gestionnaire)',
 });
 
-/** Anciennes valeurs toujours acceptées en base. */
+/**
+ * Anciennes valeurs toujours acceptées en lecture.
+ * `gestionnaire` (portail) → préparateur. Le sous-rôle Location Phie
+ * `gestionnaire` est un concept métier distinct (locationAccess.js).
+ */
 export const LEGACY_ROLE_MAP = Object.freeze({
   admin: 'administrateur',
   équipe: 'préparateur',
   member: 'préparateur',
+  gestionnaire: 'préparateur',
 });
 
 /** Toutes les valeurs stockables (CHECK SQL). */
@@ -48,7 +53,10 @@ export const STAFF_ROLES = Object.freeze(
   STORED_ROLES.filter((r) => r !== DISABLED_ROLE),
 );
 
-/** Destinataires des tâches « admin » (pharmacien / administrateur). */
+/**
+ * @deprecated Préférer resolveAssigneeIds(category) via task_role_rules.
+ * Conservé pour compat temporaire (pharmacien / administrateur).
+ */
 export const ADMIN_ROLES = Object.freeze(['admin', 'administrateur', 'pharmacien']);
 
 export function canonicalRole(role) {
@@ -88,9 +96,12 @@ export function isPharmacistLevel(role) {
   return r === 'pharmacien' || r === 'administrateur';
 }
 
-/** Peut ouvrir le dashboard par défaut (avant overlay matrice). */
+/**
+ * @deprecated Préférer canAccess('dashboard','dashboard') (matrice + casquettes).
+ * Fallback rôles : pharmacien / administrateur uniquement.
+ */
 export function isDashboardRole(role) {
   if (isDisabledRole(role)) return false;
   const r = canonicalRole(role);
-  return r === 'pharmacien' || r === 'administrateur' || r === 'gestionnaire';
+  return r === 'pharmacien' || r === 'administrateur';
 }

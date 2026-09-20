@@ -1,7 +1,7 @@
 /**
  * OCR document via Azure Document Intelligence (prebuilt-read).
+ * Aligné PhieEvreux (assertAdmin + Azure) + fix Edge auth (persistSession: false).
  * Secrets : AZURE_DI_ENDPOINT, AZURE_DI_KEY
- * Accès : admin portail OU equipe.role === administrateur (PhieEvreux).
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -46,6 +46,26 @@ function normalizeEndpoint(raw) {
   return String(raw || '').trim().replace(/\/+$/, '');
 }
 
+function isPortailAdminRole(role) {
+  const r = String(role || '').trim().toLowerCase();
+  return r === 'admin' || r === 'administrateur';
+}
+
+/** Client Edge : comme PhieEvreux, + auth non persistée (évite hangs Deno). */
+function edgeClient(authHeader, schema) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  return createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+    db: { schema },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+}
+
 async function assertAdmin(authHeader) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
@@ -53,16 +73,15 @@ async function assertAdmin(authHeader) {
     return { ok: false, status: 500, error: 'Config Supabase manquante' };
   }
 
-  const portail = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    db: { schema: 'portail' },
-  });
+  const portail = edgeClient(authHeader, 'portail');
 
+  // Identique PhieEvreux : getUser() via header Authorization (pas getUser(token)).
   const {
     data: { user },
     error: userError,
   } = await portail.auth.getUser();
   if (userError || !user) {
+    console.error('ocr-document getUser', userError?.message || 'no user');
     return { ok: false, status: 401, error: 'Session invalide' };
   }
 
@@ -72,15 +91,11 @@ async function assertAdmin(authHeader) {
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profile?.role === 'admin') {
+  if (isPortailAdminRole(profile?.role)) {
     return { ok: true, userId: user.id };
   }
 
-  const apps = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    db: { schema: 'phieevreux' },
-  });
-
+  const apps = edgeClient(authHeader, 'phieevreux');
   const { data: equipe } = await apps
     .from('equipe')
     .select('role')
@@ -207,10 +222,13 @@ Deno.serve(async (req) => {
       return json(401, { error: 'Non authentifié' });
     }
 
+    console.log('ocr-document start');
     const gate = await assertAdmin(authHeader);
     if (!gate.ok) {
+      console.error('ocr-document gate', gate.status, gate.error);
       return json(gate.status, { error: gate.error });
     }
+    console.log('ocr-document gate ok');
 
     const payload = await req.json().catch(() => ({}));
     const imageBase64 = String(payload.imageBase64 || payload.base64Source || '').trim();

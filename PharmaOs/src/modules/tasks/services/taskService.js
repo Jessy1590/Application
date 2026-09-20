@@ -1,10 +1,157 @@
 import { supabase } from '../../../shared/supabaseClient.js';
-import { STAFF_ROLES, ADMIN_ROLES } from '../../../core/roles.js';
+import { STAFF_ROLES, canonicalRole } from '../../../core/roles.js';
+import { getTaskCategory, parseTaskDetails } from '../shared/taskDisplay.js';
 
 /**
  * Service unifié tâches (comptoir + dashboard).
  * Tables : PharmaOs.tasks, PharmaOs.task_assignments ; profils : portail.profiles.
+ * Assignation via matrice task_role_rules (resolveAssigneeIds / ensureTaskEscalations).
  */
+
+/** Catégories exposées dans la matrice admin. */
+export const TASK_RULE_CATEGORIES = Object.freeze([
+  { id: 'appel_attente_pharmacien', label: 'Appel — attente pharmacien' },
+  { id: 'hr_absence_demande', label: 'RH — demande d’absence' },
+  { id: 'hr_horaire_demande', label: 'RH — demande horaire' },
+  { id: 'hr_absence_reponse', label: 'RH — réponse absence' },
+  { id: 'hr_horaire_reponse', label: 'RH — réponse horaire' },
+  { id: 'stock_error', label: 'Erreur de stock' },
+  { id: 'stock_recompte', label: 'Recomptage stock' },
+  { id: 'stock_recompte_result', label: 'Résultat recomptage' },
+  { id: 'perime_decision', label: 'Périmé à décider' },
+  { id: 'perime_mea', label: 'Mise en avant périmé' },
+  { id: 'perime_promo', label: 'Promo périmé' },
+  { id: 'perime_challenge', label: 'Challenge périmé' },
+  { id: 'retrait_lot', label: 'Retrait de lot' },
+  { id: 'commande', label: 'Commande médicament' },
+  { id: 'facturation', label: 'Facturation' },
+  { id: 'appel_brouillon', label: 'Appel brouillon' },
+  { id: 'nc_brouillon', label: 'NC brouillon' },
+  { id: 'litige_brouillon', label: 'Litige brouillon' },
+  { id: 'ip_brouillon', label: 'IP brouillon' },
+  { id: 'libre', label: 'Tâche libre' },
+]);
+
+function rolesForMode(rules, mode) {
+  return (rules || [])
+    .filter((r) => r.mode === mode)
+    .map((r) => canonicalRole(r.role));
+}
+
+async function fetchProfilesByCanonicalRoles(roles) {
+  const wanted = new Set((roles || []).map(canonicalRole));
+  if (!wanted.size) return [];
+  const { data, error } = await supabase
+    .schema('portail')
+    .from('profiles')
+    .select('id, role')
+    .in('role', STAFF_ROLES);
+  if (error) throw error;
+  return (data || []).filter((p) => wanted.has(canonicalRole(p.role)));
+}
+
+/**
+ * Résout les destinataires immédiats pour une catégorie de tâche.
+ * @param {string} category — id matrice (ex. appel_attente_pharmacien, commande)
+ */
+export async function resolveAssigneeIds(category) {
+  if (!category) return [];
+  const { data: rules, error } = await supabase
+    .from('task_role_rules')
+    .select('role, mode, delay_hours')
+    .eq('category', category);
+  if (error) throw error;
+
+  const immediateRoles = rolesForMode(rules, 'immediate');
+  if (!immediateRoles.length) return [];
+
+  const profiles = await fetchProfilesByCanonicalRoles(immediateRoles);
+  return profiles.map((p) => p.id);
+}
+
+/**
+ * Escalade after_delay : RPC SECURITY DEFINER (bypass RLS pour scanner).
+ * Appelé au load TasksManager / Taskbar / comptoir tâches.
+ */
+export async function ensureTaskEscalations() {
+  const { data, error } = await supabase.rpc('ensure_task_escalations');
+  if (error) {
+    /* Fallback client si RPC absente (migration non appliquée) */
+    return ensureTaskEscalationsClient();
+  }
+  return { escalated: data || 0 };
+}
+
+async function ensureTaskEscalationsClient() {
+  const { data: rules, error: rulesErr } = await supabase
+    .from('task_role_rules')
+    .select('category, role, mode, delay_hours')
+    .eq('mode', 'after_delay');
+  if (rulesErr) throw rulesErr;
+  if (!rules?.length) return { escalated: 0 };
+
+  const byCategory = {};
+  for (const r of rules) {
+    if (!byCategory[r.category]) byCategory[r.category] = [];
+    byCategory[r.category].push(r);
+  }
+
+  const { data: openTasks, error: tasksErr } = await supabase
+    .from('tasks')
+    .select('id, titre, description, created_at, task_assignments(id, user_id, statut)')
+    .order('created_at', { ascending: false })
+    .limit(300);
+  if (tasksErr) throw tasksErr;
+
+  let escalated = 0;
+  const now = Date.now();
+
+  for (const task of openTasks || []) {
+    const open = (task.task_assignments || []).some((a) => a.statut === 'en_cours');
+    if (!open) continue;
+
+    const details = parseTaskDetails(task.description);
+    const category = details?.type || getTaskCategory(task.description, task.titre);
+    const delayRules = byCategory[category];
+    if (!delayRules?.length) continue;
+
+    const created = new Date(task.created_at).getTime();
+    const existing = new Set((task.task_assignments || []).map((a) => a.user_id));
+
+    for (const rule of delayRules) {
+      const hours = Number(rule.delay_hours) || 0;
+      if (hours <= 0) continue;
+      if (now < created + hours * 3600 * 1000) continue;
+
+      const profiles = await fetchProfilesByCanonicalRoles([rule.role]);
+      const toAdd = profiles.map((p) => p.id).filter((id) => !existing.has(id));
+      if (!toAdd.length) continue;
+
+      const { error: insErr } = await supabase.from('task_assignments').insert(
+        toAdd.map((user_id) => ({
+          task_id: task.id,
+          user_id,
+          statut: 'en_cours',
+        })),
+      );
+      if (insErr) continue;
+      toAdd.forEach((id) => existing.add(id));
+      escalated += toAdd.length;
+    }
+  }
+
+  return { escalated };
+}
+
+/** @deprecated Utiliser resolveAssigneeIds(category). */
+export async function fetchAdminIds() {
+  return resolveAssigneeIds('appel_attente_pharmacien');
+}
+
+/** @deprecated Utiliser resolveAssigneeIds('commande') ou catégorie dédiée. */
+export async function fetchAssigneeIds() {
+  return resolveAssigneeIds('commande');
+}
 
 export async function fetchTeamProfiles() {
   const { data, error } = await supabase
@@ -14,27 +161,6 @@ export async function fetchTeamProfiles() {
     .in('role', STAFF_ROLES);
   if (error) throw error;
   return data || [];
-}
-
-export async function fetchAdminIds() {
-  const { data, error } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', ADMIN_ROLES);
-  if (error) throw error;
-  return (data || []).map((p) => p.id);
-}
-
-/** Profils pour assignation QuickAction (admin + équipe). */
-export async function fetchAssigneeIds() {
-  const { data, error } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', STAFF_ROLES);
-  if (error) throw error;
-  return (data || []).map((p) => p.id);
 }
 
 export async function fetchMyOpenAssignments(userId) {
@@ -64,18 +190,7 @@ export async function completeAssignmentByTaskId(taskId, commentaire) {
     .eq('task_id', taskId);
 }
 
-export async function fetchTasks() {
-  const { data: tasks, error: tasksError } = await supabase
-    .from('tasks')
-    .select('*, task_assignments(*)')
-    .order('created_at', { ascending: false });
-  if (tasksError) throw tasksError;
-
-  const { data: profiles } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id, display_name');
-
+function enrichTasks(tasks, profiles) {
   return (tasks || []).map((task) => {
     const isCompleted = (task.task_assignments || []).some((a) => a.statut === 'terminee');
     return {
@@ -89,6 +204,47 @@ export async function fetchTasks() {
       })),
     };
   });
+}
+
+export async function fetchTasks() {
+  const { data: tasks, error: tasksError } = await supabase
+    .from('tasks')
+    .select('*, task_assignments(*)')
+    .order('created_at', { ascending: false });
+  if (tasksError) throw tasksError;
+
+  const { data: profiles } = await supabase
+    .schema('portail')
+    .from('profiles')
+    .select('id, display_name');
+
+  return enrichTasks(tasks, profiles);
+}
+
+/** Tâches où l’utilisateur est assigné (vue non-admin). */
+export async function fetchMyTasks(userId) {
+  if (!userId) return [];
+  const { data: assignments, error: aErr } = await supabase
+    .from('task_assignments')
+    .select('task_id')
+    .eq('user_id', userId);
+  if (aErr) throw aErr;
+  const ids = [...new Set((assignments || []).map((a) => a.task_id).filter(Boolean))];
+  if (!ids.length) return [];
+
+  const { data: tasks, error: tasksError } = await supabase
+    .from('tasks')
+    .select('*, task_assignments(*)')
+    .in('id', ids)
+    .order('created_at', { ascending: false });
+  if (tasksError) throw tasksError;
+
+  const { data: profiles } = await supabase
+    .schema('portail')
+    .from('profiles')
+    .select('id, display_name');
+
+  return enrichTasks(tasks, profiles);
 }
 
 /** Statuts de complétion pour une liste d'ids de tâches (au moins une assignation terminée). */
@@ -131,6 +287,17 @@ export async function createTask(titre, description, userIds, createdBy) {
   return task.id;
 }
 
+/**
+ * Crée une tâche en résolvant les assignés via la matrice (catégorie).
+ * Les IDs explicites (extraIds) sont toujours ajoutés (ex. créateur pour brouillon).
+ */
+export async function createTaskForCategory(category, titre, description, createdBy, extraIds = []) {
+  const fromMatrix = await resolveAssigneeIds(category);
+  const userIds = [...new Set([...(fromMatrix || []), ...(extraIds || [])].filter(Boolean))];
+  if (!userIds.length && createdBy) userIds.push(createdBy);
+  return createTask(titre, description, userIds, createdBy);
+}
+
 export async function completeTaskGlobal(taskId, commentaire, timeSeconds, completedBy) {
   const { error } = await supabase
     .from('task_assignments')
@@ -169,8 +336,9 @@ export async function updateTask(taskId, titre, description) {
 export async function createComptoirQuickAction(type, form, userId) {
   const isOrder = type === 'order';
   const dbType = isOrder ? 'commande_med' : 'facturation';
+  const category = isOrder ? 'commande' : 'facturation';
   const groupId = crypto.randomUUID();
-  const assignees = await fetchAssigneeIds();
+  const assignees = await resolveAssigneeIds(category);
 
   const baseDetails = {
     nom: form.nom.toUpperCase(),

@@ -4,6 +4,7 @@ import {
   fetchMyOpenAssignments,
   updateTaskDescription,
   completeAssignmentByTaskId,
+  ensureTaskEscalations,
 } from '../services/taskService.js';
 import {
   parseTaskDetails,
@@ -32,6 +33,9 @@ export default function Tasks() {
 
   const fetchMyTasks = useCallback(async () => {
     if (!user?.id) return;
+    try {
+      await ensureTaskEscalations();
+    } catch { /* best-effort */ }
     const { data, error } = await fetchMyOpenAssignments(user.id);
     if (!error && data) setAssignments(data);
   }, [user?.id]);

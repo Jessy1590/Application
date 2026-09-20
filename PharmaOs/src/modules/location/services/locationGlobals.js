@@ -1,7 +1,9 @@
 /**
  * Expose les APIs Location en globals (compat modules UI PhieEvreux IIFE).
  * Schéma données : PharmaOs via supabaseClient.
+ * Auth OCR : même pattern que PhieEvreux (client portail dédié + session partagée).
  */
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../../../shared/supabaseClient.js';
 import * as LocationData from './locationService.js';
 import * as LocationRules from './locationRules.js';
@@ -9,7 +11,7 @@ import * as LocationPrint from './locationPrint.js';
 
 const g = typeof window !== 'undefined' ? window : globalThis;
 
-/** Shim OCR Edge Functions — remplace PhieEvreuxApps (même projet Supabase). */
+/** Shim OCR Edge Functions — aligné PhieEvreux shared/supabase-apps.js */
 g.PhieEvreuxApps = {
   SCHEMA: 'PharmaOs',
   getCfg() {
@@ -21,8 +23,12 @@ g.PhieEvreuxApps = {
   createAppsClient() {
     return supabase;
   },
+  /** Comme PhieEvreux : client schéma portail séparé (même storage auth par défaut). */
   createPortailClient() {
-    return supabase;
+    const cfg = this.getCfg();
+    return createClient(cfg.url || '', cfg.anonKey || '', {
+      db: { schema: 'portail' },
+    });
   },
 };
 

@@ -10,7 +10,7 @@
 
 - Points d’entrée : `index.html`, `module.html`, `dashboard.html`.
 
-- Auth unifiée : session + `display_name` + `role` (`portail.profiles` : pharmacien / administrateur / gestionnaire / préparateur).
+- Auth unifiée : session + `display_name` + `role` (`portail.profiles` : pharmacien / administrateur / préparateur / désactivé).
 
 - IPC : `setMode`, `openModule`, `openDashboard` ; isolation Electron OK.
 
@@ -65,9 +65,17 @@
 - Tables live droppées : `PharmaOs.daily_controls`, `PharmaOs.equipment_calibrations` (migration `009`).
 - Module `quality` / `quality_events` conservé. Affichage tâches `etalonnage_rdv` conservé (pas de nouvelles créations).
 
+## Rôles, casquettes, dashboard, tâches (2026-09-20)
+
+- Rôles portail : `pharmacien`, `administrateur`, `préparateur`, `désactivé` (legacy `admin` / `équipe` / `member` / `gestionnaire` → préparateur).
+- **Casquettes** : tables `casquettes` / `casquette_features` / `profile_casquettes` ; `canAccess` = matrice `role_access` OU grants casquette.
+- Sous-rôle Location Phie `gestionnaire` = métier UI Location, **distinct** du rôle portail (supprimé).
+- Widgets accueil : `role_dashboard_widgets` + catalogue `dashboardWidgets.js`.
+- Tâches : `task_role_rules` + `resolveAssigneeIds` / `ensureTaskEscalations` ; TasksManager = mes tâches sauf administrateur (vue équipe).
+- Migrations `028`–`032`.
+
 ## Rôles, logs, bugs (2026-09-19)
 
-- Rôles canoniques : `pharmacien`, `administrateur`, `gestionnaire`, `préparateur` (legacy `admin` / `équipe` / `member` mappés).
 - Matrice `PharmaOs.role_access` : pages dashboard et missions taskbar masquables par rôle (onglet Administration → Accès & rôles).
 - Journal `PharmaOs.app_logs` : UI/auth/fenêtres côté client + trigger SQL sur INSERT/UPDATE/DELETE métier.
 - Bugs en table `PharmaOs.bugs` (date, nom, information, statut nouveau/en_cours/modifié/impossible) à la place des fichiers `bug/*.md`.
@@ -81,6 +89,12 @@
 
 - Aucun `.from()` dans les composants des modules qualité — logique BDD dans `services/`.
 
-- Live : DEFAULT historique `profiles.role = member` / `magistral_orders.statut = brouillon` ; migrations neuves préfèrent `équipe` / `devis` (CHECK live déjà `devis|commande|…`).
+- Live : DEFAULT `magistral_orders.statut` aligné sur `devis` (migration `027_magistral_refonte`) ; statuts élargis (brouillon…cloture, dont `a_rappeler`) ; bucket Storage `magistral-ordonnances`.
+
+- Magistrales v2 : formulaire partagé Annexe I + téléphone obligatoire ; réception BPP 7.12 + appel patient ; feuille de suivi A4 ; alertes home dashboard.
+
+- Magistrales taskbar (2026-09-20) : groupe **Prépa.** comme Location — 4 boutons `magistral_creation` / `magistral_devis` / `magistral_rappel` / `magistral_dispenser` (feature unique `magistral`). Accès via matrice ou casquette `magistral`.
+
+- Magistrales dashboard (2026-09-20) : sous-groupe nav **Préparations** — `magistral_suivi` / `magistral_creation` / `magistral_devis` / `magistral_rappel` / `magistral_dispenser` / `magistral_parametres` (alias legacy `magistral` → suivi). Plus d’onglets internes dans `MagistralManager`.
 
 

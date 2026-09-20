@@ -113,6 +113,40 @@
     const apps = global.PhieEvreuxApps;
     if (!apps) throw new Error('PhieEvreuxApps manquant');
     const cfg = apps.getCfg();
+
+    // Chemin PharmaOS : invoke via client auth principal (session Electron)
+    const appsClient = typeof apps.createAppsClient === 'function' ? apps.createAppsClient() : null;
+    if (appsClient?.functions?.invoke) {
+      const {
+        data: { session: appSession },
+      } = await appsClient.auth.getSession();
+      if (!appSession?.access_token) throw new Error('Session expirée');
+
+      const { data, error } = await appsClient.functions.invoke(OCR_FN, {
+        body: { imageBase64 },
+      });
+      if (error) {
+        let detail = error.message || String(error);
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.json === 'function') {
+            const j = await ctx.json();
+            if (j?.error) detail = j.error;
+          }
+        } catch (_) { /* ignore */ }
+        throw new Error(detail);
+      }
+      if (data?.error) throw new Error(String(data.error));
+      return {
+        text: String(data?.text || '').trim(),
+        words: Array.isArray(data?.words) ? data.words : [],
+        width: Number(data?.width) || 0,
+        height: Number(data?.height) || 0,
+        engine: data?.engine || 'azure-read',
+      };
+    }
+
+    // Fallback identique PhieEvreux (fetch + client portail)
     const portail = apps.createPortailClient();
     const {
       data: { session },
@@ -435,6 +469,7 @@
   async function ocrCanvasOrBlob(source, onProgress) {
     const resized = await resizeToCanvas(source, MAX_OCR_WIDTH);
     const base64 = await blobToBase64(resized.blob);
+    let azureFailMsg = null;
 
     try {
       if (typeof onProgress === 'function') onProgress({ status: 'azure', progress: 0.2 });
@@ -458,9 +493,10 @@
         engine: azure.engine || 'azure-read',
       };
     } catch (azureErr) {
+      azureFailMsg = String((azureErr && azureErr.message) || azureErr);
       console.warn('[Transcription OCR] Azure indisponible, repli Tesseract', azureErr);
       if (typeof onProgress === 'function') {
-        onProgress({ status: 'tesseract-fallback', progress: 0 });
+        onProgress({ status: 'tesseract-fallback', progress: 0, azureError: azureFailMsg });
       }
     }
 
@@ -501,6 +537,7 @@
       blob: resized.blob,
       base64,
       engine: 'tesseract-fallback',
+      azureError: azureFailMsg || null,
     };
   }
 
@@ -991,6 +1028,7 @@
     const errors = [];
     let usedAzure = false;
     let usedFallback = false;
+    let azureError = null;
 
     for (let fi = 0; fi < list.length; fi += 1) {
       const file = list[fi];
@@ -1013,7 +1051,8 @@
           if (ocr.engine === 'azure-read') usedAzure = true;
           if (ocr.engine === 'tesseract-fallback') {
             usedFallback = true;
-            onStatus(`Repli Tesseract : ${src.label}`);
+            if (ocr.azureError && !azureError) azureError = ocr.azureError;
+            onStatus(`Repli Tesseract : ${src.label} (Azure : ${ocr.azureError || 'indisponible'})`);
           }
           if (ocr.base64 && imagesBase64.length < 8) {
             imagesBase64.push(ocr.base64);
@@ -1086,6 +1125,9 @@
       mappings,
       fullText,
       errors,
+      azureError,
+      usedAzure,
+      usedFallback,
       aiError,
       aiCount: aiMappings.length,
       aiDebug,

@@ -43,10 +43,24 @@ export const NAV_SECTIONS = [
   {
     title: 'Métier',
     items: [
-      { id: 'magistral', label: 'Magistrales', icon: FlaskConical, color: 'fuchsia' },
       { id: 'psl', label: 'MDS', icon: Droplets, color: 'rose' },
       { id: 'conseil', label: 'Conseil', icon: MessageCircle, color: 'rose' },
       { id: 'bdm', label: 'BDPM', icon: Pill, color: 'teal' },
+    ],
+  },
+  /**
+   * Sous-groupe Préparations (magistrales) — un onglet par écran.
+   * Visibilité : feature dashboard `magistral` (matrice Accès & rôles).
+   */
+  {
+    title: 'Préparations',
+    items: [
+      { id: 'magistral_suivi', label: 'Suivi', icon: ClipboardList, color: 'fuchsia' },
+      { id: 'magistral_creation', label: 'Création', icon: PlusCircle, color: 'fuchsia' },
+      { id: 'magistral_devis', label: 'Devis', icon: Receipt, color: 'fuchsia' },
+      { id: 'magistral_rappel', label: 'Rappel', icon: Phone, color: 'fuchsia' },
+      { id: 'magistral_dispenser', label: 'Dispenser', icon: Package, color: 'fuchsia' },
+      { id: 'magistral_renouvellement', label: 'Renouvellement', icon: RefreshCw, color: 'fuchsia' },
     ],
   },
   /**
@@ -64,7 +78,6 @@ export const NAV_SECTIONS = [
       { id: 'location_facture', label: 'Facture', icon: Receipt, color: 'cyan' },
       { id: 'location_parc', label: 'Parc', icon: Warehouse, color: 'cyan' },
       { id: 'location_transcription', label: 'Transcription', icon: ScanText, color: 'cyan' },
-      { id: 'location_parametres', label: 'Paramètres', icon: Settings, color: 'cyan' },
     ],
   },
   {
@@ -80,16 +93,29 @@ export const NAV_SECTIONS = [
       { id: 'logs', label: 'Logs', icon: ScrollText, color: 'slate' },
       { id: 'bugs', label: 'Bugs', icon: Bug, color: 'rose' },
       { id: 'access', label: 'Accès & rôles', icon: Shield, color: 'indigo' },
+      { id: 'parametres', label: 'Paramètres', icon: Settings, color: 'slate' },
     ],
   },
 ];
 
 export const ALL_NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
-/** Alias legacy : ancien onglet unique « Location » → Suivi. */
+/** Alias legacy : ancien onglet unique Location / Magistrales → Suivi ; paramètres module → admin. */
 export function resolveNavPageId(pageId) {
   if (pageId === 'location') return 'location_suivi';
+  if (pageId === 'magistral') return 'magistral_suivi';
+  if (pageId === 'location_parametres' || pageId === 'magistral_parametres') return 'parametres';
   return pageId;
+}
+
+/** Sous-onglet Paramètres à ouvrir depuis un id legacy ou un payload. */
+export function settingsTabFromNav(pageId, pageData = null) {
+  if (pageData?.tab || pageData?.settingsTab) {
+    return pageData.tab || pageData.settingsTab;
+  }
+  if (pageId === 'location_parametres') return 'location';
+  if (pageId === 'magistral_parametres') return 'preparations';
+  return null;
 }
 
 export function findNavItem(pageId) {
@@ -97,5 +123,5 @@ export function findNavItem(pageId) {
   return ALL_NAV_ITEMS.find((i) => i.id === id) || null;
 }
 
-/** Icône section Location (rétrocompat imports). */
-export { BedDouble };
+/** Icônes section (rétrocompat imports). */
+export { BedDouble, FlaskConical };

@@ -43,7 +43,17 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    if (!profile || !['admin', 'équipe'].includes(profile.role)) {
+    // Rôles canoniques + legacy (admin / équipe / member)
+    const staffRoles = [
+      'pharmacien',
+      'administrateur',
+      'gestionnaire',
+      'préparateur',
+      'admin',
+      'équipe',
+      'member',
+    ];
+    if (!profile || !staffRoles.includes(profile.role) || profile.role === 'désactivé') {
       return new Response(JSON.stringify({ error: 'Accès réservé au personnel pharmacie' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

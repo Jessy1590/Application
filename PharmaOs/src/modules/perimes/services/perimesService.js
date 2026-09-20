@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
-import { createTask, fetchAdminIds, fetchAssigneeIds, completeAssignmentByTaskId } from '../../tasks/services/taskService.js';
+import { createTask, resolveAssigneeIds, completeAssignmentByTaskId } from '../../tasks/services/taskService.js';
 
 export const PERIME_FORM_DEFAULTS = {
   medicament: '',
@@ -186,7 +186,7 @@ export async function createPerimeDecisionTask(perime, createdBy) {
     return null;
   }
 
-  const adminIds = await fetchAdminIds();
+  const adminIds = await resolveAssigneeIds('perime_decision');
   const assignees = adminIds.length ? adminIds : (createdBy ? [createdBy] : []);
   if (!assignees.length) return null;
 
@@ -222,11 +222,9 @@ export async function createPerimeDecisionTask(perime, createdBy) {
 
 async function createMeaExecutionTask(perime, createdBy) {
   if (perime.mea_task_id || !perime.mise_en_avant) return perime.mea_task_id || null;
-  let assignees = await fetchAssigneeIds();
+  let assignees = await resolveAssigneeIds('perime_mea');
   if (!assignees.length && createdBy) assignees = [createdBy];
   if (!assignees.length) return null;
-
-  const montant = perime.mise_en_avant_montant != null ? `${perime.mise_en_avant_montant} €` : null;
   const titre = `Mise en avant : ${perime.medicament}${montant ? ` (${montant})` : ''}`;
   const taskId = await createTask(
     titre,
@@ -250,7 +248,7 @@ async function createMeaExecutionTask(perime, createdBy) {
 
 async function createPromoExecutionTask(perime, createdBy) {
   if (perime.promo_task_id || !perime.promo) return perime.promo_task_id || null;
-  let assignees = await fetchAssigneeIds();
+  let assignees = await resolveAssigneeIds('perime_promo');
   if (!assignees.length && createdBy) assignees = [createdBy];
   if (!assignees.length) return null;
 
@@ -278,7 +276,7 @@ async function createPromoExecutionTask(perime, createdBy) {
 
 export async function createPerimeChallengeTask(perime, createdBy) {
   if (perime.challenge_task_id || !perime.challenge_actif) return perime.challenge_task_id || null;
-  let assignees = await fetchAssigneeIds();
+  let assignees = await resolveAssigneeIds('perime_challenge');
   if (!assignees.length && createdBy) assignees = [createdBy];
   if (!assignees.length) return null;
 

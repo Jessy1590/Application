@@ -79,3 +79,81 @@ export async function updateProfileRole(profileId, role, actorName, { actorId } 
 
   return data;
 }
+
+export async function fetchRoleDashboardWidgets() {
+  const { data, error } = await supabase.from('role_dashboard_widgets').select('*');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertRoleDashboardWidget(role, widgetId, visible, userId) {
+  const canon = canonicalRole(role);
+  if (isDisabledRole(canon)) {
+    throw new Error('Le rôle Désactivé n’a aucun widget — la matrice ne s’applique pas.');
+  }
+  const { data, error } = await supabase
+    .from('role_dashboard_widgets')
+    .upsert(
+      {
+        role: canon,
+        widget_id: widgetId,
+        visible: !!visible,
+        updated_by: userId || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'role,widget_id' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+
+  logEvent({
+    category: 'access',
+    action: visible ? 'show_widget' : 'hide_widget',
+    entity: 'role_dashboard_widgets',
+    entityId: `${canon}:${widgetId}`,
+    message: `${visible ? 'Afficher' : 'Masquer'} widget ${widgetId} pour ${canon}`,
+    flush: true,
+  });
+
+  return data;
+}
+
+export async function fetchTaskRoleRules() {
+  const { data, error } = await supabase.from('task_role_rules').select('*');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function upsertTaskRoleRule(category, role, mode, delayHours, userId) {
+  const canon = canonicalRole(role);
+  if (isDisabledRole(canon)) {
+    throw new Error('Le rôle Désactivé n’a pas de règle d’assignation.');
+  }
+  const payload = {
+    category,
+    role: canon,
+    mode: mode || 'never',
+    delay_hours: mode === 'after_delay' ? Number(delayHours) || 24 : null,
+    updated_by: userId || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('task_role_rules')
+    .upsert(payload, { onConflict: 'category,role' })
+    .select()
+    .single();
+  if (error) throw error;
+
+  logEvent({
+    category: 'access',
+    action: 'set_task_rule',
+    entity: 'task_role_rules',
+    entityId: `${category}:${canon}`,
+    message: `Règle tâche ${category} / ${canon} → ${mode}`,
+    details: payload,
+    flush: true,
+  });
+
+  return data;
+}

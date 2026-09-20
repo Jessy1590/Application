@@ -1,6 +1,10 @@
 ﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../../core/AuthContext.jsx';
-import { fetchTasks, fetchTeamProfiles, createTask, completeTaskGlobal, uncompleteTaskGlobal, updateTask } from '../services/taskService.js';
+import { isAppAdministrateur } from '../../../core/roles.js';
+import {
+  fetchTasks, fetchMyTasks, fetchTeamProfiles, createTask,
+  completeTaskGlobal, uncompleteTaskGlobal, updateTask, ensureTaskEscalations,
+} from '../services/taskService.js';
 import {
   parseTaskDetails,
   getTaskCategory,
@@ -200,8 +204,15 @@ function renderTaskBody(task) {
   return <p className="text-sm text-slate-500 mt-1 whitespace-pre-wrap">{typeof task.description === 'string' ? task.description : ''}</p>;
 }
 
+function isTaskOverdue(task) {
+  if (task.statutGlobal !== 'en_cours') return false;
+  const created = new Date(task.created_at).getTime();
+  return Date.now() - created > 48 * 3600 * 1000;
+}
+
 export default function TasksManager({ onNavigate }) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isAdminView = isAppAdministrateur(role);
   const [tasks, setTasks] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -210,19 +221,31 @@ export default function TasksManager({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState('en_cours');
   const [userFilter, setUserFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [overdueOnly, setOverdueOnly] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editTaskForm, setEditTaskForm] = useState({ titre: '', description: '' });
 
   const loadData = useCallback(async () => {
-    setTasks(await fetchTasks());
-    setProfiles(await fetchTeamProfiles());
-  }, []);
+    try {
+      await ensureTaskEscalations();
+    } catch {
+      /* escalade best-effort */
+    }
+    if (isAdminView) {
+      setTasks(await fetchTasks());
+      setProfiles(await fetchTeamProfiles());
+    } else {
+      setTasks(await fetchMyTasks(user?.id));
+      setProfiles([]);
+    }
+  }, [isAdminView, user?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useRealtimeRefresh(loadData, { tables: ['tasks', 'task_assignments'] });
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (!isAdminView) return;
     await createTask(newTask.titre, newTask.description, newTask.assignees, user.id);
     setShowForm(false);
     setNewTask({ titre: '', description: '', assignees: [] });
@@ -231,7 +254,9 @@ export default function TasksManager({ onNavigate }) {
 
   const handleCompleteTask = async (taskId, createdAt) => {
     const timeSec = Math.floor((new Date() - new Date(createdAt)) / 1000);
-    const currentUserProfile = profiles.find((p) => p.id === user.id)?.display_name || 'Utilisateur';
+    const currentUserProfile = profiles.find((p) => p.id === user.id)?.display_name
+      || user?.email
+      || 'Utilisateur';
     await completeTaskGlobal(taskId, comment[taskId] || '', timeSec, currentUserProfile);
     loadData();
   };
@@ -256,10 +281,11 @@ export default function TasksManager({ onNavigate }) {
 
   const filteredTasks = useMemo(() => tasks.filter((t) => {
     if (statusFilter !== 'all' && t.statutGlobal !== statusFilter) return false;
-    if (userFilter !== 'all' && !t.task_assignments.some((a) => a.user_id === userFilter)) return false;
+    if (isAdminView && userFilter !== 'all' && !t.task_assignments.some((a) => a.user_id === userFilter)) return false;
     if (typeFilter !== 'all' && getTaskCategory(t.description, t.titre) !== typeFilter) return false;
+    if (overdueOnly && !isTaskOverdue(t)) return false;
     return true;
-  }), [tasks, statusFilter, userFilter, typeFilter]);
+  }), [tasks, statusFilter, userFilter, typeFilter, overdueOnly, isAdminView]);
 
   const grouped = useMemo(() => {
     const map = {};
@@ -281,11 +307,14 @@ export default function TasksManager({ onNavigate }) {
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-          <CheckSquare className="text-orange-600" /> Tâches d&apos;Équipe
+          <CheckSquare className="text-orange-600" />
+          {isAdminView ? 'Tâches d\'équipe' : 'Mes tâches'}
         </h1>
-        <button type="button" onClick={() => setShowForm(!showForm)} className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex gap-2">
-          <Plus size={18} /> Nouvelle Tâche
-        </button>
+        {isAdminView && (
+          <button type="button" onClick={() => setShowForm(!showForm)} className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex gap-2">
+            <Plus size={18} /> Nouvelle Tâche
+          </button>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-6 bg-white p-3 rounded-lg border border-slate-200 shadow-sm items-center">
@@ -300,20 +329,26 @@ export default function TasksManager({ onNavigate }) {
             <option key={k} value={k}>{label}</option>
           ))}
         </select>
-        <select
-          value={userFilter}
-          onChange={(e) => setUserFilter(e.target.value)}
-          className="p-2 border rounded-md text-sm"
-        >
-          <option value="all">Tous les membres</option>
-          {profiles.map((p) => (
-            <option key={p.id} value={p.id}>{p.display_name}</option>
-          ))}
-        </select>
+        {isAdminView && (
+          <select
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            className="p-2 border rounded-md text-sm"
+          >
+            <option value="all">Tous les membres</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>{p.display_name}</option>
+            ))}
+          </select>
+        )}
+        <label className="flex items-center gap-1.5 text-sm text-slate-600">
+          <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} />
+          En retard (&gt;48 h)
+        </label>
         <span className="text-xs text-slate-400 ml-auto">{filteredTasks.length} tâche(s)</span>
       </div>
 
-      {showForm && (
+      {showForm && isAdminView && (
         <form onSubmit={handleCreate} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Titre</label>
@@ -374,7 +409,7 @@ export default function TasksManager({ onNavigate }) {
                 return (
                   <div
                     key={task.id}
-                    className={`p-5 rounded-xl border shadow-sm ${task.statutGlobal === 'terminee' ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-200'}`}
+                    className={`p-5 rounded-xl border shadow-sm ${task.statutGlobal === 'terminee' ? 'bg-emerald-50/30 border-emerald-100' : 'bg-white border-slate-200'} ${isTaskOverdue(task) ? 'ring-1 ring-amber-300' : ''}`}
                   >
                     <div className="flex justify-between items-start mb-2 gap-4">
                       <div className="flex-1 min-w-0">
@@ -416,9 +451,11 @@ export default function TasksManager({ onNavigate }) {
                             <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
                               <Check size={14} /> Terminée
                             </span>
-                            <button type="button" onClick={() => handleUncomplete(task.id)} className="text-rose-600 p-1.5 bg-rose-50 rounded-md hover:bg-rose-100" title="Annuler la validation">
-                              <RotateCcw size={16} />
-                            </button>
+                            {isAdminView && (
+                              <button type="button" onClick={() => handleUncomplete(task.id)} className="text-rose-600 p-1.5 bg-rose-50 rounded-md hover:bg-rose-100" title="Annuler la validation">
+                                <RotateCcw size={16} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>

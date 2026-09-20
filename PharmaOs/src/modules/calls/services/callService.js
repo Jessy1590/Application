@@ -1,5 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
-import { createTask, fetchAdminIds } from '../../tasks/services/taskService.js';
+import { createTask, resolveAssigneeIds } from '../../tasks/services/taskService.js';
 
 /**
  * Table : PharmaOs.call_logs
@@ -216,7 +216,7 @@ export async function cancelCall(id) {
 }
 
 export async function createPharmacistCallTask(callRow, createdBy) {
-  const adminIds = await fetchAdminIds();
+  const adminIds = await resolveAssigneeIds('appel_attente_pharmacien');
   if (!adminIds.length) return null;
   const titre = `Appel — attente pharmacien : ${callRow.contact_nom || callRow.numero || 'sans contact'}`;
   return createTask(

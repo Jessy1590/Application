@@ -16,6 +16,7 @@ import {
 } from '../services/callService.js';
 import CallForm from '../shared/CallForm.jsx';
 import { useAuth } from '../../../core/AuthContext.jsx';
+import { isPharmacistLevel } from '../../../core/roles.js';
 import { Phone, Filter, ArrowLeft, Edit2, Save, X, Plus, CheckCircle, Clock } from 'lucide-react';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
@@ -33,7 +34,8 @@ function toDayKey(iso) {
 }
 
 export default function CallTracking({ onNavigate }) {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
+  const canPharmacistActions = isPharmacistLevel(role);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -150,8 +152,8 @@ export default function CallTracking({ onNavigate }) {
           <CallForm
             form={newForm}
             onChange={(patch) => setNewForm((prev) => ({ ...prev, ...patch }))}
-            showNotes
-            showCloture
+            showNotes={canPharmacistActions}
+            showCloture={canPharmacistActions}
           />
           <div className="flex flex-col gap-2">
             <div className="flex gap-3">
@@ -260,9 +262,10 @@ export default function CallTracking({ onNavigate }) {
                               <option key={s.value} value={s.value}>{s.label}</option>
                             ))}
                             <option value="brouillon">En attente (saisie)</option>
-                            <option value="cloture">Clôturé</option>
+                            {canPharmacistActions && <option value="cloture">Clôturé</option>}
                             <option value="annule">Annulé</option>
                           </select>
+                          {canPharmacistActions && (
                           <textarea
                             rows={2}
                             placeholder="Note pharmacien…"
@@ -270,6 +273,7 @@ export default function CallTracking({ onNavigate }) {
                             onChange={(e) => setEditForm({ ...editForm, notes_appel: e.target.value })}
                             className="w-full p-2 text-sm border rounded-md"
                           />
+                          )}
                         </div>
                         <button type="button" onClick={() => handleSave(log.id)} className="p-1.5 bg-emerald-100 text-emerald-700 rounded" title="Enregistrer">
                           <Save size={16} />

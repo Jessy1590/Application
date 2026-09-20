@@ -295,11 +295,6 @@
   }
 
   async function mount(container, ctx) {
-    if (!ctx?.isAdmin && !ctx?.canAccessParams) {
-      container.innerHTML = '<p class="loc-msg loc-msg-err">Réservé aux administrateurs.</p>';
-      return;
-    }
-
     container.innerHTML = `
       <div class="loc-params">
         <nav class="loc-params-tabs" role="tablist">
@@ -309,7 +304,6 @@
           <button type="button" class="loc-admin-tab" data-tab="prestataires">Prestataires</button>
           <button type="button" class="loc-admin-tab" data-tab="regles">Règles</button>
           <button type="button" class="loc-admin-tab" data-tab="templates">Templates</button>
-          <button type="button" class="loc-admin-tab" data-tab="acces">Accès</button>
         </nav>
         <div class="loc-params-body" id="locParamsBody"></div>
         <p class="loc-msg" id="locParamsMsg" hidden></p>
@@ -362,88 +356,10 @@
         else if (tab === 'prestataires') await renderPrestataires();
         else if (tab === 'regles') await renderRegles();
         else if (tab === 'templates') await renderTemplates();
-        else if (tab === 'acces') await renderAcces();
         else await renderCreationDossier();
       } catch (e) {
         body.innerHTML = `<p class="loc-msg-err">${esc(e.message)}</p>`;
       }
-    }
-
-    /** Matrice éditable — persistée dans location_parametres.acces_roles. */
-    async function renderAcces() {
-      LocationData.invalidateCache();
-      LocationAccess.invalidate();
-      const matrix = await LocationAccess.loadMatrix(true);
-      const roles = LocationAccess.ROLES;
-      const canEditAcces = !!ctx.isAdmin;
-
-      const cell = (featureKey, role, featureEditable) => {
-        const locked = LocationAccess.isLocked(featureKey, role);
-        const on = !!matrix[featureKey]?.[role];
-        const disabled = !canEditAcces || !featureEditable || locked;
-        return `<td class="loc-acces-cell">
-          <label class="loc-check-inline">
-            <input type="checkbox" data-acces-feature="${esc(featureKey)}" data-acces-role="${esc(role)}"${
-              on ? ' checked' : ''
-            }${disabled ? ' disabled' : ''}>
-          </label>
-        </td>`;
-      };
-
-      body.innerHTML = `
-        <h3>Accès par rôle</h3>
-        <div class="loc-admin-table-wrap">
-          <table class="loc-admin-table">
-            <thead>
-              <tr>
-                <th>Fonctionnalité</th>
-                <th>Personnel</th>
-                <th>Gestionnaire</th>
-                <th>Administrateur</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${LocationAccess.FEATURES.map((f) => {
-                const featureEditable = LocationAccess.isEditableFeature(f.key);
-                return `<tr>
-                  <td>${esc(f.label)}</td>
-                  ${roles.map((r) => cell(f.key, r, featureEditable)).join('')}
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      `;
-
-      if (!canEditAcces) return;
-
-      const persist = async () => {
-        const next = LocationAccess.normalize(matrix);
-        body.querySelectorAll('[data-acces-feature]').forEach((inp) => {
-          const feature = inp.dataset.accesFeature;
-          const role = inp.dataset.accesRole;
-          if (!next[feature] || !LocationAccess.ROLES.includes(role)) return;
-          if (!LocationAccess.isEditableFeature(feature)) return;
-          if (LocationAccess.isLocked(feature, role)) {
-            next[feature][role] = true;
-            return;
-          }
-          next[feature][role] = inp.checked;
-        });
-        next.parametres_location.administrateur = true;
-        try {
-          await LocationData.setParam(LocationAccess.PARAM_KEY, next, ctx.userId);
-          LocationAccess.invalidate();
-          Object.assign(matrix, next);
-          showMsg('Accès enregistrés.');
-        } catch (e) {
-          showMsg(e.message, true);
-        }
-      };
-
-      body.querySelectorAll('[data-acces-feature]:not(:disabled)').forEach((el) => {
-        el.addEventListener('change', persist);
-      });
     }
 
     async function renderCreationDossier() {

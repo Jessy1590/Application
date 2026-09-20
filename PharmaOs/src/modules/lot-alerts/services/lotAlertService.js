@@ -1,5 +1,6 @@
 import { supabase } from '../../../shared/supabaseClient.js';
 import { STAFF_ROLES } from '../../../core/roles.js';
+import { resolveAssigneeIds } from '../../tasks/services/taskService.js';
 
 /** Profils équipe (évite dépendance au module hr). */
 export async function fetchTeamProfiles() {
@@ -84,14 +85,16 @@ export async function fetchAcksForAlert(alertId) {
  * Déclare une alerte lot enrichie + tâche équipe + litige auto si renvoi.
  */
 export async function createLotAlert(payload, userId) {
-  const { data: profiles, error: profError } = await supabase
-    .schema('portail')
-    .from('profiles')
-    .select('id')
-    .in('role', STAFF_ROLES);
-  if (profError) throw profError;
+  let assignees = await resolveAssigneeIds('retrait_lot');
+  if (!assignees.length) {
+    const { data: profiles } = await supabase
+      .schema('portail')
+      .from('profiles')
+      .select('id')
+      .in('role', STAFF_ROLES);
+    assignees = profiles?.map((p) => p.id) || [];
+  }
 
-  const assignees = profiles?.map((p) => p.id) || [];
   const details = {
     type: 'retrait_lot',
     alert_number: payload.alert_number,

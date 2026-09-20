@@ -2,13 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BedDouble } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { openModuleWindow, openDashboardWindow } from '../../../shared/windowService.js';
-import {
-  loadMatrix,
-  cloneDefaults,
-  featureForModule,
-  can as locationCan,
-  resolveRoleFromPortail,
-} from '../services/locationAccess.js';
+import { resolveRoleFromPortail } from '../services/locationAccess.js';
 import { ensureLocationGlobals } from '../services/locationGlobals.js';
 import { MODULE_TITLES, mountLocationModule } from '../phie/bootstrap.js';
 
@@ -21,8 +15,18 @@ function normalizeModule(view) {
   return 'suivi';
 }
 
+function prefillKey(prefill) {
+  if (!prefill || typeof prefill !== 'object') return '';
+  try {
+    return JSON.stringify(prefill);
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Pont React → logique Location (DOM mount) dans un chrome PharmaOS.
+ * Remount uniquement si le module / dossier / surface change — pas à chaque render parent.
  */
 export default function LocationPhieMount({
   module: moduleProp,
@@ -33,11 +37,39 @@ export default function LocationPhieMount({
   onNavigate = null,
   showChrome = true,
 }) {
-  const { user, role, canAccess, accessOverrides, isLoading } = useAuth();
+  const { user, role, canAccess, hasCasquette, isLoading } = useAuth();
   const rootRef = useRef(null);
   const [err, setErr] = useState('');
   const [ready, setReady] = useState(false);
   const name = normalizeModule(moduleProp);
+
+  const onNavigateRef = useRef(onNavigate);
+  const canAccessRef = useRef(canAccess);
+  const hasCasquetteRef = useRef(hasCasquette);
+  const roleRef = useRef(role);
+  const userIdRef = useRef(user?.id || null);
+  const surfaceRef = useRef(surface);
+  const prefillRef = useRef(creationPrefill);
+  const dossierRef = useRef(initialDossierId);
+  const clotureRef = useRef(initialCloture);
+
+  onNavigateRef.current = onNavigate;
+  canAccessRef.current = canAccess;
+  hasCasquetteRef.current = hasCasquette;
+  roleRef.current = role;
+  userIdRef.current = user?.id || null;
+  surfaceRef.current = surface;
+  prefillRef.current = creationPrefill;
+  dossierRef.current = initialDossierId;
+  clotureRef.current = initialCloture;
+
+  const mountKey = [
+    name,
+    surface,
+    initialDossierId || '',
+    initialCloture ? '1' : '0',
+    prefillKey(creationPrefill),
+  ].join('|');
 
   useEffect(() => {
     ensureLocationGlobals();
@@ -53,8 +85,8 @@ export default function LocationPhieMount({
       const root = rootRef.current;
       if (!root) return;
 
-      const surfaceKey = surface === 'module' ? 'taskbar' : 'dashboard';
-      const shellOk = canAccess(surfaceKey, 'location');
+      const surfaceKey = surfaceRef.current === 'module' ? 'taskbar' : 'dashboard';
+      const shellOk = canAccessRef.current(surfaceKey, 'location');
       if (!shellOk) {
         root.innerHTML =
           '<p class="loc-msg loc-msg-err">Accès refusé — Location non autorisé pour votre rôle (Accès &amp; rôles).</p>';
@@ -62,32 +94,19 @@ export default function LocationPhieMount({
         return;
       }
 
-      let matrix = null;
-      try {
-        matrix = await loadMatrix(true);
-      } catch {
-        matrix = cloneDefaults();
-      }
       if (cancelled) return;
 
-      const locRole = resolveRoleFromPortail(role);
-      const moduleFeature = name === 'parametres'
-        ? 'parametres_location'
-        : featureForModule(name);
-
-      if (moduleFeature && !locationCan(locRole, moduleFeature, matrix)) {
-        root.innerHTML =
-          '<p class="loc-msg loc-msg-err">Accès refusé pour votre rôle sur ce sous-module Location.</p>';
-        setReady(true);
-        return;
-      }
+      const locRole = resolveRoleFromPortail(roleRef.current, {
+        hasLocationCasquette: !!hasCasquetteRef.current?.('location'),
+      });
 
       const navigate = (pageId, data) => {
-        if (typeof onNavigate === 'function') {
-          onNavigate(pageId, data || null);
+        const nav = onNavigateRef.current;
+        if (typeof nav === 'function') {
+          nav(pageId, data || null);
           return;
         }
-        if (surface === 'module') {
+        if (surfaceRef.current === 'module') {
           openModuleWindow(pageId, data || null);
           return;
         }
@@ -95,17 +114,17 @@ export default function LocationPhieMount({
       };
 
       const ctx = {
-        userId: user?.id || null,
+        userId: userIdRef.current,
         isAdmin: locRole === 'administrateur',
         isGestionnaire: locRole === 'gestionnaire',
         role: locRole,
-        matrix,
-        can(feature) {
-          return locationCan(locRole, feature, matrix);
+        matrix: null,
+        can() {
+          return true;
         },
-        initialDossierId: initialDossierId || null,
-        initialCloture: !!initialCloture,
-        creationPrefill: creationPrefill || null,
+        initialDossierId: dossierRef.current || null,
+        initialCloture: !!clotureRef.current,
+        creationPrefill: prefillRef.current || null,
         openSuivi(dossierId, opts) {
           navigate('location_suivi', {
             id: dossierId || null,
@@ -141,23 +160,12 @@ export default function LocationPhieMount({
       cancelled = true;
       if (rootRef.current) rootRef.current.innerHTML = '';
     };
-  }, [
-    isLoading,
-    canAccess,
-    accessOverrides,
-    role,
-    user?.id,
-    name,
-    surface,
-    initialDossierId,
-    initialCloture,
-    creationPrefill,
-    onNavigate,
-  ]);
+    // Remount seulement si le module / contexte métier change — pas canAccess/onNavigate.
+  }, [isLoading, mountKey, name]);
 
   if (isLoading) {
     return (
-      <div className="loc-shell max-w-5xl">
+      <div className={`loc-shell max-w-5xl${surface === 'module' ? ' loc-surface-module' : ''}`}>
         <p className="text-sm text-slate-500">Chargement…</p>
       </div>
     );
@@ -171,10 +179,13 @@ export default function LocationPhieMount({
         ? 'loc-module-page-main loc-transcription-main'
         : 'loc-module-page-main';
 
+  const surfaceClass = surface === 'module' ? ' loc-surface-module' : '';
+
   return (
     <div
-      className={`loc-shell${name === 'transcription' ? ' loc-transcription-page' : ''}${name === 'parametres' ? ' loc-params-page' : ' loc-module-page'}`}
+      className={`loc-shell${name === 'transcription' ? ' loc-transcription-page' : ''}${name === 'parametres' ? ' loc-params-page' : ' loc-module-page'}${surfaceClass}`}
       data-module={name}
+      data-surface={surface}
     >
       {showChrome && (
         <header className="mb-5 flex flex-wrap items-start justify-between gap-3">

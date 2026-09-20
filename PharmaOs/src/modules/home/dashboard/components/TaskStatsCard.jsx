@@ -6,13 +6,13 @@ export default function TaskStatsCard({ onNavigate }) {
   const [stats, setStats] = useState({ inProgressByUser: {}, avgTime: 0 });
 
   useEffect(() => {
-    fetchTasks().then(tasks => {
+    fetchTasks().then((tasks) => {
       let inProgress = {};
       let totalSeconds = 0;
       let completedCount = 0;
 
-      tasks.forEach(t => {
-        t.task_assignments.forEach(a => {
+      tasks.forEach((t) => {
+        t.task_assignments.forEach((a) => {
           if (a.statut === 'en_cours') {
             const name = a.profiles?.display_name || 'Inconnu';
             inProgress[name] = (inProgress[name] || 0) + 1;
@@ -25,8 +25,10 @@ export default function TaskStatsCard({ onNavigate }) {
 
       setStats({
         inProgressByUser: inProgress,
-        avgTime: completedCount > 0 ? Math.round(totalSeconds / completedCount / 3600) : 0 // en heures
+        avgTime: completedCount > 0 ? Math.round(totalSeconds / completedCount / 3600) : 0,
       });
+    }).catch(() => {
+      setStats({ inProgressByUser: {}, avgTime: 0 });
     });
   }, []);
 

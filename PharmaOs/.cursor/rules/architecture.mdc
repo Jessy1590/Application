@@ -29,10 +29,10 @@ alwaysApply: true
 - IPC allowlist : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:setIgnoreMouseEvents`, `window:openBug`, `bug:submit`, `context:startWatch`, `context:stopWatch`, event `context:text`
 - Bus contexte texte : `electron/contextText/` — `FocusedTextSource` (UIA / Bloc-notes), `ClipboardSource`, stub `WinPharmaSource`
 - Surfaces : Taskbar (`index.html`), Module (`module.html`), Dashboard (`dashboard.html`), Bug (`bug.html`)
-- Bouton Dashboard Taskbar **si** accès dashboard (pharmacien, administrateur, gestionnaire par défaut ; matrice `role_access`)
+- Bouton Dashboard Taskbar **si** `canAccess('dashboard','dashboard')` (matrice `role_access` + casquettes)
 
 ## Données
-- Schéma métier `PharmaOs` (`conseils`, `conseil_events`, `app_logs`, `bugs`, `role_access`, …), profils `portail.profiles` (`pharmacien` | `administrateur` | `gestionnaire` | `préparateur` | `désactivé` ; legacy `admin`/`équipe`/`member`)
+- Schéma métier `PharmaOs` (`conseils`, `conseil_events`, `app_logs`, `bugs`, `role_access`, `casquettes`, `role_dashboard_widgets`, `task_role_rules`, …), profils `portail.profiles` (`pharmacien` | `administrateur` | `préparateur` | `désactivé` ; legacy `admin`/`équipe`/`member`/`gestionnaire`→préparateur)
 - Schéma `bdm` — référentiel BDPM (spécialités / CIP / compositions / génériques) ; sync via Edge Function `sync-bdpm`
 - Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role`.
 

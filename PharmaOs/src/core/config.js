@@ -10,7 +10,6 @@ export const WINDOW_MODES = {
 export const ROLES = {
   PHARMACIEN: 'pharmacien',
   ADMINISTRATEUR: 'administrateur',
-  GESTIONNAIRE: 'gestionnaire',
   PREPARATEUR: 'préparateur',
   DESACTIVE: 'désactivé',
   ADMIN: 'admin',

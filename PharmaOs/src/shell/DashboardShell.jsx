@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { LogOut } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
-import { NAV_SECTIONS, findNavItem, resolveNavPageId } from './navConfig.js';
+import { NAV_SECTIONS, findNavItem, resolveNavPageId, settingsTabFromNav } from './navConfig.js';
 import { firstAllowedDashboardPage } from '../core/access.js';
 import { labelRole } from '../core/roles.js';
 import { logEvent, setLogSurface } from '../shared/logService.js';
@@ -15,6 +15,7 @@ import LocationManager from '../modules/location/dashboard/LocationManager.jsx';
 import LocationTranscription from '../modules/location/dashboard/LocationTranscription.jsx';
 import Location from '../modules/location/comptoir/Location.jsx';
 import MagistralManager from '../modules/magistral/dashboard/MagistralManager.jsx';
+import Magistral from '../modules/magistral/comptoir/Magistral.jsx';
 import PslManager from '../modules/psl/dashboard/PslManager.jsx';
 import CashManager from '../modules/cash/dashboard/CashManager.jsx';
 import DisputesManager from '../modules/disputes/dashboard/DisputesManager.jsx';
@@ -30,6 +31,7 @@ import ConseilManager from '../modules/conseil/dashboard/ConseilManager.jsx';
 import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
 import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
 import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
+import SettingsManager from '../modules/admin/dashboard/SettingsManager.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -73,8 +75,6 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <LocationManager view="parc" onNavigate={onNavigate} pageData={pageData} />;
     case 'location_facture':
       return <LocationManager view="facture" onNavigate={onNavigate} pageData={pageData} />;
-    case 'location_parametres':
-      return <LocationManager view="parametres" onNavigate={onNavigate} pageData={pageData} />;
     case 'location_transcription':
       return <LocationTranscription onNavigate={onNavigate} />;
     case 'location_creation':
@@ -85,7 +85,14 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
         <Location view={pageId} data={pageData} onNavigate={onNavigate} />
       );
     case 'magistral':
-      return <MagistralManager />;
+    case 'magistral_suivi':
+      return <MagistralManager onNavigate={onNavigate} />;
+    case 'magistral_creation':
+    case 'magistral_devis':
+    case 'magistral_rappel':
+    case 'magistral_dispenser':
+    case 'magistral_renouvellement':
+      return <Magistral view={pageId} onNavigate={onNavigate} />;
     case 'directory':
       return <DirectoryManager onNavigate={onNavigate} />;
     case 'agenda':
@@ -104,13 +111,23 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <BugsManager />;
     case 'access':
       return <AccessManager />;
+    case 'parametres':
+    case 'location_parametres':
+    case 'magistral_parametres':
+      return (
+        <SettingsManager
+          initialTab={settingsTabFromNav(pageId, pageData)}
+          onNavigate={onNavigate}
+          pageData={pageData}
+        />
+      );
     default:
       return <PlaceholderPage label={activeLabel} />;
   }
 }
 
 export default function DashboardShell() {
-  const { user, profile, canDashboard, canAccess, accessOverrides, isLoading, signOut, role } = useAuth();
+  const { user, profile, canDashboard, canAccess, accessOverrides, casquetteGrants, isLoading, signOut, role } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageData, setPageData] = useState(null);
 
@@ -132,16 +149,20 @@ export default function DashboardShell() {
     if (!window.electronAPI?.onDashboardNavigate) return undefined;
     return window.electronAPI.onDashboardNavigate((payload) => {
       if (!payload?.page) return;
-      const page = resolveNavPageId(payload.page);
+      const rawPage = payload.page;
+      const settingsTab = settingsTabFromNav(rawPage, payload);
+      const page = resolveNavPageId(rawPage);
       if (!canAccess('dashboard', page)) return;
+      const nextData = { ...payload };
+      if (settingsTab && !nextData.tab && !nextData.settingsTab) nextData.tab = settingsTab;
       setCurrentPage(page);
-      setPageData(payload);
+      setPageData(nextData);
       logEvent({
         category: 'ui',
         action: 'navigate',
         entity: page,
         message: `Dashboard → ${page}`,
-        details: payload,
+        details: nextData,
       });
     });
   }, [canAccess]);
@@ -149,11 +170,27 @@ export default function DashboardShell() {
   useEffect(() => {
     if (isLoading) return;
     if (!canAccess('dashboard', currentPage)) {
-      const fallback = firstAllowedDashboardPage(role, accessOverrides) || 'dashboard';
+      const fallback = firstAllowedDashboardPage(role, accessOverrides, casquetteGrants) || 'dashboard';
       setCurrentPage(fallback);
       setPageData(null);
     }
-  }, [isLoading, currentPage, canAccess, role, accessOverrides]);
+  }, [isLoading, currentPage, canAccess, role, accessOverrides, casquetteGrants]);
+
+  const goTo = useCallback((pageId, data = null) => {
+    const settingsTab = settingsTabFromNav(pageId, data);
+    const page = resolveNavPageId(pageId);
+    const nextData = data && typeof data === 'object' ? { ...data } : {};
+    if (settingsTab && !nextData.tab && !nextData.settingsTab) nextData.tab = settingsTab;
+    setCurrentPage(page);
+    setPageData(Object.keys(nextData).length ? nextData : null);
+    logEvent({
+      category: 'ui',
+      action: 'navigate',
+      entity: page,
+      message: `Dashboard → ${page}`,
+      details: Object.keys(nextData).length ? nextData : undefined,
+    });
+  }, []);
 
   if (isLoading) {
     return (
@@ -182,18 +219,6 @@ export default function DashboardShell() {
   }
 
   const activeLabel = findNavItem(currentPage)?.label || currentPage;
-
-  const goTo = (pageId, data = null) => {
-    setCurrentPage(pageId);
-    setPageData(data && typeof data === 'object' ? data : null);
-    logEvent({
-      category: 'ui',
-      action: 'navigate',
-      entity: pageId,
-      message: `Dashboard → ${pageId}`,
-      details: data || undefined,
-    });
-  };
 
   return (
     <div className="flex min-h-screen bg-slate-100">

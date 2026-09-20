@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../shared/supabaseClient.js';
 import { fetchRoleAccess } from '../modules/admin/services/accessService.js';
-import { isFeatureAllowed } from './access.js';
+import { fetchMyCasquetteGrants } from '../modules/admin/services/casquetteService.js';
+import { canAccessFeature } from './access.js';
 import {
-  canonicalRole, isAppAdministrateur as roleIsAppAdmin, isDashboardRole, isDisabledRole,
+  canonicalRole, isAppAdministrateur as roleIsAppAdmin, isDisabledRole,
   DISABLED_ACCOUNT_MESSAGE,
 } from './roles.js';
 import { setLogActor, logEvent, bindGlobalErrorLogging } from '../shared/logService.js';
@@ -12,21 +13,31 @@ const AuthContext = createContext(null);
 
 /**
  * Auth unifiée : session Supabase + display_name + role depuis portail.profiles.
- * Accès dashboard / taskbar via matrice (rôle + role_access).
+ * Accès dashboard / taskbar via matrice (rôle + role_access) OU casquettes.
  */
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [accessOverrides, setAccessOverrides] = useState([]);
+  const [casquetteGrants, setCasquetteGrants] = useState([]);
+  const [casquetteSlugs, setCasquetteSlugs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [authBlockMessage, setAuthBlockMessage] = useState(null);
   const loginLogged = useRef(false);
 
-  const reloadAccess = useCallback(async () => {
+  const reloadAccess = useCallback(async (userId) => {
     try {
-      setAccessOverrides(await fetchRoleAccess());
+      const [overrides, grants] = await Promise.all([
+        fetchRoleAccess(),
+        userId ? fetchMyCasquetteGrants(userId) : Promise.resolve({ grants: [], slugs: [] }),
+      ]);
+      setAccessOverrides(overrides);
+      setCasquetteGrants(grants.grants || []);
+      setCasquetteSlugs(grants.slugs || []);
     } catch {
       setAccessOverrides([]);
+      setCasquetteGrants([]);
+      setCasquetteSlugs([]);
     }
   }, []);
 
@@ -56,7 +67,7 @@ export function AuthProvider({ children }) {
         return;
       }
       setAuthBlockMessage(null);
-      await reloadAccess();
+      await reloadAccess(userId);
     };
 
     supabase.auth.getSession().then(({ data: { session: initial } }) => {
@@ -94,6 +105,8 @@ export function AuthProvider({ children }) {
         loginLogged.current = false;
         setProfile(null);
         setAccessOverrides([]);
+        setCasquetteGrants([]);
+        setCasquetteSlugs([]);
         setLogActor({ userId: null, userName: null, userRole: null });
       }
     });
@@ -144,9 +157,19 @@ export function AuthProvider({ children }) {
   const canAccess = useCallback(
     (surface, featureId) => {
       if (isDisabledRole(role)) return false;
-      return isFeatureAllowed(role, surface, featureId, accessOverrides);
+      return canAccessFeature(role, surface, featureId, accessOverrides, casquetteGrants);
     },
-    [role, accessOverrides],
+    [role, accessOverrides, casquetteGrants],
+  );
+
+  const hasCasquette = useCallback(
+    (slug) => casquetteSlugs.includes(slug),
+    [casquetteSlugs],
+  );
+
+  const reloadAccessBound = useCallback(
+    () => reloadAccess(session?.user?.id),
+    [reloadAccess, session?.user?.id],
   );
 
   const value = {
@@ -157,12 +180,15 @@ export function AuthProvider({ children }) {
     session,
     isAuthenticated: !!session && !disabled,
     isDisabled: disabled,
-    isAdmin: isDashboardRole(role),
+    isAdmin: !disabled && canAccess('dashboard', 'dashboard'),
     isAppAdministrateur: roleIsAppAdmin(role),
     canDashboard: !disabled && canAccess('dashboard', 'dashboard'),
     canAccess,
+    hasCasquette,
+    casquetteGrants,
+    casquetteSlugs,
     accessOverrides,
-    reloadAccess,
+    reloadAccess: reloadAccessBound,
     isLoading,
     authBlockMessage,
     signIn,

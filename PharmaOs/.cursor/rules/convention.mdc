@@ -16,8 +16,8 @@ globs: "src/**/*.{js,jsx}"
 - IPC Electron uniquement via `src/shared/windowService.js` (jamais `window.electronAPI` ailleurs)
 
 ## Auth
-- `AuthContext` : `session`, `profile.display_name`, `role` canonique (`pharmacien` | `administrateur` | `gestionnaire` | `préparateur` | `désactivé`) ; legacy `admin` / `équipe` / `member` mappés
-- Dashboard : pages filtrées par `role_access` ; bouton Dashboard si accès `dashboard`
+- `AuthContext` : `session`, `profile.display_name`, `role` canonique (`pharmacien` | `administrateur` | `préparateur` | `désactivé`) ; legacy `admin` / `équipe` / `member` / `gestionnaire` mappés ; casquettes via `canAccess`
+- Dashboard : pages filtrées par `role_access` + casquettes ; bouton Dashboard si accès `dashboard` ; widgets accueil via `role_dashboard_widgets`
 - Logs `PharmaOs.app_logs` ; bugs `PharmaOs.bugs` (plus de fichiers `bug/`)
 
 ## Contrats données (ne pas inventer de colonnes)

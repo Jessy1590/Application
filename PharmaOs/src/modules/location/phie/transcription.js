@@ -2319,6 +2319,11 @@
         renderForm();
         if (result.errors && result.errors.length) {
           showMsg(`Certains fichiers ont échoué : ${result.errors.join(' — ')}`, true);
+        } else if (result.azureError || result.usedFallback) {
+          showMsg(
+            `OCR Azure indisponible (${result.azureError || 'repli'}). Repli Tesseract utilisé — vérifiez la Edge Function ocr-document / secrets AZURE_DI_*.`,
+            true,
+          );
         } else if (result.aiError) {
           showMsg(`IA mapping : ${result.aiError} (heuristiques utilisées). Vérifiez GEMINI_API_KEY.`, true);
         }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ArrowLeft, Package, CheckCircle2, Scale, HeartHandshake, Sparkles, Tag,
-  MapPin, Settings2, Trophy,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import {
@@ -10,9 +10,6 @@ import {
   applyValorisation,
   applyLaisserPerimer,
   fetchEmplacements,
-  createEmplacement,
-  updateEmplacement,
-  deleteEmplacement,
   splitTracking,
   PERIME_STATUS_LABELS,
 } from '../services/perimesService.js';
@@ -95,8 +92,6 @@ export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
   const [deciding, setDeciding] = useState(null);
   const [form, setForm] = useState(emptyDecision);
   const [saving, setSaving] = useState(false);
-  const [showEmplacements, setShowEmplacements] = useState(false);
-  const [newEmpLabel, setNewEmpLabel] = useState('');
   const focusHandled = useRef(null);
 
   const load = useCallback(async () => {
@@ -243,17 +238,6 @@ export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
     }
   };
 
-  const addEmplacement = async () => {
-    if (!newEmpLabel.trim()) return;
-    try {
-      await createEmplacement(newEmpLabel);
-      setNewEmpLabel('');
-      setEmplacements(await fetchEmplacements());
-    } catch (e) {
-      alert(e.message);
-    }
-  };
-
   if (loading) return <div className="p-8 text-slate-500">Chargement…</div>;
 
   return (
@@ -273,15 +257,9 @@ export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Décidez dès la déclaration. Les tâches équipe (MEA / promo / challenge) partent à J−3 mois.
+            Emplacements : Administration → Paramètres.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowEmplacements((v) => !v)}
-          className="text-sm px-3 py-2 border rounded-lg flex items-center gap-2 hover:bg-slate-50"
-        >
-          <Settings2 size={16} /> Emplacements
-        </button>
       </div>
 
       {msg && (
@@ -291,53 +269,6 @@ export default function PerimesManager({ onNavigate, focusPerimeId = null }) {
       )}
       {err && !deciding && (
         <p className="mb-4 text-sm text-red-700 bg-red-50 p-3 rounded-lg">{err}</p>
-      )}
-
-      {showEmplacements && (
-        <div className="mb-6 bg-white border rounded-xl p-4">
-          <h2 className="font-semibold mb-3 flex items-center gap-2">
-            <MapPin size={16} className="text-orange-600" /> Paramètres — emplacements
-          </h2>
-          <div className="flex gap-2 mb-3">
-            <input
-              value={newEmpLabel}
-              onChange={(e) => setNewEmpLabel(e.target.value)}
-              placeholder="Nouvel emplacement"
-              className="flex-1 p-2 border rounded-lg text-sm"
-            />
-            <button type="button" onClick={addEmplacement} className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm">
-              Ajouter
-            </button>
-          </div>
-          <ul className="space-y-2">
-            {emplacements.map((e) => (
-              <li key={e.id} className="flex items-center gap-2 text-sm">
-                <span className={`flex-1 ${e.actif ? '' : 'line-through text-slate-400'}`}>{e.label}</span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await updateEmplacement(e.id, { actif: !e.actif });
-                    setEmplacements(await fetchEmplacements());
-                  }}
-                  className="text-xs px-2 py-1 border rounded"
-                >
-                  {e.actif ? 'Désactiver' : 'Activer'}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm('Supprimer cet emplacement ?')) return;
-                    await deleteEmplacement(e.id);
-                    setEmplacements(await fetchEmplacements());
-                  }}
-                  className="text-xs px-2 py-1 text-red-600 border border-red-200 rounded"
-                >
-                  Suppr.
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">

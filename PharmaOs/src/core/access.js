@@ -44,6 +44,7 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'logs', label: 'Logs' },
   { id: 'bugs', label: 'Bugs' },
   { id: 'access', label: 'Accès & rôles' },
+  { id: 'parametres', label: 'Paramètres' },
 ]);
 
 export const MODULE_VIEW_FEATURE = Object.freeze({
@@ -70,16 +71,29 @@ export const MODULE_VIEW_FEATURE = Object.freeze({
   location: 'location',
   disputes: 'disputes',
   lot_alerts: 'lot_alerts',
+  magistral_creation: 'magistral',
+  magistral_devis: 'magistral',
+  magistral_rappel: 'magistral',
+  magistral_dispenser: 'magistral',
+  magistral_renouvellement: 'magistral',
+  magistral_suivi: 'magistral',
+  magistral_parametres: 'magistral',
   magistral: 'magistral',
   psl: 'psl',
   cash: 'cash',
   hr: 'hr',
 });
 
-/** Onglets dashboard Location → feature d’accès unique `location`. */
+/** Modules dont les paramètres sont regroupés sous Administration → Paramètres. */
+export const SETTINGS_MODULE_FEATURES = Object.freeze([
+  'location', 'magistral', 'perimes', 'cash',
+]);
+
+/** Onglets dashboard Location / Préparations → feature d’accès unique. */
 export function resolveAccessFeatureId(surface, featureId) {
-  if (surface === 'dashboard' && (featureId === 'location' || String(featureId || '').startsWith('location_'))) {
-    return 'location';
+  if (surface === 'dashboard') {
+    if (featureId === 'location' || String(featureId || '').startsWith('location_')) return 'location';
+    if (featureId === 'magistral' || String(featureId || '').startsWith('magistral_')) return 'magistral';
   }
   return featureId;
 }
@@ -104,21 +118,22 @@ function buildDefaultAccess() {
     }
   }
 
-  /* Location : ouvert par défaut à administrateur (legacy admin) ;
-   * les autres rôles suivent la matrice Accès & rôles (role_access). */
+  /* Location / magistrales : rôle seul ne suffit pas — casquettes ou override matrice. */
   map.pharmacien.taskbar.location = false;
   map.préparateur.taskbar.location = false;
-  map.gestionnaire.taskbar.location = false;
   map.pharmacien.dashboard.location = false;
   map.préparateur.dashboard.location = false;
-  map.gestionnaire.dashboard.location = false;
   map.administrateur.taskbar.location = true;
   map.administrateur.dashboard.location = true;
-  map.préparateur.taskbar.cash = false;
 
-  for (const id of ['magistral', 'psl', 'conseil', 'bdm', 'logs', 'bugs', 'access']) {
-    map.gestionnaire.dashboard[id] = false;
-  }
+  map.pharmacien.taskbar.magistral = false;
+  map.préparateur.taskbar.magistral = false;
+  map.pharmacien.dashboard.magistral = false;
+  map.préparateur.dashboard.magistral = false;
+  map.administrateur.taskbar.magistral = true;
+  map.administrateur.dashboard.magistral = true;
+
+  map.préparateur.taskbar.cash = false;
 
   map.pharmacien.dashboard.access = false;
   map.préparateur.dashboard.access = false;
@@ -126,8 +141,10 @@ function buildDefaultAccess() {
   map.administrateur.dashboard.logs = true;
   map.administrateur.dashboard.bugs = true;
   map.administrateur.dashboard.access = true;
+  map.administrateur.dashboard.parametres = true;
   map.pharmacien.dashboard.logs = true;
   map.pharmacien.dashboard.bugs = true;
+  map.pharmacien.dashboard.parametres = true;
 
   return map;
 }
@@ -145,6 +162,23 @@ function overrideMap(overrides) {
   return map;
 }
 
+/**
+ * Grants casquettes : tableau de { surface, feature_id } (ou Set de clés surface|feature).
+ */
+export function hasCasquetteGrant(grants, surface, featureId) {
+  if (!grants?.length) return false;
+  const resolved = resolveAccessFeatureId(surface, featureId);
+  const key = `${surface}|${resolved}`;
+  for (const g of grants) {
+    if (typeof g === 'string') {
+      if (g === key) return true;
+      continue;
+    }
+    if (g?.surface === surface && g?.feature_id === resolved) return true;
+  }
+  return false;
+}
+
 export function isFeatureAllowed(role, surface, featureId, overrides = []) {
   if (isDisabledRole(role)) return false;
   const canon = canonicalRole(role);
@@ -155,10 +189,31 @@ export function isFeatureAllowed(role, surface, featureId, overrides = []) {
   return DEFAULT_ACCESS[canon]?.[surface]?.[resolved] === true;
 }
 
-export function firstAllowedDashboardPage(role, overrides = []) {
-  if (isFeatureAllowed(role, 'dashboard', 'dashboard', overrides)) return 'dashboard';
+/**
+ * Accès final = matrice rôle OU grant casquette.
+ * Page Paramètres : aussi visible si au moins un module configurable est accessible.
+ */
+export function canAccessFeature(role, surface, featureId, overrides = [], casquetteGrants = []) {
+  if (isDisabledRole(role)) return false;
+  if (
+    isFeatureAllowed(role, surface, featureId, overrides)
+    || hasCasquetteGrant(casquetteGrants, surface, featureId)
+  ) {
+    return true;
+  }
+  if (surface === 'dashboard' && featureId === 'parametres') {
+    return SETTINGS_MODULE_FEATURES.some(
+      (m) => isFeatureAllowed(role, surface, m, overrides)
+        || hasCasquetteGrant(casquetteGrants, surface, m),
+    );
+  }
+  return false;
+}
+
+export function firstAllowedDashboardPage(role, overrides = [], casquetteGrants = []) {
+  if (canAccessFeature(role, 'dashboard', 'dashboard', overrides, casquetteGrants)) return 'dashboard';
   for (const f of DASHBOARD_FEATURES) {
-    if (isFeatureAllowed(role, 'dashboard', f.id, overrides)) return f.id;
+    if (canAccessFeature(role, 'dashboard', f.id, overrides, casquetteGrants)) return f.id;
   }
   return null;
 }
