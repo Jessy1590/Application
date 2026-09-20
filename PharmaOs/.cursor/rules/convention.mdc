@@ -16,13 +16,10 @@ globs: "src/**/*.{js,jsx}"
 - IPC Electron uniquement via `src/shared/windowService.js` (jamais `window.electronAPI` ailleurs)
 
 ## Auth
-- `AuthContext` : `session`, `profile` (`display_name`, `email`, `role`, `must_change_password`), `mustChangePassword`, `reloadProfile`
-- Rôles canoniques : `pharmacien` | `administrateur` | `préparateur` | `désactivé` ; legacy mappés ; casquettes via `canAccess`
-- Compte : `admin/services/accountService.js` + `AccountForms` / `AccountManager` / `InviteUserPanel`
-- Login : modes `login` | `forgot` | `recovery` | `invite` (OTP Auth)
-- Création users : Edge `invite-user` uniquement (jamais `auth.admin` côté client)
-- Dashboard : pages filtrées par `role_access` + casquettes ; feature `compte` toujours si accès dashboard
-- Logs `PharmaOs.app_logs` ; bugs `PharmaOs.bugs` (plus de fichiers `bug/` ni IPC `bug:submit`)
+- `AuthContext` : `session`, `profile.display_name`, `role` canonique (`pharmacien` | `administrateur` | `préparateur` | `désactivé`) ; legacy mappés ; casquettes via `canAccess`
+- **Compte utilisateur (MDP / e-mail / invite)** : géré sur le **Portail Application** (`index.html`), pas dans PharmaOS
+- Dashboard : pages filtrées par `role_access` + casquettes ; bouton Dashboard si accès `dashboard`
+- Logs `PharmaOs.app_logs` ; bugs `PharmaOs.bugs`
 - Feature `inbox` : À traiter + mes saisies (autocorrection)
 - Taskbar toggles : double log `app_logs` + `taskbar_logs` (volontaire — voir STATE.md)
 

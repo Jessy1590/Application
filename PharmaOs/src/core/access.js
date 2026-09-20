@@ -49,7 +49,6 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'bugs', label: 'Bugs' },
   { id: 'access', label: 'Accès & rôles' },
   { id: 'parametres', label: 'Paramètres' },
-  { id: 'compte', label: 'Mon compte' },
 ]);
 
 export const MODULE_VIEW_FEATURE = Object.freeze({
@@ -158,11 +157,6 @@ function buildDefaultAccess() {
   map.pharmacien.dashboard.bugs = true;
   map.pharmacien.dashboard.parametres = true;
 
-  /* Mon compte : toujours pour tout rôle avec accès dashboard (hors désactivé). */
-  for (const role of ACCESS_ROLES) {
-    map[role].dashboard.compte = true;
-  }
-
   return map;
 }
 
@@ -212,15 +206,6 @@ export function isFeatureAllowed(role, surface, featureId, overrides = []) {
  */
 export function canAccessFeature(role, surface, featureId, overrides = [], casquetteGrants = []) {
   if (isDisabledRole(role)) return false;
-  /* Compte personnel : ouvert dès qu’un accès dashboard existe. */
-  if (surface === 'dashboard' && featureId === 'compte') {
-    if (
-      isFeatureAllowed(role, 'dashboard', 'dashboard', overrides)
-      || hasCasquetteGrant(casquetteGrants, 'dashboard', 'dashboard')
-    ) {
-      return true;
-    }
-  }
   if (
     isFeatureAllowed(role, surface, featureId, overrides)
     || hasCasquetteGrant(casquetteGrants, surface, featureId)

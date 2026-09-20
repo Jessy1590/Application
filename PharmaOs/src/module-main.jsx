@@ -25,8 +25,6 @@ import LotAlerts from './modules/lot-alerts/comptoir/LotAlerts.jsx';
 import StupefiantReception from './modules/stupefiants/comptoir/StupefiantReception.jsx';
 import Hr from './modules/hr/comptoir/Hr.jsx';
 import Inbox from './modules/inbox/comptoir/Inbox.jsx';
-import AccountManager from './modules/admin/dashboard/AccountManager.jsx';
-import { ForcePasswordChangeGate } from './modules/admin/shared/AccountForms.jsx';
 
 /** Placeholder jusqu'à migration des modules restants. */
 function PlaceholderModule({ title }) {
@@ -70,7 +68,6 @@ const VIEW_TITLES = {
   stupefiants: 'Stupéfiants — réception',
   cash: 'Clôture de caisse',
   hr: 'RH',
-  compte: 'Mon compte',
 };
 
 function renderModuleView(view, moduleData) {
@@ -128,8 +125,6 @@ function renderModuleView(view, moduleData) {
       return <LotAlerts />;
     case 'hr':
       return <Hr />;
-    case 'compte':
-      return <AccountManager compact />;
     default:
       return <PlaceholderModule title={VIEW_TITLES[view] || `Module : ${view || 'inconnu'}`} />;
   }
@@ -147,7 +142,7 @@ function ModuleDenied({ title }) {
 }
 
 function ModuleApp() {
-  const { canAccess, isLoading, mustChangePassword, reloadProfile } = useAuth();
+  const { canAccess, isLoading } = useAuth();
   const [currentView, setCurrentView] = useState(
     () => window.location.hash.replace('#', '') || 'directory'
   );
@@ -189,13 +184,10 @@ function ModuleApp() {
   return (
     <div className="w-screen h-screen overflow-hidden bg-white flex flex-col">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {currentView === 'compte' || canAccess('taskbar', featureId)
+        {canAccess('taskbar', featureId)
           ? renderModuleView(currentView, moduleData)
           : <ModuleDenied title={title} />}
       </div>
-      {mustChangePassword && (
-        <ForcePasswordChangeGate onDone={() => reloadProfile?.()} />
-      )}
     </div>
   );
 }

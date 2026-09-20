@@ -34,9 +34,7 @@ import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
 import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
 import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
 import SettingsManager from '../modules/admin/dashboard/SettingsManager.jsx';
-import AccountManager from '../modules/admin/dashboard/AccountManager.jsx';
 import InboxManager from '../modules/inbox/dashboard/InboxManager.jsx';
-import { ForcePasswordChangeGate } from '../modules/admin/shared/AccountForms.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -127,8 +125,6 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <BugsManager />;
     case 'access':
       return <AccessManager />;
-    case 'compte':
-      return <AccountManager />;
     case 'parametres':
     case 'location_parametres':
     case 'magistral_parametres':
@@ -147,7 +143,7 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
 export default function DashboardShell() {
   const {
     user, profile, canDashboard, canAccess, accessOverrides, casquetteGrants,
-    isLoading, signOut, role, mustChangePassword, reloadProfile,
+    isLoading, signOut, role,
   } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageData, setPageData] = useState(null);
@@ -297,9 +293,6 @@ export default function DashboardShell() {
           {renderDashboardPage(currentPage, activeLabel, goTo, pageData)}
         </div>
       </main>
-      {mustChangePassword && (
-        <ForcePasswordChangeGate onDone={() => reloadProfile?.()} />
-      )}
     </div>
   );
 }

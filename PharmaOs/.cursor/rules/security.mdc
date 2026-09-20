@@ -18,7 +18,8 @@ alwaysApply: true
 - Clé **anon** uniquement côté client — **jamais** `service_role`
 - Schémas exposés : `PharmaOs` (métier) + `portail` (profils) + `bdm` (BDPM lecture)
 - RPC BDPM destructives (`truncate_official_tables`, `bulk_insert_*`, `rebuild_molecules_*`) : **service_role / Edge uniquement** — pas `anon` / `authenticated`
-- Rôles : lire `portail.profiles.role` / JWT claims — **pas** `user_metadata`
+- Création / invite / suppression utilisateurs : Edge `invite-user` / `delete-user` — UI sur le **Portail Application**
+- Rôles : lire `portail.profiles.role` / JWT claims — **pas** `user_metadata` pour l’autorisation
 - Rôles canoniques : `pharmacien` | `administrateur` | `préparateur` | `désactivé` (legacy `admin`/`équipe`/`member`/`gestionnaire` → préparateur)
 - Casquettes (`casquettes` / `casquette_features` / `profile_casquettes`) : grants additionnels lus par `canAccess`
 - **Ne pas confondre** avec le sous-rôle Location Phie `gestionnaire` (métier UI Location, distinct du portail)

@@ -21,7 +21,6 @@ import {
 } from '../services/casquetteService.js';
 import { TASK_MODULES, taskCategoriesForModule } from '../../tasks/services/taskService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
-import InviteUserPanel from './InviteUserPanel.jsx';
 
 const TASK_MODES = [
   { value: 'never', label: 'Jamais' },
@@ -309,10 +308,6 @@ export default function AccessManager() {
       </div>
 
       {pageTab === 'utilisateurs' && (
-      <>
-      {isAppAdministrateur && (
-        <InviteUserPanel onCreated={() => load()} />
-      )}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Utilisateurs</h2>
@@ -325,7 +320,6 @@ export default function AccessManager() {
                 <th className="p-2.5 text-left font-semibold">Email</th>
                 <th className="p-2.5 text-left font-semibold">Rôle</th>
                 <th className="p-2.5 text-left font-semibold">Casquettes</th>
-                <th className="p-2.5 text-left font-semibold">MDP</th>
               </tr>
             </thead>
             <tbody>
@@ -364,11 +358,6 @@ export default function AccessManager() {
                       {!activeCasquettes.length && <span className="text-xs text-slate-400">Aucune</span>}
                     </div>
                   </td>
-                  <td className="p-2.5 text-xs">
-                    {p.must_change_password
-                      ? <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Temporaire</span>
-                      : <span className="text-slate-400">OK</span>}
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -376,10 +365,8 @@ export default function AccessManager() {
         </div>
         <p className="px-4 py-2.5 text-xs text-slate-500 border-t border-slate-100">
           Désactivé = connexion refusée. Casquettes surtout utiles pour les préparateurs.
-          « Temporaire » = changement de mot de passe exigé à la prochaine connexion.
         </p>
       </div>
-      </>
       )}
 
       {pageTab === 'casquettes' && (

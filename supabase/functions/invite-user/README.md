@@ -1,8 +1,10 @@
 # Edge Function : invite-user
 
-Crée un compte utilisateur (admin-only) via `service_role` côté serveur.
+Crée / invite un compte (admin portail). `service_role` serveur uniquement.
 
-Doc Supabase :
+**Public principal :** Portail Application (`index.html` → Administration).
+
+Doc :
 - [createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser)
 - [inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail)
 
@@ -10,28 +12,30 @@ Doc Supabase :
 
 | `mode` | Comportement |
 |--------|----------------|
-| `temp_password` (défaut) | `createUser` + e-mail confirmé + mot de passe temporaire ; flag `must_change_password` |
-| `invite_email` | `inviteUserByEmail` — l’utilisateur reçoit le mail d’invitation (OTP / lien) |
+| `temp_password` (défaut) | `createUser` + MDP temporaire + `must_change_password` |
+| `invite_email` | `inviteUserByEmail` — OTP / lien d’invitation |
 
-Rôles acceptés : `pharmacien` \| `administrateur` \| `préparateur`  
-Acteur autorisé : `administrateur` (ou legacy `admin`).
+## Rôles
 
-## Déploiement
+- **Acteur** : `portail.profiles.role` ∈ `admin` \| `administrateur`
+- **Création** (stockés tels quels) : `admin`, `member`, `équipe`, + rôles PharmaOS si besoin (`pharmacien`, `administrateur`, `préparateur`…)
 
-```bash
-supabase functions deploy invite-user --project-ref kpjflntnotftpzffjbud
-```
-
-## Appel client
+## Appel Portail
 
 ```js
-await supabase.functions.invoke('invite-user', {
-  body: {
-    email: 'user@example.com',
-    password: 'MotDePasseTemp8',
-    display_name: 'Nom',
-    role: 'préparateur',
-    mode: 'temp_password', // ou 'invite_email'
+await fetch(`${SUPABASE_URL}/functions/v1/invite-user`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${access_token}`,
+    apikey: anon_key,
+    'Content-Type': 'application/json',
   },
+  body: JSON.stringify({
+    email: 'user@example.com',
+    password: 'MotDePasseTemp8', // si mode temp_password
+    display_name: 'Nom',
+    role: 'member',
+    mode: 'temp_password', // ou invite_email
+  }),
 })
 ```

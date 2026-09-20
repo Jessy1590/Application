@@ -35,21 +35,16 @@ flowchart TB
 - `shared/` — supabaseClient, **windowService** (seul pont IPC), logService, dbServices
 - `modules/<domaine>/` — comptoir + dashboard + services + sql
 
-Modules notables : `inbox` (À traiter / mes saisies), `conseil`, `bdm`, `stupefiants`, `location`, `magistral`, `admin` (logs, bugs, accès, paramètres, **Mon compte** / invite).
+Modules notables : `inbox` (À traiter / mes saisies), `conseil`, `bdm`, `stupefiants`, `location`, `magistral`, `admin`.
 
 Ancien module `rental/` **supprimé** (supersédé par `location/`).
 
 ## 4. Auth & accès
 
-- Auth : `supabase.auth` (email / mot de passe)
-- Profil : `portail.profiles` → `display_name`, `email`, `role`, `must_change_password`
+- Auth : `supabase.auth` (email / mot de passe) — **gestion compte sur le Portail Application**
+- Profil : `portail.profiles` → `display_name`, `role` (`pharmacien` | `administrateur` | `préparateur` | `désactivé`)
 - Accès UI : `canAccess(surface, featureId)` = matrice `role_access` **OU** grants casquette
-- Feature dashboard `compte` : Mon compte (toujours si accès dashboard)
-- Taskbar Dashboard : ssi `canAccess('dashboard','dashboard')` ; icône compte → module `#compte`
-- Login : connexion + oubli MDP (OTP recovery) + acceptation invitation (OTP invite)
-- Gate `mustChangePassword` : overlay obligatoire jusqu’au changement (flag profil + `user_metadata`)
-- Création comptes : Edge `invite-user` (`temp_password` | `invite_email`) — admin only, `service_role` serveur
-- Service : `admin/services/accountService.js` — **pas** de `service_role` client
+- Taskbar Dashboard : ssi `canAccess('dashboard','dashboard')`
 - Stupéfiants / autres modules : **mêmes gates** `canAccess` (pas de rôle en dur)
 
 ## 5. Contexte texte / LGO

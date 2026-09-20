@@ -37,8 +37,11 @@ Ordre :
 33. `040_bdm_revoke_dangerous_rpc_anon.sql` — REVOKE truncate/bulk BDPM pour anon/authenticated
 34. `041_drop_phantom_controls_and_rental.sql` — drop controls + `rental_*`
 35. `042_mes_saisies_rls_own_update.sql` — UPDATE own saisies + admin policies `is_pharma_admin`
+36. `043_profiles_must_change_password.sql` — flag MDP temporaire sur `portail.profiles`
 
 Source de vérité : `supabase/migrations/` (agrégat live). Miroirs `src/modules/<domaine>/sql/` (certains README-only : admin, conseil, inbox).
+
+Edge Functions (hors migrations SQL) : `sync-bdpm`, `invite-user` (création / invite comptes — voir `.cursor/docs/SECURITY.md` § Auth).
 
 Inventaire : tables métier `PharmaOs` + `portail` + `bdm`. Voir `.cursor/docs/SECURITY.md`.
 

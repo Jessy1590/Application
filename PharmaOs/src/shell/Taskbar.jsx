@@ -3,7 +3,7 @@ import {
   Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
   AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
-  Users, Plus, X, Pill, ClipboardCheck, RefreshCw, Lock, ArrowDownToLine, Inbox, UserCog,
+  Users, Plus, X, Pill, ClipboardCheck, RefreshCw, Lock, ArrowDownToLine, Inbox,
 } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
 import { countTodayPendingAssignments } from '../modules/tasks/services/taskService.js';
@@ -266,13 +266,6 @@ export default function Taskbar() {
             <LayoutDashboard size={18} />
           </TbBtn>
         )}
-        <TbBtn
-          title="Mon compte (e-mail / mot de passe)"
-          onClick={() => openModuleWindow('compte')}
-          className="text-slate-300"
-        >
-          <UserCog size={18} />
-        </TbBtn>
         <button
           type="button"
           title={`Se déconnecter (${profile?.display_name || 'utilisateur'})`}

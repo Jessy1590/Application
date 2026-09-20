@@ -41,6 +41,10 @@ src/modules/<domaine>/
 - Module `inbox/` : file « À traiter » + mes saisies — voir `DASHBOARD_EQUIPE.md` (implémenté).
 - RLS own UPDATE : migration `042`.
 
+## Admin / compte Auth
+- Compte (MDP, e-mail, invite, delete) : **Portail Application** — pas d’UI compte dans PharmaOS
+- Edge `invite-user` / `delete-user` partagées (service_role serveur)
+
 ## Hors scope
 - Intégration API LGO / WinPharma tant que les infos techniques ne sont pas fournies
 - Banque / Vaccin / Fromage / Valorisation legacy

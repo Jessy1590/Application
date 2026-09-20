@@ -1,25 +1,50 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+/**
+ * Création / invitation compte — Portail Application (prioritaire) + apps liées.
+ * Doc : createUser / inviteUserByEmail (Auth Admin API).
+ *
+ * Acteur : portail.profiles.role ∈ admin | administrateur
+ * Rôles stockés tels quels (portail : admin, member, équipe ; PharmaOS : pharmacien…).
+ */
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ADMIN_ROLES = new Set(['administrateur', 'admin']);
-const ALLOWED_ROLES = new Set(['pharmacien', 'administrateur', 'préparateur']);
+const ACTOR_ADMIN_ROLES = new Set(['admin', 'administrateur']);
+
+/** Rôles autorisés à la création (portail + PharmaOS). */
+const ALLOWED_ROLES = new Set([
+  'admin',
+  'member',
+  'équipe',
+  'pharmacien',
+  'administrateur',
+  'préparateur',
+  'gestionnaire',
+  'désactivé',
+]);
+
+const SYMBOL_RE = /[!@#$%^&*()_+\-=[\]{};'\\:"|<>?,./`~]/;
+
+function isStrongPassword(password) {
+  const p = String(password || '');
+  return (
+    p.length >= 8
+    && /[a-z]/.test(p)
+    && /[A-Z]/.test(p)
+    && /[0-9]/.test(p)
+    && SYMBOL_RE.test(p)
+  );
+}
 
 function json(status, body) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
-}
-
-function canonicalRole(role) {
-  if (!role) return 'préparateur';
-  if (role === 'admin') return 'administrateur';
-  if (role === 'équipe' || role === 'member' || role === 'gestionnaire') return 'préparateur';
-  return role;
 }
 
 Deno.serve(async (req) => {
@@ -52,8 +77,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id)
       .single();
 
-    const actorRole = canonicalRole(profile?.role);
-    if (!profile || !ADMIN_ROLES.has(actorRole)) {
+    if (!profile || !ACTOR_ADMIN_ROLES.has(profile.role)) {
       return json(403, { error: 'Accès réservé aux administrateurs' });
     }
 
@@ -61,17 +85,19 @@ Deno.serve(async (req) => {
     const email = String(body.email || '').trim().toLowerCase();
     const display_name = String(body.display_name || '').trim() || email;
     const mode = body.mode === 'invite_email' ? 'invite_email' : 'temp_password';
-    const role = canonicalRole(body.role || 'préparateur');
+    const role = String(body.role || 'member').trim();
     const password = body.password ? String(body.password) : '';
 
     if (!email || !email.includes('@')) {
       return json(400, { error: 'email requis' });
     }
     if (!ALLOWED_ROLES.has(role)) {
-      return json(400, { error: 'role invalide' });
+      return json(400, { error: `role invalide: ${role}` });
     }
-    if (mode === 'temp_password' && password.length < 8) {
-      return json(400, { error: 'password requis (min. 8 caractères)' });
+    if (mode === 'temp_password' && !isStrongPassword(password)) {
+      return json(400, {
+        error: 'Le mot de passe doit contenir au moins 8 caractères, une minuscule, une majuscule, un chiffre et un symbole.',
+      });
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -83,9 +109,7 @@ Deno.serve(async (req) => {
     if (mode === 'invite_email') {
       const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
         email,
-        {
-          data: { display_name, must_change_password: true },
-        },
+        { data: { display_name, must_change_password: true } },
       );
       if (inviteError) return json(400, { error: inviteError.message });
       userId = invited.user?.id ?? null;
@@ -101,19 +125,30 @@ Deno.serve(async (req) => {
     }
 
     if (userId) {
-      const { error: upsertError } = await adminClient
+      const upsertPayload = {
+        id: userId,
+        email,
+        role,
+        display_name,
+        must_change_password: true,
+      };
+      let { error: upsertError } = await adminClient
         .schema('portail')
         .from('profiles')
-        .upsert({
-          id: userId,
-          email,
-          role,
-          display_name,
-          must_change_password: true,
-        });
+        .upsert(upsertPayload);
+
+      // Colonne must_change_password absente → retry sans
+      if (upsertError && /must_change_password/i.test(upsertError.message || '')) {
+        delete upsertPayload.must_change_password;
+        ({ error: upsertError } = await adminClient
+          .schema('portail')
+          .from('profiles')
+          .upsert(upsertPayload));
+      }
+
       if (upsertError) {
         return json(400, {
-          error: `Compte Auth créé mais profil : ${upsertError.message}`,
+          error: `Compte créé mais profil : ${upsertError.message}`,
           user: { id: userId, email },
         });
       }

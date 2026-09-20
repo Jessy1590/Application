@@ -9,7 +9,7 @@
 - `bug:submit` : **retiré** — les bugs passent par `PharmaOs.bugs` / `bugService`.
 
 ## 2. Clés & schémas
-- Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role` côté client (Edge `sync-bdpm`, `invite-user` seulement).
+- Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role` côté client (Edge `sync-bdpm` ; Portail : `invite-user` / `delete-user`).
 - Schémas exposés PostgREST : `PharmaOs`, `portail`, `bdm`.
 - Autres schemas sur le même projet (`phieevreux`, `valorisation`, `public` finance) : legacy / autres apps — **ne pas y toucher** depuis PharmaOs.
 - RPC BDPM `truncate` / `bulk_insert_*` / `rebuild_molecules_*` : exécution **révoquée** pour `anon` et `authenticated` (migration `040`) — `service_role` seulement.
@@ -38,23 +38,14 @@ SELECT / UPDATE scopés (créateur, assigné, administrateur) — migrations `03
 ### Stock
 INSERT own ; SELECT staff ; UPDATE own (ouvert) ou admin.
 
-## 5. Auth — compte, invitations, mots de passe
+## 5. Auth — compte (Portail Application)
 
-### Flux applicatifs (anon client)
-- Changement MDP / e-mail : `supabase.auth.updateUser` (+ `verifyOtp` type `email_change` pour confirmer)
-- Oubli MDP : `resetPasswordForEmail` → `verifyOtp` (`recovery`) → `updateUser({ password })`
-- Invitation : `verifyOtp` (`invite`) puis définition du MDP
-- Flag temporaire : `portail.profiles.must_change_password` (+ miroir `user_metadata.must_change_password`)
-  - **Ne pas** stocker ce flag dans `app_metadata` (non modifiable par l’utilisateur)
+La gestion compte (changement MDP / e-mail, invitation, recovery, suppression) est sur le **Portail** :
+`Application/index.html` + `shared/portail-auth.js` + Edge `invite-user` / `delete-user`.
 
-### Création de comptes (admin)
-- Edge Function `invite-user` (`supabase/functions/invite-user/`) — JWT vérifié, acteur `administrateur`
-- Modes : `temp_password` (`auth.admin.createUser`) | `invite_email` (`auth.admin.inviteUserByEmail`)
-- `service_role` **uniquement** dans l’Edge Function — jamais dans le client Electron
+PharmaOS n’expose pas d’UI compte ; il utilise la session Auth existante.
 
-### Templates e-mail Auth (dashboard Supabase)
-Pour Electron (pas de deep link fiable) : inclure `{{ .Token }}` (OTP 6 chiffres) dans les templates
-`recovery`, `invite`, `email_change` (en plus ou à la place du seul `ConfirmationURL`).
+Flag optionnel : `portail.profiles.must_change_password` (migration `043`) — gate sur le Portail après création MDP temporaire.
 
 ### Mots de passe leakés
 Activer **Leaked password protection** (Have I Been Pwned) :

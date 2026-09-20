@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <script src="shared/supabase-config.js"></script>
+<script src="shared/portail-auth.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
@@ -40,6 +41,29 @@
   .field{ margin-bottom:16px; }
   .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px;
     font-family:'IBM Plex Mono', monospace; letter-spacing:0.5px; }
+  .field-label-row{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .field-label-row label{ margin-bottom:0; }
+  .pwd-tip{ position:relative; display:inline-flex; }
+  .pwd-tip > button{
+    width:18px; height:18px; border-radius:50%; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--muted); font-size:11px; font-weight:600;
+    font-family:'IBM Plex Mono', monospace; cursor:help; padding:0; line-height:1;
+  }
+  .pwd-tip > button:hover, .pwd-tip > button:focus-visible{
+    color:var(--teal); border-color:var(--teal); outline:none;
+  }
+  .pwd-tip .pwd-tip-bubble{
+    display:none; position:absolute; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%);
+    width:max-content; max-width:260px; padding:10px 12px; border-radius:8px;
+    background:var(--panel-2); border:1px solid var(--border); color:var(--text);
+    font-size:12px; line-height:1.45; font-family:'Inter', sans-serif; z-index:5;
+    box-shadow:0 10px 28px rgba(0,0,0,0.35); text-align:left;
+  }
+  .pwd-tip .pwd-tip-bubble::after{
+    content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+    border:6px solid transparent; border-top-color:var(--border);
+  }
+  .pwd-tip:hover .pwd-tip-bubble, .pwd-tip:focus-within .pwd-tip-bubble{ display:block; }
   .field input{ width:100%; padding:11px 13px; background:var(--panel-2); border:1px solid var(--border);
     border-radius:8px; color:var(--text); font-size:14px; font-family:'Inter', sans-serif; outline:none;
     transition:border-color .15s ease; }
@@ -111,6 +135,18 @@
     border-radius:20px; padding:4px 6px 4px 10px; font-size:12px; margin:3px 6px 3px 0; }
   .chip button{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:2px 6px; }
   .chip button:hover{ color:var(--amber); }
+  .btn.danger{ background:transparent; border:1px solid rgba(240,168,104,0.45); color:var(--amber); }
+  .btn.danger:hover{ border-color:var(--amber); background:rgba(240,168,104,0.1); box-shadow:none; }
+  .auth-links{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+  .auth-links button{ background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer;
+    font-family:'IBM Plex Mono', monospace; text-align:center; padding:0; }
+  .auth-links button:hover{ color:var(--teal); }
+  .auth-info{ color:var(--teal); font-size:12px; margin-top:10px; font-family:'IBM Plex Mono', monospace; min-height:16px; }
+  .account-card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .account-card h3{ font-family:'Space Grotesk', sans-serif; font-size:14px; margin:0 0 12px; }
+  .force-gate{ position:fixed; inset:0; background:rgba(13,18,25,0.85); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:24px; }
+  .force-gate .login-card{ max-width:400px; }
   .grant-form{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
   .grant-form select{ background:var(--panel-2); border:1px solid var(--border); color:var(--text);
     border-radius:8px; padding:7px 10px; font-size:12px; font-family:'Inter', sans-serif; }
@@ -125,12 +161,66 @@
   <div class="screen" id="loginScreen">
     <div class="login-card">
       <p class="eyebrow">Access Console</p>
-      <h1>Portail</h1>
+      <h1 id="loginTitle">Portail</h1>
       <form id="loginForm">
         <div class="field"><label for="email">Email</label><input type="email" id="email" required autocomplete="email"></div>
-        <div class="field"><label for="password">Mot de passe</label><input type="password" id="password" required autocomplete="current-password"></div>
+        <div class="field" id="passwordField">
+          <div class="field-label-row">
+            <label for="password" id="passwordLabel">Mot de passe</label>
+            <span class="pwd-tip hidden" id="passwordTip">
+              <button type="button" aria-label="Exigences du mot de passe">?</button>
+              <span class="pwd-tip-bubble" role="tooltip">Au moins 8 caractères, avec une minuscule, une majuscule, un chiffre et un symbole.</span>
+            </span>
+          </div>
+          <input type="password" id="password" required autocomplete="current-password">
+        </div>
+        <div class="field hidden" id="otpField">
+          <label for="otpToken">Code OTP (e-mail)</label>
+          <input type="text" id="otpToken" inputmode="numeric" autocomplete="one-time-code" placeholder="6 chiffres">
+        </div>
+        <div class="field hidden" id="confirmPasswordField">
+          <label for="passwordConfirm">Confirmer le mot de passe</label>
+          <input type="password" id="passwordConfirm" autocomplete="new-password">
+        </div>
         <button type="submit" class="btn full" id="submitBtn">Se connecter</button>
         <p class="auth-error" id="authError"></p>
+        <p class="auth-info" id="authInfo"></p>
+      </form>
+      <div class="auth-links" id="authLinks">
+        <button type="button" data-login-mode="forgot">Mot de passe oublié ?</button>
+        <button type="button" data-login-mode="invite">J’ai reçu une invitation</button>
+      </div>
+      <div class="auth-links hidden" id="authBack">
+        <button type="button" data-login-mode="login">Retour à la connexion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gate mot de passe temporaire -->
+  <div class="force-gate hidden" id="forcePasswordGate">
+    <div class="login-card">
+      <p class="eyebrow">Sécurité</p>
+      <h1>Mot de passe temporaire</h1>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 16px; line-height:1.5;">
+        Votre compte a été créé avec un mot de passe provisoire. Choisissez un mot de passe personnel pour continuer.
+      </p>
+      <form id="forcePasswordForm">
+        <div class="field">
+          <div class="field-label-row">
+            <label for="forcePassword">Nouveau mot de passe</label>
+            <span class="pwd-tip">
+              <button type="button" aria-label="Exigences du mot de passe">?</button>
+              <span class="pwd-tip-bubble" role="tooltip">Au moins 8 caractères, avec une minuscule, une majuscule, un chiffre et un symbole.</span>
+            </span>
+          </div>
+          <input type="password" id="forcePassword" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="forcePasswordConfirm">Confirmer</label>
+          <input type="password" id="forcePasswordConfirm" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn full" id="forcePasswordBtn">Enregistrer</button>
+        <p class="auth-error" id="forcePasswordError"></p>
       </form>
     </div>
   </div>
@@ -148,10 +238,58 @@
 
       <div class="tabs" id="tabs">
         <button class="tab-btn active" data-tab="mine">Mes accès</button>
+        <button class="tab-btn" data-tab="account" id="accountTabBtn">Mon compte</button>
         <button class="tab-btn hidden" data-tab="admin" id="adminTabBtn">Administration</button>
       </div>
 
       <div id="mineView"><div id="cardsArea"></div></div>
+
+      <div id="accountView" class="hidden">
+        <div class="account-card">
+          <h3>Nom affiché</h3>
+          <form id="accountNameForm">
+            <div class="field"><label for="accountDisplayName">Nom</label>
+              <input type="text" id="accountDisplayName" required placeholder="Prénom Nom"></div>
+            <button type="submit" class="btn small" id="accountNameBtn">Enregistrer</button>
+            <p id="accountNameMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+        <div class="account-card">
+          <h3>Adresse e-mail</h3>
+          <p class="row-sub" style="margin-bottom:10px;">Actuel : <span id="accountCurrentEmail">—</span></p>
+          <form id="accountEmailForm">
+            <div class="field"><label for="accountNewEmail">Nouvel e-mail</label>
+              <input type="email" id="accountNewEmail" required placeholder="nouveau@exemple.fr"></div>
+            <div class="field hidden" id="accountEmailOtpWrap">
+              <label for="accountEmailOtp">Code OTP reçu par e-mail</label>
+              <input type="text" id="accountEmailOtp" inputmode="numeric" placeholder="6 chiffres">
+            </div>
+            <button type="submit" class="btn small" id="accountEmailBtn">Demander le changement</button>
+            <button type="button" class="btn ghost small hidden" id="accountEmailCancel">Annuler</button>
+            <p id="accountEmailMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+        <div class="account-card">
+          <h3>Mot de passe</h3>
+          <form id="accountPasswordForm">
+            <div class="field">
+              <div class="field-label-row">
+                <label for="accountNewPassword">Nouveau mot de passe</label>
+                <span class="pwd-tip">
+                  <button type="button" aria-label="Exigences du mot de passe">?</button>
+                  <span class="pwd-tip-bubble" role="tooltip">Au moins 8 caractères, avec une minuscule, une majuscule, un chiffre et un symbole.</span>
+                </span>
+              </div>
+              <input type="password" id="accountNewPassword" required minlength="8" autocomplete="new-password">
+            </div>
+            <div class="field"><label for="accountNewPasswordConfirm">Confirmer</label>
+              <input type="password" id="accountNewPasswordConfirm" required minlength="8" autocomplete="new-password"></div>
+            <button type="submit" class="btn small" id="accountPasswordBtn">Enregistrer le mot de passe</button>
+            <p id="accountPasswordMsg" style="font-size:12px; margin-top:8px; font-family:'IBM Plex Mono', monospace;"></p>
+          </form>
+        </div>
+      </div>
+
       <div id="adminView" class="hidden">
         <div class="admin-section">
           <h2>Ajouter un nouveau site</h2>
@@ -231,8 +369,25 @@
         <div class="admin-section">
           <h2>Inviter un utilisateur</h2>
           <form id="inviteUserForm" style="background:var(--panel); padding:16px; border:1px solid var(--border); border-radius:10px;">
+            <div class="field" style="display:flex; gap:16px; flex-wrap:wrap;">
+              <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer;">
+                <input type="radio" name="inviteMode" value="temp_password" checked style="width:auto; accent-color:var(--teal);"> Mot de passe temporaire
+              </label>
+              <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer;">
+                <input type="radio" name="inviteMode" value="invite_email" style="width:auto; accent-color:var(--teal);"> Invitation par e-mail (OTP)
+              </label>
+            </div>
             <div class="field"><label for="inviteEmail">Email</label><input type="email" id="inviteEmail" required autocomplete="off"></div>
-            <div class="field"><label for="invitePassword">Mot de passe temporaire</label><input type="password" id="invitePassword" required autocomplete="new-password"></div>
+            <div class="field" id="invitePasswordWrap">
+              <div class="field-label-row">
+                <label for="invitePassword">Mot de passe temporaire</label>
+                <span class="pwd-tip">
+                  <button type="button" aria-label="Exigences du mot de passe">?</button>
+                  <span class="pwd-tip-bubble" role="tooltip">Au moins 8 caractères, avec une minuscule, une majuscule, un chiffre et un symbole.</span>
+                </span>
+              </div>
+              <input type="password" id="invitePassword" required autocomplete="new-password" minlength="8">
+            </div>
             <div class="field"><label for="inviteDisplayName">Nom affiché</label><input type="text" id="inviteDisplayName"></div>
             <div class="field"><label for="inviteRole">Rôle</label>
               <select id="inviteRole" style="width:100%;padding:11px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);">
@@ -251,6 +406,9 @@
         </div>
         <div class="admin-section">
           <h2>Utilisateurs</h2>
+          <p style="font-size:12px; color:var(--muted); margin:-6px 0 14px; font-family:'IBM Plex Mono', monospace;">
+            Accorder / retirer des sites, ou supprimer un compte (irréversible — Auth + profil). Impossible sur votre propre compte.
+          </p>
           <div id="usersArea"></div>
         </div>
       </div>
@@ -270,10 +428,72 @@
 
   const el = id => document.getElementById(id);
   const loginScreen = el('loginScreen'), dashScreen = el('dashScreen');
-  let CURRENT_USER = null, IS_ADMIN = false;
+  let CURRENT_USER = null, IS_ADMIN = false, CURRENT_PROFILE = null;
   let ADMIN_SITES = [];
+  let LOGIN_MODE = 'login'; // login | forgot | recovery | invite
+  let EMAIL_CHANGE_STEP = 'request';
 
   const EDIT_SITE_FIELDS = ['editSiteName', 'editSiteUrl', 'editSiteDesc', 'editSiteIcon', 'editSiteColor', 'editSiteActive', 'editSiteVisibleAccessOnly'];
+
+  function setLoginMode(mode) {
+    LOGIN_MODE = mode;
+    el('authError').textContent = '';
+    el('authInfo').textContent = '';
+    el('password').value = '';
+    el('passwordConfirm').value = '';
+    el('otpToken').value = '';
+
+    const titles = {
+      login: 'Portail',
+      forgot: 'Mot de passe oublié',
+      recovery: 'Nouveau mot de passe',
+      invite: 'Réponse à l’invitation',
+    };
+    el('loginTitle').textContent = titles[mode] || 'Portail';
+
+    const needPassword = mode === 'login' || mode === 'recovery' || mode === 'invite';
+    const needOtp = mode === 'recovery' || mode === 'invite';
+    const needConfirm = mode === 'recovery' || mode === 'invite';
+
+    el('passwordField').classList.toggle('hidden', !needPassword || mode === 'forgot');
+    el('password').required = needPassword && mode !== 'forgot';
+    el('password').autocomplete = (mode === 'recovery' || mode === 'invite') ? 'new-password' : 'current-password';
+    el('passwordLabel').textContent = (mode === 'recovery' || mode === 'invite') ? 'Nouveau mot de passe' : 'Mot de passe';
+    el('passwordTip').classList.toggle('hidden', !(mode === 'recovery' || mode === 'invite'));
+    el('otpField').classList.toggle('hidden', !needOtp);
+    el('otpToken').required = needOtp;
+    el('confirmPasswordField').classList.toggle('hidden', !needConfirm);
+    el('passwordConfirm').required = needConfirm;
+
+    el('authLinks').classList.toggle('hidden', mode !== 'login');
+    el('authBack').classList.toggle('hidden', mode === 'login');
+
+    const labels = {
+      login: 'Se connecter',
+      forgot: 'Envoyer le mail',
+      recovery: 'Définir le mot de passe',
+      invite: 'Accepter l’invitation',
+    };
+    el('submitBtn').textContent = labels[mode] || 'OK';
+  }
+
+  document.querySelectorAll('[data-login-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => setLoginMode(btn.dataset.loginMode));
+  });
+
+  function syncInviteModeUI() {
+    const mode = document.querySelector('input[name="inviteMode"]:checked')?.value || 'temp_password';
+    const wrap = el('invitePasswordWrap');
+    const input = el('invitePassword');
+    const isTemp = mode === 'temp_password';
+    wrap.classList.toggle('hidden', !isTemp);
+    input.required = isTemp;
+    el('inviteUserBtn').textContent = isTemp ? 'Créer le compte' : 'Envoyer l’invitation';
+  }
+  document.querySelectorAll('input[name="inviteMode"]').forEach((r) => {
+    r.addEventListener('change', syncInviteModeUI);
+  });
+  syncInviteModeUI();
 
   function setEditSiteFieldsEnabled(enabled){
     EDIT_SITE_FIELDS.forEach(id => { el(id).disabled = !enabled; });
@@ -320,17 +540,88 @@
   el('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     el('authError').textContent = '';
+    el('authInfo').textContent = '';
     const email = el('email').value.trim();
     const password = el('password').value;
+    const token = el('otpToken').value.trim();
+    const confirm = el('passwordConfirm').value;
+
     el('submitBtn').disabled = true;
-    el('submitBtn').textContent = 'Connexion...';
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    el('submitBtn').textContent = 'Se connecter'; el('submitBtn').disabled = false;
-    if (error) { el('authError').textContent = "Identifiants incorrects ou compte inexistant."; return; }
-    await bootDashboard();
+    try {
+      if (LOGIN_MODE === 'login') {
+        el('submitBtn').textContent = 'Connexion...';
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) {
+          el('authError').textContent = 'Identifiants incorrects ou compte inexistant.';
+          return;
+        }
+        await bootDashboard();
+        return;
+      }
+
+      if (LOGIN_MODE === 'forgot') {
+        el('submitBtn').textContent = 'Envoi...';
+        await PortailAuth.requestPasswordReset(sb, email);
+        el('authInfo').textContent = 'Si un compte existe, un e-mail a été envoyé. Saisissez le code OTP reçu.';
+        setLoginMode('recovery');
+        el('email').value = email;
+        return;
+      }
+
+      if (LOGIN_MODE === 'recovery' || LOGIN_MODE === 'invite') {
+        if (password !== confirm) {
+          el('authError').textContent = 'Les deux mots de passe ne correspondent pas.';
+          return;
+        }
+        el('submitBtn').textContent = 'Validation...';
+        await PortailAuth.verifyOtpThenSetPassword(sb, {
+          email,
+          token,
+          type: LOGIN_MODE === 'invite' ? 'invite' : 'recovery',
+          newPassword: password,
+        });
+        el('authInfo').textContent = LOGIN_MODE === 'invite'
+          ? 'Invitation acceptée. Vous êtes connecté.'
+          : 'Mot de passe mis à jour. Vous êtes connecté.';
+        setLoginMode('login');
+        await bootDashboard();
+      }
+    } catch (err) {
+      el('authError').textContent = err.message || String(err);
+    } finally {
+      el('submitBtn').disabled = false;
+      if (LOGIN_MODE === 'login') el('submitBtn').textContent = 'Se connecter';
+      else if (LOGIN_MODE === 'forgot') el('submitBtn').textContent = 'Envoyer le mail';
+      else if (LOGIN_MODE === 'invite') el('submitBtn').textContent = 'Accepter l’invitation';
+      else el('submitBtn').textContent = 'Définir le mot de passe';
+    }
   });
 
-  el('signoutBtn').addEventListener('click', async () => { await sb.auth.signOut(); showLogin(); });
+  el('forcePasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    el('forcePasswordError').textContent = '';
+    const p1 = el('forcePassword').value;
+    const p2 = el('forcePasswordConfirm').value;
+    if (p1 !== p2) {
+      el('forcePasswordError').textContent = 'Les deux mots de passe ne correspondent pas.';
+      return;
+    }
+    el('forcePasswordBtn').disabled = true;
+    try {
+      await PortailAuth.changePassword(sb, { newPassword: p1, clearTempFlag: true });
+      el('forcePasswordGate').classList.add('hidden');
+      await bootDashboard();
+    } catch (err) {
+      el('forcePasswordError').textContent = err.message || String(err);
+    } finally {
+      el('forcePasswordBtn').disabled = false;
+    }
+  });
+
+  el('signoutBtn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    showLogin();
+  });
 
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -338,13 +629,121 @@
       btn.classList.add('active');
       const tab = btn.dataset.tab;
       el('mineView').classList.toggle('hidden', tab !== 'mine');
+      el('accountView').classList.toggle('hidden', tab !== 'account');
       el('adminView').classList.toggle('hidden', tab !== 'admin');
       if (tab === 'admin') loadAdminView();
+      if (tab === 'account') fillAccountView();
     });
   });
 
-  function showLogin(){ dashScreen.classList.add('hidden'); loginScreen.classList.remove('hidden'); }
+  function showLogin(){
+    dashScreen.classList.add('hidden');
+    loginScreen.classList.remove('hidden');
+    el('forcePasswordGate').classList.add('hidden');
+    setLoginMode('login');
+  }
   function showDashboard(){ loginScreen.classList.add('hidden'); dashScreen.classList.remove('hidden'); }
+
+  function fillAccountView() {
+    el('accountDisplayName').value = CURRENT_PROFILE?.display_name || '';
+    el('accountCurrentEmail').textContent = CURRENT_USER?.email || CURRENT_PROFILE?.email || '—';
+    el('accountNameMsg').textContent = '';
+    el('accountEmailMsg').textContent = '';
+    el('accountPasswordMsg').textContent = '';
+    EMAIL_CHANGE_STEP = 'request';
+    el('accountEmailOtpWrap').classList.add('hidden');
+    el('accountEmailCancel').classList.add('hidden');
+    el('accountEmailBtn').textContent = 'Demander le changement';
+    el('accountNewEmail').disabled = false;
+  }
+
+  el('accountNameForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = el('accountNameMsg');
+    msg.textContent = '';
+    try {
+      const row = await PortailAuth.updateDisplayName(sb, CURRENT_USER.id, el('accountDisplayName').value);
+      CURRENT_PROFILE = { ...CURRENT_PROFILE, ...row };
+      el('greeting').textContent = `Bonjour, ${row.display_name || 'toi'}`;
+      msg.textContent = 'Nom enregistré.';
+      msg.style.color = 'var(--teal)';
+    } catch (err) {
+      msg.textContent = err.message || String(err);
+      msg.style.color = 'var(--amber)';
+    }
+  });
+
+  el('accountEmailForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = el('accountEmailMsg');
+    msg.textContent = '';
+    const email = el('accountNewEmail').value.trim();
+    try {
+      if (EMAIL_CHANGE_STEP === 'request') {
+        await PortailAuth.requestEmailChange(sb, email);
+        EMAIL_CHANGE_STEP = 'confirm';
+        el('accountEmailOtpWrap').classList.remove('hidden');
+        el('accountEmailCancel').classList.remove('hidden');
+        el('accountNewEmail').disabled = true;
+        el('accountEmailBtn').textContent = 'Confirmer le nouvel e-mail';
+        msg.textContent = 'Code OTP envoyé — saisissez-le ci-dessous.';
+        msg.style.color = 'var(--teal)';
+      } else {
+        await PortailAuth.confirmEmailChangeOtp(sb, {
+          email,
+          token: el('accountEmailOtp').value.trim(),
+        });
+        const { data: { user } } = await sb.auth.getUser();
+        CURRENT_USER = user;
+        el('accountCurrentEmail').textContent = user?.email || email;
+        msg.textContent = 'E-mail mis à jour.';
+        msg.style.color = 'var(--teal)';
+        EMAIL_CHANGE_STEP = 'request';
+        el('accountEmailOtpWrap').classList.add('hidden');
+        el('accountEmailCancel').classList.add('hidden');
+        el('accountNewEmail').disabled = false;
+        el('accountNewEmail').value = '';
+        el('accountEmailOtp').value = '';
+        el('accountEmailBtn').textContent = 'Demander le changement';
+      }
+    } catch (err) {
+      msg.textContent = err.message || String(err);
+      msg.style.color = 'var(--amber)';
+    }
+  });
+
+  el('accountEmailCancel').addEventListener('click', () => {
+    EMAIL_CHANGE_STEP = 'request';
+    el('accountEmailOtpWrap').classList.add('hidden');
+    el('accountEmailCancel').classList.add('hidden');
+    el('accountNewEmail').disabled = false;
+    el('accountEmailOtp').value = '';
+    el('accountEmailBtn').textContent = 'Demander le changement';
+    el('accountEmailMsg').textContent = '';
+  });
+
+  el('accountPasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = el('accountPasswordMsg');
+    msg.textContent = '';
+    const p1 = el('accountNewPassword').value;
+    const p2 = el('accountNewPasswordConfirm').value;
+    if (p1 !== p2) {
+      msg.textContent = 'Les deux mots de passe ne correspondent pas.';
+      msg.style.color = 'var(--amber)';
+      return;
+    }
+    try {
+      await PortailAuth.changePassword(sb, { newPassword: p1 });
+      msg.textContent = 'Mot de passe mis à jour.';
+      msg.style.color = 'var(--teal)';
+      el('accountPasswordForm').reset();
+    } catch (err) {
+      msg.textContent = err.message || String(err);
+      msg.style.color = 'var(--amber)';
+    }
+  });
+
   el('addSiteForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = el('addSiteBtn');
@@ -437,11 +836,30 @@
     const btn = el('inviteUserBtn');
     const msg = el('inviteUserMsg');
     btn.disabled = true;
-    btn.textContent = 'Création...';
     msg.textContent = '';
+    const mode = document.querySelector('input[name="inviteMode"]:checked')?.value || 'temp_password';
+    btn.textContent = mode === 'invite_email' ? 'Envoi...' : 'Création...';
 
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) { msg.textContent = 'Session expirée.'; btn.disabled = false; btn.textContent = 'Créer le compte'; return; }
+    if (!session) { msg.textContent = 'Session expirée.'; btn.disabled = false; syncInviteModeUI(); return; }
+
+    const payload = {
+      email: el('inviteEmail').value.trim(),
+      display_name: el('inviteDisplayName').value.trim() || el('inviteEmail').value.trim(),
+      role: el('inviteRole').value,
+      mode,
+    };
+    if (mode === 'temp_password') {
+      const weak = PortailAuth.validatePassword(el('invitePassword').value);
+      if (weak) {
+        msg.textContent = weak;
+        msg.style.color = 'var(--amber)';
+        btn.disabled = false;
+        syncInviteModeUI();
+        return;
+      }
+      payload.password = el('invitePassword').value;
+    }
 
     const res = await fetch(`${cfg.url}/functions/v1/invite-user`, {
       method: 'POST',
@@ -450,24 +868,23 @@
         Authorization: `Bearer ${session.access_token}`,
         apikey: cfg.anonKey,
       },
-      body: JSON.stringify({
-        email: el('inviteEmail').value.trim(),
-        password: el('invitePassword').value,
-        display_name: el('inviteDisplayName').value.trim() || el('inviteEmail').value.trim(),
-        role: el('inviteRole').value,
-      }),
+      body: JSON.stringify(payload),
     });
-    const body = await res.json();
+    const body = await res.json().catch(() => ({}));
     btn.disabled = false;
-    btn.textContent = 'Créer le compte';
+    syncInviteModeUI();
     if (!res.ok) {
       msg.textContent = body.error || 'Erreur lors de la création.';
       msg.style.color = 'var(--amber)';
       return;
     }
-    msg.textContent = 'Compte créé avec succès.';
+    msg.textContent = mode === 'invite_email'
+      ? 'Invitation envoyée. La personne utilise « J’ai reçu une invitation » à la connexion.'
+      : 'Compte créé (mot de passe temporaire). Changement forcé à la 1ʳᵉ connexion.';
     msg.style.color = 'var(--teal)';
     el('inviteUserForm').reset();
+    document.querySelector('input[name="inviteMode"][value="temp_password"]').checked = true;
+    syncInviteModeUI();
     await loadAdminView();
   });
   
@@ -476,8 +893,23 @@
     if (!user) { showLogin(); return; }
     CURRENT_USER = user;
 
-    const { data: profile } = await sb.from('profiles')
-      .select('display_name, role, email').eq('id', user.id).single();
+    let profile = null;
+    let { data, error } = await sb.from('profiles')
+      .select('display_name, role, email, must_change_password').eq('id', user.id).single();
+    if (error && /must_change_password/i.test(error.message || '')) {
+      ({ data, error } = await sb.from('profiles')
+        .select('display_name, role, email').eq('id', user.id).single());
+      if (!error) data = { ...data, must_change_password: false };
+    }
+    profile = error ? null : data;
+    CURRENT_PROFILE = profile;
+
+    if (PortailAuth.mustChangePassword(user, profile)) {
+      showDashboard();
+      el('forcePasswordGate').classList.remove('hidden');
+      return;
+    }
+    el('forcePasswordGate').classList.add('hidden');
 
     IS_ADMIN = profile?.role === 'admin';
     el('greeting').textContent = `Bonjour, ${profile?.display_name || profile?.email || 'toi'}`;
@@ -634,6 +1066,11 @@
               <span class="row-title">${p.display_name || p.email}</span>
               <span class="row-sub">${p.email} · ${p.role === 'admin' ? 'ADMIN' : 'MEMBER'}</span>
             </div>
+            <div class="row-actions">
+              ${p.id === CURRENT_USER.id
+                ? '<span class="row-sub">Vous</span>'
+                : `<button type="button" class="btn ghost small danger" data-delete-user="${p.id}">Supprimer le compte</button>`}
+            </div>
           </div>
           <div style="margin-top:10px;">${chips || '<span class="row-sub">Aucun accès</span>'}</div>
           ${options ? `
@@ -653,6 +1090,11 @@
       const siteId = el(`grantSelect-${userId}`).value;
       grantAccess(userId, siteId);
     }));
+    document.querySelectorAll('[data-delete-user]').forEach(b => b.addEventListener('click', () => {
+      const row = b.closest('.row');
+      const title = row?.querySelector('.row-title')?.textContent?.trim() || b.dataset.deleteUser;
+      deleteUserAccount(b.dataset.deleteUser, title);
+    }));
   }
 
   async function reviewRequest(id, status){
@@ -669,6 +1111,46 @@
   async function revokeAccess(userId, siteId){
     const { error } = await sb.from('site_access').delete().eq('user_id', userId).eq('site_id', siteId);
     if (!error) await loadAdminView();
+  }
+
+  async function deleteUserAccount(userId, label){
+    if (userId === CURRENT_USER?.id) {
+      alert('Vous ne pouvez pas supprimer votre propre compte.');
+      return;
+    }
+    const name = label || userId;
+    if (!confirm(`Supprimer définitivement le compte « ${name} » ?\n\nCette action est irréversible (connexion Auth + profil portail).`)) {
+      return;
+    }
+    if (!confirm('Confirmez une dernière fois la suppression de ce compte.')) {
+      return;
+    }
+
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session?.access_token) {
+      alert('Session expirée — reconnectez-vous.');
+      return;
+    }
+
+    const res = await fetch(`${cfg.url}/functions/v1/delete-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: cfg.anonKey,
+      },
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    let payload = null;
+    try { payload = await res.json(); } catch { /* ignore */ }
+
+    if (!res.ok) {
+      alert(payload?.error || `Suppression impossible (${res.status}).`);
+      return;
+    }
+
+    await loadAdminView();
   }
 
   // Session déjà active au chargement ?

@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { supabase } from '../shared/supabaseClient.js';
 import { fetchRoleAccess } from '../modules/admin/services/accessService.js';
 import { fetchMyCasquetteGrants } from '../modules/admin/services/casquetteService.js';
-import { mustChangePasswordFromUser } from '../modules/admin/services/accountService.js';
 import { canAccessFeature } from './access.js';
 import {
   canonicalRole, isAppAdministrateur as roleIsAppAdmin, isDisabledRole,
@@ -50,22 +49,12 @@ export function AuthProvider({ children }) {
       const { data, error } = await supabase
         .schema('portail')
         .from('profiles')
-        .select('display_name, role, job_title, email, must_change_password')
+        .select('display_name, role, job_title')
         .eq('id', userId)
         .single();
 
       if (!isMounted) return;
-      let next = error ? null : data;
-      // Colonne must_change_password absente (migration non appliquée) → retry sans.
-      if (error && /must_change_password/i.test(error.message || '')) {
-        const retry = await supabase
-          .schema('portail')
-          .from('profiles')
-          .select('display_name, role, job_title, email')
-          .eq('id', userId)
-          .single();
-        next = retry.error ? null : { ...retry.data, must_change_password: false };
-      }
+      const next = error ? null : data;
       setProfile(next);
       setLogActor({
         userId,
@@ -183,34 +172,6 @@ export function AuthProvider({ children }) {
     [reloadAccess, session?.user?.id],
   );
 
-  const reloadProfile = useCallback(async () => {
-    const userId = session?.user?.id;
-    if (!userId) return null;
-    const { data, error } = await supabase
-      .schema('portail')
-      .from('profiles')
-      .select('display_name, role, job_title, email, must_change_password')
-      .eq('id', userId)
-      .single();
-    if (error && /must_change_password/i.test(error.message || '')) {
-      const retry = await supabase
-        .schema('portail')
-        .from('profiles')
-        .select('display_name, role, job_title, email')
-        .eq('id', userId)
-        .single();
-      const next = retry.error ? null : { ...retry.data, must_change_password: false };
-      setProfile(next);
-      return next;
-    }
-    if (!error) setProfile(data);
-    const { data: sess } = await supabase.auth.getSession();
-    if (sess?.session) setSession(sess.session);
-    return data;
-  }, [session?.user?.id]);
-
-  const mustChangePassword = mustChangePasswordFromUser(session?.user, profile);
-
   const value = {
     user: session?.user ?? null,
     profile,
@@ -219,7 +180,6 @@ export function AuthProvider({ children }) {
     session,
     isAuthenticated: !!session && !disabled,
     isDisabled: disabled,
-    mustChangePassword: !disabled && !!mustChangePassword,
     isAdmin: !disabled && canAccess('dashboard', 'dashboard'),
     isAppAdministrateur: roleIsAppAdmin(role),
     canDashboard: !disabled && canAccess('dashboard', 'dashboard'),
@@ -229,7 +189,6 @@ export function AuthProvider({ children }) {
     casquetteSlugs,
     accessOverrides,
     reloadAccess: reloadAccessBound,
-    reloadProfile,
     isLoading,
     authBlockMessage,
     signIn,

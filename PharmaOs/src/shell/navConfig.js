@@ -3,7 +3,7 @@ import {
   FileText, AlertOctagon, Package, PackageX, BedDouble, Scale, FlaskConical, Droplets,
   Wallet, Users, LayoutDashboard, Pill, MessageCircle, Inbox,
   ClipboardList, PlusCircle, RefreshCw, Lock, Phone, Receipt, Warehouse, ScanText, Settings,
-  ScrollText, Bug, Shield, UserCog,
+  ScrollText, Bug, Shield,
 } from 'lucide-react';
 
 /** Aligné sur les sous-groupes de la Taskbar. */
@@ -16,7 +16,6 @@ export const NAV_SECTIONS = [
       { id: 'calls', label: 'Appels', icon: PhoneCall, color: 'emerald' },
       { id: 'agenda', label: 'Agenda', icon: Calendar, color: 'purple' },
       { id: 'tasks', label: 'Tâches', icon: CheckSquare, color: 'orange' },
-      { id: 'compte', label: 'Mon compte', icon: UserCog, color: 'slate' },
     ],
   },
   {

@@ -39,6 +39,7 @@ alwaysApply: true
 - Schéma `PharmaOs` + `portail` + `bdm` ; projet Postgres partagé (schemas dédiés)
 - Clé **anon** uniquement. RPC BDPM destructives : service_role / Edge seulement.
 - Rôles : `pharmacien` | `administrateur` | `préparateur` | `désactivé` (+ casquettes)
+- Gestion compte Auth (invite / MDP / delete) : **Portail Application**, pas PharmaOS
 
 ## Legacy
 - Source de copie : `Application/PharmaOs-legacy/` — ne pas supprimer sans validation manuelle.

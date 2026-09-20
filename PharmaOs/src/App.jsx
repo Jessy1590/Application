@@ -2,11 +2,10 @@ import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from './core/AuthContext.jsx';
 import Login from './shell/Login.jsx';
 import Taskbar from './shell/Taskbar.jsx';
-import { ForcePasswordChangeGate } from './modules/admin/shared/AccountForms.jsx';
 import { loginWindow, expandWindow } from './shared/windowService.js';
 
 function Router() {
-  const { isAuthenticated, isLoading, mustChangePassword, reloadProfile } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     if (isLoading) return;
@@ -19,16 +18,7 @@ function Router() {
 
   if (isLoading) return null;
 
-  if (!isAuthenticated) return <Login />;
-
-  return (
-    <>
-      <Taskbar />
-      {mustChangePassword && (
-        <ForcePasswordChangeGate onDone={() => reloadProfile?.()} />
-      )}
-    </>
-  );
+  return isAuthenticated ? <Taskbar /> : <Login />;
 }
 
 export default function App() {
