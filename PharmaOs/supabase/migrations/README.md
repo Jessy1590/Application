@@ -38,10 +38,11 @@ Ordre :
 34. `041_drop_phantom_controls_and_rental.sql` — drop controls + `rental_*`
 35. `042_mes_saisies_rls_own_update.sql` — UPDATE own saisies + admin policies `is_pharma_admin`
 36. `043_profiles_must_change_password.sql` — flag MDP temporaire sur `portail.profiles`
+37. `044_portail_service_role_schema_usage.sql` — GRANT schema portail à service_role + is_admin legacy `admin`
 
 Source de vérité : `supabase/migrations/` (agrégat live). Miroirs `src/modules/<domaine>/sql/` (certains README-only : admin, conseil, inbox).
 
-Edge Functions (hors migrations SQL) : `sync-bdpm`, `invite-user` (création / invite comptes — voir `.cursor/docs/SECURITY.md` § Auth).
+Edge Functions (hors migrations SQL) : `sync-bdpm`, `invite-user`, `delete-user` (voir `.cursor/docs/SECURITY.md` § Auth).
 
 Inventaire : tables métier `PharmaOs` + `portail` + `bdm`. Voir `.cursor/docs/SECURITY.md`.
 

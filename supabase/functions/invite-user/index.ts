@@ -1,11 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 /**
- * Création / invitation compte — Portail Application (prioritaire) + apps liées.
- * Doc : createUser / inviteUserByEmail (Auth Admin API).
- *
- * Acteur : portail.profiles.role ∈ admin | administrateur
- * Rôles stockés tels quels (portail : admin, member, équipe ; PharmaOS : pharmacien…).
+ * Création / invitation compte — Portail Application.
+ * Le profil est d’abord créé par le trigger portail.handle_new_user ;
+ * on met ensuite à jour rôle / display_name / must_change_password.
  */
 
 const corsHeaders = {
@@ -15,7 +13,6 @@ const corsHeaders = {
 
 const ACTOR_ADMIN_ROLES = new Set(['admin', 'administrateur']);
 
-/** Rôles autorisés à la création (portail + PharmaOS). */
 const ALLOWED_ROLES = new Set([
   'admin',
   'member',
@@ -89,10 +86,10 @@ Deno.serve(async (req) => {
     const password = body.password ? String(body.password) : '';
 
     if (!email || !email.includes('@')) {
-      return json(400, { error: 'email requis' });
+      return json(400, { error: 'E-mail requis' });
     }
     if (!ALLOWED_ROLES.has(role)) {
-      return json(400, { error: `role invalide: ${role}` });
+      return json(400, { error: `Rôle invalide: ${role}` });
     }
     if (mode === 'temp_password' && !isStrongPassword(password)) {
       return json(400, {
@@ -102,6 +99,7 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
+      db: { schema: 'portail' },
     });
 
     let userId = null;
@@ -124,34 +122,45 @@ Deno.serve(async (req) => {
       userId = created.user?.id ?? null;
     }
 
-    if (userId) {
-      const upsertPayload = {
-        id: userId,
-        email,
-        role,
-        display_name,
-        must_change_password: true,
-      };
-      let { error: upsertError } = await adminClient
-        .schema('portail')
+    if (!userId) {
+      return json(500, { error: 'Compte créé sans identifiant retourné.' });
+    }
+
+    // Le trigger handle_new_user a normalement déjà inséré la ligne : UPDATE du rôle.
+    const profilePatch = {
+      email,
+      role,
+      display_name,
+      must_change_password: true,
+    };
+
+    let { data: updatedRows, error: profileError } = await adminClient
+      .from('profiles')
+      .update(profilePatch)
+      .eq('id', userId)
+      .select('id');
+
+    if (profileError && /must_change_password/i.test(profileError.message || '')) {
+      delete profilePatch.must_change_password;
+      ({ data: updatedRows, error: profileError } = await adminClient
         .from('profiles')
-        .upsert(upsertPayload);
+        .update(profilePatch)
+        .eq('id', userId)
+        .select('id'));
+    }
 
-      // Colonne must_change_password absente → retry sans
-      if (upsertError && /must_change_password/i.test(upsertError.message || '')) {
-        delete upsertPayload.must_change_password;
-        ({ error: upsertError } = await adminClient
-          .schema('portail')
-          .from('profiles')
-          .upsert(upsertPayload));
-      }
+    // Filet de sécurité si le trigger n’a pas créé le profil
+    if (!profileError && (!updatedRows || updatedRows.length === 0)) {
+      ({ error: profileError } = await adminClient
+        .from('profiles')
+        .upsert({ id: userId, ...profilePatch }));
+    }
 
-      if (upsertError) {
-        return json(400, {
-          error: `Compte créé mais profil : ${upsertError.message}`,
-          user: { id: userId, email },
-        });
-      }
+    if (profileError) {
+      return json(400, {
+        error: `Compte créé mais profil incomplet : ${profileError.message}`,
+        user: { id: userId, email },
+      });
     }
 
     return json(200, {
