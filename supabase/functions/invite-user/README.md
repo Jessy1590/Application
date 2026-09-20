@@ -1,30 +1,37 @@
 # Edge Function : invite-user
 
-Crée un compte utilisateur (admin-only). Nécessite la clé `service_role` côté serveur uniquement.
+Crée un compte utilisateur (admin-only) via `service_role` côté serveur.
+
+Doc Supabase :
+- [createUser](https://supabase.com/docs/reference/javascript/auth-admin-createuser)
+- [inviteUserByEmail](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail)
+
+## Modes
+
+| `mode` | Comportement |
+|--------|----------------|
+| `temp_password` (défaut) | `createUser` + e-mail confirmé + mot de passe temporaire ; flag `must_change_password` |
+| `invite_email` | `inviteUserByEmail` — l’utilisateur reçoit le mail d’invitation (OTP / lien) |
+
+Rôles acceptés : `pharmacien` \| `administrateur` \| `préparateur`  
+Acteur autorisé : `administrateur` (ou legacy `admin`).
 
 ## Déploiement
 
 ```bash
-supabase login
-supabase link --project-ref kpjflntnotftpzffjbud
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<votre_service_role_key>
-supabase functions deploy invite-user
+supabase functions deploy invite-user --project-ref kpjflntnotftpzffjbud
 ```
 
-## Appel (depuis le portail admin)
+## Appel client
 
-POST `{SUPABASE_URL}/functions/v1/invite-user`
-
-Headers :
-- `Authorization: Bearer <access_token_admin>`
-- `apikey: <anon_key>`
-
-Body :
-```json
-{
-  "email": "user@example.com",
-  "password": "mot-de-passe-temporaire",
-  "display_name": "Nom",
-  "role": "member"
-}
+```js
+await supabase.functions.invoke('invite-user', {
+  body: {
+    email: 'user@example.com',
+    password: 'MotDePasseTemp8',
+    display_name: 'Nom',
+    role: 'préparateur',
+    mode: 'temp_password', // ou 'invite_email'
+  },
+})
 ```

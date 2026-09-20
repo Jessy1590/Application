@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthProvider, useAuth } from './core/AuthContext.jsx';
-import { bindModuleBeforeCloseBridge } from './shared/windowService.js';
+import { bindModuleBeforeCloseBridge, onModuleChangeView } from './shared/windowService.js';
 import { MODULE_VIEW_FEATURE } from './core/access.js';
 import { logEvent, setLogSurface } from './shared/logService.js';
 import './index.css';
@@ -22,7 +22,11 @@ import Perimes from './modules/perimes/comptoir/Perimes.jsx';
 import PerimesVitrine from './modules/perimes/comptoir/PerimesVitrine.jsx';
 import StockError from './modules/stock/comptoir/StockError.jsx';
 import LotAlerts from './modules/lot-alerts/comptoir/LotAlerts.jsx';
+import StupefiantReception from './modules/stupefiants/comptoir/StupefiantReception.jsx';
 import Hr from './modules/hr/comptoir/Hr.jsx';
+import Inbox from './modules/inbox/comptoir/Inbox.jsx';
+import AccountManager from './modules/admin/dashboard/AccountManager.jsx';
+import { ForcePasswordChangeGate } from './modules/admin/shared/AccountForms.jsx';
 
 /** Placeholder jusqu'à migration des modules restants. */
 function PlaceholderModule({ title }) {
@@ -35,6 +39,7 @@ function PlaceholderModule({ title }) {
 }
 
 const VIEW_TITLES = {
+  inbox: 'À traiter',
   directory: 'Annuaire',
   call: 'Appels',
   ip: 'Act-IP',
@@ -60,12 +65,18 @@ const VIEW_TITLES = {
   magistral_renouvellement: 'Magistrales — Renouvellement',
   magistral: 'Magistrales',
   psl: 'MDS',
+  psl_reception: 'MDS — Réception',
+  psl_delivrance: 'MDS — Délivrance',
+  stupefiants: 'Stupéfiants — réception',
   cash: 'Clôture de caisse',
   hr: 'RH',
+  compte: 'Mon compte',
 };
 
 function renderModuleView(view, moduleData) {
   switch (view) {
+    case 'inbox':
+      return <Inbox initialTab={moduleData?.tab || 'inbox'} />;
     case 'directory':
       return <Directory />;
     case 'call':
@@ -92,7 +103,13 @@ function renderModuleView(view, moduleData) {
     case 'magistral':
       return <Magistral view={view} />;
     case 'psl':
-      return <Psl />;
+      return <Psl view="delivrance" />;
+    case 'psl_reception':
+      return <Psl view="reception" />;
+    case 'psl_delivrance':
+      return <Psl view="delivrance" />;
+    case 'stupefiants':
+      return <StupefiantReception />;
     case 'cash':
       return <CashClosure />;
     case 'disputes':
@@ -111,6 +128,8 @@ function renderModuleView(view, moduleData) {
       return <LotAlerts />;
     case 'hr':
       return <Hr />;
+    case 'compte':
+      return <AccountManager compact />;
     default:
       return <PlaceholderModule title={VIEW_TITLES[view] || `Module : ${view || 'inconnu'}`} />;
   }
@@ -128,7 +147,7 @@ function ModuleDenied({ title }) {
 }
 
 function ModuleApp() {
-  const { canAccess, isLoading } = useAuth();
+  const { canAccess, isLoading, mustChangePassword, reloadProfile } = useAuth();
   const [currentView, setCurrentView] = useState(
     () => window.location.hash.replace('#', '') || 'directory'
   );
@@ -139,19 +158,21 @@ function ModuleApp() {
   }, []);
 
   useEffect(() => {
-    if (window.electronAPI?.onModuleChangeView) {
-      window.electronAPI.onModuleChangeView((view, data) => {
-        setCurrentView(view);
-        setModuleData(data ?? null);
-        logEvent({
-          category: 'ui',
-          action: 'module_view',
-          entity: view,
-          message: `Module → ${view}`,
-        });
+    const unsubView = onModuleChangeView((view, data) => {
+      setCurrentView(view);
+      setModuleData(data ?? null);
+      logEvent({
+        category: 'ui',
+        action: 'module_view',
+        entity: view,
+        message: `Module → ${view}`,
       });
-    }
-    return bindModuleBeforeCloseBridge();
+    });
+    const unsubClose = bindModuleBeforeCloseBridge();
+    return () => {
+      unsubView?.();
+      unsubClose?.();
+    };
   }, []);
 
   const featureId = MODULE_VIEW_FEATURE[currentView] || currentView;
@@ -168,10 +189,13 @@ function ModuleApp() {
   return (
     <div className="w-screen h-screen overflow-hidden bg-white flex flex-col">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {canAccess('taskbar', featureId)
+        {currentView === 'compte' || canAccess('taskbar', featureId)
           ? renderModuleView(currentView, moduleData)
           : <ModuleDenied title={title} />}
       </div>
+      {mustChangePassword && (
+        <ForcePasswordChangeGate onDone={() => reloadProfile?.()} />
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
 import {
   TASKBAR_FEATURES, DASHBOARD_FEATURES, isFeatureAllowed,
 } from '../../../core/access.js';
-import { DASHBOARD_WIDGETS, defaultWidgetVisible } from '../../../core/dashboardWidgets.js';
+import { DASHBOARD_WIDGETS, DASHBOARD_MODULES, DASHBOARD_CATEGORIES, defaultWidgetVisible } from '../../../core/dashboardWidgets.js';
 import {
   fetchAllProfiles, fetchRoleAccess, updateProfileRole, upsertRoleAccess,
   fetchRoleDashboardWidgets, upsertRoleDashboardWidget,
@@ -21,6 +21,7 @@ import {
 } from '../services/casquetteService.js';
 import { TASK_MODULES, taskCategoriesForModule } from '../../tasks/services/taskService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
+import InviteUserPanel from './InviteUserPanel.jsx';
 
 const TASK_MODES = [
   { value: 'never', label: 'Jamais' },
@@ -308,6 +309,10 @@ export default function AccessManager() {
       </div>
 
       {pageTab === 'utilisateurs' && (
+      <>
+      {isAppAdministrateur && (
+        <InviteUserPanel onCreated={() => load()} />
+      )}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Utilisateurs</h2>
@@ -320,6 +325,7 @@ export default function AccessManager() {
                 <th className="p-2.5 text-left font-semibold">Email</th>
                 <th className="p-2.5 text-left font-semibold">Rôle</th>
                 <th className="p-2.5 text-left font-semibold">Casquettes</th>
+                <th className="p-2.5 text-left font-semibold">MDP</th>
               </tr>
             </thead>
             <tbody>
@@ -358,6 +364,11 @@ export default function AccessManager() {
                       {!activeCasquettes.length && <span className="text-xs text-slate-400">Aucune</span>}
                     </div>
                   </td>
+                  <td className="p-2.5 text-xs">
+                    {p.must_change_password
+                      ? <span className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Temporaire</span>
+                      : <span className="text-slate-400">OK</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -365,8 +376,10 @@ export default function AccessManager() {
         </div>
         <p className="px-4 py-2.5 text-xs text-slate-500 border-t border-slate-100">
           Désactivé = connexion refusée. Casquettes surtout utiles pour les préparateurs.
+          « Temporaire » = changement de mot de passe exigé à la prochaine connexion.
         </p>
       </div>
+      </>
       )}
 
       {pageTab === 'casquettes' && (
@@ -516,12 +529,17 @@ export default function AccessManager() {
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800 text-sm">Accueil dashboard — widgets</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Module et catégorie d&apos;utilité servent aussi de filtres sur la vue d&apos;ensemble.
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="p-2.5 text-left font-semibold">Widget</th>
+                <th className="p-2.5 text-left font-semibold">Module</th>
+                <th className="p-2.5 text-left font-semibold">Catégorie</th>
                 {ACCESS_ROLES.map((role) => (
                   <th key={role} className="p-2.5 text-center font-semibold">{ROLE_LABELS[role]}</th>
                 ))}
@@ -531,6 +549,12 @@ export default function AccessManager() {
               {DASHBOARD_WIDGETS.map((w) => (
                 <tr key={w.id} className="border-t border-slate-100">
                   <td className="p-2.5 text-slate-700">{w.label}</td>
+                  <td className="p-2.5 text-slate-500 text-xs">
+                    {DASHBOARD_MODULES.find((m) => m.id === w.module)?.label || w.module}
+                  </td>
+                  <td className="p-2.5 text-slate-500 text-xs">
+                    {DASHBOARD_CATEGORIES.find((c) => c.id === w.category)?.label || w.category}
+                  </td>
                   {ACCESS_ROLES.map((role) => {
                     const on = widgetVisible(role, w.id);
                     return (

@@ -6,4 +6,4 @@
 -- Widgets : PharmaOs.role_dashboard_widgets
 -- Tâches : PharmaOs.task_role_rules
 -- NOTE : sous-rôle Location Phie « gestionnaire » ≠ rôle portail
---   (+ legacy admin | équipe | member)
+-- Legacy mappés en app : admin | équipe | member | gestionnaire → préparateur / administrateur

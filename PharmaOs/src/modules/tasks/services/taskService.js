@@ -161,6 +161,24 @@ export async function fetchMyOpenAssignments(userId) {
   return { data: data || [], error };
 }
 
+/** Compte les assignations ouvertes dont la date (JSON description) est ≤ aujourd’hui. */
+export async function countTodayPendingAssignments(userId) {
+  if (!userId) return 0;
+  await ensureTaskEscalations().catch(() => {});
+  const { data, error } = await fetchMyOpenAssignments(userId);
+  if (error) return 0;
+  const today = new Date().toISOString().split('T')[0];
+  return (data || []).filter((assignment) => {
+    let taskDate = null;
+    try {
+      const parsed = JSON.parse(assignment.tasks?.description);
+      taskDate = parsed?.date;
+    } catch { /* ignore */ }
+    if (!taskDate) return true;
+    return taskDate <= today;
+  }).length;
+}
+
 export async function updateTaskDescription(taskId, description) {
   return supabase.from('tasks').update({ description }).eq('id', taskId);
 }

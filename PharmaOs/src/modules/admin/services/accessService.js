@@ -44,11 +44,19 @@ export async function upsertRoleAccess(role, surface, featureId, allowed, userId
 }
 
 export async function fetchAllProfiles() {
-  const { data, error } = await supabase
+  const base = 'id, email, display_name, role, job_title, created_at';
+  let { data, error } = await supabase
     .schema('portail')
     .from('profiles')
-    .select('id, email, display_name, role, job_title, created_at')
+    .select(`${base}, must_change_password`)
     .order('display_name');
+  if (error && /must_change_password/i.test(error.message || '')) {
+    ({ data, error } = await supabase
+      .schema('portail')
+      .from('profiles')
+      .select(base)
+      .order('display_name'));
+  }
   if (error) throw error;
   return data || [];
 }

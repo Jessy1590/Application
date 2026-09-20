@@ -32,6 +32,7 @@ export function getTaskCategory(description, titre = '') {
   const d = parseTaskDetails(description);
   if (d.type === 'retrait_lot') return 'retrait_lot';
   if (d.type === 'stock_error' || d.type === 'stock_recompte' || d.type === 'stock_recompte_result') return 'stock';
+  if (d.type === 'stupefiant_verification' || d.type === 'stupefiant_recompte') return 'stupefiants';
   if (d.type === 'perimes_mensuel') return 'perimes';
   if (d.type === 'perime_decision') return 'perime_decision';
   if (d.type === 'perime_challenge') return 'perime_challenge';
@@ -73,6 +74,7 @@ export const TASK_CATEGORY_LABELS = {
   facturation: 'Facturations',
   retrait_lot: 'Retrait de lot',
   stock: 'Stock',
+  stupefiants: 'Stupéfiants',
   perimes: 'Périmés (legacy)',
   perime_decision: 'Périmé à décider',
   perime_challenge: 'Challenge périmé',

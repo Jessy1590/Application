@@ -10,6 +10,7 @@ export const TASK_MODULES = Object.freeze([
   { id: 'qualite', label: 'Qualité' },
   { id: 'stock', label: 'Stock' },
   { id: 'perimes', label: 'Périmés' },
+  { id: 'stupefiants', label: 'Stupéfiants' },
   { id: 'preparations', label: 'Préparations' },
   { id: 'location', label: 'Location' },
   { id: 'rh', label: 'RH' },
@@ -101,6 +102,20 @@ export const TASK_RULE_CATEGORIES = Object.freeze([
     module: 'stock',
     label: 'Retrait de lot',
     description: 'Alerte retrait de lot (ANSM / labo). Isoler le stock et suivre les étapes de l’alerte.',
+  },
+
+  // —— Stupéfiants ——
+  {
+    id: 'stupefiant_verification',
+    module: 'stupefiants',
+    label: 'Stupéfiant — vérification',
+    description: 'Écart après comptage réceptionnaire (armoire ≠ LGO). Ouvre le dashboard Stupéfiants → Vérifier.',
+  },
+  {
+    id: 'stupefiant_recompte',
+    module: 'stupefiants',
+    label: 'Stupéfiant — recomptage',
+    description: 'Legacy / escalade recomptage. Le flux actuel passe par stupefiant_verification.',
   },
 
   // —— Périmés ——

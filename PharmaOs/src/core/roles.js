@@ -48,16 +48,12 @@ export const STORED_ROLES = Object.freeze([
   'member',
 ]);
 
-/** Personnel actif (listes équipe, assignations) — hors comptes désactivés. */
+/**
+ * Personnel actif (listes équipe, assignations) — hors comptes désactivés.
+ */
 export const STAFF_ROLES = Object.freeze(
   STORED_ROLES.filter((r) => r !== DISABLED_ROLE),
 );
-
-/**
- * @deprecated Préférer resolveAssigneeIds(category) via task_role_rules.
- * Conservé pour compat temporaire (pharmacien / administrateur).
- */
-export const ADMIN_ROLES = Object.freeze(['admin', 'administrateur', 'pharmacien']);
 
 export function canonicalRole(role) {
   if (!role) return 'préparateur';
@@ -92,16 +88,6 @@ export function isAppAdministrateur(role) {
 
 /** Pharmacien ou administrateur (équivalent historique isAdmin métier). */
 export function isPharmacistLevel(role) {
-  const r = canonicalRole(role);
-  return r === 'pharmacien' || r === 'administrateur';
-}
-
-/**
- * @deprecated Préférer canAccess('dashboard','dashboard') (matrice + casquettes).
- * Fallback rôles : pharmacien / administrateur uniquement.
- */
-export function isDashboardRole(role) {
-  if (isDisabledRole(role)) return false;
   const r = canonicalRole(role);
   return r === 'pharmacien' || r === 'administrateur';
 }

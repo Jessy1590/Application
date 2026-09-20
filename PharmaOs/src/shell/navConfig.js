@@ -1,9 +1,9 @@
 import {
   PhoneCall, Calendar, CheckSquare, Activity, BookOpen, ShieldAlert,
   FileText, AlertOctagon, Package, PackageX, BedDouble, Scale, FlaskConical, Droplets,
-  Wallet, Users, LayoutDashboard, Pill, MessageCircle,
+  Wallet, Users, LayoutDashboard, Pill, MessageCircle, Inbox,
   ClipboardList, PlusCircle, RefreshCw, Lock, Phone, Receipt, Warehouse, ScanText, Settings,
-  ScrollText, Bug, Shield,
+  ScrollText, Bug, Shield, UserCog,
 } from 'lucide-react';
 
 /** Aligné sur les sous-groupes de la Taskbar. */
@@ -12,9 +12,11 @@ export const NAV_SECTIONS = [
     title: 'Principal',
     items: [
       { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+      { id: 'inbox', label: 'À traiter', icon: Inbox, color: 'indigo' },
       { id: 'calls', label: 'Appels', icon: PhoneCall, color: 'emerald' },
       { id: 'agenda', label: 'Agenda', icon: Calendar, color: 'purple' },
       { id: 'tasks', label: 'Tâches', icon: CheckSquare, color: 'orange' },
+      { id: 'compte', label: 'Mon compte', icon: UserCog, color: 'slate' },
     ],
   },
   {
@@ -44,6 +46,7 @@ export const NAV_SECTIONS = [
     title: 'Métier',
     items: [
       { id: 'psl', label: 'MDS', icon: Droplets, color: 'rose' },
+      { id: 'stupefiants', label: 'Stupéfiants', icon: Lock, color: 'rose' },
       { id: 'conseil', label: 'Conseil', icon: MessageCircle, color: 'rose' },
       { id: 'bdm', label: 'BDPM', icon: Pill, color: 'teal' },
     ],

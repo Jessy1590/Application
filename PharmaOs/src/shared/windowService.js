@@ -74,11 +74,6 @@ export async function openBugWindow() {
   return null;
 }
 
-/** @deprecated Les bugs sont enregistrés en table via bugService.createBug */
-export async function submitBugReport() {
-  return { ok: false, error: 'deprecated-use-supabase' };
-}
-
 export async function closeModuleWindow() {
   if (window.electronAPI?.closeModule) {
     return window.electronAPI.closeModule();
@@ -146,4 +141,16 @@ export async function stopContextWatch() {
 export function onContextText(callback) {
   if (!window.electronAPI?.onContextText) return () => {};
   return window.electronAPI.onContextText(callback);
+}
+
+/** @param {(view: string, data: object|null) => void} callback */
+export function onModuleChangeView(callback) {
+  if (!window.electronAPI?.onModuleChangeView) return () => {};
+  return window.electronAPI.onModuleChangeView(callback);
+}
+
+/** @param {(payload: object) => void} callback @returns {() => void} */
+export function onDashboardNavigate(callback) {
+  if (!window.electronAPI?.onDashboardNavigate) return () => {};
+  return window.electronAPI.onDashboardNavigate(callback);
 }

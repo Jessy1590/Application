@@ -3,16 +3,16 @@ import {
   Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
   AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
-  Users, Plus, X, Pill, ClipboardCheck, RefreshCw,
+  Users, Plus, X, Pill, ClipboardCheck, RefreshCw, Lock, ArrowDownToLine, Inbox, UserCog,
 } from 'lucide-react';
 import { useAuth } from '../core/AuthContext.jsx';
-import { supabase } from '../shared/supabaseClient.js';
-import { ensureTaskEscalations } from '../modules/tasks/services/taskService.js';
+import { countTodayPendingAssignments } from '../modules/tasks/services/taskService.js';
 import {
   expandWindow, reduceWindow, openModuleWindow, openDashboardWindow, openBugWindow,
 } from '../shared/windowService.js';
 import { logTaskbarToggle } from '../shared/dbServices.js';
 import { setLogSurface } from '../shared/logService.js';
+import { supabase } from '../shared/supabaseClient.js';
 import ConseilPanel from '../modules/conseil/comptoir/ConseilPanel.jsx';
 
 function TbBtn({ title, onClick, className = '', children }) {
@@ -60,29 +60,8 @@ export default function Taskbar() {
     if (!user?.id) return;
 
     const fetchPendingTasksCount = async () => {
-      try {
-        await ensureTaskEscalations();
-      } catch { /* best-effort */ }
-      const { data, error } = await supabase
-        .schema('PharmaOs')
-        .from('task_assignments')
-        .select('id, tasks(description)')
-        .eq('user_id', user.id)
-        .eq('statut', 'en_cours');
-
-      if (!error && data) {
-        const today = new Date().toISOString().split('T')[0];
-        const count = data.filter((assignment) => {
-          let taskDate = null;
-          try {
-            const parsed = JSON.parse(assignment.tasks?.description);
-            taskDate = parsed.date;
-          } catch { /* ignore */ }
-          if (!taskDate) return true;
-          return taskDate <= today;
-        }).length;
-        setPendingCount(count);
-      }
+      const count = await countTodayPendingAssignments(user.id);
+      setPendingCount(count);
     };
 
     fetchPendingTasksCount();
@@ -141,7 +120,12 @@ export default function Taskbar() {
   return (
     <div className="w-full h-full flex items-center justify-between px-2 bg-slate-900/90 text-white">
       <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto">
-        {(show('tasks') || show('order') || show('billing')) && <SectionSep label="Tâches" />}
+        {(show('inbox') || show('tasks') || show('order') || show('billing')) && <SectionSep label="Tâches" />}
+        {show('inbox') && (
+          <TbBtn title="À traiter & mes saisies" onClick={open('inbox')} className="relative text-indigo-300">
+            <Inbox size={18} />
+          </TbBtn>
+        )}
         {show('tasks') && (
           <TbBtn title="Mes tâches du jour" onClick={open('tasks')} className="relative text-amber-300">
             <CheckSquare size={18} />
@@ -195,10 +179,28 @@ export default function Taskbar() {
           <TbBtn title="Litiges fournisseurs" onClick={open('disputes')} className="text-amber-300"><Scale size={18} /></TbBtn>
         )}
 
-        {show('psl') && (
+        {(show('psl') || show('stupefiants')) && (
           <>
             <SectionSep label="Métier" />
-            <TbBtn title="Registre MDS (dérivés du sang)" onClick={open('psl')} className="text-rose-300"><Droplets size={18} /></TbBtn>
+            {show('psl') && (
+              <>
+                <TbBtn title="MDS — réception" onClick={open('psl_reception', 'psl')} className="text-rose-300">
+                  <span className="relative inline-flex w-[18px] h-[18px] items-center justify-center">
+                    <ArrowDownToLine size={18} strokeWidth={2.25} />
+                    <Droplets size={9} className="absolute -bottom-0.5 -right-0.5 text-rose-200" strokeWidth={2.5} />
+                  </span>
+                </TbBtn>
+                <TbBtn title="MDS — délivrance" onClick={open('psl_delivrance', 'psl')} className="text-rose-300">
+                  <span className="relative inline-flex">
+                    <Droplets size={18} />
+                    <Plus size={10} className="absolute -top-1 -right-1.5" strokeWidth={3} />
+                  </span>
+                </TbBtn>
+              </>
+            )}
+            {show('stupefiants') && (
+              <TbBtn title="Réception stupéfiants" onClick={open('stupefiants')} className="text-rose-400"><Lock size={18} /></TbBtn>
+            )}
           </>
         )}
 
@@ -264,6 +266,13 @@ export default function Taskbar() {
             <LayoutDashboard size={18} />
           </TbBtn>
         )}
+        <TbBtn
+          title="Mon compte (e-mail / mot de passe)"
+          onClick={() => openModuleWindow('compte')}
+          className="text-slate-300"
+        >
+          <UserCog size={18} />
+        </TbBtn>
         <button
           type="button"
           title={`Se déconnecter (${profile?.display_name || 'utilisateur'})`}

@@ -1,6 +1,7 @@
 import { ACCESS_ROLES, canonicalRole, isDisabledRole } from './roles.js';
 
 export const TASKBAR_FEATURES = Object.freeze([
+  { id: 'inbox', label: 'À traiter / mes saisies' },
   { id: 'tasks', label: 'Mes tâches' },
   { id: 'order', label: 'Commande médicament' },
   { id: 'billing', label: 'Facturation' },
@@ -17,12 +18,14 @@ export const TASKBAR_FEATURES = Object.freeze([
   { id: 'location', label: 'Location' },
   { id: 'magistral', label: 'Magistrales' },
   { id: 'psl', label: 'MDS' },
+  { id: 'stupefiants', label: 'Stupéfiants' },
   { id: 'hr', label: 'RH' },
   { id: 'cash', label: 'Clôture de caisse' },
 ]);
 
 export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'dashboard', label: 'Ouvrir le dashboard / accueil' },
+  { id: 'inbox', label: 'À traiter / mes saisies' },
   { id: 'calls', label: 'Appels' },
   { id: 'agenda', label: 'Agenda' },
   { id: 'tasks', label: 'Tâches' },
@@ -37,6 +40,7 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'location', label: 'Location' },
   { id: 'magistral', label: 'Magistrales' },
   { id: 'psl', label: 'MDS' },
+  { id: 'stupefiants', label: 'Stupéfiants' },
   { id: 'conseil', label: 'Conseil' },
   { id: 'bdm', label: 'BDPM' },
   { id: 'hr', label: 'RH' },
@@ -45,9 +49,11 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'bugs', label: 'Bugs' },
   { id: 'access', label: 'Accès & rôles' },
   { id: 'parametres', label: 'Paramètres' },
+  { id: 'compte', label: 'Mon compte' },
 ]);
 
 export const MODULE_VIEW_FEATURE = Object.freeze({
+  inbox: 'inbox',
   directory: 'directory',
   call: 'call',
   ip: 'ip',
@@ -80,6 +86,9 @@ export const MODULE_VIEW_FEATURE = Object.freeze({
   magistral_parametres: 'magistral',
   magistral: 'magistral',
   psl: 'psl',
+  psl_reception: 'psl',
+  psl_delivrance: 'psl',
+  stupefiants: 'stupefiants',
   cash: 'cash',
   hr: 'hr',
 });
@@ -135,6 +144,9 @@ function buildDefaultAccess() {
 
   map.préparateur.taskbar.cash = false;
 
+  /* Inbox / mes saisies : accessibles au préparateur (autocorrection hors LGO). */
+  map.préparateur.dashboard.inbox = true;
+
   map.pharmacien.dashboard.access = false;
   map.préparateur.dashboard.access = false;
 
@@ -145,6 +157,11 @@ function buildDefaultAccess() {
   map.pharmacien.dashboard.logs = true;
   map.pharmacien.dashboard.bugs = true;
   map.pharmacien.dashboard.parametres = true;
+
+  /* Mon compte : toujours pour tout rôle avec accès dashboard (hors désactivé). */
+  for (const role of ACCESS_ROLES) {
+    map[role].dashboard.compte = true;
+  }
 
   return map;
 }
@@ -195,6 +212,15 @@ export function isFeatureAllowed(role, surface, featureId, overrides = []) {
  */
 export function canAccessFeature(role, surface, featureId, overrides = [], casquetteGrants = []) {
   if (isDisabledRole(role)) return false;
+  /* Compte personnel : ouvert dès qu’un accès dashboard existe. */
+  if (surface === 'dashboard' && featureId === 'compte') {
+    if (
+      isFeatureAllowed(role, 'dashboard', 'dashboard', overrides)
+      || hasCasquetteGrant(casquetteGrants, 'dashboard', 'dashboard')
+    ) {
+      return true;
+    }
+  }
   if (
     isFeatureAllowed(role, surface, featureId, overrides)
     || hasCasquetteGrant(casquetteGrants, surface, featureId)

@@ -9,37 +9,39 @@ globs: "src/modules/**/*"
 ```
 src/modules/<domaine>/
   comptoir/     # UI saisie rapide (fenêtre module)
-  dashboard/    # UI admin (fenêtre dashboard) — optionnel si dashboard-only
-  services/     # *Service.js unique (plus de doublon App/Dashboard)
+  dashboard/    # UI dashboard — optionnel si dashboard-only
+  services/     # *Service.js unique
   sql/          # tables + RLS (README + scripts)
 ```
 
 ## Checklist nouveau / migration module
 1. [ ] Créer le dossier `src/modules/<domaine>/` avec sous-dossiers ci-dessus
-2. [ ] Porter UI comptoir depuis `PharmaOs-legacy/App` si applicable
-3. [ ] Porter UI dashboard depuis `PharmaOs-legacy/Dashboard` si applicable
-4. [ ] Fusionner en **un** `*Service.js` (extraire les `.from()` des composants)
-5. [ ] Documenter / versionner SQL + RLS dans `sql/`
-6. [ ] Brancher le routeur `module-main.jsx` (hash) et/ou `DashboardShell`
-7. [ ] Mettre à jour `.cursor/docs/STATE.md`
-8. [ ] Aucune colonne inventée (contrats `convention.mdc`)
+2. [ ] Porter UI depuis `PharmaOs-legacy` si applicable
+3. [ ] Fusionner en **un** `*Service.js` (pas de `.from()` dans les composants)
+4. [ ] Documenter / versionner SQL + RLS dans `sql/`
+5. [ ] Brancher `module-main.jsx` et/ou `DashboardShell` + `access.js` / `navConfig`
+6. [ ] Mettre à jour `.cursor/docs/STATE.md`
+7. [ ] Aucune colonne inventée (contrats `convention.mdc`)
+8. [ ] Gates via `canAccess` — pas de checks rôle en dur
 
 ## Formulaires d'insert — cohérence comptoir / dashboard
-- **Règle stricte :** quand un même type de données est saisi depuis la taskbar (comptoir) ET depuis le dashboard, le formulaire DOIT être identique (mêmes champs, même ordre, mêmes labels, mêmes validations).
-- **Pattern :** extraire un composant partagé dans `src/modules/<domaine>/shared/` (ex. `PatientOrderForm.jsx`) importé par le comptoir et le dashboard.
-- **Props du composant partagé :** `type` (variante), `form` (état), `onChange(patch)` (merge partiel), `compact` (optionnel, pour modales dashboard).
-- **Labels + placeholders :** chaque champ a un label au-dessus ET un placeholder dans l’input.
-- **Commande / facture :** champs `medicament` et `facture` **séparés** ; CIP **non required**.
-- **Référence commande/facture :** `src/modules/tasks/shared/PatientOrderForm.jsx`
-- **Référence appels :** `src/modules/calls/shared/CallForm.jsx` — comptoir + dashboard.
-- **Référence IP :** `src/modules/ip/shared/IpForm.jsx` — comptoir + dashboard.
-- **Fermeture fenêtre module :** après validation d’un formulaire taskbar, fermer via `closeModuleWindow()` **sauf** si un enchaînement est demandé (ex. appel motif IP → ouvrir le module IP pré-rempli ; réclamation → Qualité ; litige_fournisseur → Litiges).
-- **Taskbar groupes :** `Tâches` ; `Communication` ; `Qualité` ; `Stock` ; `Métier` (MDS) ; `Prépa.` (magistrales : commander / devis / rappel / dispenser, feature `magistral`) ; `Loc.` (location_*) ; `RH / Compta`.
-- **Dashboard nav :** sous-groupe **Préparations** (`magistral_suivi` / `_creation` / `_devis` / `_rappel` / `_dispenser`, feature `magistral`) — miroir Location (`location_*` sans paramètres). Paramètres modules → Administration → `parametres` (sous-onglets Location / Préparations / Périmés / Caisse).
+- **Règle stricte :** même type de données taskbar + dashboard → formulaire identique (champs, ordre, labels, validations).
+- **Pattern :** composant partagé dans `src/modules/<domaine>/shared/`.
+- **Références :** `PatientOrderForm.jsx`, `CallForm.jsx`, `IpForm.jsx`.
+- **Fermeture module :** `closeModuleWindow()` après validation sauf enchaînement métier.
+- **Taskbar groupes :** `Tâches` (dont **inbox**) ; `Communication` ; `Qualité` ; `Stock` ; `Métier` ; `Prépa.` ; `Loc.` ; `RH / Compta`.
+- **Dashboard nav :** sous-groupes Préparations / Location ; Administration → paramètres modules.
 
 ## Modules dashboard-only (exemples)
 - `agenda/` — pas de dossier `comptoir/` requis
-- `hr/` — dashboard admin + module taskbar `comptoir/Hr.jsx` (retard / demande absence)
+- `bdm/` — explorateur dashboard
+- `hr/` — dashboard + module taskbar `comptoir/Hr.jsx`
 
-## Hors scope v1
-- UI Dashboard **équipe** (voir `DASHBOARD_EQUIPE.md`) — documenter, ne pas implémenter
+## Inbox / autocorrection
+- Module `inbox/` : file « À traiter » + mes saisies — voir `DASHBOARD_EQUIPE.md` (implémenté).
+- RLS own UPDATE : migration `042`.
+
+## Hors scope
+- Intégration API LGO / WinPharma tant que les infos techniques ne sont pas fournies
+- Banque / Vaccin / Fromage / Valorisation legacy
+- Drop schema `phieevreux` (conservé volontairement)

@@ -11,9 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('dashboard:navigate', handler);
   },
   openBug: () => ipcRenderer.invoke('window:openBug'),
-  submitBugReport: (text) => ipcRenderer.invoke('bug:submit', text),
   onModuleChangeView: (callback) => {
-    ipcRenderer.on('module:change-view', (_event, view, data) => callback(view, data));
+    const handler = (_event, view, data) => callback(view, data);
+    ipcRenderer.on('module:change-view', handler);
+    return () => ipcRenderer.removeListener('module:change-view', handler);
   },
   closeModule: () => ipcRenderer.invoke('window:closeModule'),
   confirmModuleClose: () => ipcRenderer.invoke('window:confirmModuleClose'),

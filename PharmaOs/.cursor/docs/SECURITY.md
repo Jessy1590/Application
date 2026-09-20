@@ -1,70 +1,70 @@
 # Sécurité — Electron & Supabase
 
 ## 1. Electron
-- `contextIsolation: true`, `nodeIntegration: false` sur taskbar, module et dashboard.
+- `contextIsolation: true`, `nodeIntegration: false` sur taskbar, module, dashboard et bug.
 - Preload (`electron/preload.cjs`) expose uniquement `window.electronAPI`.
-- IPC allowlist :
-  - `window:setMode` → `login` | `expanded` | `reduced`
-  - `window:openModule`
-  - `window:openDashboard`
-  - `window:setIgnoreMouseEvents`
-- Le renderer ne doit jamais importer `fs` / `path` / `electron`.
+- Pont renderer : **`src/shared/windowService.js` uniquement**.
+- IPC invoke : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:closeModule`, `window:confirmModuleClose`, `window:setIgnoreMouseEvents`, `window:openBug`, `context:startWatch`, `context:stopWatch`.
+- Events : `module:change-view`, `module:before-close`, `dashboard:navigate`, `context:text`.
+- `bug:submit` : **retiré** — les bugs passent par `PharmaOs.bugs` / `bugService`.
 
 ## 2. Clés & schémas
-- Uniquement la clé **anon** (`VITE_SUPABASE_*`). Jamais `service_role` côté client.
-- Schémas exposés PostgREST : `PharmaOs`, `portail`.
-- Pas de fallback de clés hardcodé.
-- Migrations versionnées : `supabase/migrations/` (agrégat) ; source de vérité par domaine : `src/modules/*/sql/`.
+- Clé **anon** uniquement (`VITE_SUPABASE_*`). Jamais `service_role` côté client (Edge `sync-bdpm`, `invite-user` seulement).
+- Schémas exposés PostgREST : `PharmaOs`, `portail`, `bdm`.
+- Autres schemas sur le même projet (`phieevreux`, `valorisation`, `public` finance) : legacy / autres apps — **ne pas y toucher** depuis PharmaOs.
+- RPC BDPM `truncate` / `bulk_insert_*` / `rebuild_molecules_*` : exécution **révoquée** pour `anon` et `authenticated` (migration `040`) — `service_role` seulement.
 
 ## 3. Rôles (canoniques)
-- Source : `portail.profiles.role` — valeurs **`admin`** | **`équipe`**.
-- Ne **pas** utiliser `member` dans le code ni les nouvelles écritures (valeur legacy encore tolérée par le CHECK SQL live pour compat).
-- Helpers RLS : `portail.is_admin()`, `"PharmaOs".is_pharma_admin()`, `"PharmaOs".is_pharma_staff()` (`admin` ∪ `équipe`).
-- UI Dashboard : `role === 'admin'` (bouton Taskbar + gate DashboardShell).
+- Source : `portail.profiles.role` — `pharmacien` | `administrateur` | `préparateur` | `désactivé`.
+- Legacy mappés côté app : `admin` → administrateur ; `équipe` / `member` / `gestionnaire` → préparateur.
+- Helpers RLS : `is_pharma_admin()` (pharmacien ∪ administrateur), `is_pharma_staff()`, `is_app_administrateur()`.
+- UI : matrice `role_access` + casquettes via `canAccess` — **pas** de gate `role === 'admin'` en dur.
 - Ne pas lire les rôles dans `user_metadata`.
-- Un changement de rôle n’est effectif qu’après rechargement de session (pas dans le JWT par défaut).
 
-## 4. Modèle RLS admin vs utilisateur
+## 4. Modèle RLS (résumé)
 
-### Isolation personnelle (logs / événements nominatifs)
-Tables : `taskbar_logs`, `call_logs`, `act_ip_logs`, `quality_events`.
+### Isolation personnelle
+Tables : `taskbar_logs`, `call_logs`, `act_ip_logs`, `quality_events`, …
 
-| Verb | Utilisateur (`équipe`) | Admin |
-|------|------------------------|-------|
+| Verb | Utilisateur | Pharmacien / admin |
+|------|-------------|-------------------|
 | INSERT | `user_id = auth.uid()` | idem |
-| SELECT | ses lignes seulement | **toutes** (`is_pharma_admin()`) |
-| UPDATE | selon table (souvent own) | souvent autorisé (ex. `call_logs`, `act_ip_logs`, `quality_events`) |
+| SELECT | ses lignes | toutes (`is_pharma_admin`) |
+| UPDATE | own si non clôturé (migration `042`) | admin |
 
-Conséquence UI : historique Appels / IP en fenêtre module = **user connecté** ; Dashboard admin s’appuie sur les policies admin.
+### Tâches
+SELECT / UPDATE scopés (créateur, assigné, administrateur) — migrations `032`/`033`.
 
-### Tables partagées équipe
-`directory_contacts`, `agenda_events` : `ALL` pour `authenticated` (données d’équipe, pas personnelles).  
-Modules métier collaboratifs (location, magistrales, PSL, caisse, lots, litiges, RH, contrôles, docs, périmés…) : `ALL` via `is_pharma_staff()`.
+### Stock
+INSERT own ; SELECT staff ; UPDATE own (ouvert) ou admin.
 
-### Tâches — modèle mixte + clôture globale
-- **SELECT** `tasks` / `task_assignments` : tout utilisateur authentifié.
-- **INSERT** `tasks` : `created_by = auth.uid()` ; **INSERT** assignations : authentifié (QuickAction assigne les ids de `portail.profiles`).
-- **UPDATE** `tasks` : créateur **ou** admin (`tasks_admin_all`).
-- **UPDATE** `task_assignments` :
-  - titulaire : `user_id = auth.uid()` ;
-  - **admin** : `task_assignments_admin_update` pour `completeTaskGlobal` / `uncompleteTaskGlobal` (UPDATE de **toutes** les lignes d’un `task_id`).
-- Realtime Taskbar : filtre `user_id=eq.<uid>` sur `task_assignments` — rester cohérent avec la RLS.
+## 5. Auth — compte, invitations, mots de passe
 
-### Stock / signatures (exemples mixtes)
-- `stock_errors` : INSERT own ; SELECT équipe ; UPDATE admin.
-- `document_signatures` : INSERT own ; SELECT staff.
+### Flux applicatifs (anon client)
+- Changement MDP / e-mail : `supabase.auth.updateUser` (+ `verifyOtp` type `email_change` pour confirmer)
+- Oubli MDP : `resetPasswordForEmail` → `verifyOtp` (`recovery`) → `updateUser({ password })`
+- Invitation : `verifyOtp` (`invite`) puis définition du MDP
+- Flag temporaire : `portail.profiles.must_change_password` (+ miroir `user_metadata.must_change_password`)
+  - **Ne pas** stocker ce flag dans `app_metadata` (non modifiable par l’utilisateur)
 
-### Portail
-- `profiles` : SELECT authentifié (nécessaire QuickAction / RH) ; INSERT/UPDATE self (+ admin update).
-- `sites` / `site_access` / `access_requests` : lecture restreinte + gestion admin.
+### Création de comptes (admin)
+- Edge Function `invite-user` (`supabase/functions/invite-user/`) — JWT vérifié, acteur `administrateur`
+- Modes : `temp_password` (`auth.admin.createUser`) | `invite_email` (`auth.admin.inviteUserByEmail`)
+- `service_role` **uniquement** dans l’Edge Function — jamais dans le client Electron
 
-### Pièges Postgres RLS
-- Un **UPDATE** nécessite aussi un **SELECT** sur la ligne (sinon 0 rows silencieux).
-- Ne pas élargir les policies « au hasard » : coller au besoin produit (surtout clôture globale tâches).
+### Templates e-mail Auth (dashboard Supabase)
+Pour Electron (pas de deep link fiable) : inclure `{{ .Token }}` (OTP 6 chiffres) dans les templates
+`recovery`, `invite`, `email_change` (en plus ou à la place du seul `ConfirmationURL`).
 
-## 5. Inventaire tables (31 + portail)
-Voir audit legacy / `DOCS_ET_AUDIT_OFFICINE.md` : tables métier `PharmaOs` + `app_settings` ; portail : `profiles`, `sites`, `site_access`, `access_requests`.  
-Tables legacy `advice_events` / `magistral_providers` / `magistral_price_rules` **supprimées** (migration `011`).
+### Mots de passe leakés
+Activer **Leaked password protection** (Have I Been Pwned) :
+Dashboard Supabase → Authentication → Password / Providers → option dédiée.
+**Plan Pro+ requis.** Non activable via SQL ni MCP Auth. À faire manuellement sur le projet `kpjflntnotftpzffjbud`.
 
-## 6. Dashboard équipe
-- Vision hors v1 : `DASHBOARD_EQUIPE.md` — **aucun écran** Dashboard pour le rôle `équipe`.
+## 6. Pont LGO / CIP
+Intention : complément LGO (clipboard aujourd’hui ; WinPharma / source CIP plus tard).
+**En attente d’infos techniques** — ne pas inventer d’intégration produit.
+
+## 7. Autocorrection / inbox
+Module `inbox` (taskbar + dashboard) : file « À traiter » + correction de ses saisies.
+Voir `DASHBOARD_EQUIPE.md` (implémenté via `inbox`, plus un dashboard « rôle équipe » séparé).

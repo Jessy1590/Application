@@ -5,6 +5,7 @@ import { NAV_SECTIONS, findNavItem, resolveNavPageId, settingsTabFromNav } from 
 import { firstAllowedDashboardPage } from '../core/access.js';
 import { labelRole } from '../core/roles.js';
 import { logEvent, setLogSurface } from '../shared/logService.js';
+import { onDashboardNavigate } from '../shared/windowService.js';
 
 import CallTracking from '../modules/calls/dashboard/CallTracking.jsx';
 import AgendaManager from '../modules/agenda/dashboard/AgendaManager.jsx';
@@ -28,10 +29,14 @@ import HomeDashboard from '../modules/home/dashboard/HomeDashboard.jsx';
 import HrManager from '../modules/hr/dashboard/HrManager.jsx';
 import BdmExplorer from '../modules/bdm/dashboard/BdmExplorer.jsx';
 import ConseilManager from '../modules/conseil/dashboard/ConseilManager.jsx';
+import StupefiantsManager from '../modules/stupefiants/dashboard/StupefiantsManager.jsx';
 import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
 import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
 import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
 import SettingsManager from '../modules/admin/dashboard/SettingsManager.jsx';
+import AccountManager from '../modules/admin/dashboard/AccountManager.jsx';
+import InboxManager from '../modules/inbox/dashboard/InboxManager.jsx';
+import { ForcePasswordChangeGate } from '../modules/admin/shared/AccountForms.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -66,6 +71,14 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <ConseilManager />;
     case 'psl':
       return <PslManager />;
+    case 'stupefiants':
+      return (
+        <StupefiantsManager
+          onNavigate={onNavigate}
+          focusReleveId={pageData?.releveId || null}
+          initialTab={pageData?.tab || pageData?.stupefiantsTab || null}
+        />
+      );
     case 'cash':
       return <CashManager />;
     case 'location':
@@ -75,12 +88,13 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <LocationManager view="parc" onNavigate={onNavigate} pageData={pageData} />;
     case 'location_facture':
       return <LocationManager view="facture" onNavigate={onNavigate} pageData={pageData} />;
+    case 'location_contact':
+      return <LocationManager view="contact" onNavigate={onNavigate} pageData={pageData} />;
     case 'location_transcription':
       return <LocationTranscription onNavigate={onNavigate} />;
     case 'location_creation':
     case 'location_prolongation':
     case 'location_cloture':
-    case 'location_contact':
       return (
         <Location view={pageId} data={pageData} onNavigate={onNavigate} />
       );
@@ -103,6 +117,8 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <IpManagement onNavigate={onNavigate} />;
     case 'calls':
       return <CallTracking onNavigate={onNavigate} />;
+    case 'inbox':
+      return <InboxManager onNavigate={onNavigate} />;
     case 'dashboard':
       return <HomeDashboard onNavigate={onNavigate} />;
     case 'logs':
@@ -111,6 +127,8 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <BugsManager />;
     case 'access':
       return <AccessManager />;
+    case 'compte':
+      return <AccountManager />;
     case 'parametres':
     case 'location_parametres':
     case 'magistral_parametres':
@@ -127,7 +145,10 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
 }
 
 export default function DashboardShell() {
-  const { user, profile, canDashboard, canAccess, accessOverrides, casquetteGrants, isLoading, signOut, role } = useAuth();
+  const {
+    user, profile, canDashboard, canAccess, accessOverrides, casquetteGrants,
+    isLoading, signOut, role, mustChangePassword, reloadProfile,
+  } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageData, setPageData] = useState(null);
 
@@ -146,8 +167,7 @@ export default function DashboardShell() {
   );
 
   useEffect(() => {
-    if (!window.electronAPI?.onDashboardNavigate) return undefined;
-    return window.electronAPI.onDashboardNavigate((payload) => {
+    return onDashboardNavigate((payload) => {
       if (!payload?.page) return;
       const rawPage = payload.page;
       const settingsTab = settingsTabFromNav(rawPage, payload);
@@ -277,6 +297,9 @@ export default function DashboardShell() {
           {renderDashboardPage(currentPage, activeLabel, goTo, pageData)}
         </div>
       </main>
+      {mustChangePassword && (
+        <ForcePasswordChangeGate onDone={() => reloadProfile?.()} />
+      )}
     </div>
   );
 }

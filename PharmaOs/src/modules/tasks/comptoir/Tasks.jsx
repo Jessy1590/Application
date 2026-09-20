@@ -97,6 +97,10 @@ export default function Tasks() {
       closeModuleWindow();
       return;
     }
+    if (details.type === 'stupefiant_verification' || details.type === 'stupefiant_recompte') {
+      openStupefiantVerify(assignment);
+      return;
+    }
     completeTask(assignment);
   };
 
@@ -147,6 +151,21 @@ export default function Tasks() {
   const isHrAdminAction = (assignment) => {
     const details = parseTaskDetails(assignment.tasks?.description);
     return details.type === 'hr_absence_demande' || details.type === 'hr_horaire_demande';
+  };
+
+  const isStupefiantVerify = (assignment) => {
+    const t = parseTaskDetails(assignment.tasks?.description).type;
+    return t === 'stupefiant_verification' || t === 'stupefiant_recompte';
+  };
+
+  const openStupefiantVerify = async (assignment) => {
+    const details = parseTaskDetails(assignment.tasks?.description);
+    await openDashboardWindow({
+      page: 'stupefiants',
+      releveId: details.releve_id || null,
+      tab: 'verifier',
+    });
+    await closeModuleWindow();
   };
 
   const handleRetraitConfirm = () => {
@@ -201,6 +220,25 @@ export default function Tasks() {
           )}
           {data.instruction && <p className="text-violet-800 font-medium mt-1">{data.instruction}</p>}
           {data.description && <p className="text-slate-600">{data.description}</p>}
+        </div>
+      );
+    }
+    if (data.type === 'stupefiant_verification' || data.type === 'stupefiant_recompte') {
+      const title = data.type === 'stupefiant_recompte'
+        ? 'STUPÉFIANT — RECOMPTAGE'
+        : 'STUPÉFIANT — VÉRIFICATION';
+      return (
+        <div className="mt-3 p-4 bg-rose-50 border border-rose-200 rounded-lg space-y-1 text-sm">
+          <p className="font-bold text-rose-800">{title}</p>
+          <p><span className="font-semibold">Médicament:</span> {data.medicament}</p>
+          {data.cip && <p><span className="font-semibold">CIP:</span> {data.cip}</p>}
+          {data.is_du && <p className="font-medium text-rose-700">Dû / promis patient</p>}
+          {data.bl_numero && <p><span className="font-semibold">BL:</span> {data.bl_numero}</p>}
+          {data.nb_boites_recues != null && (
+            <p><span className="font-semibold">Boîtes reçues:</span> {data.nb_boites_recues}</p>
+          )}
+          {data.instruction && <p className="text-rose-900 font-medium mt-1">{data.instruction}</p>}
+          <p className="text-xs text-slate-500 mt-2">Ouvrir le dashboard Stupéfiants pour saisir le contrôle.</p>
         </div>
       );
     }
@@ -457,6 +495,14 @@ export default function Tasks() {
                     className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-indigo-600 hover:bg-indigo-700"
                   >
                     <LayoutDashboard size={18} /> Ouvrir RH dashboard
+                  </button>
+                ) : isStupefiantVerify(assignment) ? (
+                  <button
+                    type="button"
+                    onClick={() => openStupefiantVerify(assignment)}
+                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-rose-600 hover:bg-rose-700"
+                  >
+                    <LayoutDashboard size={18} /> Ouvrir vérification
                   </button>
                 ) : parseTaskDetails(assignment.tasks?.description).type === 'stock_recompte_result' ? (
                   <button

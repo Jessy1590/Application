@@ -1,6 +1,6 @@
 # PharmaOS
 
-Application Electron unifiée pour la gestion de pharmacie : **taskbar always-on-top**, **fenêtre module comptoir** (900×600) et **fenêtre Dashboard admin** (1280×800).
+Application Electron unifiée : **taskbar always-on-top**, **fenêtre module comptoir** (900×600) et **fenêtre Dashboard** (1280×800). Complément du LGO (pas un LGO).
 
 ## Prérequis
 
@@ -11,15 +11,10 @@ Application Electron unifiée pour la gestion de pharmacie : **taskbar always-on
 
 ```bash
 npm install
-```
-
-## Configuration
-
-```bash
 cp .env.example .env
 ```
 
-Renseigner les deux variables Supabase (clé **anon** uniquement — jamais `service_role`) :
+Renseigner (clé **anon** uniquement — jamais `service_role`) :
 
 ```
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
@@ -30,37 +25,28 @@ VITE_SUPABASE_ANON_KEY=<anon-key>
 
 | Commande | Description |
 |---|---|
-| `npm run dev` | Serveur Vite (hot-reload) |
-| `npm run electron:dev` | Vite + Electron en parallèle (dev complet) |
-| `npm run build` | Build Vite → `dist/` |
-| `npm run dist` | Build Vite + packaging Electron → `release/` (NSIS + portable `.exe`) |
-
-## Packaging `.exe`
-
-```bash
-npm run dist
-```
-
-Artefacts générés dans **`release/`** :
-
-- `PharmaOS-0.1.0-x64-Setup.exe` — installateur NSIS
-- `PharmaOS-0.1.0-x64-portable.exe` — exécutable portable
-
-> Le build Windows ne signe pas le binaire (`signAndEditExecutable: false`). Pour la distribution publique, ajouter un certificat code-signing et retirer cette option.
+| `npm run dev` | Serveur Vite |
+| `npm run electron:dev` | Vite + Electron |
+| `npm run build` | Build → `dist/` |
+| `npm run dist` | Packaging → `release/` (NSIS + portable) |
 
 ## Rôles
 
-| Rôle | Accès |
+| Rôle | Accès typique |
 |---|---|
-| **admin** | Taskbar + tous les modules comptoir + **bouton Dashboard** → fenêtre admin complète |
-| **équipe** | Taskbar + modules comptoir uniquement (pas de bouton Dashboard) |
+| **pharmacien** | Taskbar + dashboard (matrice) ; supervision métier |
+| **administrateur** | Tout + Administration (logs, bugs, Accès & rôles, paramètres) |
+| **préparateur** | Taskbar ; dashboard selon matrice / casquettes ; **inbox** (À traiter / mes saisies) par défaut |
+| **désactivé** | Connexion refusée |
 
-Le rôle est lu depuis `portail.profiles.role` à la connexion.
+Legacy `admin` / `équipe` / `member` / `gestionnaire` mappés automatiquement. Accès fins : Administration → **Accès & rôles** + **casquettes**.
 
 ## Legacy
 
-L'ancienne base de code (App + Dashboard séparés) est préservée dans **`../PharmaOs-legacy/`**. Ne pas supprimer sans validation manuelle.
+Ancienne base : **`../PharmaOs-legacy/`**. Ne pas supprimer sans validation.
 
-## Architecture
+## Docs
 
-Voir [`.cursor/docs/ARCHITECTURE.md`](.cursor/docs/ARCHITECTURE.md) pour le détail technique.
+- [Architecture](.cursor/docs/ARCHITECTURE.md)
+- [Sécurité](.cursor/docs/SECURITY.md)
+- [État projet](.cursor/docs/STATE.md)

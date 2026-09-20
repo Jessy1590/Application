@@ -1,0 +1,6 @@
+-- =============================================================================
+-- RLS — module stupéfiants (doc miroir migration 037)
+-- =============================================================================
+-- stupefiant_livreurs : ALL staff
+-- stupefiant_releves : INSERT own+staff ; SELECT/UPDATE staff ; DELETE admin/pharmacien
+-- Storage bucket stupefiants-bl : staff CRUD

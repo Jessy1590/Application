@@ -56,6 +56,58 @@ export async function fetchBugs({ statut = 'all' } = {}) {
   return data || [];
 }
 
+/**
+ * Agrégats bugs pour le tableau de bord (période glissante).
+ */
+export async function fetchBugStats({ days = 30 } = {}) {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const sinceIso = since.toISOString();
+
+  const { data, error } = await supabase
+    .from('bugs')
+    .select('created_at, statut, user_name')
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: true })
+    .limit(3000);
+  if (error) throw error;
+
+  const rows = data || [];
+  const byStatut = {};
+  const byUser = {};
+  const timelineMap = {};
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const [, m, day] = key.split('-');
+    timelineMap[key] = { date: key, label: `${day}/${m}`, count: 0 };
+  }
+
+  rows.forEach((r) => {
+    const st = r.statut || 'nouveau';
+    byStatut[st] = (byStatut[st] || 0) + 1;
+    const name = r.user_name || 'Inconnu';
+    byUser[name] = (byUser[name] || 0) + 1;
+    const key = String(r.created_at || '').slice(0, 10);
+    if (timelineMap[key]) timelineMap[key].count += 1;
+  });
+
+  const toList = (obj, labels = {}) => Object.entries(obj)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name: labels[name] || name, count, id: name }));
+
+  return {
+    days,
+    total: rows.length,
+    byStatut: toList(byStatut, BUG_STATUT_LABELS),
+    byUser: toList(byUser).slice(0, 8),
+    timeline: Object.values(timelineMap),
+    open: rows.filter((r) => r.statut === 'nouveau' || r.statut === 'en_cours').length,
+  };
+}
+
 export async function updateBugStatut(id, statut, { userId, userName }) {
   if (!BUG_STATUTS.includes(statut)) throw new Error('Statut invalide');
   const { data, error } = await supabase

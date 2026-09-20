@@ -90,6 +90,6 @@ Ou via MCP / SQL Editor : migration `location_pharmaos_tables` puis `location_ph
 
 
 
-Le module simplifié `src/modules/rental/` (`rental_assets` / `rental_contracts`) reste en place mais n’est plus branché UI. Ne pas supprimer sans validation.
+L’ancien module `rental` (`rental_assets` / `rental_contracts` / `rental_events`) a été retiré (code + tables, migration `041`).
 
 

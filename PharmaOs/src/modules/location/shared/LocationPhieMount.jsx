@@ -143,15 +143,19 @@ export default function LocationPhieMount({
       };
 
       root.innerHTML = '<p class="loc-muted">Chargement…</p>';
+      // Monter dans un staging : évite le double append si Strict Mode / navigation
+      // relance l’effet pendant un await interne (ex. loadParams dans Facture).
+      const staging = document.createElement('div');
       try {
-        await mountLocationModule(name, root, ctx);
-        if (!cancelled) setReady(true);
+        await mountLocationModule(name, staging, ctx);
+        if (cancelled || rootRef.current !== root) return;
+        root.replaceChildren(...staging.childNodes);
+        setReady(true);
       } catch (e) {
-        if (!cancelled) {
-          root.innerHTML = `<p class="loc-msg loc-msg-err">${String(e.message || e)}</p>`;
-          setErr(String(e.message || e));
-          setReady(true);
-        }
+        if (cancelled || rootRef.current !== root) return;
+        root.innerHTML = `<p class="loc-msg loc-msg-err">${String(e.message || e)}</p>`;
+        setErr(String(e.message || e));
+        setReady(true);
       }
     }
 

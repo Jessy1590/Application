@@ -15,7 +15,7 @@ import {
 import { CheckSquare, Plus, ArrowLeft, Check, Filter, Edit2, RotateCcw, Save, X } from 'lucide-react';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
-function renderTaskBody(task) {
+function renderTaskBody(task, onNavigate) {
   const details = parseTaskDetails(task.description);
   const titre = task.titre || '';
 
@@ -52,6 +52,33 @@ function renderTaskBody(task) {
         {details.quantite_finale != null && <p><strong>Qté finale :</strong> {details.quantite_finale}</p>}
         {details.instruction && <p className="font-medium">{details.instruction}</p>}
         {details.description && <p>{details.description}</p>}
+      </div>
+    );
+  }
+  if (details.type === 'stupefiant_verification' || details.type === 'stupefiant_recompte') {
+    const title = details.type === 'stupefiant_recompte' ? 'Stupéfiant — recomptage' : 'Stupéfiant — vérification';
+    return (
+      <div className="text-sm text-rose-800 space-y-0.5 mt-1 bg-rose-50 p-2 rounded border border-rose-100">
+        <p><strong>{title}</strong> — {details.medicament}</p>
+        {details.cip && <p>CIP {details.cip}</p>}
+        {details.is_du && <p>Dû / promis patient</p>}
+        {details.bl_numero && <p>BL {details.bl_numero}</p>}
+        {(details.stock_visuel_boites != null || details.stock_lgo_boites != null) && (
+          <p>
+            Armoire {details.stock_visuel_boites}/{details.stock_visuel_unites}
+            {' · '}LGO {details.stock_lgo_boites}/{details.stock_lgo_unites}
+          </p>
+        )}
+        {details.instruction && <p className="font-medium">{details.instruction}</p>}
+        {typeof onNavigate === 'function' && details.releve_id && (
+          <button
+            type="button"
+            className="mt-2 text-xs font-semibold text-rose-700 underline"
+            onClick={() => onNavigate('stupefiants', { releveId: details.releve_id, tab: 'verifier' })}
+          >
+            Ouvrir vérification →
+          </button>
+        )}
       </div>
     );
   }
@@ -279,6 +306,12 @@ export default function TasksManager({ onNavigate }) {
   };
 
   const handleCompleteTask = async (taskId, createdAt) => {
+    const task = tasks.find((t) => t.id === taskId);
+    const details = parseTaskDetails(task?.description);
+    if (details.type === 'stupefiant_verification' || details.type === 'stupefiant_recompte') {
+      onNavigate?.('stupefiants', { releveId: details.releve_id || null, tab: 'verifier' });
+      return;
+    }
     const timeSec = Math.floor((new Date() - new Date(createdAt)) / 1000);
     const currentUserProfile = profiles.find((p) => p.id === user.id)?.display_name
       || user?.email
@@ -324,7 +357,7 @@ export default function TasksManager({ onNavigate }) {
   }, [filteredTasks]);
 
   const categoryOrder = [
-    'libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock',
+    'libre', 'commande', 'facturation', 'appel', 'ip', 'retrait_lot', 'stock', 'stupefiants',
     'perimes', 'perime_decision', 'perime_mea', 'perime_promo', 'perime_challenge',
     'magistral_devis', 'magistral_a_controler', 'magistral_a_rappeler', 'magistral_a_dispenser', 'magistral_non_conforme',
     'location_a_rappeler', 'location_attente_suite',
@@ -457,7 +490,7 @@ export default function TasksManager({ onNavigate }) {
                         ) : (
                           <>
                             <h3 className="font-bold text-lg text-slate-800">{task.titre}</h3>
-                            <div className="text-sm text-slate-500 mt-2">{renderTaskBody(task)}</div>
+                            <div className="text-sm text-slate-500 mt-2">{renderTaskBody(task, onNavigate)}</div>
                           </>
                         )}
                       </div>
@@ -469,14 +502,29 @@ export default function TasksManager({ onNavigate }) {
                                 <Edit2 size={16} />
                               </button>
                             )}
-                            <input
-                              placeholder="Note de validation…"
-                              className="text-xs p-2 border rounded-md w-40"
-                              onChange={(e) => setComment({ ...comment, [task.id]: e.target.value })}
-                            />
-                            <button type="button" onClick={() => handleCompleteTask(task.id, task.created_at)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700 flex items-center gap-1 text-sm">
-                              <Check size={16} /> Valider
-                            </button>
+                            {(['stupefiant_verification', 'stupefiant_recompte'].includes(parseTaskDetails(task.description).type)) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = parseTaskDetails(task.description);
+                                  onNavigate?.('stupefiants', { releveId: d.releve_id || null, tab: 'verifier' });
+                                }}
+                                className="bg-rose-600 text-white px-3 py-1.5 rounded-md hover:bg-rose-700 flex items-center gap-1 text-sm"
+                              >
+                                Ouvrir vérification
+                              </button>
+                            ) : (
+                              <>
+                                <input
+                                  placeholder="Note de validation…"
+                                  className="text-xs p-2 border rounded-md w-40"
+                                  onChange={(e) => setComment({ ...comment, [task.id]: e.target.value })}
+                                />
+                                <button type="button" onClick={() => handleCompleteTask(task.id, task.created_at)} className="bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700 flex items-center gap-1 text-sm">
+                                  <Check size={16} /> Valider
+                                </button>
+                              </>
+                            )}
                           </div>
                         ) : (
                           <div className="flex items-center gap-3">

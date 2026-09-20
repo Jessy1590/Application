@@ -278,11 +278,6 @@ app.on('before-quit', () => {
   contextTextBus.stopWatch();
 });
 
-ipcMain.handle('bug:submit', async () => ({
-  ok: false,
-  error: 'deprecated-use-supabase',
-}));
-
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {

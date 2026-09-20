@@ -30,9 +30,16 @@ Ordre :
 26. `033_tasks_rls_no_recursion.sql` — casse la récursion tasks ↔ task_assignments (helpers SECURITY DEFINER)
 27. `034_magistral_creation_champs.sql` — `magistral_settings.creation_champs` (champs actifs/obligatoires création)
 28. `035_task_role_rules_catalog.sql` — seeds catégories tâches Magistrales / Location / Caisse / étalonnage
+29. `036_app_logs_triggers_sync.sql` — triggers `app_logs` sur tables post-024
+30. `037_stupefiants.sql` — livreurs / relevés / storage BL / seeds tâches
+31. `038_stupefiants_erreur_reception.sql` — statut `erreur_reception`
+32. `039_stupefiants_en_attente.sql` — statut `en_attente` ; `bl_numero` nullable
+33. `040_bdm_revoke_dangerous_rpc_anon.sql` — REVOKE truncate/bulk BDPM pour anon/authenticated
+34. `041_drop_phantom_controls_and_rental.sql` — drop controls + `rental_*`
+35. `042_mes_saisies_rls_own_update.sql` — UPDATE own saisies + admin policies `is_pharma_admin`
 
-Source de vérité : `src/modules/<domaine>/sql/`. Agrégat ici avec en-têtes `-- >>> module`.
+Source de vérité : `supabase/migrations/` (agrégat live). Miroirs `src/modules/<domaine>/sql/` (certains README-only : admin, conseil, inbox).
 
-Inventaire : tables métier PharmaOs + 4 portail (+ helpers). Voir `.cursor/docs/SECURITY.md`.
+Inventaire : tables métier `PharmaOs` + `portail` + `bdm`. Voir `.cursor/docs/SECURITY.md`.
 
-Hors scope : Banque / Valorisation / Vaccin / Fromage (`Application/supabase/SETUP.md`).
+Hors scope PharmaOs : Banque / Valorisation / Vaccin / Fromage ; schemas `phieevreux` / `public` finance (ne pas dropper depuis ce repo).

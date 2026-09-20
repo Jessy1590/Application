@@ -5,6 +5,7 @@ import {
   getPharmacySettingsForEdit,
   savePharmacySettings,
 } from '../services/pharmacySettingsService.js';
+import StupefiantsLivreursSettings from '../../stupefiants/dashboard/StupefiantsLivreursSettings.jsx';
 
 const inputCls = 'w-full p-2 border rounded-lg bg-white';
 
@@ -16,7 +17,7 @@ const Field = ({ label, children, hint }) => (
   </div>
 );
 
-/** Paramètres → Général : identité pharmacie partagée par tous les modules. */
+/** Paramètres → Général : identité pharmacie + livreurs partagés. */
 export default function GeneralSettingsPanel() {
   const [form, setForm] = useState({ ...EMPTY_PHARMACY });
   const [loading, setLoading] = useState(true);
@@ -57,10 +58,9 @@ export default function GeneralSettingsPanel() {
   }
 
   return (
-    <div className="space-y-4 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       <p className="text-sm text-slate-500">
-        Identité de l’officine — préremplissage formulaires, impressions et templates mail
-        (Préparations, Location, Caisse…).
+        Identité de l’officine et référentiels partagés (livreurs / grossistes…).
       </p>
       {msg && <p className="text-sm text-emerald-700 bg-emerald-50 p-2 rounded">{msg}</p>}
       {err && <p className="text-sm text-red-700 bg-red-50 p-2 rounded">{err}</p>}
@@ -121,6 +121,8 @@ export default function GeneralSettingsPanel() {
           {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </form>
+
+      <StupefiantsLivreursSettings />
     </div>
   );
 }

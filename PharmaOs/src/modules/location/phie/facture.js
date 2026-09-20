@@ -320,7 +320,6 @@
   }
 
   async function mount(root, ctx) {
-    root.innerHTML = '';
     let delaiJours = 30;
     try {
       const params = await LocationData.loadParams();
@@ -378,7 +377,9 @@
         </section>
       </div>
     </div>`);
-    root.appendChild(wrap);
+    // Remplacer le contenu juste avant l’insert (après await) pour éviter un double UI
+    // si deux mounts concurrents (Strict Mode) ont déjà vidé le root au démarrage.
+    root.replaceChildren(wrap);
     bindHelpTips(wrap);
 
     const msgEl = wrap.querySelector('#faMsg');
