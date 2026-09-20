@@ -179,6 +179,7 @@ export default function MagistralAdminEdit({
         step="full"
         compact
         showInternalPrep={false}
+        settings={settings}
       />
 
       <fieldset className="border rounded-lg p-3 space-y-2">

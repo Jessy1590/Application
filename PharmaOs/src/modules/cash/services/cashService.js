@@ -1,4 +1,5 @@
 import { supabase } from '../../../shared/supabaseClient.js';
+import { renderAppMail } from '../../admin/services/mailTemplatesService.js';
 
 export async function submitCashClosure(userId, authorName, payload) {
   const { data, error } = await supabase
@@ -151,17 +152,31 @@ export async function emailMonthlyReport(closures, yearMonth, toEmail) {
   }
 
   const totalEcart = closures.reduce((s, c) => s + calcEcart(c), 0);
-  const html = `
-    <h2>Rapport clôtures caisse — ${yearMonth}</h2>
-    <p>${closures.length} clôture(s) — Écart total : <strong>${totalEcart.toFixed(2)} €</strong></p>
+  const tableHtml = `
     <table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px">
       <tr><th>Date</th><th>Auteur</th><th>Fond réel</th><th>Écart</th><th>CB</th></tr>
       ${closures.map((c) => `<tr><td>${c.closure_date}</td><td>${c.author_name || ''}</td><td>${c.fond_reel}</td><td>${calcEcart(c).toFixed(2)}</td><td>${c.montant_cb}</td></tr>`).join('')}
-    </table>
+    </table>`;
+
+  const rendered = await renderAppMail('cash', 'rapport_mensuel', {
+    year_month: yearMonth,
+    closures_count: String(closures.length),
+    total_ecart: totalEcart.toFixed(2),
+    table_html: tableHtml,
+    pharmacy_name: '',
+    date_aujourdhui: new Date().toLocaleDateString('fr-FR'),
+  });
+
+  const subject = rendered.subject || `Clôtures caisse ${yearMonth}`;
+  const html = (rendered.body && rendered.body.trim())
+    ? rendered.body
+    : `<h2>Rapport clôtures caisse — ${yearMonth}</h2>
+    <p>${closures.length} clôture(s) — Écart total : <strong>${totalEcart.toFixed(2)} €</strong></p>
+    ${tableHtml}
     <p>PharmaOS — export automatique</p>`;
 
   const { data, error } = await supabase.functions.invoke('send-transactional-email', {
-    body: { to: email, subject: `Clôtures caisse ${yearMonth}`, html },
+    body: { to: email, subject, html },
   });
 
   if (error || data?.error) {

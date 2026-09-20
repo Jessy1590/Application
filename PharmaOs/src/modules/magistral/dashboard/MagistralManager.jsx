@@ -451,6 +451,7 @@ export default function MagistralManager({ onNavigate: _onNavigate = null }) {
                           onChange={(p) => setEditForm((f) => ({ ...f, ...p }))}
                           step="full"
                           compact
+                          settings={settings}
                         />
                         <div className="flex gap-2">
                           <button type="button" onClick={async () => {

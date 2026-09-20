@@ -44,12 +44,6 @@ export default function MagistralCreate() {
   const handleCreate = async (asDraft) => {
     setLoading(true); setErr(''); setMsg('');
     try {
-      if (!asDraft) {
-        if (!(form.patient?.phone || '').trim()) throw new Error('Téléphone patient obligatoire.');
-        if (form.analyse?.decision === 'st' && !form.analyse?.dose_posologie_ok) {
-          throw new Error('Cochez la vérification dose/posologie.');
-        }
-      }
       await createMagistralOrder(user.id, form, { asDraft, ordonnanceFile: ordoFile });
       const isDevis = !asDraft && form.demande?.nature === 'devis';
       setMsg(asDraft
@@ -103,6 +97,7 @@ export default function MagistralCreate() {
             showInternalPrep={!!settings?.internal_prep_enabled}
             ordonnanceFile={ordoFile}
             onOrdonnanceChange={setOrdoFile}
+            settings={settings}
           />
           <div className="flex gap-2 pt-2">
             {wizardStep > 0 && (

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS "PharmaOs".magistral_settings (
   tva_rate numeric DEFAULT 5.5 NOT NULL,
   internal_prep_enabled boolean DEFAULT false NOT NULL,
   mail_templates jsonb DEFAULT '{}'::jsonb NOT NULL,
+  creation_champs jsonb DEFAULT '{}'::jsonb NOT NULL,
   docs_retention_days integer DEFAULT 365,
   updated_at timestamptz DEFAULT now() NOT NULL,
   PRIMARY KEY ("id")

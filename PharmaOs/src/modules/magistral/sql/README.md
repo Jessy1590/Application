@@ -19,7 +19,9 @@ DEFAULT : `devis`.
 
 ### Colonnes clés
 
-**settings** : pharmacie + `provider_*` / `contract_*` / `provider_forms` / `provider_delai_jours` / `frais_port` / `coefficient` / `tva_rate` / `mail_templates` / `docs_retention_days`
+**settings** : pharmacie + `provider_*` / `contract_*` / `provider_forms` / `provider_delai_jours` / `frais_port` / `coefficient` / `tva_rate` / `creation_champs` (actif/obligatoire) / `docs_retention_days`  
+Templates mail : `PharmaOs.app_settings` clé `mail_templates` (Paramètres → Templates mail), avec fallback legacy `magistral_settings.mail_templates`.
+
 
 **orders** : `formule`, `forme`, `quantite`, `patient_initiales`, `patient_phone`, `patient_email`, `patient_call` (journal appel), `form_data`, `ordonnance_path`, traçabilité ST (`provider_ref`, `provider_lot`, dates, `liberation_*`), réception (`reception_checklist`, prix), dispensation (`ordonnancier_number`, `dispensed_*`), `status_history`
 

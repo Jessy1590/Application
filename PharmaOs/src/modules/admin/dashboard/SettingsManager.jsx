@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Settings, BedDouble, FlaskConical, Package, Wallet } from 'lucide-react';
+import { Settings, BedDouble, FlaskConical, Package, Wallet, Mail } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import LocationManager from '../../location/dashboard/LocationManager.jsx';
 import MagistralSettingsPanel from '../../magistral/dashboard/MagistralSettingsPanel.jsx';
 import PerimesEmplacementsSettings from '../../perimes/dashboard/PerimesEmplacementsSettings.jsx';
 import CashSettingsPanel from '../../cash/dashboard/CashSettingsPanel.jsx';
+import MailTemplatesSettings from './MailTemplatesSettings.jsx';
 import { SETTINGS_TABS, resolveSettingsTab } from '../services/settingsNav.js';
 
 const TAB_ICONS = {
@@ -12,6 +13,7 @@ const TAB_ICONS = {
   preparations: FlaskConical,
   perimes: Package,
   cash: Wallet,
+  mails: Mail,
 };
 
 /**
@@ -69,7 +71,7 @@ export default function SettingsManager({
           <Settings className="text-slate-600" /> Paramètres
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Configuration par module — Location, préparations, stock, caisse…
+          Configuration par module — Location, préparations, stock, caisse — et templates mail.
         </p>
       </div>
 
@@ -102,6 +104,7 @@ export default function SettingsManager({
         {tab === 'preparations' && <MagistralSettingsPanel />}
         {tab === 'perimes' && <PerimesEmplacementsSettings />}
         {tab === 'cash' && <CashSettingsPanel />}
+        {tab === 'mails' && <MailTemplatesSettings />}
       </div>
     </div>
   );

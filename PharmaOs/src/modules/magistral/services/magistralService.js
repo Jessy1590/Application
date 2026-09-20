@@ -2,9 +2,10 @@ import { supabase } from '../../../shared/supabaseClient.js';
 import {
   buildDefaultCreationChamps,
   validateCreationForm,
-  renderMailTemplate,
   getMailTemplate,
+  buildMailContext,
 } from './magistralParams.js';
+import { renderAppMail } from '../../admin/services/mailTemplatesService.js';
 
 export {
   CREATION_ETAPES,
@@ -141,10 +142,11 @@ function escHtml(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-/** Envoi avec subject+body depuis mail_templates (placeholders rendus). */
+/** Envoi avec subject+body depuis app_settings.mail_templates (fallback magistral_settings). */
 async function sendTemplatedMail(to, settings, key, order, { subjectFallback, bodyFallback, extra } = {}) {
   if (!to) throw new Error('Adresse e-mail destinataire manquante.');
-  const rendered = renderMailTemplate(settings, key, order || {}, extra || {});
+  const ctx = buildMailContext(order || {}, settings, extra || {});
+  const rendered = await renderAppMail('magistral', key, ctx, settings);
   const subject = rendered.subject || subjectFallback || key;
   const html = (rendered.body && rendered.body.trim())
     ? rendered.body
@@ -260,7 +262,8 @@ function buildHtmlShort(order, settings, title) {
 }
 
 export async function sendProviderEmail(order, settings, subjectKey, subjectFallback) {
-  const rendered = renderMailTemplate(settings, subjectKey, order);
+  const ctx = buildMailContext(order, settings);
+  const rendered = await renderAppMail('magistral', subjectKey, ctx, settings);
   const subject = rendered.subject || subjectFallback || templateOr(settings, subjectKey, subjectFallback);
   const html = (rendered.body && rendered.body.trim())
     ? rendered.body
