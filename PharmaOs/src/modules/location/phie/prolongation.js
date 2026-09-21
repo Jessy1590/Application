@@ -37,8 +37,9 @@
   }
 
   function isPrestataireOnly(d) {
-    const a = d?.appareil_actif;
-    return d?.qui_facture === 'prestataire' || !!a?.facturation_prestataire;
+    return typeof LocationData?.isFactureParPrestataire === 'function'
+      ? LocationData.isFactureParPrestataire(d)
+      : d?.qui_facture === 'prestataire' || !!d?.appareil_actif?.facturation_prestataire;
   }
 
   function canSuivi(ctx) {

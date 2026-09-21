@@ -168,6 +168,13 @@
   }
 
   /**
+   * Hors file Contact si la facturation courante est au prestataire (valeur dossier à jour).
+   */
+  function isHorsFileContact(ctx) {
+    return ctx?.qui_facture === 'prestataire' || !!ctx?.facturation_prestataire;
+  }
+
+  /**
    * @param {object} ctx
    * @param {object[]} rules
    * @param {object} [params]
@@ -179,6 +186,7 @@
     const list = (rules || []).filter((r) => r.actif !== false);
     const seuil = Number(params?.seuil_contact_jours ?? 7);
     const today = todayISO();
+    const horsContact = isHorsFileContact(ctx);
 
     for (const rule of list) {
       if (rule.type_appareil && ctx.type_appareil && rule.type_appareil !== ctx.type_appareil) {
@@ -198,12 +206,15 @@
       const item = { code: rule.code, message, action: rule.action, rule };
       if (rule.action === 'alerte_contact' || rule.action === 'bloquer_ou_alerter') {
         alerts.push(item);
-        contactReasons.push({
-          motif: rule.code,
-          message: item.message,
-          fromRule: true,
-          template_id: rule.template_id || null,
-        });
+        // Qui facture = prestataire (valeur à jour) → pas de file Contact, même si la règle matche.
+        if (!horsContact) {
+          contactReasons.push({
+            motif: rule.code,
+            message: item.message,
+            fromRule: true,
+            template_id: rule.template_id || null,
+          });
+        }
       } else if (rule.action === 'bascule_facture') {
         actions.push(item);
       } else {
@@ -212,8 +223,7 @@
     }
 
     if (
-      ctx.qui_facture !== 'prestataire' &&
-      !ctx.facturation_prestataire &&
+      !horsContact &&
       ctx.statut !== 'cloture' &&
       ctx.statut !== 'annule' &&
       ctx.statut !== 'en_attente'
@@ -350,6 +360,7 @@
     pickContactMotif,
     resolveLgo,
     evaluate,
+    isHorsFileContact,
     typeLabel,
     listRules,
     upsertRule,

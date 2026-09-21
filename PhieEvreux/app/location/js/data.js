@@ -469,6 +469,15 @@
     };
   }
 
+  /** Facturation prestataire à jour (dossier.qui_facture ou case appareil) → hors file Contact. */
+  function dossierHorsFileContact(d) {
+    if (typeof global.LocationRules?.isHorsFileContact === 'function') {
+      return global.LocationRules.isHorsFileContact(dossierContext(d));
+    }
+    const a = d?.appareil_actif || {};
+    return d?.qui_facture === 'prestataire' || !!a.facturation_prestataire;
+  }
+
   function normalizeDossierStatut(statut) {
     if (statut && typeof statut === 'object') statut = statut.statut;
     return statut === 'en_attente' ? 'en_attente' : 'actif';
@@ -1124,17 +1133,19 @@
     return mapContactRows(data);
   }
 
-  /** File ouverte UI : exclut les cycles obsolètes (nouvelle date_fin). */
+  /** File ouverte UI : exclut les cycles obsolètes (nouvelle date_fin) et facture prestataire. */
   async function listOpenContacts() {
-    return (await fetchOpenContactsRaw()).filter(
-      (c) => !isContactCycleObsolete(c, c.dossier)
-    );
+    return (await fetchOpenContactsRaw()).filter((c) => {
+      if (isContactCycleObsolete(c, c.dossier)) return false;
+      if (dossierHorsFileContact(c.dossier)) return false;
+      return true;
+    });
   }
 
   /**
    * Contacts résolus en attente de suite métier (prolongation / retour appareil / PERTE).
    * Hors file ouverte — statut DB = resolu uniquement.
-   * Exclut les cycles obsolètes et les dossiers qui ont déjà un contact ouvert courant
+   * Exclut les cycles obsolètes, facture prestataire, et les dossiers qui ont déjà un contact ouvert courant
    * (évite Appels + Attente/Perte pour le même dossier).
    */
   async function listOutcomeContacts() {
@@ -1144,14 +1155,54 @@
     ]);
     const openDossierIds = new Set(
       opens
-        .filter((c) => !isContactCycleObsolete(c, c.dossier))
+        .filter((c) => !isContactCycleObsolete(c, c.dossier) && !dossierHorsFileContact(c.dossier))
         .map((c) => c.dossier_id)
     );
     return outcomes.filter((c) => {
       if (isContactCycleObsolete(c, c.dossier)) return false;
+      if (dossierHorsFileContact(c.dossier)) return false;
       if (openDossierIds.has(c.dossier_id)) return false;
       return true;
     });
+  }
+
+  /**
+   * Retire un dossier de la file Contact (ouverts + Attente/Perte) — ex. bascule qui_facture → prestataire.
+   * Annule les lignes concernées ; l’historique reste en statut annule.
+   */
+  async function withdrawDossierFromContactQueue(dossierId) {
+    if (!dossierId) return [];
+    const { data, error } = await sb()
+      .from('location_contacts')
+      .select('*')
+      .eq('dossier_id', dossierId)
+      .neq('statut', 'annule');
+    if (error) throw error;
+    const withdrawn = [];
+    const openSet = new Set(OPEN_CONTACT_STATUTS);
+    const outcomeSet = new Set(OUTCOME_RESULTATS);
+    for (const c of data || []) {
+      if (!c) continue;
+      const inOpen = openSet.has(c.statut);
+      const inOutcome = c.statut === 'resolu' && outcomeSet.has(c.resultat);
+      if (!inOpen && !inOutcome) continue;
+      const row = await upsertContact({
+        id: c.id,
+        dossier_id: dossierId,
+        motif: c.motif,
+        commentaire: c.commentaire || null,
+        phase: c.phase || 'appel',
+        statut: 'annule',
+        resultat: c.resultat || null,
+        canal: c.canal || null,
+        contacted_at: c.contacted_at || null,
+        commentaire_fait_at: c.commentaire_fait_at || null,
+        phase_date_fin: c.phase_date_fin || null,
+        mail_envoye: !!c.mail_envoye,
+      });
+      withdrawn.push(row);
+    }
+    return withdrawn;
   }
 
   /**
@@ -1314,10 +1365,20 @@
     }
     const created = [];
     const reset = [];
+    const withdrawn = [];
 
     for (const d of dossiers) {
       const a = d.appareil_actif;
-      if (d.qui_facture === 'prestataire' || a?.facturation_prestataire) continue;
+      // Qui facture à jour = prestataire → retirer de la file (y compris contacts déjà créés).
+      if (dossierHorsFileContact(d)) {
+        const removed = await withdrawDossierFromContactQueue(d.id);
+        if (removed.length) {
+          withdrawn.push(...removed);
+          byDossier.delete(d.id);
+          outcomesByDossier.delete(d.id);
+        }
+        continue;
+      }
       const ctx = dossierContext(d);
       const evalRes = global.LocationRules.evaluate(ctx, rules, params);
       if (!evalRes.shouldContact) continue;
@@ -1406,6 +1467,7 @@
     return {
       created,
       reset,
+      withdrawn,
       totalOpen: byDossier.size,
     };
   }
@@ -1608,6 +1670,8 @@
     shouldResetContactToCommentaire,
     archiveDossierContactSiblings,
     invalidateDossierCommentaire,
+    withdrawDossierFromContactQueue,
+    dossierHorsFileContact,
     syncContactQueue,
     splitList,
     joinList,

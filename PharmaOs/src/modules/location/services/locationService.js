@@ -460,6 +460,19 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
     };
   }
 
+  /**
+   * Facturation courante = prestataire (qui_facture dossier ou flag appareil).
+   * Toujours lire la valeur à jour du dossier enrichi — peut changer en cours de location.
+   */
+  function isFactureParPrestataire(d) {
+    if (!d) return false;
+    const a = d.appareil_actif || {};
+    return LocationRules.isFactureParPrestataire({
+      qui_facture: d.qui_facture,
+      facturation_prestataire: a.facturation_prestataire,
+    });
+  }
+
   function dossierContext(d) {
     const a = d.appareil_actif || {};
     const prolongs = (d.prolongations || []).slice().sort((x, y) =>
@@ -1321,18 +1334,20 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
     return mapContactRows(data);
   }
 
-  /** File ouverte UI : exclut les cycles obsolètes (nouvelle date_fin). */
+  /** File ouverte UI : exclut cycles obsolètes et facturation prestataire (valeur dossier à jour). */
   async function listOpenContacts() {
-    return (await fetchOpenContactsRaw()).filter(
-      (c) => !isContactCycleObsolete(c, c.dossier)
-    );
+    return (await fetchOpenContactsRaw()).filter((c) => {
+      if (isContactCycleObsolete(c, c.dossier)) return false;
+      if (isFactureParPrestataire(c.dossier)) return false;
+      return true;
+    });
   }
 
   /**
    * Contacts résolus en attente de suite métier (prolongation / retour appareil / PERTE).
    * Hors file ouverte — statut DB = resolu uniquement.
-   * Exclut les cycles obsolètes et les dossiers qui ont déjà un contact ouvert courant
-   * (évite Appels + Attente/Perte pour le même dossier).
+   * Exclut les cycles obsolètes, la facturation prestataire, et les dossiers
+   * qui ont déjà un contact ouvert courant (évite Appels + Attente/Perte).
    */
   async function listOutcomeContacts() {
     const [outcomes, opens] = await Promise.all([
@@ -1341,11 +1356,12 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
     ]);
     const openDossierIds = new Set(
       opens
-        .filter((c) => !isContactCycleObsolete(c, c.dossier))
+        .filter((c) => !isContactCycleObsolete(c, c.dossier) && !isFactureParPrestataire(c.dossier))
         .map((c) => c.dossier_id)
     );
     return outcomes.filter((c) => {
       if (isContactCycleObsolete(c, c.dossier)) return false;
+      if (isFactureParPrestataire(c.dossier)) return false;
       if (openDossierIds.has(c.dossier_id)) return false;
       return true;
     });
@@ -1487,11 +1503,41 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
   }
 
   /**
+   * Annule tous les contacts ouverts d’un dossier (ex. bascule facturation prestataire).
+   */
+  async function cancelOpenContactsForDossier(dossierId) {
+    if (!dossierId) return;
+    const { data, error } = await sb()
+      .from('location_contacts')
+      .select('*')
+      .eq('dossier_id', dossierId)
+      .in('statut', OPEN_CONTACT_STATUTS);
+    if (error) throw error;
+    for (const c of data || []) {
+      await upsertContact({
+        id: c.id,
+        dossier_id: dossierId,
+        motif: c.motif,
+        commentaire: c.commentaire || null,
+        phase: c.phase || 'appel',
+        statut: 'annule',
+        resultat: c.resultat || null,
+        canal: c.canal || null,
+        contacted_at: c.contacted_at || null,
+        commentaire_fait_at: c.commentaire_fait_at || null,
+        phase_date_fin: c.phase_date_fin || null,
+        mail_envoye: !!c.mail_envoye,
+      });
+    }
+  }
+
+  /**
    * Synchronise la file contact à partir des dossiers actifs + règles.
    * Crée en phase « commentaire » ; réouvre un cycle commentaire si manque ordo
    * après une prolongation post-phase-appel (contact ouvert) ou après résolution
    * obsolète (Attente/Perte d’un ancien cycle → nouvelle ligne, anciens annulés).
    * Un dossier déjà en Attente/Perte du cycle courant n’est pas re-créé en parallèle.
+   * Facturation prestataire (qui_facture à jour) : hors file — contacts ouverts annulés.
    */
   async function syncContactQueue(userId) {
     const params = await loadParams();
@@ -1513,10 +1559,19 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
     }
     const created = [];
     const reset = [];
+    const cancelledPrestataire = [];
 
     for (const d of dossiers) {
+      // Toujours la valeur courante qui_facture / facturation_prestataire du dossier.
+      if (isFactureParPrestataire(d)) {
+        if (byDossier.has(d.id)) {
+          await cancelOpenContactsForDossier(d.id);
+          cancelledPrestataire.push(d.id);
+          byDossier.delete(d.id);
+        }
+        continue;
+      }
       const a = d.appareil_actif;
-      if (d.qui_facture === 'prestataire' || a?.facturation_prestataire) continue;
       const ctx = dossierContext(d);
       const evalRes = LocationRules.evaluate(ctx, rules, params);
       if (!evalRes.shouldContact) continue;
@@ -1605,6 +1660,7 @@ import { logEvent, logMailEvent } from '../../../shared/logService.js';
     return {
       created,
       reset,
+      cancelledPrestataire,
       totalOpen: byDossier.size,
     };
   }
@@ -1810,7 +1866,9 @@ export {
   shouldResetContactToCommentaire,
   archiveDossierContactSiblings,
   invalidateDossierCommentaire,
+  cancelOpenContactsForDossier,
   syncContactQueue,
+  isFactureParPrestataire,
   splitList,
   joinList,
   appareilIdentiteParc,

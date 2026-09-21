@@ -180,6 +180,11 @@ export function typeLabel(type) {
   return TYPE_LABELS[type] || type || '—';
 }
 
+/** Facturation à jour portée par le prestataire → hors file contact. */
+export function isFactureParPrestataire(ctx) {
+  return ctx?.qui_facture === 'prestataire' || !!ctx?.facturation_prestataire;
+}
+
 export function evaluate(ctx, rules, params) {
   const alerts = [];
   const contactReasons = [];
@@ -187,6 +192,8 @@ export function evaluate(ctx, rules, params) {
   const list = (rules || []).filter((r) => r.actif !== false);
   const seuil = Number(params?.seuil_contact_jours ?? 7);
   const today = todayISO();
+  // Valeur courante qui_facture / facturation_prestataire (peut changer en cours de location).
+  const horsFileContact = isFactureParPrestataire(ctx);
 
   for (const rule of list) {
     if (rule.type_appareil && ctx.type_appareil && rule.type_appareil !== ctx.type_appareil) {
@@ -205,12 +212,14 @@ export function evaluate(ctx, rules, params) {
     const item = { code: rule.code, message, action: rule.action, rule };
     if (rule.action === 'alerte_contact' || rule.action === 'bloquer_ou_alerter') {
       alerts.push(item);
-      contactReasons.push({
-        motif: rule.code,
-        message: item.message,
-        fromRule: true,
-        template_id: rule.template_id || null,
-      });
+      if (!horsFileContact) {
+        contactReasons.push({
+          motif: rule.code,
+          message: item.message,
+          fromRule: true,
+          template_id: rule.template_id || null,
+        });
+      }
     } else if (rule.action === 'bascule_facture') {
       actions.push(item);
     } else {
@@ -219,8 +228,7 @@ export function evaluate(ctx, rules, params) {
   }
 
   if (
-    ctx.qui_facture !== 'prestataire'
-    && !ctx.facturation_prestataire
+    !horsFileContact
     && ctx.statut !== 'cloture'
     && ctx.statut !== 'annule'
     && ctx.statut !== 'en_attente'

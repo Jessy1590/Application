@@ -875,6 +875,12 @@
           appPatch.champs_extra = nextExtra;
           await LocationData.updateAppareil(d.appareil_actif.id, appPatch);
         }
+        // Qui facture peut changer en cours de location → resync file Contact immédiatement.
+        try {
+          await LocationData.syncContactQueue(ctx.userId);
+        } catch (_) {
+          /* sync best-effort */
+        }
         showMsg('Enregistré.');
         await refresh();
         await openDetail(d.id);
