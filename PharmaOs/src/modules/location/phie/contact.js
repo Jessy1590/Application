@@ -1218,9 +1218,11 @@
       try {
         const res = await LocationData.syncContactQueue(ctx.userId);
         const nReset = (res.reset || []).length;
+        const nCancelPresta = (res.cancelledPrestataire || []).length;
         showMsg(
           `${res.created.length} ajouté(s)` +
             (nReset ? ` · ${nReset} remis en commentaire` : '') +
+            (nCancelPresta ? ` · ${nCancelPresta} retiré(s) (fact. prestataire)` : '') +
             ` · file ouverte ≈ ${res.totalOpen}`
         );
         await refresh();
