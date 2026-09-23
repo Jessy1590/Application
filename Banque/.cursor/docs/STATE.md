@@ -10,8 +10,7 @@
 - **Flexibilité de Saisie :** Fonctionnalité "Montant différent" permettant de valider une facture avec un montant ponctuel (uniquement pour le mois) ou durable (mise à jour du budget).
 - **Statistiques et Visualisation :** 
   - Graphiques en camembert (SVG natifs générés par JS).
-  - Évolution des dépenses sur 12 mois (validées + portefeuilles).
-  - Bloc « Dépenses par catégorie » unifié : filtre compte + mode effectives/théoriques, camembert, comparatif MoM par catégorie, listing détaillé.
+  - Bloc « Dépenses par catégorie » unifié : filtre compte + mode effectives/théoriques, camembert, comparatif MoM avec barres et montants par catégorie.
   - Effectives = montants validés + total réellement dépensé des portefeuilles ; Théoriques = budgets prévus.
   - Calcul de la capacité d'épargne globale.
 - **Saisie guidée :** Listes déroulantes Compte (＋ Nouveau compte) et Catégorie (Autres…) à l’ajout / édition.

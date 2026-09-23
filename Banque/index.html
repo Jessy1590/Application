@@ -342,9 +342,6 @@
       <div id="chart-salary-split"></div>
     </div>
 
-    <div class="bh-section-label">Évolution (dépenses réglées, 12 derniers mois)</div>
-    <div class="bh-card" id="stat-evolution"></div>
-
     <div class="bh-section-label">Dépenses par catégorie</div>
     <div style="display:flex; gap:8px; margin-bottom:8px;">
       <select id="stat-cat-acc" class="bh-input" style="flex:1; margin-bottom:0;" onchange="BH.renderCategoryStats()">
@@ -360,12 +357,8 @@
       <div id="chart-categories"></div>
     </div>
     <div class="bh-card">
-      <div class="chart-title">Comparaison par catégorie</div>
+      <div class="chart-title" style="font-size:12px; margin-bottom:8px;">Comparaison par catégorie</div>
       <div id="stat-comparison"></div>
-    </div>
-    <div class="bh-card">
-      <div class="chart-title">Détail</div>
-      <div id="stat-categories"></div>
     </div>
 
     <div class="bh-section-label">Export</div>
@@ -1701,7 +1694,6 @@
           ? this.pieChart(salaryItems, { centerSub: 'Apports / mois' })
           : `<div class="chart-empty">Aucun apport configuré vers un compte partagé. Réglez vos apports dans l'onglet Comptes.</div>`;
 
-       this.renderEvolution();
        this.renderCategoryStats();
     },
 
@@ -1739,47 +1731,12 @@
        return Object.values(totals).reduce((s, v) => s + Number(v), 0);
     },
 
-    // Regroupe les dépenses effectives par mois (validées + portefeuilles)
-    monthlyTotals(accFilter = '') {
-       const byMonth = {};
-       const keys = new Set((this.state.monthRecords || []).map(r => r.month_key));
-       // Inclure aussi le mois courant même sans record
-       keys.add(this.monthKey(new Date()));
-       keys.forEach(mKey => {
-          const totals = this.categoryTotalsForMonth(mKey, { accFilter, mode: 'effective' });
-          const sum = this.sumCategoryTotals(totals);
-          if (sum > 0) byMonth[mKey] = sum;
-       });
-       return byMonth;
-    },
-
-    renderEvolution() {
-       const byMonth = this.monthlyTotals();
-       const keys = Object.keys(byMonth).sort().slice(-12);
-       const el = document.getElementById('stat-evolution');
-       if (keys.length === 0) { el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas encore d\'historique — validez des dépenses chaque mois pour voir l\'évolution.</div>'; return; }
-
-       const max = Math.max(...keys.map(k => byMonth[k]), 1);
-       const w = 300, h = 120, barW = w / keys.length;
-       let bars = '';
-       keys.forEach((k, idx) => {
-          const val = byMonth[k];
-          const barH = Math.max(2, (val / max) * (h - 24));
-          const x = idx * barW + barW*0.15;
-          const label = k.slice(5) + '/' + k.slice(2,4);
-          bars += `<rect x="${x}" y="${h-20-barH}" width="${barW*0.7}" height="${barH}" rx="3" fill="var(--sage)"></rect>
-                   <text x="${x+barW*0.35}" y="${h-6}" font-size="7" text-anchor="middle" fill="var(--ink-faint)">${label}</text>`;
-       });
-       el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; --sage:#3E6B57;" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
-         <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Dépenses validées + portefeuilles (montant réellement dépensé).</div>`;
-    },
-
     renderCategoryStats() {
        const now = new Date();
        const curKey = this.monthKey(now);
        const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
        const prevKey = this.monthKey(prevDate);
-       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
 
        const accSel = document.getElementById('stat-cat-acc');
        const modeSel = document.getElementById('stat-cat-mode');
@@ -1810,59 +1767,36 @@
           ? this.pieChart(catItems, { centerSub })
           : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
-       // 2. Diagramme par catégorie (mois N vs N-1)
+       // 2. Comparaison + détail par catégorie (mois N vs N-1)
        const compEl = document.getElementById('stat-comparison');
        if (allCats.length === 0) {
-          compEl.innerHTML = `<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
-       } else {
-          const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
-          const rowH = 28, labelW = 78, barMax = 160;
-          const svgH = allCats.length * rowH + 36;
-          const svgW = labelW + barMax + 70;
-          let bars = '';
-          allCats.forEach((cat, idx) => {
-             const y = idx * rowH + 8;
-             const c = cur[cat] || 0, p = prev[cat] || 0;
-             const cW = Math.max(c > 0 ? 3 : 0, (c / maxCat) * barMax);
-             const pW = Math.max(p > 0 ? 3 : 0, (p / maxCat) * barMax);
-             const short = cat.length > 10 ? cat.slice(0, 9) + '…' : cat;
-             bars += `<text x="0" y="${y + 14}" font-size="9" fill="var(--ink-soft)">${this.esc(short)}</text>
-                <rect x="${labelW}" y="${y + 2}" width="${pW}" height="9" rx="2" fill="var(--ink-faint)" opacity="0.55"></rect>
-                <rect x="${labelW}" y="${y + 13}" width="${cW}" height="9" rx="2" fill="var(--sage)"></rect>
-                <text x="${labelW + Math.max(cW, pW) + 6}" y="${y + 14}" font-size="8" fill="var(--ink-faint)">${this.fmt(c)}</text>`;
-          });
-          let deltaHtml = '';
-          if (prevTotal > 0) {
-             const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
-             const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
-             deltaHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
-          } else if (curTotal > 0) {
-             deltaHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
-          }
-          compEl.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-soft); margin-bottom:8px;">
-              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:4px;"></span>${this.esc(monthLabel(prevDate))}
-              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--sage);vertical-align:middle;margin:0 4px 0 12px;"></span>${this.esc(monthLabel(now))}</span>
-              <span>Total : ${this.fmt(curTotal)} · ${deltaHtml || '—'}</span>
-            </div>
-            <svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%; height:auto;" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
-            <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Dépenses ${modeLabel}${mode === 'effective' ? ' (validées + portefeuilles)' : ' (budgets prévus)'}${accFilter ? ' · compte sélectionné' : ' · tous les comptes'}.</div>`;
-       }
-
-       // 3. Listing détaillé
-       const listEl = document.getElementById('stat-categories');
-       if (allCats.length === 0) {
-          listEl.innerHTML = `<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données.</div>`;
+          compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
           return;
        }
-       let listHtml = `<div style="display:flex; justify-content:flex-end; gap:10px; font-size:10px; color:var(--ink-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;">
-          <span style="width:64px; text-align:right;">Préc.</span>
-          <span style="width:72px; text-align:right;">Ce mois</span>
-          <span style="width:48px; text-align:right;">Δ</span>
-       </div>`;
+
+       const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
+       let deltaTotalHtml = '';
+       if (prevTotal > 0) {
+          const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
+          const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+          deltaTotalHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
+       } else if (curTotal > 0) {
+          deltaTotalHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
+       }
+
+       let html = `
+         <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--ink-soft); margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+           <span style="display:flex; align-items:center; gap:10px;">
+             <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(prevDate))}</span>
+             <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--sage);vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(now))}</span>
+           </span>
+           <span>${this.fmt(curTotal)} · ${deltaTotalHtml || '—'}</span>
+         </div>`;
+
        allCats.forEach(cat => {
           const c = cur[cat] || 0, p = prev[cat] || 0;
-          const pct = curTotal > 0 ? Math.round((c / curTotal) * 100) : 0;
+          const cPct = Math.max(c > 0 ? 2 : 0, (c / maxCat) * 100);
+          const pPct = Math.max(p > 0 ? 2 : 0, (p / maxCat) * 100);
           let deltaLabel, color;
           if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
           else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
@@ -1871,23 +1805,30 @@
              deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
              color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
           }
-          listHtml += `<div style="margin-bottom:10px;">
-             <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600; gap:8px;">
-                <span style="min-width:0; overflow:hidden; text-overflow:ellipsis;">${this.esc(cat)}</span>
-                <span style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
-                  <span class="num" style="color:var(--ink-faint); font-size:11px; width:64px; text-align:right;">${this.fmt(p)}</span>
-                  <span class="num" style="width:72px; text-align:right;">${this.fmt(c)}</span>
-                  <span style="font-weight:700; color:${color}; font-size:12px; width:48px; text-align:right;">${deltaLabel}</span>
+          html += `<div style="padding:8px 0; border-bottom:1px solid var(--line-soft);">
+             <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px;">
+                <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
+                <span style="display:flex; gap:8px; align-items:center; flex-shrink:0; font-size:11px;">
+                  <span class="num" style="color:var(--ink-faint);">${this.fmt(p)}</span>
+                  <span class="num" style="font-weight:600;">${this.fmt(c)}</span>
+                  <span style="font-weight:700; color:${color}; min-width:42px; text-align:right;">${deltaLabel}</span>
                 </span>
              </div>
-             <div class="stat-bar-bg"><div class="stat-bar-fg" style="width:${pct}%"></div></div>
+             <div style="display:flex; flex-direction:column; gap:3px;">
+               <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pPct}%; background:var(--ink-faint); opacity:0.55;"></div></div>
+               <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${cPct}%;"></div></div>
+             </div>
           </div>`;
        });
-       listHtml += `<div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; padding-top:8px; border-top:1px solid var(--line-soft);">
+
+       html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px;">
           <span>Total</span>
-          <span class="num">${this.fmt(curTotal)}</span>
+          <span style="display:flex; gap:8px; align-items:center;">
+            <span class="num" style="color:var(--ink-faint); font-weight:600;">${this.fmt(prevTotal)}</span>
+            <span class="num">${this.fmt(curTotal)}</span>
+          </span>
        </div>`;
-       listEl.innerHTML = listHtml;
+       compEl.innerHTML = html;
     },
 
     // --- EXPORT ---
