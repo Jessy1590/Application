@@ -342,22 +342,31 @@
       <div id="chart-salary-split"></div>
     </div>
 
-    <div class="bh-section-label">Dépenses par catégorie (tous comptes)</div>
-    <div class="bh-card">
-      <div id="chart-categories"></div>
-    </div>
-
     <div class="bh-section-label">Évolution (dépenses réglées, 12 derniers mois)</div>
     <div class="bh-card" id="stat-evolution"></div>
 
-    <div class="bh-section-label">Dépenses effectives : ce mois vs mois précédent</div>
-    <select id="stat-comp-acc" class="bh-input" style="margin-bottom:8px;" onchange="BH.renderComparison()">
-      <option value="">Tous les comptes</option>
-    </select>
-    <div class="bh-card" id="stat-comparison"></div>
-
-    <div class="bh-section-label">Détail par catégorie</div>
-    <div class="bh-card" id="stat-categories"></div>
+    <div class="bh-section-label">Dépenses par catégorie</div>
+    <div style="display:flex; gap:8px; margin-bottom:8px;">
+      <select id="stat-cat-acc" class="bh-input" style="flex:1; margin-bottom:0;" onchange="BH.renderCategoryStats()">
+        <option value="">Tous les comptes</option>
+      </select>
+      <select id="stat-cat-mode" class="bh-input" style="flex:1; margin-bottom:0;" onchange="BH.renderCategoryStats()">
+        <option value="effective">Effectives</option>
+        <option value="theorique">Théoriques</option>
+      </select>
+    </div>
+    <div class="bh-card">
+      <div class="chart-title">Répartition</div>
+      <div id="chart-categories"></div>
+    </div>
+    <div class="bh-card">
+      <div class="chart-title">Comparaison par catégorie</div>
+      <div id="stat-comparison"></div>
+    </div>
+    <div class="bh-card">
+      <div class="chart-title">Détail</div>
+      <div id="stat-categories"></div>
+    </div>
 
     <div class="bh-section-label">Export</div>
     <div class="bh-card" style="display:flex; gap:8px; padding:12px;">
@@ -1638,16 +1647,6 @@
     },
 
     renderStats() {
-       let totalInc = 0, totalExpReal = 0;
-       let cats = {};
-       
-       this.state.incomes.forEach(i => totalInc += Number(i.amount));
-       this.state.expenses.forEach(e => {
-          totalExpReal += Number(e.amount);
-          if(!cats[e.category]) cats[e.category] = 0;
-          cats[e.category] += Number(e.amount);
-       });
-
        // Capacité d'épargne = reste théorique du compte principal (revenus - toutes dépenses - tous apports)
        //                       + montants déjà mis en épargne, identifiés dans les saisies par la catégorie "Épargne" (compte principal uniquement, cohérent avec les dépenses déduites ci-dessus)
        const epargneStatAccId = this.state.profile?.main_account_id;
@@ -1674,22 +1673,6 @@
           document.getElementById('stat-epargne-rate').textContent = "Taux d'épargne : —";
           this.epargneInfo = null;
        }
-       
-       let catHtml = '';
-       Object.entries(cats).sort((a,b)=>b[1]-a[1]).forEach(([name, amt]) => {
-          const pct = Math.round((amt / totalExpReal) * 100);
-          catHtml += `<div style="margin-bottom:12px;">
-             <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600;">
-                <span>${this.esc(name)}</span><span class="num">${this.fmt(amt)}</span>
-             </div>
-             <div class="stat-bar-bg"><div class="stat-bar-fg" style="width:${pct}%"></div></div>
-          </div>`;
-       });
-       document.getElementById('stat-categories').innerHTML = catHtml || 'Pas assez de données.';
-
-       // Camembert : répartition par catégorie (toutes dépenses)
-       const catItems = Object.entries(cats).map(([label, value]) => ({ label, value }));
-       document.getElementById('chart-categories').innerHTML = this.pieChart(catItems, { centerSub: 'Dépenses' });
 
        // Camembert : répartition de mon salaire vers mes comptes partagés
        const mainAccId = this.state.profile?.main_account_id;
@@ -1719,23 +1702,60 @@
           : `<div class="chart-empty">Aucun apport configuré vers un compte partagé. Réglez vos apports dans l'onglet Comptes.</div>`;
 
        this.renderEvolution();
-       this.renderComparison();
+       this.renderCategoryStats();
     },
 
-    // Regroupe les month_records par mois (tous comptes confondus) : { monthKey: totalPayé }
-    monthlyTotals() {
+    // Dépense active sur un mois donné (end_date avant le mois → inactive)
+    isActiveInMonth(exp, mKey) {
+       if (!exp?.end_date) return true;
+       return exp.end_date.slice(0, 7) >= mKey;
+    },
+
+    // Montant effectif d'une dépense sur un mois (validé, ou total des txs portefeuille)
+    effectiveExpenseAmount(exp, mKey) {
+       if (!exp) return 0;
+       if (exp.is_wallet) return this.walletSpent(exp.account_id, exp.id, mKey);
+       const paid = this.state.months[exp.account_id + '_' + mKey]?.[exp.id];
+       return paid ? Number(paid.amount || 0) : 0;
+    },
+
+    // Totaux par catégorie pour un mois (mode effective | theorique, filtre compte optionnel)
+    categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
+       const totals = {};
+       this.state.expenses.forEach(exp => {
+          if (accFilter && exp.account_id !== accFilter) return;
+          if (!this.isActiveInMonth(exp, mKey)) return;
+          let amt = 0;
+          if (mode === 'theorique') amt = Number(exp.amount) || 0;
+          else amt = this.effectiveExpenseAmount(exp, mKey);
+          if (amt <= 0) return;
+          const cat = exp.category || 'Autre';
+          totals[cat] = (totals[cat] || 0) + amt;
+       });
+       return totals;
+    },
+
+    sumCategoryTotals(totals) {
+       return Object.values(totals).reduce((s, v) => s + Number(v), 0);
+    },
+
+    // Regroupe les dépenses effectives par mois (validées + portefeuilles)
+    monthlyTotals(accFilter = '') {
        const byMonth = {};
-       (this.state.monthRecords || []).forEach(rec => {
-          const paid = rec.paid_expenses || {};
-          const sum = Object.values(paid).reduce((s, p) => s + Number(p.amount || 0), 0);
-          byMonth[rec.month_key] = (byMonth[rec.month_key] || 0) + sum;
+       const keys = new Set((this.state.monthRecords || []).map(r => r.month_key));
+       // Inclure aussi le mois courant même sans record
+       keys.add(this.monthKey(new Date()));
+       keys.forEach(mKey => {
+          const totals = this.categoryTotalsForMonth(mKey, { accFilter, mode: 'effective' });
+          const sum = this.sumCategoryTotals(totals);
+          if (sum > 0) byMonth[mKey] = sum;
        });
        return byMonth;
     },
 
     renderEvolution() {
        const byMonth = this.monthlyTotals();
-       const keys = Object.keys(byMonth).sort().slice(-12); // 12 derniers mois disponibles
+       const keys = Object.keys(byMonth).sort().slice(-12);
        const el = document.getElementById('stat-evolution');
        if (keys.length === 0) { el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas encore d\'historique — validez des dépenses chaque mois pour voir l\'évolution.</div>'; return; }
 
@@ -1751,102 +1771,98 @@
                    <text x="${x+barW*0.35}" y="${h-6}" font-size="7" text-anchor="middle" fill="var(--ink-faint)">${label}</text>`;
        });
        el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; --sage:#3E6B57;" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
-         <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Basé sur les dépenses réellement validées mois par mois.</div>`;
+         <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Dépenses validées + portefeuilles (montant réellement dépensé).</div>`;
     },
 
-    renderComparison() {
+    renderCategoryStats() {
        const now = new Date();
        const curKey = this.monthKey(now);
        const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
        const prevKey = this.monthKey(prevDate);
        const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-       const accSel = document.getElementById('stat-comp-acc');
+       const accSel = document.getElementById('stat-cat-acc');
+       const modeSel = document.getElementById('stat-cat-mode');
        const prevAccVal = accSel ? accSel.value : '';
+       const mode = modeSel ? modeSel.value : 'effective';
        if (accSel) {
           accSel.innerHTML = '<option value="">Tous les comptes</option>' +
              this.state.accounts.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
           accSel.value = this.state.accounts.some(a => a.id === prevAccVal) ? prevAccVal : '';
        }
        const accFilter = accSel ? accSel.value : '';
-       const recordsFor = (mKey) => (this.state.monthRecords || []).filter(r =>
-          r.month_key === mKey && (!accFilter || r.account_id === accFilter)
-       );
+       const opts = { accFilter, mode };
 
-       const totalForMonth = (mKey) => {
-          let sum = 0;
-          recordsFor(mKey).forEach(rec => {
-             const paid = rec.paid_expenses || {};
-             sum += Object.values(paid).reduce((s, p) => s + Number(p.amount || 0), 0);
-          });
-          return sum;
-       };
+       const cur = this.categoryTotalsForMonth(curKey, opts);
+       const prev = this.categoryTotalsForMonth(prevKey, opts);
+       const curTotal = this.sumCategoryTotals(cur);
+       const prevTotal = this.sumCategoryTotals(prev);
+       const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])]
+          .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
 
-       const catTotalsForMonth = (mKey) => {
-          const totals = {};
-          recordsFor(mKey).forEach(rec => {
-             const paid = rec.paid_expenses || {};
-             Object.entries(paid).forEach(([expId, p]) => {
-                const exp = this.state.expenses.find(e => e.id === expId);
-                const cat = exp?.category || 'Autre';
-                totals[cat] = (totals[cat]||0) + Number(p.amount || 0);
-             });
-          });
-          return totals;
-       };
+       const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
+       const centerSub = mode === 'theorique' ? 'Budget' : 'Dépensé';
 
-       const curTotal = totalForMonth(curKey);
-       const prevTotal = totalForMonth(prevKey);
-       const cur = catTotalsForMonth(curKey);
-       const prev = catTotalsForMonth(prevKey);
-       const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])];
+       // 1. Camembert (mois courant)
+       const pieEl = document.getElementById('chart-categories');
+       const catItems = Object.entries(cur).map(([label, value]) => ({ label, value }));
+       pieEl.innerHTML = catItems.length
+          ? this.pieChart(catItems, { centerSub })
+          : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
-       const el = document.getElementById('stat-comparison');
-       if (curTotal === 0 && prevTotal === 0 && allCats.length === 0) {
-          el.innerHTML = '<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données validées pour comparer.</div>';
-          return;
-       }
-
-       // Diagramme barres jumelées : dépenses effectives mois N vs N-1
-       const maxT = Math.max(curTotal, prevTotal, 1);
-       const w = 300, h = 130, barW = 52, gap = 40;
-       const baseY = h - 28;
-       const curH = Math.max(curTotal > 0 ? 4 : 0, (curTotal / maxT) * (h - 48));
-       const prevH = Math.max(prevTotal > 0 ? 4 : 0, (prevTotal / maxT) * (h - 48));
-       const xPrev = w/2 - gap/2 - barW;
-       const xCur = w/2 + gap/2;
-       let deltaHtml = '';
-       if (prevTotal > 0) {
-          const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
-          const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
-          deltaHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
-       } else if (curTotal > 0) {
-          deltaHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
-       }
-
-       let html = `<div style="margin-bottom:16px;">
-         <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto;" xmlns="http://www.w3.org/2000/svg">
-           <rect x="${xPrev}" y="${baseY - prevH}" width="${barW}" height="${prevH}" rx="6" fill="var(--ink-faint)" opacity="0.55"></rect>
-           <rect x="${xCur}" y="${baseY - curH}" width="${barW}" height="${curH}" rx="6" fill="var(--sage)"></rect>
-           <text x="${xPrev + barW/2}" y="${baseY - prevH - 6}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--ink)">${this.fmt(prevTotal)}</text>
-           <text x="${xCur + barW/2}" y="${baseY - curH - 6}" font-size="10" font-weight="700" text-anchor="middle" fill="var(--ink)">${this.fmt(curTotal)}</text>
-           <text x="${xPrev + barW/2}" y="${baseY + 14}" font-size="9" text-anchor="middle" fill="var(--ink-soft)">${this.esc(monthLabel(prevDate))}</text>
-           <text x="${xCur + barW/2}" y="${baseY + 14}" font-size="9" text-anchor="middle" fill="var(--ink-soft)">${this.esc(monthLabel(now))}</text>
-         </svg>
-         <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-soft); margin-top:4px;">
-           <span>Total validé</span>
-           <span>Évolution : ${deltaHtml || '—'}</span>
-         </div>
-       </div>`;
-
+       // 2. Diagramme par catégorie (mois N vs N-1)
+       const compEl = document.getElementById('stat-comparison');
        if (allCats.length === 0) {
-          el.innerHTML = html + '<div style="font-size:12px;color:var(--ink-faint);">Aucune catégorie à détailler pour l’instant.</div>';
-          return;
+          compEl.innerHTML = `<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
+       } else {
+          const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
+          const rowH = 28, labelW = 78, barMax = 160;
+          const svgH = allCats.length * rowH + 36;
+          const svgW = labelW + barMax + 70;
+          let bars = '';
+          allCats.forEach((cat, idx) => {
+             const y = idx * rowH + 8;
+             const c = cur[cat] || 0, p = prev[cat] || 0;
+             const cW = Math.max(c > 0 ? 3 : 0, (c / maxCat) * barMax);
+             const pW = Math.max(p > 0 ? 3 : 0, (p / maxCat) * barMax);
+             const short = cat.length > 10 ? cat.slice(0, 9) + '…' : cat;
+             bars += `<text x="0" y="${y + 14}" font-size="9" fill="var(--ink-soft)">${this.esc(short)}</text>
+                <rect x="${labelW}" y="${y + 2}" width="${pW}" height="9" rx="2" fill="var(--ink-faint)" opacity="0.55"></rect>
+                <rect x="${labelW}" y="${y + 13}" width="${cW}" height="9" rx="2" fill="var(--sage)"></rect>
+                <text x="${labelW + Math.max(cW, pW) + 6}" y="${y + 14}" font-size="8" fill="var(--ink-faint)">${this.fmt(c)}</text>`;
+          });
+          let deltaHtml = '';
+          if (prevTotal > 0) {
+             const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
+             const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+             deltaHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
+          } else if (curTotal > 0) {
+             deltaHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
+          }
+          compEl.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-soft); margin-bottom:8px;">
+              <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:4px;"></span>${this.esc(monthLabel(prevDate))}
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--sage);vertical-align:middle;margin:0 4px 0 12px;"></span>${this.esc(monthLabel(now))}</span>
+              <span>Total : ${this.fmt(curTotal)} · ${deltaHtml || '—'}</span>
+            </div>
+            <svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%; height:auto;" xmlns="http://www.w3.org/2000/svg">${bars}</svg>
+            <div style="font-size:11px; color:var(--ink-faint); margin-top:6px;">Dépenses ${modeLabel}${mode === 'effective' ? ' (validées + portefeuilles)' : ' (budgets prévus)'}${accFilter ? ' · compte sélectionné' : ' · tous les comptes'}.</div>`;
        }
 
-       html += `<div style="font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;">Par catégorie</div>`;
-       allCats.sort((a,b) => (cur[b]||0) - (cur[a]||0)).forEach(cat => {
+       // 3. Listing détaillé
+       const listEl = document.getElementById('stat-categories');
+       if (allCats.length === 0) {
+          listEl.innerHTML = `<div style="font-size:13px;color:var(--ink-faint);">Pas assez de données.</div>`;
+          return;
+       }
+       let listHtml = `<div style="display:flex; justify-content:flex-end; gap:10px; font-size:10px; color:var(--ink-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;">
+          <span style="width:64px; text-align:right;">Préc.</span>
+          <span style="width:72px; text-align:right;">Ce mois</span>
+          <span style="width:48px; text-align:right;">Δ</span>
+       </div>`;
+       allCats.forEach(cat => {
           const c = cur[cat] || 0, p = prev[cat] || 0;
+          const pct = curTotal > 0 ? Math.round((c / curTotal) * 100) : 0;
           let deltaLabel, color;
           if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
           else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
@@ -1855,17 +1871,23 @@
              deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
              color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
           }
-          html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line-soft); font-size:13px;">
-             <span>${this.esc(cat)}</span>
-             <span style="display:flex; gap:10px; align-items:center;">
-               <span class="num" style="color:var(--ink-faint); font-size:11px;">${this.fmt(p)}</span>
-               <span class="num" style="color:var(--ink-soft);">${this.fmt(c)}</span>
-               <span style="font-weight:700; color:${color}; font-size:12px;">${deltaLabel}</span>
-             </span>
+          listHtml += `<div style="margin-bottom:10px;">
+             <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:600; gap:8px;">
+                <span style="min-width:0; overflow:hidden; text-overflow:ellipsis;">${this.esc(cat)}</span>
+                <span style="display:flex; gap:10px; align-items:center; flex-shrink:0;">
+                  <span class="num" style="color:var(--ink-faint); font-size:11px; width:64px; text-align:right;">${this.fmt(p)}</span>
+                  <span class="num" style="width:72px; text-align:right;">${this.fmt(c)}</span>
+                  <span style="font-weight:700; color:${color}; font-size:12px; width:48px; text-align:right;">${deltaLabel}</span>
+                </span>
+             </div>
+             <div class="stat-bar-bg"><div class="stat-bar-fg" style="width:${pct}%"></div></div>
           </div>`;
        });
-       html += `<div style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Basé sur les dépenses réellement validées${accFilter ? ' · compte sélectionné' : ' · tous les comptes'}. Gris = mois précédent · Vert = ce mois.</div>`;
-       el.innerHTML = html;
+       listHtml += `<div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; padding-top:8px; border-top:1px solid var(--line-soft);">
+          <span>Total</span>
+          <span class="num">${this.fmt(curTotal)}</span>
+       </div>`;
+       listEl.innerHTML = listHtml;
     },
 
     // --- EXPORT ---
