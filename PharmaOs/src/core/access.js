@@ -1,7 +1,7 @@
 import { ACCESS_ROLES, canonicalRole, isDisabledRole } from './roles.js';
 
 export const TASKBAR_FEATURES = Object.freeze([
-  { id: 'inbox', label: 'À traiter / mes saisies' },
+  { id: 'inbox', label: 'À traiter' },
   { id: 'tasks', label: 'Mes tâches' },
   { id: 'order', label: 'Commande médicament' },
   { id: 'billing', label: 'Facturation' },
@@ -28,7 +28,8 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'inbox', label: 'À traiter / mes saisies' },
   { id: 'calls', label: 'Appels' },
   { id: 'agenda', label: 'Agenda' },
-  { id: 'tasks', label: 'Tâches' },
+  { id: 'tasks', label: 'Mes tâches' },
+  { id: 'account', label: 'Mon compte' },
   { id: 'directory', label: 'Annuaire' },
   { id: 'ip', label: 'Act-IP' },
   { id: 'documents', label: 'GED' },
@@ -97,11 +98,13 @@ export const SETTINGS_MODULE_FEATURES = Object.freeze([
   'location', 'magistral', 'perimes', 'cash',
 ]);
 
-/** Onglets dashboard Location / Préparations → feature d’accès unique. */
+/** Onglets dashboard Location / Préparations / Mes saisies → feature d’accès unique. */
 export function resolveAccessFeatureId(surface, featureId) {
   if (surface === 'dashboard') {
     if (featureId === 'location' || String(featureId || '').startsWith('location_')) return 'location';
     if (featureId === 'magistral' || String(featureId || '').startsWith('magistral_')) return 'magistral';
+    /* Mes saisies partage la matrice inbox (pas de nouvelle clé role_access). */
+    if (featureId === 'inbox_saisies') return 'inbox';
   }
   return featureId;
 }
@@ -145,6 +148,11 @@ function buildDefaultAccess() {
 
   /* Inbox / mes saisies : accessibles au préparateur (autocorrection hors LGO). */
   map.préparateur.dashboard.inbox = true;
+
+  /* Mon compte : self-service thème / taskbar pour tous les rôles staff. */
+  for (const role of ACCESS_ROLES) {
+    map[role].dashboard.account = true;
+  }
 
   map.pharmacien.dashboard.access = false;
   map.préparateur.dashboard.access = false;

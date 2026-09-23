@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Phone, BookOpen, ChevronUp, ChevronDown, CheckSquare, ShoppingBag, FileText,
+  Phone, BookOpen, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, ShoppingBag, FileText,
   ShieldAlert, BookMarked, Package, PackageX, BedDouble, Scale,
   AlertOctagon, FlaskConical, Droplets, Wallet, LayoutDashboard, Sparkles, Bug,
   Users, Plus, X, Pill, ClipboardCheck, RefreshCw, Lock, ArrowDownToLine, Inbox,
@@ -15,34 +15,140 @@ import { setLogSurface } from '../shared/logService.js';
 import { supabase } from '../shared/supabaseClient.js';
 import ConseilPanel from '../modules/conseil/comptoir/ConseilPanel.jsx';
 
-function TbBtn({ title, onClick, className = '', children }) {
+function isVertical(placement) {
+  return placement === 'gauche' || placement === 'droite';
+}
+
+function isCorner(placement) {
+  return placement === 'bas_gauche' || placement === 'bas_droite';
+}
+
+/** Legacy densités → nouvelles. */
+function normalizeDensity(density) {
+  if (density === 'auto') return 'normal';
+  if (density === 'stack') return 'empilee';
+  return density || 'normal';
+}
+
+const TONE_CLS = {
+  default: 'text-[var(--tb-fg)]',
+  accent: 'text-[var(--accent)]',
+  success: 'text-[var(--success)]',
+  warning: 'text-[var(--warning)]',
+  danger: 'text-[var(--danger)]',
+  muted: 'text-[var(--tb-muted)]',
+};
+
+function SectionSep({ label, title, showLabel, vertical, corner }) {
+  const tip = title || label;
+  const labelStyle = { fontSize: 'var(--font-tb-label)' };
+  if (corner) {
+    return (
+      <span
+        className="shrink-0 w-10 uppercase tracking-wide text-[var(--tb-muted)] truncate self-center"
+        style={labelStyle}
+        title={tip}
+      >
+        {label}
+      </span>
+    );
+  }
+  if (vertical) {
+    return (
+      <div className="flex flex-col items-center gap-0.5 my-0.5 w-full px-1" title={tip}>
+        <div className="w-full h-px bg-[var(--tb-sep)]" />
+        {showLabel && (
+          <span className="uppercase tracking-wide text-[var(--tb-muted)] truncate max-w-full" style={labelStyle}>
+            {label}
+          </span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1 mx-0.5 shrink-0" title={tip}>
+      <div className="h-4 w-px bg-[var(--tb-sep)]" />
+      {showLabel && (
+        <span className="uppercase tracking-wide text-[var(--tb-muted)]" style={labelStyle}>{label}</span>
+      )}
+    </div>
+  );
+}
+
+function collapseExpandIcons(placement) {
+  if (placement === 'bas') {
+    return { CollapseIcon: ChevronDown, ExpandIcon: ChevronUp };
+  }
+  /* Coins = mêmes flèches que les côtés gauche / droite */
+  if (placement === 'gauche' || placement === 'bas_gauche') {
+    return { CollapseIcon: ChevronLeft, ExpandIcon: ChevronRight };
+  }
+  if (placement === 'droite' || placement === 'bas_droite') {
+    return { CollapseIcon: ChevronRight, ExpandIcon: ChevronLeft };
+  }
+  return { CollapseIcon: ChevronUp, ExpandIcon: ChevronDown };
+}
+
+function TbBtn({
+  title, onClick, className = '', showLabel = false, label, tone = 'default',
+  children, vertical = false,
+}) {
+  const toneCls = TONE_CLS[tone] || TONE_CLS.default;
+  const base = `rounded hover:bg-[var(--tb-hover)] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] ${toneCls}`;
+
+  if (showLabel && label) {
+    return (
+      <button
+        type="button"
+        title={title}
+        aria-label={title}
+        onClick={onClick}
+        className={`flex flex-col items-center justify-center gap-0.5 px-1.5 py-1 ${vertical ? 'w-full min-w-0' : 'min-w-[2.5rem]'} ${base} ${className}`}
+      >
+        {children}
+        <span
+          className={`leading-none text-[var(--tb-muted)] truncate ${vertical ? 'max-w-full px-0.5' : 'max-w-[3.25rem]'}`}
+          style={{ fontSize: 'var(--font-tb-label)' }}
+        >
+          {label}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
       title={title}
       aria-label={title}
       onClick={onClick}
-      className={`p-1.5 rounded hover:bg-slate-700/70 transition-colors ${className}`}
+      className={`p-1.5 ${base} ${className}`}
     >
       {children}
     </button>
   );
 }
 
-function SectionSep({ label }) {
-  return (
-    <div className="flex items-center gap-1 mx-0.5" title={label}>
-      <div className="h-4 w-px bg-slate-600" />
-      <span className="text-[9px] uppercase tracking-wide text-slate-500 hidden xl:inline">{label}</span>
-    </div>
-  );
-}
-
 export default function Taskbar() {
-  const { user, profile, signOut, canAccess, canDashboard } = useAuth();
+  const { user, profile, signOut, canAccess, canDashboard, preferences } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const initLogged = useRef(false);
+
+  const placement = preferences?.taskbar_placement || 'haut';
+  const density = normalizeDensity(preferences?.taskbar_density);
+  const compact = density === 'compact';
+  const detaillee = density === 'detaillee';
+  const empilee = density === 'empilee';
+  /* Labels sous-groupes : tout sauf compact */
+  const showGroupLabel = !compact;
+  /* Noms modules condensés : détaillee uniquement */
+  const showModuleLabel = detaillee;
+  const vertical = isVertical(placement);
+  const corner = isCorner(placement);
+  const showInbox = canAccess('taskbar', 'inbox') || canAccess('taskbar', 'tasks');
+  const { CollapseIcon, ExpandIcon } = collapseExpandIcons(placement);
+  const edgeIsLeft = placement === 'gauche' || placement === 'bas_gauche';
 
   useEffect(() => {
     setLogSurface('taskbar');
@@ -57,7 +163,7 @@ export default function Taskbar() {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) return undefined;
 
     const fetchPendingTasksCount = async () => {
       const count = await countTodayPendingAssignments(user.id);
@@ -101,189 +207,489 @@ export default function Taskbar() {
 
   const show = (featureId) => canAccess('taskbar', featureId);
 
+  const lbl = (full, abbr) => (compact ? abbr : full);
+
+  const btnProps = {
+    showLabel: showModuleLabel && !corner,
+    vertical: vertical && showModuleLabel,
+  };
+
+  const sections = [];
+
+  const tasksItems = [];
+  if (showInbox) {
+    tasksItems.push({
+      key: 'inbox',
+      title: 'À traiter — file d’attente et tâches du jour',
+      onClick: () => openModuleWindow('inbox'),
+      tone: 'warning',
+      label: 'Inbox',
+      node: (
+        <span className="relative inline-flex">
+          <Inbox size={18} />
+          {pendingCount > 0 && (
+            <span
+              className="absolute -top-1.5 -right-1.5 bg-[var(--badge-bg)] text-[var(--badge-fg)] font-bold min-w-[1rem] h-4 px-0.5 rounded-full flex items-center justify-center"
+              style={{ fontSize: 'var(--font-tb-badge)' }}
+            >
+              {pendingCount > 9 ? '9+' : pendingCount}
+            </span>
+          )}
+        </span>
+      ),
+    });
+  }
+  if (show('order')) {
+    tasksItems.push({
+      key: 'order', title: 'Commander un médicament', onClick: open('order'),
+      tone: 'success', label: 'Cmd', node: <ShoppingBag size={18} />,
+    });
+  }
+  if (show('billing')) {
+    tasksItems.push({
+      key: 'billing', title: 'Facturation à effectuer', onClick: open('billing'),
+      tone: 'accent', label: 'Fact.', node: <FileText size={18} />,
+    });
+  }
+  if (tasksItems.length) {
+    sections.push({
+      id: 'tasks', label: lbl('Tâches', 'Tâch.'), title: 'Tâches', items: tasksItems,
+    });
+  }
+
+  const comItems = [];
+  if (show('directory')) {
+    comItems.push({
+      key: 'directory', title: 'Annuaire des contacts', onClick: open('directory'),
+      tone: 'accent', label: 'Ann.', node: <BookOpen size={18} />,
+    });
+  }
+  if (show('call')) {
+    comItems.push({
+      key: 'call', title: 'Tracer un appel téléphonique', onClick: open('call'),
+      tone: 'default', label: 'Appel', node: <Phone size={18} />,
+    });
+  }
+  if (show('ip')) {
+    comItems.push({
+      key: 'ip',
+      title: 'Interventions pharmaceutiques (Act-IP)',
+      onClick: open('ip'),
+      tone: 'accent',
+      label: 'IP',
+      className: '!px-1.5 !py-0.5 bg-[var(--accent)]/20 font-black text-xs',
+      node: 'IP',
+    });
+  }
+  if (comItems.length) {
+    sections.push({
+      id: 'com', label: lbl('Communication', 'Com'), title: 'Communication', items: comItems,
+    });
+  }
+
+  const qualItems = [];
+  if (show('documents')) {
+    qualItems.push({
+      key: 'documents', title: 'Procédures et documents (GED)', onClick: open('documents'),
+      tone: 'accent', label: 'GED', node: <BookMarked size={18} />,
+    });
+  }
+  if (show('quality')) {
+    qualItems.push({
+      key: 'quality', title: 'Non-conformités qualité', onClick: open('quality'),
+      tone: 'danger', label: 'Qual.', node: <ShieldAlert size={18} />,
+    });
+  }
+  if (show('lot_alerts')) {
+    qualItems.push({
+      key: 'lot_alerts', title: 'Alertes retrait de lot', onClick: open('lot_alerts'),
+      tone: 'danger', label: 'Lot', node: <AlertOctagon size={18} />,
+    });
+  }
+  if (qualItems.length) {
+    sections.push({
+      id: 'qual', label: lbl('Qualité', 'Qual.'), title: 'Qualité', items: qualItems,
+    });
+  }
+
+  const stockItems = [];
+  if (show('perimes')) {
+    stockItems.push({
+      key: 'perimes', title: 'Gestion des périmés', onClick: open('perimes'),
+      tone: 'warning', label: 'Pér.', node: <Package size={18} />,
+    });
+  }
+  if (show('perimes_vitrine')) {
+    stockItems.push({
+      key: 'perimes_vitrine', title: 'Mises en avant / promo / challenges du jour', onClick: open('perimes_vitrine'),
+      tone: 'warning', label: 'MEA', node: <Sparkles size={18} />,
+    });
+  }
+  if (show('stock')) {
+    stockItems.push({
+      key: 'stock', title: 'Déclarer une erreur de stock', onClick: open('stock'),
+      tone: 'accent', label: 'Stock', node: <PackageX size={18} />,
+    });
+  }
+  if (show('disputes')) {
+    stockItems.push({
+      key: 'disputes', title: 'Litiges fournisseurs', onClick: open('disputes'),
+      tone: 'warning', label: 'Lit.', node: <Scale size={18} />,
+    });
+  }
+  if (stockItems.length) {
+    sections.push({ id: 'stock', label: 'Stock', title: 'Stock', items: stockItems });
+  }
+
+  const metierItems = [];
+  if (show('psl')) {
+    metierItems.push({
+      key: 'psl_reception',
+      title: 'Médicaments de statut particulier (MDS) — réception',
+      onClick: open('psl_reception', 'psl'),
+      tone: 'danger',
+      label: 'MDS↓',
+      node: (
+        <span className="relative inline-flex w-[18px] h-[18px] items-center justify-center">
+          <ArrowDownToLine size={18} strokeWidth={2.25} />
+          <Droplets size={9} className="absolute -bottom-0.5 -right-0.5 opacity-80" strokeWidth={2.5} />
+        </span>
+      ),
+    });
+    metierItems.push({
+      key: 'psl_delivrance',
+      title: 'Médicaments de statut particulier (MDS) — délivrance',
+      onClick: open('psl_delivrance', 'psl'),
+      tone: 'danger',
+      label: 'MDS+',
+      node: (
+        <span className="relative inline-flex">
+          <Droplets size={18} />
+          <Plus size={10} className="absolute -top-1 -right-1.5" strokeWidth={3} />
+        </span>
+      ),
+    });
+  }
+  if (show('stupefiants')) {
+    metierItems.push({
+      key: 'stupefiants', title: 'Réception des stupéfiants', onClick: open('stupefiants'),
+      tone: 'danger', label: 'Stup', node: <Lock size={18} />,
+    });
+  }
+  if (metierItems.length) {
+    sections.push({
+      id: 'metier', label: lbl('Métier', 'Mét.'), title: 'Métier', items: metierItems,
+    });
+  }
+
+  if (show('magistral')) {
+    sections.push({
+      id: 'magistral',
+      label: lbl('Préparations', 'Prépa'),
+      title: 'Préparations magistrales',
+      items: [
+        {
+          key: 'mag_creation',
+          title: 'Préparation magistrale — commander / nouvelle demande',
+          onClick: open('magistral_creation', 'magistral'),
+          tone: 'accent',
+          label: 'Créer',
+          node: (
+            <span className="relative inline-flex">
+              <FlaskConical size={16} />
+              <Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} />
+            </span>
+          ),
+        },
+        {
+          key: 'mag_devis', title: 'Préparation magistrale — devis ST puis accord patient',
+          onClick: open('magistral_devis', 'magistral'), tone: 'accent', label: 'Devis',
+          node: <ClipboardCheck size={18} />,
+        },
+        {
+          key: 'mag_rappel', title: 'Préparation magistrale — réception / rappel patient',
+          onClick: open('magistral_rappel', 'magistral'), tone: 'accent', label: 'Rappel',
+          node: <Phone size={18} />,
+        },
+        {
+          key: 'mag_disp', title: 'Préparation magistrale — dispenser',
+          onClick: open('magistral_dispenser', 'magistral'), tone: 'accent', label: 'Disp.',
+          node: <Pill size={18} />,
+        },
+        {
+          key: 'mag_renouv', title: 'Préparation magistrale — renouvellement',
+          onClick: open('magistral_renouvellement', 'magistral'), tone: 'accent', label: 'Renouv.',
+          node: <RefreshCw size={18} />,
+        },
+      ],
+    });
+  }
+
+  if (show('location')) {
+    sections.push({
+      id: 'location',
+      label: lbl('Location', 'Loc.'),
+      title: 'Location de matériel',
+      items: [
+        {
+          key: 'loc_creation',
+          title: 'Location de matériel — nouvelle location',
+          onClick: open('location_creation', 'location'),
+          tone: 'accent',
+          label: 'Loc+',
+          node: (
+            <span className="relative inline-flex">
+              <BedDouble size={16} />
+              <Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} />
+            </span>
+          ),
+        },
+        {
+          key: 'loc_prol', title: 'Location de matériel — prolongation',
+          onClick: open('location_prolongation', 'location'), tone: 'accent', label: 'Prol.',
+          className: 'font-black text-xs !px-2', node: 'P',
+        },
+        {
+          key: 'loc_clot', title: 'Location de matériel — clôture',
+          onClick: open('location_cloture', 'location'), tone: 'accent', label: 'Clôt.',
+          node: <X size={18} strokeWidth={2.5} />,
+        },
+        {
+          key: 'loc_contact', title: 'Location de matériel — contact patient',
+          onClick: open('location_contact', 'location'), tone: 'accent', label: 'Contact',
+          node: <Phone size={18} />,
+        },
+      ],
+    });
+  }
+
+  const rhItems = [];
+  if (show('hr')) {
+    rhItems.push({
+      key: 'hr', title: 'Ressources humaines — planning, retards, absences', onClick: open('hr'),
+      tone: 'accent', label: 'RH', node: <Users size={18} />,
+    });
+  }
+  if (show('cash')) {
+    rhItems.push({
+      key: 'cash', title: 'Clôture de caisse', onClick: open('cash'),
+      tone: 'success', label: 'Caisse', node: <Wallet size={18} />,
+    });
+  }
+  if (rhItems.length) {
+    sections.push({
+      id: 'rh', label: lbl('RH / Compta', 'RH'), title: 'RH / Comptabilité', items: rhItems,
+    });
+  }
+
+  const renderItem = (item) => (
+    <TbBtn
+      key={item.key}
+      title={item.title}
+      onClick={item.onClick}
+      tone={item.tone}
+      label={item.label}
+      className={item.className || ''}
+      {...btnProps}
+    >
+      {item.node}
+    </TbBtn>
+  );
+
+  /** Empilée : label sous-groupe au-dessus, logos en rangée dessous. */
+  const renderSectionsEmpilee = (vert = false) => sections.map((sec) => (
+    <div
+      key={sec.id}
+      className={
+        vert
+          ? 'flex flex-col items-center gap-0.5 w-full px-0.5 py-0.5 border-b border-[var(--tb-border)] last:border-b-0'
+          : 'flex flex-col items-center gap-0.5 px-1 shrink-0 border-r border-[var(--tb-border)] last:border-r-0'
+      }
+    >
+      {showGroupLabel && (
+        <span
+          className="uppercase tracking-wide text-[var(--tb-muted)] truncate max-w-full px-0.5"
+          style={{ fontSize: 'var(--font-tb-label)' }}
+          title={sec.title || sec.label}
+        >
+          {sec.label}
+        </span>
+      )}
+      <div className={`flex items-center gap-0.5 ${vert ? 'flex-wrap justify-center' : ''}`}>
+        {sec.items.map(renderItem)}
+      </div>
+    </div>
+  ));
+
+  const renderSectionsInline = () => sections.map((sec) => (
+    <React.Fragment key={sec.id}>
+      <SectionSep label={sec.label} title={sec.title} showLabel={showGroupLabel} vertical={vertical} />
+      {sec.items.map(renderItem)}
+    </React.Fragment>
+  ));
+
+  const renderSectionsCorner = () => sections.map((sec) => (
+    <div
+      key={sec.id}
+      className="flex items-center gap-0.5 min-h-[1.75rem] w-full border-b border-[var(--tb-border)] last:border-b-0 py-0.5"
+    >
+      <SectionSep label={sec.label} title={sec.title} showLabel={showGroupLabel} corner />
+      <div className="flex items-center gap-0.5 flex-wrap min-w-0 flex-1">
+        {sec.items.map((item) => (
+          <TbBtn
+            key={item.key}
+            title={item.title}
+            onClick={item.onClick}
+            tone={item.tone}
+            label={item.label}
+            showLabel={showModuleLabel}
+            className={item.className || ''}
+          >
+            {item.node}
+          </TbBtn>
+        ))}
+      </div>
+    </div>
+  ));
+
+  const actionsCore = (
+    <>
+      <ConseilPanel layout={vertical ? 'vertical' : corner ? 'corner' : 'horizontal'} />
+      <TbBtn title="Signaler un bug au développeur" onClick={() => openBugWindow()} tone="danger" label="Bug" {...btnProps}>
+        <Bug size={18} />
+      </TbBtn>
+      {canDashboard && (
+        <TbBtn title="Ouvrir le tableau de bord PharmaOS" onClick={() => openDashboardWindow()} tone="accent" label="Dash" {...btnProps}>
+          <LayoutDashboard size={18} />
+        </TbBtn>
+      )}
+      <button
+        type="button"
+        title={`Se déconnecter (${profile?.display_name || 'utilisateur'})`}
+        aria-label="Se déconnecter"
+        onClick={signOut}
+        className="w-7 h-7 rounded-full bg-[var(--accent)] flex items-center justify-center text-xs font-bold text-[var(--accent-fg)] hover:bg-[var(--danger)] transition-colors shrink-0"
+      >
+        {getInitials(profile?.display_name)}
+      </button>
+    </>
+  );
+
+  const collapseBtn = (
+    <button
+      type="button"
+      title="Réduire la barre"
+      aria-label="Réduire la barre"
+      onClick={handleCollapse}
+      className="p-1.5 rounded text-[var(--tb-fg)] hover:bg-[var(--tb-hover)] transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+    >
+      <CollapseIcon size={16} />
+    </button>
+  );
+
+  /** Chevron collé au bord intérieur — gauche/droite et coins bas. */
+  const edgeCollapseStrip = (
+    <button
+      type="button"
+      title="Réduire la barre"
+      aria-label="Réduire la barre"
+      onClick={handleCollapse}
+      className={`shrink-0 self-stretch w-5 flex items-center justify-center text-[var(--tb-fg)] hover:bg-[var(--tb-hover)] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] ${
+        edgeIsLeft ? 'border-l border-[var(--tb-border)]' : 'border-r border-[var(--tb-border)]'
+      }`}
+    >
+      <CollapseIcon size={14} />
+    </button>
+  );
+
   if (isCollapsed) {
+    const pillRound =
+      placement === 'bas_gauche' || placement === 'gauche' ? 'rounded-r-md'
+        : placement === 'bas_droite' || placement === 'droite' ? 'rounded-l-md'
+          : 'rounded-lg';
+    const edgeCollapsed = vertical || corner;
     return (
-      <div className="w-full h-full flex items-center justify-center" style={{ background: 'transparent' }}>
+      <div
+        className={`w-full h-full flex ${
+          edgeCollapsed
+            ? (edgeIsLeft ? 'justify-start' : 'justify-end')
+            : 'items-center justify-center'
+        }`}
+        style={{ background: 'transparent' }}
+      >
         <button
           type="button"
           title="Afficher la barre d'outils PharmaOS"
           aria-label="Afficher la barre d'outils"
           onClick={handleExpand}
-          className="h-full w-full flex items-center justify-center rounded-b-lg bg-slate-900/95 text-slate-300 hover:text-white transition-colors shadow"
+          className={`${edgeCollapsed ? 'h-full w-full' : 'h-full w-full'} flex items-center justify-center ${pillRound} bg-[var(--tb-reduced-bg)] text-[var(--tb-fg)] border border-[var(--tb-border)] hover:bg-[var(--tb-hover)] transition-colors`}
         >
-          <ChevronDown size={14} />
+          <ExpandIcon size={14} />
         </button>
       </div>
     );
   }
 
-  return (
-    <div className="w-full h-full flex items-center justify-between px-2 bg-slate-900/90 text-white">
-      <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto">
-        {(show('inbox') || show('tasks') || show('order') || show('billing')) && <SectionSep label="Tâches" />}
-        {show('inbox') && (
-          <TbBtn title="À traiter & mes saisies" onClick={open('inbox')} className="relative text-indigo-300">
-            <Inbox size={18} />
-          </TbBtn>
-        )}
-        {show('tasks') && (
-          <TbBtn title="Mes tâches du jour" onClick={open('tasks')} className="relative text-amber-300">
-            <CheckSquare size={18} />
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow">
-                {pendingCount}
-              </span>
-            )}
-          </TbBtn>
-        )}
-        {show('order') && (
-          <TbBtn title="Commander un médicament" onClick={open('order')} className="text-emerald-400"><ShoppingBag size={18} /></TbBtn>
-        )}
-        {show('billing') && (
-          <TbBtn title="Facturation à effectuer" onClick={open('billing')} className="text-sky-300"><FileText size={18} /></TbBtn>
-        )}
+  const shellCls = 'taskbar-shell w-full h-full bg-[var(--tb-bg)] text-[var(--tb-fg)] border-[var(--tb-border)]';
 
-        {(show('directory') || show('call') || show('ip')) && <SectionSep label="Communication" />}
-        {show('directory') && (
-          <TbBtn title="Annuaire des contacts" onClick={open('directory')} className="text-sky-400"><BookOpen size={18} /></TbBtn>
-        )}
-        {show('call') && (
-          <TbBtn title="Tracer un appel téléphonique" onClick={open('call')}><Phone size={18} /></TbBtn>
-        )}
-        {show('ip') && (
-          <TbBtn title="Interventions pharmaceutiques (Act-IP)" onClick={open('ip')} className="!px-1.5 !py-0.5 bg-indigo-100 text-indigo-700 font-black text-xs hover:bg-indigo-200">IP</TbBtn>
-        )}
-
-        {(show('documents') || show('quality') || show('lot_alerts')) && <SectionSep label="Qualité" />}
-        {show('documents') && (
-          <TbBtn title="Procédures / documents" onClick={open('documents')} className="text-blue-300"><BookMarked size={18} /></TbBtn>
-        )}
-        {show('quality') && (
-          <TbBtn title="Non-conformités qualité" onClick={open('quality')} className="text-rose-400"><ShieldAlert size={18} /></TbBtn>
-        )}
-        {show('lot_alerts') && (
-          <TbBtn title="Alertes retrait de lot" onClick={open('lot_alerts')} className="text-red-400"><AlertOctagon size={18} /></TbBtn>
-        )}
-
-        {(show('perimes') || show('perimes_vitrine') || show('stock') || show('disputes')) && <SectionSep label="Stock" />}
-        {show('perimes') && (
-          <TbBtn title="Gestion des périmés" onClick={open('perimes')} className="text-orange-400"><Package size={18} /></TbBtn>
-        )}
-        {show('perimes_vitrine') && (
-          <TbBtn title="Mises en avant / promo / challenges du jour" onClick={open('perimes_vitrine')} className="text-amber-300"><Sparkles size={18} /></TbBtn>
-        )}
-        {show('stock') && (
-          <TbBtn title="Déclarer une erreur de stock" onClick={open('stock')} className="text-violet-400"><PackageX size={18} /></TbBtn>
-        )}
-        {show('disputes') && (
-          <TbBtn title="Litiges fournisseurs" onClick={open('disputes')} className="text-amber-300"><Scale size={18} /></TbBtn>
-        )}
-
-        {(show('psl') || show('stupefiants')) && (
-          <>
-            <SectionSep label="Métier" />
-            {show('psl') && (
-              <>
-                <TbBtn title="MDS — réception" onClick={open('psl_reception', 'psl')} className="text-rose-300">
-                  <span className="relative inline-flex w-[18px] h-[18px] items-center justify-center">
-                    <ArrowDownToLine size={18} strokeWidth={2.25} />
-                    <Droplets size={9} className="absolute -bottom-0.5 -right-0.5 text-rose-200" strokeWidth={2.5} />
-                  </span>
-                </TbBtn>
-                <TbBtn title="MDS — délivrance" onClick={open('psl_delivrance', 'psl')} className="text-rose-300">
-                  <span className="relative inline-flex">
-                    <Droplets size={18} />
-                    <Plus size={10} className="absolute -top-1 -right-1.5" strokeWidth={3} />
-                  </span>
-                </TbBtn>
-              </>
-            )}
-            {show('stupefiants') && (
-              <TbBtn title="Réception stupéfiants" onClick={open('stupefiants')} className="text-rose-400"><Lock size={18} /></TbBtn>
-            )}
-          </>
-        )}
-
-        {show('magistral') && (
-          <>
-            <SectionSep label="Prépa." />
-            <TbBtn title="Magistrale — commander / nouvelle demande" onClick={open('magistral_creation', 'magistral')} className="text-fuchsia-300">
-              <span className="relative inline-flex"><FlaskConical size={16} /><Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} /></span>
-            </TbBtn>
-            <TbBtn title="Magistrale — devis ST puis accord patient" onClick={open('magistral_devis', 'magistral')} className="text-fuchsia-300">
-              <ClipboardCheck size={18} />
-            </TbBtn>
-            <TbBtn title="Magistrale — réception / rappel patient" onClick={open('magistral_rappel', 'magistral')} className="text-fuchsia-300">
-              <Phone size={18} />
-            </TbBtn>
-            <TbBtn title="Magistrale — dispenser" onClick={open('magistral_dispenser', 'magistral')} className="text-fuchsia-300">
-              <Pill size={18} />
-            </TbBtn>
-            <TbBtn title="Magistrale — renouvellement" onClick={open('magistral_renouvellement', 'magistral')} className="text-fuchsia-300">
-              <RefreshCw size={18} />
-            </TbBtn>
-          </>
-        )}
-
-        {show('location') && (
-          <>
-            <SectionSep label="Loc." />
-            <TbBtn title="Location — nouvelle" onClick={open('location_creation', 'location')} className="text-cyan-300">
-              <span className="relative inline-flex"><BedDouble size={16} /><Plus size={10} className="absolute -top-1 -right-1" strokeWidth={3} /></span>
-            </TbBtn>
-            <TbBtn title="Location — prolongation" onClick={open('location_prolongation', 'location')} className="text-cyan-300 font-black text-xs !px-2">P</TbBtn>
-            <TbBtn title="Location — clôture" onClick={open('location_cloture', 'location')} className="text-cyan-300">
-              <X size={18} strokeWidth={2.5} />
-            </TbBtn>
-            <TbBtn title="Location — contact" onClick={open('location_contact', 'location')} className="text-cyan-300"><Phone size={18} /></TbBtn>
-          </>
-        )}
-
-        {(show('hr') || show('cash')) && <SectionSep label="RH / Compta" />}
-        {show('hr') && (
-          <TbBtn title="RH — planning, retards, absences" onClick={open('hr')} className="text-indigo-300"><Users size={18} /></TbBtn>
-        )}
-        {show('cash') && (
-          <TbBtn title="Clôture de caisse" onClick={open('cash')} className="text-emerald-300"><Wallet size={18} /></TbBtn>
-        )}
+  if (vertical) {
+    const body = (
+      <div className="flex flex-col items-stretch flex-1 min-w-0 min-h-0 overflow-hidden">
+        <div className="flex flex-col items-stretch gap-0.5 flex-1 min-h-0 overflow-y-auto w-full px-0.5 py-1.5">
+          {empilee ? renderSectionsEmpilee(true) : renderSectionsInline()}
+        </div>
+        <div className="flex flex-col items-center gap-1 shrink-0 py-1 border-t border-[var(--tb-border)] w-full px-0.5">
+          {actionsCore}
+        </div>
       </div>
+    );
+    return (
+      <div
+        className={`${shellCls} flex items-stretch overflow-hidden border-y-0 ${
+          edgeIsLeft ? 'border-r flex-row' : 'border-l flex-row-reverse'
+        }`}
+      >
+        {body}
+        {edgeCollapseStrip}
+      </div>
+    );
+  }
 
-      <div className="flex items-center gap-2 shrink-0 pl-2">
-        <ConseilPanel />
-        <TbBtn
-          title="Signaler un bug au développeur"
-          onClick={() => openBugWindow()}
-          className="text-rose-300"
-        >
-          <Bug size={18} />
-        </TbBtn>
-        {canDashboard && (
-          <TbBtn
-            title="Ouvrir le Dashboard"
-            onClick={() => openDashboardWindow()}
-            className="text-sky-300"
-          >
-            <LayoutDashboard size={18} />
-          </TbBtn>
-        )}
-        <button
-          type="button"
-          title={`Se déconnecter (${profile?.display_name || 'utilisateur'})`}
-          aria-label="Se déconnecter"
-          onClick={signOut}
-          className="w-7 h-7 rounded-full bg-sky-600 flex items-center justify-center text-xs font-bold hover:bg-red-500 transition-colors"
-        >
-          {getInitials(profile?.display_name)}
-        </button>
-        <button
-          type="button"
-          title="Réduire la barre"
-          aria-label="Réduire la barre"
-          onClick={handleCollapse}
-          className="p-1.5 rounded hover:bg-slate-700/70 transition-colors"
-        >
-          <ChevronUp size={16} />
-        </button>
+  if (corner) {
+    const round =
+      placement === 'bas_gauche' ? 'rounded-tr-xl' : 'rounded-tl-xl';
+    const body = (
+      <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-1.5 gap-1">
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+            {empilee ? renderSectionsEmpilee(true) : renderSectionsCorner()}
+          </div>
+          <div className="flex items-center justify-end gap-1 shrink-0 border-t border-[var(--tb-border)] pt-1 flex-wrap">
+            {actionsCore}
+          </div>
+        </div>
+      </div>
+    );
+    return (
+      <div
+        className={`${shellCls} flex items-stretch overflow-hidden border ${round} ${
+          edgeIsLeft ? 'flex-row' : 'flex-row-reverse'
+        }`}
+      >
+        {body}
+        {edgeCollapseStrip}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${shellCls} flex items-center justify-between px-2 ${placement === 'bas' ? 'border-t' : 'border-b'}`}>
+      <div className={`flex items-center gap-0.5 min-w-0 overflow-x-auto ${empilee || detaillee ? 'py-0.5' : ''}`}>
+        {empilee ? renderSectionsEmpilee(false) : renderSectionsInline()}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0 pl-2">
+        {actionsCore}
+        {collapseBtn}
       </div>
     </div>
   );

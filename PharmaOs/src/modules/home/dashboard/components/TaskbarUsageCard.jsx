@@ -10,9 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { SideLegend } from './ChartShell.jsx';
+import { SideLegend, CHART_COLORS, gridStroke, tickFill } from './ChartShell.jsx';
 
-const COLORS = ['#0284c7', '#16a34a', '#d97706', '#dc2626', '#7c3aed', '#db2777'];
+const COLORS = CHART_COLORS;
 
 const formatTime = (totalSeconds) => {
   if (!totalSeconds) return '0s';
@@ -24,15 +24,15 @@ const formatTime = (totalSeconds) => {
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg">
-        <p className="font-semibold text-slate-800 mb-2">{label}</p>
+      <div className="bg-[var(--surface-elevated)] p-3 border border-[var(--border)] shadow-lg rounded-lg">
+        <p className="font-semibold text-[var(--fg)] mb-2">{label}</p>
         {payload.map((entry, index) => {
           const data = entry.payload[`${entry.dataKey}_details`];
           if (!data) return null;
           return (
             <div key={index} className="mb-2 text-xs" style={{ color: entry.color }}>
               <span className="font-bold">{entry.name}</span>
-              <ul className="ml-2 text-slate-600 mt-1">
+              <ul className="ml-2 text-[var(--muted)] mt-1">
                 <li>Connexions (Login) : {data.loginCount}</li>
                 <li>Ouvertures (Expand) : {data.expandCount}</li>
                 <li>Fermetures (Collapse) : {data.collapseCount}</li>
@@ -104,15 +104,15 @@ export default function TaskbarUsageCard({ days = 30 }) {
   }, [statsData, activeMetric, usersList]);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col gap-4 col-span-full xl:col-span-2">
+    <div className="bg-[var(--surface-elevated)] rounded-xl shadow-sm border border-[var(--border)] p-5 flex flex-col gap-4 col-span-full xl:col-span-2 min-w-0 overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
-            <Activity size={16} className="text-sky-600" />
+          <div className="w-8 h-8 rounded-lg bg-[var(--input-bg)] flex items-center justify-center shrink-0">
+            <Activity size={16} className="text-[var(--accent)]" />
           </div>
           <div>
-            <h2 className="text-slate-900 text-sm font-semibold">Utilisation de la barre</h2>
-            <p className="text-[11px] text-slate-400">{days} derniers jours</p>
+            <h2 className="text-[var(--fg)] text-sm font-semibold">Utilisation de la barre</h2>
+            <p className="text-[11px] text-[var(--muted)]">{days} derniers jours</p>
           </div>
         </div>
 
@@ -120,28 +120,28 @@ export default function TaskbarUsageCard({ days = 30 }) {
           <button
             type="button"
             onClick={toggleMetric}
-            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md text-xs font-semibold text-slate-700 transition-colors shadow-sm self-start sm:self-auto cursor-pointer flex items-center gap-2"
+            className="px-3 py-1.5 bg-[var(--input-bg)] hover:opacity-90 border border-[var(--border)] rounded-md text-xs font-semibold text-[var(--fg)] transition-colors shadow-sm self-start sm:self-auto cursor-pointer flex items-center gap-2"
             title="Cliquez pour changer la donnée affichée sur le graphique"
           >
-            Affichage : <span className="text-sky-600">{metricLabels[activeMetric]}</span>
+            Affichage : <span className="text-[var(--accent)]">{metricLabels[activeMetric]}</span>
           </button>
         )}
       </div>
 
       {isLoading ? (
-        <div className="h-64 flex items-center justify-center text-slate-400">Chargement des graphiques...</div>
+        <div className="min-h-[16rem] h-64 flex items-center justify-center text-[var(--muted)]">Chargement des graphiques...</div>
       ) : error ? (
-        <div className="h-64 flex items-center justify-center text-red-500">Erreur : {error}</div>
+        <div className="min-h-[16rem] h-64 flex items-center justify-center text-[var(--danger)]">Erreur : {error}</div>
       ) : statsData.length === 0 ? (
-        <div className="h-64 flex items-center justify-center text-slate-400">Aucune donnée sur cette période</div>
+        <div className="min-h-[16rem] h-64 flex items-center justify-center text-[var(--muted)]">Aucune donnée sur cette période</div>
       ) : (
-        <div className="h-72 w-full mt-2 flex gap-3 min-h-0">
-          <div className="flex-1 min-w-0 h-full">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="h-72 w-full mt-2 flex gap-3 min-h-[16rem]">
+          <div className="flex-1 min-w-0 h-full relative">
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
               <LineChart data={chartDataWithFilter} margin={{ top: 5, right: 12, left: -12, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: tickFill }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: tickFill }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
                 {usersList.map((userId, index) => (
                   <Line
@@ -171,4 +171,4 @@ export default function TaskbarUsageCard({ days = 30 }) {
     </div>
   );
 }
-
+

@@ -351,6 +351,9 @@
     <div class="bh-card" id="stat-evolution"></div>
 
     <div class="bh-section-label">Dépenses effectives : ce mois vs mois précédent</div>
+    <select id="stat-comp-acc" class="bh-input" style="margin-bottom:8px;" onchange="BH.renderComparison()">
+      <option value="">Tous les comptes</option>
+    </select>
     <div class="bh-card" id="stat-comparison"></div>
 
     <div class="bh-section-label">Détail par catégorie</div>
@@ -1758,9 +1761,21 @@
        const prevKey = this.monthKey(prevDate);
        const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
+       const accSel = document.getElementById('stat-comp-acc');
+       const prevAccVal = accSel ? accSel.value : '';
+       if (accSel) {
+          accSel.innerHTML = '<option value="">Tous les comptes</option>' +
+             this.state.accounts.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+          accSel.value = this.state.accounts.some(a => a.id === prevAccVal) ? prevAccVal : '';
+       }
+       const accFilter = accSel ? accSel.value : '';
+       const recordsFor = (mKey) => (this.state.monthRecords || []).filter(r =>
+          r.month_key === mKey && (!accFilter || r.account_id === accFilter)
+       );
+
        const totalForMonth = (mKey) => {
           let sum = 0;
-          (this.state.monthRecords || []).filter(r => r.month_key === mKey).forEach(rec => {
+          recordsFor(mKey).forEach(rec => {
              const paid = rec.paid_expenses || {};
              sum += Object.values(paid).reduce((s, p) => s + Number(p.amount || 0), 0);
           });
@@ -1769,7 +1784,7 @@
 
        const catTotalsForMonth = (mKey) => {
           const totals = {};
-          (this.state.monthRecords || []).filter(r => r.month_key === mKey).forEach(rec => {
+          recordsFor(mKey).forEach(rec => {
              const paid = rec.paid_expenses || {};
              Object.entries(paid).forEach(([expId, p]) => {
                 const exp = this.state.expenses.find(e => e.id === expId);
@@ -1849,7 +1864,7 @@
              </span>
           </div>`;
        });
-       html += `<div style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Basé sur les dépenses réellement validées. Gris = mois précédent · Vert = ce mois.</div>`;
+       html += `<div style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Basé sur les dépenses réellement validées${accFilter ? ' · compte sélectionné' : ' · tous les comptes'}. Gris = mois précédent · Vert = ce mois.</div>`;
        el.innerHTML = html;
     },
 

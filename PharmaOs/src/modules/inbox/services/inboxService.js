@@ -5,9 +5,25 @@ import { supabase } from '../../../shared/supabaseClient.js';
  * Agrège les éléments « À traiter » + saisies corrigeables pour l’utilisateur courant.
  */
 
+async function fetchOpenAssignmentsWithPeers(userId) {
+  const { data, error } = await supabase
+    .from('task_assignments')
+    .select('id, task_id, statut, tasks(titre, description, task_assignments(id, statut, user_id))')
+    .eq('user_id', userId)
+    .eq('statut', 'en_cours');
+  return { data: data || [], error };
+}
+
 export async function fetchInboxItems(userId) {
   if (!userId) {
-    return { tasks: [], calls: [], quality: [], stock: [], ips: [], editable: { calls: [], ips: [], quality: [], stock: [] } };
+    return {
+      tasks: [],
+      calls: [],
+      quality: [],
+      stock: [],
+      ips: [],
+      editable: { calls: [], ips: [], quality: [], stock: [] },
+    };
   }
 
   const [
@@ -17,7 +33,7 @@ export async function fetchInboxItems(userId) {
     stockRes,
     ipsRes,
   ] = await Promise.all([
-    fetchMyOpenAssignments(userId),
+    fetchOpenAssignmentsWithPeers(userId).catch(() => fetchMyOpenAssignments(userId)),
     supabase
       .from('call_logs')
       .select('id, type, contact_nom, numero, motif, statut_traitement, notes_appel, created_at')
@@ -51,20 +67,25 @@ export async function fetchInboxItems(userId) {
   ]);
 
   const today = new Date().toISOString().split('T')[0];
-  const tasks = (assignmentsRes.data || [])
-    .map((a) => {
-      let meta = {};
-      try { meta = JSON.parse(a.tasks?.description || '{}'); } catch { /* ignore */ }
-      return {
-        id: a.id,
-        taskId: a.task_id,
-        titre: a.tasks?.titre || 'Tâche',
-        date: meta.date || null,
-        type: meta.type || null,
-        dueToday: !meta.date || meta.date <= today,
-      };
-    })
-    .filter((t) => t.dueToday);
+  const tasks = (assignmentsRes.data || []).map((a) => {
+    let meta = {};
+    try { meta = JSON.parse(a.tasks?.description || '{}'); } catch { /* ignore */ }
+    const peers = (a.tasks?.task_assignments || []).filter((p) => p.statut === 'en_cours');
+    const assigneeCount = peers.length || 1;
+    const date = meta.date || null;
+    return {
+      id: a.id,
+      taskId: a.task_id,
+      titre: a.tasks?.titre || 'Tâche',
+      date,
+      type: meta.type || null,
+      dueToday: !date || date <= today,
+      future: !!(date && date > today),
+      multi: assigneeCount > 1,
+      solo: assigneeCount <= 1,
+      assigneeCount,
+    };
+  });
 
   const calls = callsRes.data || [];
   const quality = qualityRes.data || [];

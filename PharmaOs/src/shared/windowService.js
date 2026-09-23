@@ -154,3 +154,40 @@ export function onDashboardNavigate(callback) {
   if (!window.electronAPI?.onDashboardNavigate) return () => {};
   return window.electronAPI.onDashboardNavigate(callback);
 }
+
+/**
+ * Ouvre une URL externe (Portail Application, docs…).
+ * @param {string} url
+ */
+export async function openExternal(url) {
+  if (window.electronAPI?.openExternal) {
+    return window.electronAPI.openExternal(url);
+  }
+  if (typeof window !== 'undefined' && window.open) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return { ok: true, via: 'window.open' };
+  }
+  console.warn('[PharmaOS] openExternal indisponible');
+  return { ok: false, error: 'unavailable' };
+}
+
+/**
+ * Applique placement / densité / thème de la taskbar côté main process.
+ * @param {{ placement?: string, density?: string, theme?: string }} layout
+ */
+export async function setTaskbarLayout(layout) {
+  if (window.electronAPI?.setTaskbarLayout) {
+    return window.electronAPI.setTaskbarLayout(layout || {});
+  }
+  return { ok: false, error: 'unavailable' };
+}
+
+/**
+ * Écoute les préférences diffusées par le main (toutes les fenêtres).
+ * @param {(payload: { placement?: string, density?: string, theme?: string }) => void} callback
+ * @returns {() => void}
+ */
+export function onPrefsChanged(callback) {
+  if (!window.electronAPI?.onPrefsChanged) return () => {};
+  return window.electronAPI.onPrefsChanged(callback);
+}

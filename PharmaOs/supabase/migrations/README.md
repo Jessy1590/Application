@@ -39,6 +39,7 @@ Ordre :
 35. `042_mes_saisies_rls_own_update.sql` — UPDATE own saisies + admin policies `is_pharma_admin`
 36. `043_profiles_must_change_password.sql` — flag MDP temporaire sur `portail.profiles`
 37. `044_portail_service_role_schema_usage.sql` — GRANT schema portail à service_role + is_admin legacy `admin`
+38. `045_user_preferences.sql` — préférences UI (thème, placement / densité taskbar) + RLS own
 
 Source de vérité : `supabase/migrations/` (agrégat live). Miroirs `src/modules/<domaine>/sql/` (certains README-only : admin, conseil, inbox).
 

@@ -1,26 +1,32 @@
 import {
   PhoneCall, Calendar, CheckSquare, Activity, BookOpen, ShieldAlert,
   FileText, AlertOctagon, Package, PackageX, BedDouble, Scale, FlaskConical, Droplets,
-  Wallet, Users, LayoutDashboard, Pill, MessageCircle, Inbox,
+  Wallet, Users, LayoutDashboard, Pill, MessageCircle, Inbox, Pencil, User,
   ClipboardList, PlusCircle, RefreshCw, Lock, Phone, Receipt, Warehouse, ScanText, Settings,
   ScrollText, Bug, Shield,
 } from 'lucide-react';
 
-/** Aligné sur les sous-groupes de la Taskbar. */
+/** Aligné sur les sous-groupes de la Taskbar — sections scannables, peu denses. */
 export const NAV_SECTIONS = [
   {
-    title: 'Principal',
+    title: 'Accueil',
     items: [
       { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
+    ],
+  },
+  {
+    title: 'Quotidien',
+    items: [
       { id: 'inbox', label: 'À traiter', icon: Inbox, color: 'indigo' },
-      { id: 'calls', label: 'Appels', icon: PhoneCall, color: 'emerald' },
+      { id: 'inbox_saisies', label: 'Mes saisies', icon: Pencil, color: 'indigo' },
+      { id: 'tasks', label: 'Mes tâches', icon: CheckSquare, color: 'orange' },
       { id: 'agenda', label: 'Agenda', icon: Calendar, color: 'purple' },
-      { id: 'tasks', label: 'Tâches', icon: CheckSquare, color: 'orange' },
     ],
   },
   {
     title: 'Communication',
     items: [
+      { id: 'calls', label: 'Appels', icon: PhoneCall, color: 'emerald' },
       { id: 'directory', label: 'Annuaire', icon: BookOpen, color: 'blue' },
       { id: 'ip', label: 'Act-IP', icon: Activity, color: 'sky' },
     ],
@@ -87,6 +93,12 @@ export const NAV_SECTIONS = [
     items: [
       { id: 'hr', label: 'RH', icon: Users, color: 'indigo' },
       { id: 'cash', label: 'Caisse', icon: Wallet, color: 'emerald' },
+    ],
+  },
+  {
+    title: 'Compte',
+    items: [
+      { id: 'account', label: 'Mon compte', icon: User, color: 'slate' },
     ],
   },
   {

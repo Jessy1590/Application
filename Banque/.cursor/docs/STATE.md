@@ -11,7 +11,7 @@
 - **Statistiques et Visualisation :** 
   - Graphiques en camembert (SVG natifs générés par JS).
   - Évolution des dépenses sur 12 mois.
-  - Comparatif MoM avec diagramme barres jumelées (dépenses effectives validées) + détail par catégorie.
+  - Comparatif MoM avec diagramme barres jumelées (dépenses effectives validées) + détail par catégorie, filtrable par compte (ou tous).
   - Calcul de la capacité d'épargne globale.
 - **Saisie guidée :** Listes déroulantes Compte (＋ Nouveau compte) et Catégorie (Autres…) à l’ajout / édition.
 - **Outils Avancés :**

@@ -29,9 +29,9 @@ import Inbox from './modules/inbox/comptoir/Inbox.jsx';
 /** Placeholder jusqu'à migration des modules restants. */
 function PlaceholderModule({ title }) {
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-800 p-6">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-[var(--surface)] text-[var(--fg)] p-6">
       <h1 className="text-2xl font-bold mb-2">{title}</h1>
-      <p className="text-slate-500 text-sm">Module en cours de migration depuis PharmaOs-legacy.</p>
+      <p className="text-[var(--muted)] text-sm">Module en cours de migration depuis PharmaOs-legacy.</p>
     </div>
   );
 }
@@ -73,7 +73,7 @@ const VIEW_TITLES = {
 function renderModuleView(view, moduleData) {
   switch (view) {
     case 'inbox':
-      return <Inbox initialTab={moduleData?.tab || 'inbox'} />;
+      return <Inbox mode="hub" />;
     case 'directory':
       return <Directory />;
     case 'call':

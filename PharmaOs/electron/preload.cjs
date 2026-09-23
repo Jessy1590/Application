@@ -11,6 +11,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('dashboard:navigate', handler);
   },
   openBug: () => ipcRenderer.invoke('window:openBug'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  setTaskbarLayout: (layout) => ipcRenderer.invoke('window:setTaskbarLayout', layout || {}),
+  onPrefsChanged: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('prefs:changed', handler);
+    return () => ipcRenderer.removeListener('prefs:changed', handler);
+  },
   onModuleChangeView: (callback) => {
     const handler = (_event, view, data) => callback(view, data);
     ipcRenderer.on('module:change-view', handler);

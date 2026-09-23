@@ -34,7 +34,8 @@ import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
 import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
 import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
 import SettingsManager from '../modules/admin/dashboard/SettingsManager.jsx';
-import InboxManager from '../modules/inbox/dashboard/InboxManager.jsx';
+import InboxManager, { InboxSaisiesManager } from '../modules/inbox/dashboard/InboxManager.jsx';
+import AccountPage from '../modules/account/dashboard/AccountPage.jsx';
 
 function PlaceholderPage({ label }) {
   return (
@@ -117,6 +118,10 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
       return <CallTracking onNavigate={onNavigate} />;
     case 'inbox':
       return <InboxManager onNavigate={onNavigate} />;
+    case 'inbox_saisies':
+      return <InboxSaisiesManager onNavigate={onNavigate} />;
+    case 'account':
+      return <AccountPage />;
     case 'dashboard':
       return <HomeDashboard onNavigate={onNavigate} />;
     case 'logs':
@@ -143,7 +148,7 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
 export default function DashboardShell() {
   const {
     user, profile, canDashboard, canAccess, accessOverrides, casquetteGrants,
-    isLoading, signOut, role,
+    isLoading, signOut, role, preferences,
   } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [pageData, setPageData] = useState(null);
@@ -210,7 +215,7 @@ export default function DashboardShell() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--surface)] text-[var(--muted)]">
         Chargement…
       </div>
     );
@@ -218,15 +223,15 @@ export default function DashboardShell() {
 
   if (!canDashboard) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100 gap-3 p-6">
-        <h1 className="text-xl font-semibold text-slate-800">Accès refusé</h1>
-        <p className="text-sm text-slate-500 text-center max-w-md">
-          Le Dashboard n’est pas ouvert au rôle <code className="text-xs bg-slate-200 px-1 rounded">{labelRole(role)}</code>.
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--surface)] gap-3 p-6">
+        <h1 className="text-xl font-semibold text-[var(--fg)]">Accès refusé</h1>
+        <p className="text-sm text-[var(--muted)] text-center max-w-md">
+          Le Dashboard n’est pas ouvert au rôle <code className="text-xs bg-[var(--input-bg)] px-1 rounded">{labelRole(role)}</code>.
         </p>
         <button
           type="button"
           onClick={signOut}
-          className="mt-2 px-3 py-1.5 rounded bg-slate-800 text-white text-sm"
+          className="mt-2 px-3 py-1.5 rounded bg-[var(--fg)] text-[var(--surface)] text-sm"
         >
           Fermer la session
         </button>
@@ -237,37 +242,59 @@ export default function DashboardShell() {
   const activeLabel = findNavItem(currentPage)?.label || currentPage;
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
-      <aside className="w-56 xl:w-64 shrink-0 bg-slate-900 text-slate-200 flex flex-col h-screen sticky top-0">
-        <div className="p-4 border-b border-slate-700">
-          <p className="font-semibold text-white text-sm">PharmaOS Dashboard</p>
-          <p className="text-xs text-slate-400 truncate mt-1">
+    <div className="dashboard-shell flex min-h-screen bg-[var(--surface)]">
+      <aside className="w-56 xl:w-64 shrink-0 bg-[var(--sidebar-bg)] text-[var(--sidebar-fg)] flex flex-col h-screen sticky top-0 border-r border-[var(--sidebar-border)]">
+        <div className="p-4 border-b border-[var(--sidebar-border)]">
+          <p className="font-semibold text-sm text-[var(--sidebar-fg)]">PharmaOS Dashboard</p>
+          <p className="text-xs text-[var(--sidebar-muted)] truncate mt-1">
             {profile?.display_name || user?.email}
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">{labelRole(role)}</p>
+          <p className="text-[10px] text-[var(--sidebar-muted)] mt-0.5">{labelRole(role)}</p>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-5">
-          {visibleSections.map((section) => (
+          {visibleSections.map((section, sectionIdx) => (
             <div key={section.title}>
-              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold px-2 mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--sidebar-muted)] font-bold px-2 mb-2">
                 {section.title}
               </p>
               <ul className="space-y-0.5">
-                {section.items.map((item) => {
+                {section.items.map((item, itemIdx) => {
                   const Icon = item.icon;
                   const active = resolveNavPageId(currentPage) === item.id;
+                  const colorIndex = visibleSections
+                    .slice(0, sectionIdx)
+                    .reduce((n, s) => n + s.items.length, 0) + itemIdx;
+                  const isColore = (preferences?.theme || 'clair') === 'colore';
+                  const rainbowStyle = isColore
+                    ? {
+                      background: active
+                        ? `linear-gradient(90deg, color-mix(in srgb, var(--mod-${colorIndex % 12}) 55%, white), color-mix(in srgb, var(--mod-${(colorIndex + 1) % 12}) 35%, white))`
+                        : `linear-gradient(90deg, color-mix(in srgb, var(--mod-${colorIndex % 12}) 22%, white), color-mix(in srgb, var(--mod-${(colorIndex + 1) % 12}) 12%, white))`,
+                    }
+                    : undefined;
                   return (
                     <li key={item.id}>
                       <button
                         type="button"
+                        title={item.label}
+                        aria-label={item.label}
                         onClick={() => goTo(item.id)}
+                        style={rainbowStyle}
                         className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                           active
-                            ? 'bg-white/10 text-white font-medium'
-                            : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                            ? isColore
+                              ? 'font-medium text-[var(--sidebar-fg)]'
+                              : 'bg-[var(--sidebar-active)] text-[var(--sidebar-fg)] font-medium'
+                            : isColore
+                              ? 'text-[var(--sidebar-fg)] hover:opacity-90'
+                              : 'text-[var(--sidebar-fg)] opacity-80 hover:bg-[var(--sidebar-hover)] hover:opacity-100'
                         }`}
                       >
-                        <Icon size={16} className={active ? 'text-white' : 'text-slate-400'} />
+                        <Icon
+                          size={16}
+                          className={active ? 'opacity-100' : 'opacity-70'}
+                          style={isColore ? { color: `var(--mod-${colorIndex % 12})` } : undefined}
+                        />
                         {item.label}
                       </button>
                     </li>
@@ -277,18 +304,18 @@ export default function DashboardShell() {
             </div>
           ))}
         </nav>
-        <div className="p-3 border-t border-slate-700">
+        <div className="p-3 border-t border-[var(--sidebar-border)]">
           <button
             type="button"
             onClick={signOut}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/5 hover:text-white"
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--sidebar-fg)] opacity-70 hover:bg-[var(--sidebar-hover)] hover:opacity-100"
           >
             <LogOut size={16} /> Déconnexion
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto text-[var(--fg)]">
         <div className="p-6 xl:p-8 max-w-[1600px]">
           {renderDashboardPage(currentPage, activeLabel, goTo, pageData)}
         </div>

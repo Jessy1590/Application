@@ -9,7 +9,7 @@ export default function ChartShell({
   subtitle,
   children,
   className = '',
-  height = 'h-56',
+  height = 'min-h-[13rem] h-56 sm:h-64',
   action = null,
   bodyLayout = 'stack',
   legend = null,
@@ -17,39 +17,54 @@ export default function ChartShell({
   const isRow = bodyLayout === 'row' && legend;
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col ${className}`}>
-      <div className="flex items-start justify-between gap-2 mb-1">
+    <div
+      className={`bg-[var(--surface-elevated)] rounded-xl shadow-sm border border-[var(--border)] p-4 flex flex-col min-w-0 overflow-hidden ${className}`}
+    >
+      <div className="flex items-start justify-between gap-2 mb-1 shrink-0">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-800 truncate">{title}</h3>
-          {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+          <h3 className="text-sm font-semibold text-[var(--fg)] truncate">{title}</h3>
+          {subtitle ? <p className="text-xs text-[var(--muted)]">{subtitle}</p> : null}
         </div>
         {action}
       </div>
       {isRow ? (
-        <div className={`flex gap-3 mt-1 min-h-0 ${height}`}>
-          <div className="flex-1 min-w-0 h-full">{children}</div>
+        <div className={`flex gap-3 mt-1 min-h-0 w-full ${height}`}>
+          <div className="flex-1 min-w-0 min-h-[12rem] h-full relative">{children}</div>
           <div className="shrink-0 w-[7.5rem] sm:w-36 self-stretch overflow-y-auto flex flex-col justify-center">
             {legend}
           </div>
         </div>
       ) : (
-        <div className={`${height} w-full mt-1`}>{children}</div>
+        <div className={`${height} w-full mt-1 min-h-[12rem] relative`}>{children}</div>
       )}
     </div>
   );
 }
 
+/** Couleurs via tokens thème — visibles clair / sombre / coloré / bleu doré. */
 export const CHART_COLORS = [
-  '#0284c7', '#16a34a', '#d97706', '#dc2626', '#7c3aed',
-  '#db2777', '#0d9488', '#ea580c', '#4f46e5', '#64748b',
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+  'var(--chart-7)',
+  'var(--chart-8)',
+  'var(--chart-9)',
+  'var(--chart-10)',
 ];
 
 export const tipStyle = {
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--chart-tooltip-bg)',
+  border: '1px solid var(--chart-tooltip-border)',
   borderRadius: 8,
   fontSize: 12,
+  color: 'var(--fg)',
 };
+
+export const gridStroke = 'var(--chart-grid)';
+export const tickFill = 'var(--chart-tick)';
 
 /** Légende HTML verticale (hors canvas Recharts) — évite le clipping. */
 export function SideLegend({ items = [], colors = CHART_COLORS }) {
@@ -57,15 +72,15 @@ export function SideLegend({ items = [], colors = CHART_COLORS }) {
   return (
     <ul className="space-y-1.5 pr-0.5">
       {items.map((it, i) => (
-        <li key={it.name || i} className="flex items-start gap-1.5 text-[11px] leading-snug text-slate-600">
+        <li key={it.name || i} className="flex items-start gap-1.5 text-[11px] leading-snug text-[var(--muted)]">
           <span
             className="mt-0.5 w-2.5 h-2.5 rounded-sm shrink-0"
             style={{ background: it.color || colors[i % colors.length] }}
           />
           <span className="min-w-0 break-words">
-            <span className="font-medium text-slate-700">{it.name}</span>
+            <span className="font-medium text-[var(--fg)]">{it.name}</span>
             {it.value != null && (
-              <span className="text-slate-400"> · {it.value}</span>
+              <span className="text-[var(--muted)]"> · {it.value}</span>
             )}
           </span>
         </li>
@@ -76,7 +91,7 @@ export function SideLegend({ items = [], colors = CHART_COLORS }) {
 
 export function EmptyChart({ message = 'Aucune donnée sur cette période' }) {
   return (
-    <div className="h-full flex items-center justify-center text-sm text-slate-400">
+    <div className="h-full min-h-[10rem] flex items-center justify-center text-sm text-[var(--muted)]">
       {message}
     </div>
   );
@@ -95,4 +110,3 @@ export const legendRightProps = {
     overflow: 'visible',
   },
 };
-

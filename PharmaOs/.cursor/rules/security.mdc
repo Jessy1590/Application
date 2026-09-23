@@ -9,7 +9,7 @@ alwaysApply: true
 ## Electron
 - `contextIsolation: true`, `nodeIntegration: false` sur **toutes** les BrowserWindow
 - Preload expose uniquement `window.electronAPI` (allowlist IPC)
-- Canaux invoke : `window:setMode` (`login|expanded|reduced`), `window:openModule`, `window:openDashboard`, `window:closeModule`, `window:confirmModuleClose`, `window:setIgnoreMouseEvents`, `window:openBug`, `context:startWatch`, `context:stopWatch`
+- Canaux invoke : `window:setMode` (`login|expanded|reduced`), `window:openModule`, `window:openDashboard`, `window:closeModule`, `window:confirmModuleClose`, `window:setIgnoreMouseEvents`, `window:openBug`, `window:setTaskbarLayout`, `shell:openExternal`, `context:startWatch`, `context:stopWatch`
 - Events main → renderer : `module:change-view`, `module:before-close`, `dashboard:navigate`, `context:text` (bus texte focused / clipboard — pas de hook clavier global)
 - Pont renderer : uniquement via `src/shared/windowService.js`
 - Bugs : table `PharmaOs.bugs` uniquement (plus de canal `bug:submit`)

@@ -443,8 +443,8 @@ export default function Tasks() {
   const isRetrait = (assignment) => parseTaskDetails(assignment.tasks?.description).type === 'retrait_lot';
 
   return (
-    <div className="w-full h-full flex flex-col bg-slate-50 text-slate-800">
-      <div className="px-6 py-4 border-b border-slate-200 bg-white shadow-sm space-y-3">
+    <div className="w-full h-full flex flex-col bg-[var(--surface)] text-[var(--fg)]">
+      <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-sm space-y-3">
         <div className="flex items-center gap-2">
           <CheckSquare className="text-amber-500" />
           <h2 className="font-bold text-xl">Mes Tâches en cours</h2>
@@ -472,7 +472,7 @@ export default function Tasks() {
             <div key={assignment.id} className={`p-5 rounded-xl border shadow-sm flex flex-col ${isRetrait(assignment) ? 'border-red-300 bg-red-50/30' : 'border-slate-200 bg-white'}`}>
               <div>
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-bold text-lg text-slate-800">{assignment.tasks?.titre}</h3>
+                  <h3 className="font-bold text-lg text-[var(--fg)]">{assignment.tasks?.titre}</h3>
                   <span className="text-[10px] uppercase tracking-wide bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full shrink-0">
                     {TASK_CATEGORY_LABELS[getTaskCategory(assignment.tasks?.description, assignment.tasks?.titre)] || 'autre'}
                   </span>

@@ -34,6 +34,8 @@ import ChartShell, {
   tipStyle,
   EmptyChart,
   SideLegend,
+  gridStroke,
+  tickFill,
 } from './ChartShell.jsx';
 
 function hasData(list) {
@@ -56,7 +58,7 @@ function LinkBtn({ onNavigate, page, label = 'Voir' }) {
 function Donut({ data, colors = CHART_COLORS }) {
   if (!hasData(data)) return <EmptyChart />;
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
       <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
         <Pie
           data={data}
@@ -91,14 +93,14 @@ function donutLegend(data, colors = CHART_COLORS) {
   );
 }
 
-function HBar({ data, color = '#0284c7' }) {
+function HBar({ data, color = 'var(--chart-1)' }) {
   if (!hasData(data)) return <EmptyChart />;
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-        <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+        <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
+        <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10, fill: tickFill }} />
         <Tooltip contentStyle={tipStyle} />
         <Bar dataKey="count" name="Volume" radius={[0, 4, 4, 0]}>
           {data.map((_, i) => (
@@ -110,14 +112,14 @@ function HBar({ data, color = '#0284c7' }) {
   );
 }
 
-function VBar({ data, color = '#0284c7', dataKey = 'count' }) {
+function VBar({ data, color = 'var(--chart-1)', dataKey = 'count' }) {
   if (!hasData(data)) return <EmptyChart />;
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minHeight={160}>
       <BarChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 28 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-20} textAnchor="end" height={52} interval={0} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="name" tick={{ fontSize: 9, fill: tickFill }} angle={-20} textAnchor="end" height={52} interval={0} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
         <Tooltip contentStyle={tipStyle} />
         <Bar dataKey={dataKey} name="Volume" fill={color} radius={[4, 4, 0, 0]} />
       </BarChart>
@@ -126,12 +128,12 @@ function VBar({ data, color = '#0284c7', dataKey = 'count' }) {
 }
 
 const TIMELINE_SERIES = [
-  { key: 'calls', name: 'Appels', stroke: '#059669', fill: '#6ee7b7' },
-  { key: 'ip', name: 'IP', stroke: '#0284c7', fill: '#7dd3fc' },
-  { key: 'tasks', name: 'Tâches', stroke: '#ea580c', fill: '#fdba74' },
-  { key: 'quality', name: 'Qualité', stroke: '#e11d48', fill: '#fda4af' },
-  { key: 'magistral', name: 'Magistrales', stroke: '#c026d3', fill: '#f0abfc' },
-  { key: 'conseil', name: 'Conseil', stroke: '#7c3aed', fill: '#c4b5fd' },
+  { key: 'calls', name: 'Appels', stroke: 'var(--chart-2)', fill: 'var(--chart-2)' },
+  { key: 'ip', name: 'IP', stroke: 'var(--chart-1)', fill: 'var(--chart-1)' },
+  { key: 'tasks', name: 'Tâches', stroke: 'var(--chart-8)', fill: 'var(--chart-8)' },
+  { key: 'quality', name: 'Qualité', stroke: 'var(--chart-4)', fill: 'var(--chart-4)' },
+  { key: 'magistral', name: 'Magistrales', stroke: 'var(--chart-6)', fill: 'var(--chart-6)' },
+  { key: 'conseil', name: 'Conseil', stroke: 'var(--chart-5)', fill: 'var(--chart-5)' },
 ];
 
 /* ——— Widgets graphiques ——— */
@@ -140,7 +142,7 @@ export function OverviewKpisCard({ charts, onNavigate }) {
   const k = charts?.kpis;
   if (!k) {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-5 animate-pulse h-28 md:col-span-2 xl:col-span-3" />
+      <div className="bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)] p-5 animate-pulse h-28 md:col-span-2 xl:col-span-3" />
     );
   }
 
@@ -198,7 +200,7 @@ export function ActivityTimelineCard({ charts }) {
       title="Tendance multi-modules"
       subtitle={`Volume quotidien (${charts?.days || 30} j)`}
       className="md:col-span-2"
-      height="h-72"
+      height="min-h-[16rem] h-72"
       bodyLayout="row"
       legend={(
         <SideLegend
@@ -209,11 +211,11 @@ export function ActivityTimelineCard({ charts }) {
       {empty ? (
         <EmptyChart />
       ) : (
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
           <AreaChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-            <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
             <Tooltip contentStyle={tipStyle} />
             {TIMELINE_SERIES.map((s) => (
               <Area
@@ -224,7 +226,7 @@ export function ActivityTimelineCard({ charts }) {
                 stackId="1"
                 stroke={s.stroke}
                 fill={s.fill}
-                fillOpacity={0.7}
+                fillOpacity={0.45}
               />
             ))}
           </AreaChart>
@@ -237,11 +239,11 @@ export function ActivityTimelineCard({ charts }) {
 export function ModuleCompareCard({ charts, onNavigate }) {
   const data = charts?.moduleCompare || [];
   return (
-    <ChartShell title="Volumes par module" subtitle="Comparaison sur la période" height="h-72">
+    <ChartShell title="Volumes par module" subtitle="Comparaison sur la période" height="min-h-[16rem] h-72">
       {!hasData(data) ? (
         <EmptyChart />
       ) : (
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minHeight={200}>
           <BarChart
             data={data}
             layout="vertical"
@@ -255,9 +257,9 @@ export function ModuleCompareCard({ charts, onNavigate }) {
             }}
             className="cursor-pointer"
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
-            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
-            <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+            <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
+            <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 10, fill: tickFill }} />
             <Tooltip contentStyle={tipStyle} />
             <Bar dataKey="count" name="Événements" radius={[0, 4, 4, 0]}>
               {data.map((_, i) => (
@@ -275,12 +277,12 @@ export function CallsChartsCard({ charts, onNavigate }) {
   const c = charts?.calls;
   return (
     <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <ChartShell title="Appels — motifs" action={<LinkBtn onNavigate={onNavigate} page="calls" />} height="h-56">
+      <ChartShell title="Appels — motifs" action={<LinkBtn onNavigate={onNavigate} page="calls" />} height="min-h-[13rem] h-56">
         <HBar data={c?.byMotif} />
       </ChartShell>
       <ChartShell
         title="Appels — statuts"
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
         legend={donutLegend(c?.byStatut)}
       >
@@ -288,11 +290,11 @@ export function CallsChartsCard({ charts, onNavigate }) {
       </ChartShell>
       <ChartShell
         title="Appels — type"
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
-        legend={donutLegend(c?.byType, ['#059669', '#0284c7'])}
+        legend={donutLegend(c?.byType, ['var(--chart-2)', 'var(--chart-1)'])}
       >
-        <Donut data={c?.byType} colors={['#059669', '#0284c7']} />
+        <Donut data={c?.byType} colors={['var(--chart-2)', 'var(--chart-1)']} />
       </ChartShell>
     </div>
   );
@@ -306,23 +308,23 @@ export function TasksChartsCard({ charts, onNavigate }) {
         title="Tâches — répartition"
         subtitle={t?.avgTaskMin != null ? `Temps moyen : ${t.avgTaskMin} min` : undefined}
         action={<LinkBtn onNavigate={onNavigate} page="tasks" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
-        legend={donutLegend(t?.byStatut, ['#16a34a', '#ea580c'])}
+        legend={donutLegend(t?.byStatut, ['var(--chart-2)', 'var(--chart-8)'])}
       >
-        <Donut data={t?.byStatut} colors={['#16a34a', '#ea580c']} />
+        <Donut data={t?.byStatut} colors={['var(--chart-2)', 'var(--chart-8)']} />
       </ChartShell>
-      <ChartShell title="Tâches — volume journalier" height="h-56">
+      <ChartShell title="Tâches — volume journalier" height="min-h-[13rem] h-56">
         {!charts?.timeline?.length ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
             <LineChart data={charts.timeline} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
               <Tooltip contentStyle={tipStyle} />
-              <Line type="monotone" dataKey="tasks" name="Assignations" stroke="#ea580c" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="tasks" name="Assignations" stroke="var(--chart-8)" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -338,13 +340,13 @@ export function IpChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Act-IP — statuts"
         action={<LinkBtn onNavigate={onNavigate} page="ip" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
         legend={donutLegend(ip?.byStatut)}
       >
         <Donut data={ip?.byStatut} />
       </ChartShell>
-      <ChartShell title="Act-IP — problèmes fréquents" height="h-56">
+      <ChartShell title="Act-IP — problèmes fréquents" height="min-h-[13rem] h-56">
         <HBar data={ip?.byProblem} />
       </ChartShell>
     </div>
@@ -358,7 +360,7 @@ export function QualityChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Qualité — types"
         action={<LinkBtn onNavigate={onNavigate} page="quality" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
         legend={donutLegend(q?.byType)}
       >
@@ -366,14 +368,14 @@ export function QualityChartsCard({ charts, onNavigate }) {
       </ChartShell>
       <ChartShell
         title="Qualité — sévérité"
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
-        legend={donutLegend(q?.bySeverity, ['#94a3b8', '#d97706', '#dc2626'])}
+        legend={donutLegend(q?.bySeverity, ['var(--chart-10)', 'var(--chart-3)', 'var(--chart-4)'])}
       >
-        <Donut data={q?.bySeverity} colors={['#94a3b8', '#d97706', '#dc2626']} />
+        <Donut data={q?.bySeverity} colors={['var(--chart-10)', 'var(--chart-3)', 'var(--chart-4)']} />
       </ChartShell>
-      <ChartShell title="Qualité — statuts" height="h-56">
-        <VBar data={q?.byStatus} color="#e11d48" />
+      <ChartShell title="Qualité — statuts" height="min-h-[13rem] h-56">
+        <VBar data={q?.byStatus} color="var(--chart-4)" />
       </ChartShell>
     </div>
   );
@@ -386,13 +388,13 @@ export function StockChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Erreurs stock — top médicaments"
         action={<LinkBtn onNavigate={onNavigate} page="stock" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
       >
         <HBar data={s?.byMed} />
       </ChartShell>
       <ChartShell
         title="Erreurs stock — statut"
-        height="h-52"
+        height="min-h-[12rem] h-52"
         bodyLayout="row"
         legend={donutLegend(s?.byStatus)}
       >
@@ -409,14 +411,14 @@ export function DisputesChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Litiges — types"
         action={<LinkBtn onNavigate={onNavigate} page="disputes" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
         legend={donutLegend(d?.byType)}
       >
         <Donut data={d?.byType} />
       </ChartShell>
-      <ChartShell title="Litiges — statuts" height="h-52">
-        <VBar data={d?.byStatut} color="#d97706" />
+      <ChartShell title="Litiges — statuts" height="min-h-[12rem] h-52">
+        <VBar data={d?.byStatut} color="var(--chart-3)" />
       </ChartShell>
     </div>
   );
@@ -429,21 +431,21 @@ export function MagistralChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Magistrales — par statut"
         action={<LinkBtn onNavigate={onNavigate} page="magistral_suivi" />}
-        height="h-64"
+        height="min-h-[14rem] h-64"
       >
         <HBar data={m?.byStatut} />
       </ChartShell>
-      <ChartShell title="Magistrales — tendance" height="h-64">
+      <ChartShell title="Magistrales — tendance" height="min-h-[14rem] h-64">
         {!charts?.timeline?.length ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
             <AreaChart data={charts.timeline} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
               <Tooltip contentStyle={tipStyle} />
-              <Area type="monotone" dataKey="magistral" name="Créations" stroke="#c026d3" fill="#f0abfc" fillOpacity={0.75} />
+              <Area type="monotone" dataKey="magistral" name="Créations" stroke="var(--chart-6)" fill="var(--chart-6)" fillOpacity={0.75} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -454,13 +456,13 @@ export function MagistralChartsCard({ charts, onNavigate }) {
 
 export function ConseilChartsCard({ charts, onNavigate }) {
   const c = charts?.conseil;
-  const colors = ['#16a34a', '#dc2626', '#94a3b8'];
+  const colors = ['var(--chart-2)', 'var(--chart-4)', 'var(--chart-10)'];
   return (
     <ChartShell
       title="Conseil — acceptation"
       subtitle={c?.taux != null ? `Taux d’acceptation : ${c.taux}%` : undefined}
       action={<LinkBtn onNavigate={onNavigate} page="conseil" />}
-      height="h-64"
+      height="min-h-[14rem] h-64"
       bodyLayout="row"
       legend={donutLegend(c?.byStatus, colors)}
     >
@@ -476,23 +478,23 @@ export function HrChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="RH — types d’événements"
         action={<LinkBtn onNavigate={onNavigate} page="hr" />}
-        height="h-56"
+        height="min-h-[13rem] h-56"
         bodyLayout="row"
         legend={donutLegend(hr?.byType)}
       >
         <Donut data={hr?.byType} />
       </ChartShell>
-      <ChartShell title="RH — volume journalier" height="h-56">
+      <ChartShell title="RH — volume journalier" height="min-h-[13rem] h-56">
         {!charts?.timeline?.length ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
             <BarChart data={charts.timeline} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
               <Tooltip contentStyle={tipStyle} />
-              <Bar dataKey="hr" name="RH" fill="#4f46e5" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="hr" name="RH" fill="var(--chart-9)" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -508,21 +510,21 @@ export function LocationChartsCard({ charts, onNavigate }) {
       <ChartShell
         title="Location — dossiers par statut"
         action={<LinkBtn onNavigate={onNavigate} page="location_suivi" />}
-        height="h-64"
+        height="min-h-[14rem] h-64"
       >
         <HBar data={loc?.byStatut} />
       </ChartShell>
-      <ChartShell title="Location — créations" height="h-64">
+      <ChartShell title="Location — créations" height="min-h-[14rem] h-64">
         {!charts?.timeline?.length ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
             <AreaChart data={charts.timeline} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: tickFill }} />
               <Tooltip contentStyle={tipStyle} />
-              <Area type="monotone" dataKey="location" name="Dossiers" stroke="#0891b2" fill="#67e8f9" fillOpacity={0.75} />
+              <Area type="monotone" dataKey="location" name="Dossiers" stroke="var(--chart-7)" fill="var(--chart-7)" fillOpacity={0.75} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -538,13 +540,13 @@ export function CashChartsCard({ charts, onNavigate }) {
       title="Caisse — clôtures & écarts"
       subtitle="Somme des écarts fond réel − logiciel"
       action={<LinkBtn onNavigate={onNavigate} page="cash" />}
-      height="h-64"
+      height="min-h-[14rem] h-64"
       bodyLayout="row"
       legend={(
         <SideLegend
           items={[
-            { name: 'Clôtures', color: '#059669' },
-            { name: 'Écart (€)', color: '#dc2626' },
+            { name: 'Clôtures', color: 'var(--chart-2)' },
+            { name: 'Écart (€)', color: 'var(--chart-4)' },
           ]}
         />
       )}
@@ -552,14 +554,14 @@ export function CashChartsCard({ charts, onNavigate }) {
       {!data.length ? (
         <EmptyChart />
       ) : (
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minHeight={160}>
           <LineChart data={data} margin={{ top: 8, right: 8, left: -4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-            <YAxis tick={{ fontSize: 10 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 10, fill: tickFill }} />
             <Tooltip contentStyle={tipStyle} />
-            <Line type="monotone" dataKey="closures" name="Clôtures" stroke="#059669" strokeWidth={2} />
-            <Line type="monotone" dataKey="ecart" name="Écart (€)" stroke="#dc2626" strokeWidth={2} />
+            <Line type="monotone" dataKey="closures" name="Clôtures" stroke="var(--chart-2)" strokeWidth={2} />
+            <Line type="monotone" dataKey="ecart" name="Écart (€)" stroke="var(--chart-4)" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       )}
@@ -583,4 +585,4 @@ export const CHART_WIDGET_ICONS = {
   location_charts: BedDouble,
   cash_charts: Wallet,
 };
-
+

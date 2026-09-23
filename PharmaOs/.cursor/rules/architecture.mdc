@@ -30,7 +30,7 @@ alwaysApply: true
 
 ## Electron
 - `electron/main.js` + `preload.cjs` — `contextIsolation: true`, `nodeIntegration: false`
-- IPC invoke : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:closeModule`, `window:confirmModuleClose`, `window:setIgnoreMouseEvents`, `window:openBug`, `context:startWatch`, `context:stopWatch`
+- IPC invoke : `window:setMode`, `window:openModule`, `window:openDashboard`, `window:closeModule`, `window:confirmModuleClose`, `window:setIgnoreMouseEvents`, `window:openBug`, `window:setTaskbarLayout`, `shell:openExternal`, `context:startWatch`, `context:stopWatch`
 - Events : `module:change-view`, `module:before-close`, `dashboard:navigate`, `context:text`
 - Bus contexte : `FocusedTextSource` (Bloc-notes), `ClipboardSource`, stub `WinPharmaSource` (pont LGO en attente)
 - Bouton Dashboard Taskbar **si** `canAccess('dashboard','dashboard')`

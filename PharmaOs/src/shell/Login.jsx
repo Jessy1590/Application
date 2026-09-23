@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
 import { useAuth } from '../core/AuthContext.jsx';
+import { openExternal } from '../shared/windowService.js';
+
+/** Normalise VITE_PORTAIL_URL (https optionnel) — ne bloque jamais signIn. */
+function resolvePortailBase() {
+  const raw = (import.meta.env.VITE_PORTAIL_URL || '').trim().replace(/\/$/, '');
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+}
+
+const PORTAIL_URL = resolvePortailBase();
 
 export default function Login() {
   const { signIn, authBlockMessage } = useAuth();
@@ -19,6 +30,15 @@ export default function Login() {
     if (signInError) {
       setError(signInError.message);
     }
+  };
+
+  const openPortail = (hash = '') => {
+    if (!PORTAIL_URL) {
+      setError('URL Portail non configurée (VITE_PORTAIL_URL)');
+      return;
+    }
+    const frag = hash.startsWith('#') ? hash : hash ? `#${hash}` : '';
+    openExternal(`${PORTAIL_URL}/${frag}`);
   };
 
   return (
@@ -62,6 +82,23 @@ export default function Login() {
         >
           {isSubmitting ? 'Connexion...' : 'Se connecter'}
         </button>
+
+        <div className="mt-1.5 flex flex-col gap-0.5">
+          <button
+            type="button"
+            onClick={() => openPortail('#mot-de-passe')}
+            className="text-[10px] text-slate-400 hover:text-sky-400 hover:underline text-center"
+          >
+            Mot de passe oublié ?
+          </button>
+          <button
+            type="button"
+            onClick={() => openPortail('#invitation')}
+            className="text-[10px] text-slate-400 hover:text-sky-400 hover:underline text-center"
+          >
+            J’ai reçu une invitation
+          </button>
+        </div>
       </form>
     </div>
   );

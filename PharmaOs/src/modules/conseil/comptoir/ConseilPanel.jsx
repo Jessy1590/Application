@@ -15,7 +15,7 @@ const COOLDOWN_MS = 45_000;
 /**
  * Rectangle Conseil taskbar : idle neutre → match rouge/blanc → Validé / croix.
  */
-export default function ConseilPanel() {
+export default function ConseilPanel({ layout = 'horizontal' }) {
   const { user } = useAuth();
   const [active, setActive] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -112,9 +112,14 @@ export default function ConseilPanel() {
   };
 
   if (!active) {
+    const idleCls = layout === 'vertical'
+      ? 'flex items-center justify-center w-full min-h-7 px-1 py-1 rounded border border-[var(--tb-border)] bg-[var(--tb-hover)] text-[10px] text-[var(--tb-muted)]'
+      : layout === 'corner'
+        ? 'flex items-center h-7 px-2 rounded border border-[var(--tb-border)] bg-[var(--tb-hover)] text-[11px] text-[var(--tb-muted)]'
+        : 'hidden lg:flex items-center h-7 px-2.5 rounded border border-[var(--tb-border)] bg-[var(--tb-hover)] text-[11px] text-[var(--tb-muted)] max-w-[140px]';
     return (
       <div
-        className="hidden lg:flex items-center h-7 px-2.5 rounded border border-slate-600/80 bg-slate-800/80 text-[11px] text-slate-400 max-w-[140px]"
+        className={idleCls}
         title="Conseil — en écoute (Bloc-notes / presse-papiers)"
       >
         Conseil
@@ -124,33 +129,35 @@ export default function ConseilPanel() {
 
   return (
     <div
-      className="flex items-center gap-1.5 h-7 pl-2 pr-1 rounded border border-red-700 bg-red-600 text-white max-w-[320px] shadow-sm"
+      className={`flex items-center gap-1.5 h-7 pl-2 pr-1 rounded border border-[var(--danger)] bg-[var(--danger)] text-white shadow-sm ${layout === 'vertical' ? 'w-full max-w-full flex-col h-auto py-1' : 'max-w-[320px]'}`}
       title={active.label_snapshot || ''}
       role="status"
     >
       <span className="text-[11px] font-medium truncate min-w-0 flex-1">
         {active.message || active.label_snapshot}
       </span>
-      <button
-        type="button"
-        title="Validé — conseil accepté"
-        aria-label="Validé"
-        disabled={busy}
-        onClick={() => resolve('accepte')}
-        className="shrink-0 w-6 h-6 rounded flex items-center justify-center bg-white/20 hover:bg-white/30 disabled:opacity-50"
-      >
-        <Check size={14} strokeWidth={3} />
-      </button>
-      <button
-        type="button"
-        title="Refuser"
-        aria-label="Refuser"
-        disabled={busy}
-        onClick={() => resolve('refuse')}
-        className="shrink-0 w-6 h-6 rounded flex items-center justify-center bg-black/20 hover:bg-black/30 disabled:opacity-50"
-      >
-        <X size={14} strokeWidth={3} />
-      </button>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          title="Validé — conseil accepté"
+          aria-label="Validé"
+          disabled={busy}
+          onClick={() => resolve('accepte')}
+          className="shrink-0 w-6 h-6 rounded flex items-center justify-center bg-white/20 hover:bg-white/30 disabled:opacity-50"
+        >
+          <Check size={14} strokeWidth={3} />
+        </button>
+        <button
+          type="button"
+          title="Refuser"
+          aria-label="Refuser"
+          disabled={busy}
+          onClick={() => resolve('refuse')}
+          className="shrink-0 w-6 h-6 rounded flex items-center justify-center bg-black/20 hover:bg-black/30 disabled:opacity-50"
+        >
+          <X size={14} strokeWidth={3} />
+        </button>
+      </div>
     </div>
   );
 }

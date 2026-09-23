@@ -481,6 +481,15 @@
     btn.addEventListener('click', () => setLoginMode(btn.dataset.loginMode));
   });
 
+  /** Deep-links PharmaOS / bookmarks : #mot-de-passe | #invitation | #forgot | #invite */
+  function applyLoginHash() {
+    const h = (location.hash || '').replace(/^#/, '').toLowerCase();
+    if (h === 'mot-de-passe' || h === 'forgot') setLoginMode('forgot');
+    else if (h === 'invitation' || h === 'invite') setLoginMode('invite');
+  }
+  window.addEventListener('hashchange', applyLoginHash);
+  applyLoginHash();
+
   function syncInviteModeUI() {
     const mode = document.querySelector('input[name="inviteMode"]:checked')?.value || 'temp_password';
     const wrap = el('invitePasswordWrap');

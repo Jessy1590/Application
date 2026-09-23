@@ -371,7 +371,7 @@ export default function TasksManager({ onNavigate }) {
       </button>
 
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-[var(--fg)] flex items-center gap-2">
           <CheckSquare className="text-orange-600" />
           {isAdminView ? 'Tâches d\'équipe' : 'Mes tâches'}
         </h1>
