@@ -659,6 +659,8 @@
       return 'cheque_150';
     }
     if (/\bespeces\b|\besp[eè]ces\b/.test(n)) return 'especes';
+    if (/caution.?aucune|aucune.?caution|sans.?caution|caution.?rien/.test(n)) return 'aucune';
+    if (/caution.?autres?|autres?.?caution/.test(n)) return 'autres';
     return null;
   }
 

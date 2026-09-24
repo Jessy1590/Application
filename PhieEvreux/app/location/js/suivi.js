@@ -512,9 +512,10 @@
             <div class="loc-grid-2">
               <label class="loc-field">Code OP${creHint('personnel', 'code_op')}<input name="code_op" value="${esc(d.code_op || '')}"></label>
               <label class="loc-field">Caution${creHint('personnel', 'caution')}<select name="caution">
-                <option value=""${!d.caution ? ' selected' : ''}></option>
-                <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
-                <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
+                <option value="aucune"${!d.caution || d.caution === 'aucune' ? ' selected' : ''}>Aucune</option>
+                <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Cheque 150E</option>
+                <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Especes</option>
+                <option value="autres"${d.caution === 'autres' ? ' selected' : ''}>Autres</option>
               </select></label>
               <label class="loc-field">Statut<select name="statut">
                 <option value="actif"${d.statut === 'actif' ? ' selected' : ''}>Actif</option>
@@ -703,7 +704,9 @@
       });
       detailEl.querySelector('#suAddProlong')?.addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
-      detailEl.querySelector('#suNewApp')?.addEventListener('click', () => showNewAppForm(d));
+      detailEl.querySelector('#suNewApp')?.addEventListener('click', () =>
+        showNewAppForm(d, params, champsDef, prestataires)
+      );
       detailEl.querySelector('#suCancelAppChange')?.addEventListener('click', () => cancelAppChange(d));
       detailEl.querySelectorAll('[data-edit-pr]').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -775,49 +778,366 @@
       }
     }
 
-    function showNewAppForm(d) {
+    function showNewAppForm(d, params, champsDef, prestataires) {
       if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
         showMsg('Édition non autorisée pour votre rôle.', true);
         return;
       }
       const box = detailEl.querySelector('#suNewAppForm');
+      if (!box) return;
       box.hidden = false;
-      box.innerHTML = `
-        <div class="loc-grid-2" style="margin-top:8px">
-          <label class="loc-field">Type<select name="na_type">
-            ${Object.entries(LocationRules.TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
-          </select></label>
-          <label class="loc-field">Matricule<input name="na_mat"></label>
-          <label class="loc-field">N° pharmacie<input name="na_num"></label>
-          <label class="loc-field">Source<select name="na_src"><option value="parc">Parc</option><option value="prestataire">Prestataire</option></select></label>
-          <label class="loc-field loc-span-2">Commentaire<textarea name="na_enc" rows="2"></textarea></label>
+
+      const show = (etape, code) => LocationData.isCreationActif(params, etape, code);
+      const req = (etape, code) => LocationData.isCreationRequired(params, etape, code);
+      const prestList = Array.isArray(prestataires) ? prestataires : [];
+
+      function typeCodes() {
+        if (typeof LocationRules?.typeCodes === 'function') {
+          const list = LocationRules.typeCodes();
+          if (list && list.length) return list;
+        }
+        const keys = Object.keys(LocationRules?.TYPE_LABELS || {});
+        return keys.length ? keys : ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
+      }
+
+      function field(label, inputHtml, required) {
+        return `<label class="loc-field">${label}${required ? ' *' : ''}
+      ${inputHtml}
+    </label>`;
+      }
+
+      function champsForType(type) {
+        return (champsDef || [])
+          .filter((c) => c.type_appareil === type && c.actif !== false)
+          .slice()
+          .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+      }
+
+      function customFieldsForEtape(etapeId) {
+        return LocationData.listCreationFieldsForEtape(params, etapeId).filter((f) => f.custom);
+      }
+
+      function champInputHtml(champ, value) {
+        if (champ.data_type === 'attention') return '';
+        const code = champ.code;
+        const name = `ce_${code}`;
+        const val = value == null ? '' : value;
+        const opts = LocationRules.parseJson(champ.options, {});
+        const choix = Array.isArray(opts.choix) ? opts.choix : [];
+        if (champ.data_type === 'oui_non') {
+          const checked = val === true || val === 'oui' || val === 'true';
+          return `<label class="loc-check"><input type="checkbox" name="${esc(name)}"${checked ? ' checked' : ''}> ${esc(champ.libelle)}${champ.obligatoire ? ' *' : ''}</label>`;
+        }
+        if (champ.data_type === 'date') {
+          return field(champ.libelle, `<input type="date" name="${esc(name)}" value="${esc(val)}">`, champ.obligatoire);
+        }
+        if (champ.data_type === 'nombre') {
+          return field(champ.libelle, `<input type="number" name="${esc(name)}" value="${esc(val)}">`, champ.obligatoire);
+        }
+        if (champ.data_type === 'liste') {
+          return field(
+            champ.libelle,
+            `<select name="${esc(name)}">
+          <option value="">—</option>
+          ${choix.map((c) => `<option value="${esc(c)}"${String(val) === String(c) ? ' selected' : ''}>${esc(c)}</option>`).join('')}
+        </select>`,
+            champ.obligatoire
+          );
+        }
+        return field(champ.libelle, `<input type="text" name="${esc(name)}" value="${esc(val)}">`, champ.obligatoire);
+      }
+
+      function attentionBoxesHtml(champs) {
+        const items = (champs || []).filter((c) => c.data_type === 'attention' && c.libelle);
+        if (!items.length) return '';
+        return `<div class="loc-attention-stack">
+      ${items
+        .map(
+          (c) =>
+            `<div class="loc-attention-box" role="note"><strong>Attention</strong><p>${esc(c.libelle)}</p></div>`
+        )
+        .join('')}
+    </div>`;
+      }
+
+      function preserveCreationCustomExtra(prevExtra) {
+        const keep = {};
+        for (const etape of LocationData.CREATION_ETAPES) {
+          for (const f of customFieldsForEtape(etape.id)) {
+            if (prevExtra && prevExtra[f.code] != null) keep[f.code] = prevExtra[f.code];
+          }
+        }
+        return keep;
+      }
+
+      const state = {
+        type_appareil: typeCodes()[0] || 'aerosol',
+        type_libelle: '',
+        source: 'parc',
+        prestataire_id: '',
+        matricule: '',
+        numero_pharmacie: '',
+        mode_obtention: 'depot',
+        livraison: 'pharmacie',
+        desinfection: false,
+        encart_texte: '',
+        champs_extra: {},
+      };
+
+      function collectChampsExtra(type) {
+        const extra = { ...(state.champs_extra || {}) };
+        for (const champ of champsForType(type)) {
+          if (champ.data_type === 'attention') continue;
+          const elIn = box.querySelector(`[name="ce_${champ.code}"]`);
+          if (!elIn) continue;
+          if (champ.data_type === 'oui_non') {
+            extra[champ.code] = !!elIn.checked;
+          } else if (champ.data_type === 'nombre') {
+            const n = elIn.value === '' ? null : Number(elIn.value);
+            extra[champ.code] = Number.isFinite(n) ? n : null;
+          } else {
+            const v = elIn.value;
+            extra[champ.code] = v === '' ? null : v;
+          }
+        }
+        return extra;
+      }
+
+      function collectCustomFields() {
+        const fields = customFieldsForEtape('appareil');
+        if (!fields.length) return;
+        const extra = { ...(state.champs_extra || {}) };
+        for (const f of fields) {
+          const elIn = box.querySelector(`[name="cd_${f.code}"]`);
+          if (!elIn) continue;
+          const v = elIn.value.trim();
+          extra[f.code] = v === '' ? null : v;
+        }
+        state.champs_extra = extra;
+      }
+
+      function collect() {
+        if (!box.querySelector('[name=type_appareil]')) return;
+        const type = box.querySelector('[name=type_appareil]')?.value || state.type_appareil || 'aerosol';
+        const sourceEl = box.querySelector('[name=source]');
+        const source = sourceEl ? sourceEl.value || 'parc' : state.source || 'parc';
+        const next = {
+          type_appareil: type,
+          type_libelle: box.querySelector('[name=type_libelle]')
+            ? box.querySelector('[name=type_libelle]').value.trim() || ''
+            : state.type_libelle || '',
+          source,
+          prestataire_id: box.querySelector('[name=prestataire_id]')
+            ? box.querySelector('[name=prestataire_id]').value || null
+            : state.prestataire_id,
+          matricule: box.querySelector('[name=matricule]')
+            ? box.querySelector('[name=matricule]').value.trim() || ''
+            : state.matricule || '',
+          numero_pharmacie: box.querySelector('[name=numero_pharmacie]')
+            ? box.querySelector('[name=numero_pharmacie]').value.trim() || ''
+            : state.numero_pharmacie || '',
+          mode_obtention: box.querySelector('[name=mode_obtention]')
+            ? box.querySelector('[name=mode_obtention]').value || null
+            : state.mode_obtention,
+          livraison: box.querySelector('[name=livraison]')
+            ? box.querySelector('[name=livraison]').value || null
+            : state.livraison,
+          desinfection: box.querySelector('[name=desinfection]')
+            ? !!box.querySelector('[name=desinfection]').checked
+            : !!state.desinfection,
+          encart_texte: box.querySelector('[name=encart_texte]')
+            ? box.querySelector('[name=encart_texte]').value
+            : state.encart_texte,
+          champs_extra: collectChampsExtra(type),
+        };
+        if (!next.prestataire_id) next.prestataire_id = null;
+        if (source === 'parc') {
+          next.prestataire_id = null;
+          next.matricule = next.matricule || '';
+          next.mode_obtention = null;
+        }
+        if (source === 'prestataire') {
+          next.numero_pharmacie = '';
+          next.desinfection = false;
+        }
+        Object.assign(state, next);
+        collectCustomFields();
+      }
+
+      function validate() {
+        collect();
+        if (req('appareil', 'type_appareil') && !state.type_appareil) {
+          return showMsg('Type d’appareil obligatoire.', true), false;
+        }
+        if (
+          state.type_appareil === 'autre' &&
+          show('appareil', 'type_libelle') &&
+          req('appareil', 'type_libelle') &&
+          !state.type_libelle
+        ) {
+          return showMsg('Précisez le type d’appareil.', true), false;
+        }
+        if (state.source === 'prestataire') {
+          if (req('appareil', 'prestataire_id') && !state.prestataire_id) {
+            return showMsg('Prestataire obligatoire.', true), false;
+          }
+          if (req('appareil', 'mode_obtention') && !state.mode_obtention) {
+            return showMsg('Mode d’obtention obligatoire.', true), false;
+          }
+          if (req('appareil', 'livraison') && !state.livraison) {
+            return showMsg('Livraison obligatoire.', true), false;
+          }
+        }
+        if (state.source === 'parc') {
+          if (req('appareil', 'numero_pharmacie') && !state.numero_pharmacie) {
+            return showMsg('N° pharmacie obligatoire pour un appareil du parc.', true), false;
+          }
+        }
+        for (const champ of champsForType(state.type_appareil)) {
+          if (!champ.obligatoire) continue;
+          const v = state.champs_extra?.[champ.code];
+          if (champ.data_type === 'oui_non') continue;
+          if (champ.data_type === 'attention') continue;
+          if (v == null || v === '') {
+            return showMsg(`Champ obligatoire : ${champ.libelle}.`, true), false;
+          }
+        }
+        for (const f of customFieldsForEtape('appareil')) {
+          if (!req('appareil', f.code)) continue;
+          const v = state.champs_extra?.[f.code];
+          if (v == null || String(v).trim() === '') {
+            return showMsg(`${f.label} obligatoire.`, true), false;
+          }
+        }
+        return true;
+      }
+
+      function renderForm() {
+        const autre = state.type_appareil === 'autre';
+        const prest = state.source === 'prestataire';
+        const parc = state.source === 'parc';
+        const extra = state.champs_extra || {};
+        const typeChamps = champsForType(state.type_appareil);
+        const dynamiques = typeChamps
+          .filter((c) => c.data_type !== 'attention')
+          .map((c) => champInputHtml(c, extra[c.code]))
+          .join('');
+        const attentions = attentionBoxesHtml(typeChamps);
+        const customHtml = customFieldsForEtape('appareil')
+          .map((f) => {
+            if (!show('appareil', f.code)) return '';
+            const val = extra[f.code] == null ? '' : String(extra[f.code]);
+            return field(
+              f.label,
+              `<input name="cd_${esc(f.code)}" value="${esc(val)}">`,
+              req('appareil', f.code)
+            );
+          })
+          .join('');
+
+        box.innerHTML = `
+        <div class="loc-form" style="margin-top:8px">
+        ${attentions}
+        ${show('appareil', 'type_appareil') ? field('Type d’appareil', `<select name="type_appareil">
+          ${typeCodes().map((t) => `<option value="${t}"${state.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
+        </select>`, req('appareil', 'type_appareil')) : `<input type="hidden" name="type_appareil" value="${esc(state.type_appareil)}">`}
+        ${autre && show('appareil', 'type_libelle') ? field('Libellé (autre)', `<input name="type_libelle" value="${esc(state.type_libelle || '')}">`, req('appareil', 'type_libelle')) : ''}
+        ${show('appareil', 'source') ? field('Source', `<select name="source">
+          <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
+          <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
+        </select>`, req('appareil', 'source')) : `<input type="hidden" name="source" value="${esc(state.source)}">`}
+        ${prest ? `
+          ${show('appareil', 'prestataire_id') ? field('Prestataire', `<select name="prestataire_id">
+            <option value="">—</option>
+            ${prestList.map((p) => `<option value="${esc(p.id)}"${state.prestataire_id === p.id ? ' selected' : ''}>${esc(p.nom)}</option>`).join('')}
+          </select>`, req('appareil', 'prestataire_id')) : ''}
+          ${show('appareil', 'matricule') ? `<div class="loc-field">
+            <span class="loc-field-label-row">
+              <label for="suNaMatricule">Matricule${req('appareil', 'matricule') ? ' *' : ''}</label>
+              ${helpTipHtml('Si le matricule est connu.', 'Aide : matricule')}
+            </span>
+            <input id="suNaMatricule" name="matricule" value="${esc(state.matricule || '')}">
+          </div>` : ''}
+          ${show('appareil', 'mode_obtention') ? field('Obtention', `<select name="mode_obtention">
+            <option value="depot"${state.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
+            <option value="appel"${state.mode_obtention === 'appel' ? ' selected' : ''}>Appel pour l’obtenir</option>
+          </select>`, req('appareil', 'mode_obtention')) : ''}
+          ${show('appareil', 'livraison') ? field('Livraison', `<select name="livraison">
+            <option value="pharmacie"${state.livraison === 'pharmacie' ? ' selected' : ''}>À la pharmacie</option>
+            <option value="patient"${state.livraison === 'patient' ? ' selected' : ''}>Chez le patient</option>
+          </select>`, req('appareil', 'livraison')) : ''}
+        ` : ''}
+        ${parc ? `
+          ${show('appareil', 'numero_pharmacie') ? field('N° appareil pharmacie', `<input name="numero_pharmacie" value="${esc(state.numero_pharmacie || '')}">`, req('appareil', 'numero_pharmacie')) : ''}
+          ${show('appareil', 'desinfection') ? `<label class="loc-check"><input type="checkbox" name="desinfection"${state.desinfection ? ' checked' : ''}> Désinfection faite</label>` : ''}
+        ` : ''}
+        ${dynamiques ? `<div class="loc-champs-extra">${dynamiques}</div>` : ''}
+        ${show('appareil', 'encart_texte') ? field('Commentaire', `<textarea name="encart_texte" rows="3">${esc(state.encart_texte || '')}</textarea>`, req('appareil', 'encart_texte')) : ''}
+        ${customHtml}
         </div>
         <div class="loc-step-actions" style="margin-top:8px">
           <button type="button" class="loc-btn" id="suConfirmApp">Confirmer le changement</button>
           <button type="button" class="loc-btn loc-btn-ghost" id="suCancelApp">Annuler</button>
         </div>
       `;
-      const typeSel = box.querySelector('[name=na_type]');
-      const enc = box.querySelector('[name=na_enc]');
-      box.querySelector('#suCancelApp').addEventListener('click', () => {
-        box.hidden = true;
-        box.innerHTML = '';
-      });
-      box.querySelector('#suConfirmApp').addEventListener('click', async () => {
-        try {
-          await LocationData.changerAppareil(d.id, {
-            type_appareil: typeSel.value,
-            matricule: box.querySelector('[name=na_mat]').value.trim() || null,
-            numero_pharmacie: box.querySelector('[name=na_num]').value.trim() || null,
-            source: box.querySelector('[name=na_src]').value,
-            encart_texte: enc.value,
-          });
-          showMsg('Appareil changé.');
-          openDetail(d.id);
-        } catch (e) {
-          showMsg(e.message, true);
-        }
-      });
+
+        bindHelpTips(box);
+
+        box.querySelector('[name=type_appareil]')?.addEventListener('change', (e) => {
+          collect();
+          const t = e.target.value;
+          const prevExtra = state.champs_extra || {};
+          state.type_appareil = t;
+          state.champs_extra = preserveCreationCustomExtra(prevExtra);
+          renderForm();
+        });
+        box.querySelector('[name=source]')?.addEventListener('change', () => {
+          collect();
+          renderForm();
+        });
+        box.querySelector('#suCancelApp')?.addEventListener('click', () => {
+          box.hidden = true;
+          box.innerHTML = '';
+        });
+        box.querySelector('#suConfirmApp')?.addEventListener('click', async () => {
+          if (!validate()) return;
+          try {
+            const payload = {
+              type_appareil: state.type_appareil,
+              type_libelle:
+                state.type_appareil === 'autre' ? state.type_libelle || null : null,
+              source: state.source || 'parc',
+              prestataire_id: state.prestataire_id || null,
+              matricule: state.matricule || null,
+              numero_pharmacie: state.numero_pharmacie || null,
+              mode_obtention: state.mode_obtention || null,
+              livraison: state.livraison || null,
+              desinfection: !!state.desinfection,
+              encart_texte: state.encart_texte || null,
+              champs_extra:
+                state.champs_extra && typeof state.champs_extra === 'object'
+                  ? state.champs_extra
+                  : {},
+              facturation_prestataire: false,
+            };
+            if (payload.source === 'parc') {
+              payload.prestataire_id = null;
+              payload.mode_obtention = null;
+            }
+            if (payload.source === 'prestataire') {
+              payload.numero_pharmacie = null;
+              payload.desinfection = false;
+            }
+            await LocationData.changerAppareil(d.id, payload);
+            showMsg('Appareil changé.');
+            openDetail(d.id);
+          } catch (e) {
+            showMsg(e.message, true);
+          }
+        });
+      }
+
+      renderForm();
     }
 
     async function cancelAppChange(d) {

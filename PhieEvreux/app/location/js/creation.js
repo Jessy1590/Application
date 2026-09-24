@@ -587,9 +587,10 @@
       formEl.innerHTML = `
         ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}">`, req('personnel', 'code_op')) : ''}
         ${show('personnel', 'caution') ? field('Caution', `<select name="caution">
-          <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}></option>
-          <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
-          <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Espèces</option>
+          <option value="aucune"${state.caution === 'aucune' || state.caution === '' || state.caution == null ? ' selected' : ''}>Aucune</option>
+          <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Cheque 150E</option>
+          <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Especes</option>
+          <option value="autres"${state.caution === 'autres' ? ' selected' : ''}>Autres</option>
         </select>`, req('personnel', 'caution')) : ''}
         ${show('personnel', 'notes') ? field('Notes', `<textarea name="notes" rows="2">${esc(state.notes)}</textarea>`, req('personnel', 'notes')) : ''}
         ${customFieldsHtml('personnel')}

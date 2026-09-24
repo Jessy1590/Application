@@ -46,7 +46,7 @@
   function cautionClotureLabel(caution) {
     if (caution === 'especes') return 'Espèces rendues ?';
     if (caution === 'cheque_150') return 'Chèque / caution rendue ?';
-    if (!caution) return 'Aucune caution (rien) — OK ?';
+    if (!caution || caution === 'aucune') return 'Aucune caution (rien) — OK ?';
     return 'Caution rendue ?';
   }
 

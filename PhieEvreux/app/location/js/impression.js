@@ -14,10 +14,10 @@
   }
 
   function cautionLabel(c) {
-    if (!c) return 'Rien';
-    if (c === 'cheque_150') return 'Chèque 150 €';
-    if (c === 'especes') return 'Espèces';
-    if (c === 'autre') return 'Autre';
+    if (!c || c === 'aucune') return 'Aucune';
+    if (c === 'cheque_150') return 'Cheque 150E';
+    if (c === 'especes') return 'Especes';
+    if (c === 'autres' || c === 'autre') return 'Autres';
     return c;
   }
 
