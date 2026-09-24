@@ -11,3 +11,7 @@ PharmaOs/Dashboard/.env
 credentials.json
 dist/
 /PharmaOs-legacy
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
