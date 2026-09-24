@@ -2,7 +2,7 @@ import { ACCESS_ROLES, canonicalRole, isDisabledRole } from './roles.js';
 
 export const TASKBAR_FEATURES = Object.freeze([
   { id: 'inbox', label: 'À traiter' },
-  { id: 'tasks', label: 'Mes tâches' },
+  { id: 'tasks', label: 'À traiter (alias)' },
   { id: 'order', label: 'Commande médicament' },
   { id: 'billing', label: 'Facturation' },
   { id: 'directory', label: 'Annuaire' },
@@ -28,7 +28,7 @@ export const DASHBOARD_FEATURES = Object.freeze([
   { id: 'inbox', label: 'À traiter / mes saisies' },
   { id: 'calls', label: 'Appels' },
   { id: 'agenda', label: 'Agenda' },
-  { id: 'tasks', label: 'Mes tâches' },
+  { id: 'tasks', label: 'À traiter (alias)' },
   { id: 'account', label: 'Mon compte' },
   { id: 'directory', label: 'Annuaire' },
   { id: 'ip', label: 'Act-IP' },
@@ -109,6 +109,18 @@ export function resolveAccessFeatureId(surface, featureId) {
   return featureId;
 }
 
+/** Alias hub À traiter : inbox ↔ tasks (matrice legacy « Mes tâches »). */
+function accessFeatureAliases(surface, featureId) {
+  const resolved = resolveAccessFeatureId(surface, featureId);
+  if (
+    (surface === 'dashboard' || surface === 'taskbar')
+    && (resolved === 'inbox' || resolved === 'tasks')
+  ) {
+    return ['inbox', 'tasks'];
+  }
+  return [resolved];
+}
+
 function emptyRoleMap() {
   const map = {};
   for (const role of ACCESS_ROLES) {
@@ -186,14 +198,16 @@ function overrideMap(overrides) {
  */
 export function hasCasquetteGrant(grants, surface, featureId) {
   if (!grants?.length) return false;
-  const resolved = resolveAccessFeatureId(surface, featureId);
-  const key = `${surface}|${resolved}`;
-  for (const g of grants) {
-    if (typeof g === 'string') {
-      if (g === key) return true;
-      continue;
+  const aliases = accessFeatureAliases(surface, featureId);
+  for (const resolved of aliases) {
+    const key = `${surface}|${resolved}`;
+    for (const g of grants) {
+      if (typeof g === 'string') {
+        if (g === key) return true;
+        continue;
+      }
+      if (g?.surface === surface && g?.feature_id === resolved) return true;
     }
-    if (g?.surface === surface && g?.feature_id === resolved) return true;
   }
   return false;
 }
@@ -201,11 +215,16 @@ export function hasCasquetteGrant(grants, surface, featureId) {
 export function isFeatureAllowed(role, surface, featureId, overrides = []) {
   if (isDisabledRole(role)) return false;
   const canon = canonicalRole(role);
-  const resolved = resolveAccessFeatureId(surface, featureId);
-  const key = `${canon}|${surface}|${resolved}`;
   const overlay = overrideMap(overrides);
-  if (Object.prototype.hasOwnProperty.call(overlay, key)) return overlay[key];
-  return DEFAULT_ACCESS[canon]?.[surface]?.[resolved] === true;
+  for (const resolved of accessFeatureAliases(surface, featureId)) {
+    const key = `${canon}|${surface}|${resolved}`;
+    if (Object.prototype.hasOwnProperty.call(overlay, key)) {
+      if (overlay[key]) return true;
+      continue;
+    }
+    if (DEFAULT_ACCESS[canon]?.[surface]?.[resolved] === true) return true;
+  }
+  return false;
 }
 
 /**

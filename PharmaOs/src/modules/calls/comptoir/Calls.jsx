@@ -3,6 +3,7 @@ import { useAuth } from '../../../core/AuthContext.jsx';
 import {
   fetchRecentCallLogs,
   fetchPendingCalls,
+  fetchCallById,
   submitCallLog,
   saveCallPending,
   cancelCall,
@@ -24,7 +25,7 @@ import {
 import { Phone, Save, History, AlertCircle, CheckCircle2, Clock, X, Play } from 'lucide-react';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
-export default function Calls({ data: initialContact }) {
+export default function Calls({ data: moduleData }) {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -57,36 +58,61 @@ export default function Calls({ data: initialContact }) {
     setPendingList(pend || []);
   }, [user?.id]);
 
+  const startFinishPending = (row) => {
+    setEditingId(row.id);
+    setFormData(callRowToForm(row));
+    setSuccessMsg('');
+    setErrorMsg('');
+  };
+
   useEffect(() => {
     let cancelled = false;
 
-    const applyContact = async () => {
-      if (!initialContact) {
+    const applyModuleData = async () => {
+      const resumeId = moduleData?.callId || moduleData?.resumeId || null;
+      if (resumeId) {
+        try {
+          const row = await fetchCallById(resumeId);
+          if (cancelled) return;
+          if (row) {
+            startFinishPending(row);
+          } else {
+            setErrorMsg('Appel introuvable pour reprise.');
+          }
+        } catch (err) {
+          if (!cancelled) setErrorMsg(err.message || 'Impossible de charger l’appel.');
+        }
+        loadLists();
+        return;
+      }
+
+      if (!moduleData) {
         setContactType(null);
         loadLists();
         return;
       }
 
-      const type = initialContact.type || null;
+      /* Prefill contact annuaire (Directory → Appels). */
+      const type = moduleData.type || null;
       setFormData((prev) => ({
         ...prev,
-        contact_id: initialContact.id ?? null,
-        contact_nom: `${initialContact.prenom || ''} ${initialContact.nom || ''}`.trim(),
-        numero: initialContact.telephone || initialContact.telephone_prive || '',
+        contact_id: moduleData.id ?? null,
+        contact_nom: `${moduleData.prenom || ''} ${moduleData.nom || ''}`.trim(),
+        numero: moduleData.telephone || moduleData.telephone_prive || '',
       }));
       setContactType(type);
 
-      if (!type && initialContact.id) {
-        const { data } = await fetchContactById(initialContact.id);
+      if (!type && moduleData.id) {
+        const { data } = await fetchContactById(moduleData.id);
         if (!cancelled && data?.type) setContactType(data.type);
       }
 
       loadLists();
     };
 
-    applyContact();
+    applyModuleData();
     return () => { cancelled = true; };
-  }, [initialContact, loadLists]);
+  }, [moduleData, loadLists]);
 
   useRealtimeRefresh(loadLists, { tables: ['call_logs'], enabled: !!user?.id });
 
@@ -223,13 +249,6 @@ export default function Calls({ data: initialContact }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const startFinishPending = (row) => {
-    setEditingId(row.id);
-    setFormData(callRowToForm(row));
-    setSuccessMsg('');
-    setErrorMsg('');
   };
 
   return (

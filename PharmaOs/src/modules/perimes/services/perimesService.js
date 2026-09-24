@@ -225,6 +225,7 @@ async function createMeaExecutionTask(perime, createdBy) {
   let assignees = await resolveAssigneeIds('perime_mea');
   if (!assignees.length && createdBy) assignees = [createdBy];
   if (!assignees.length) return null;
+  const montant = perime.mise_en_avant_montant != null ? `${perime.mise_en_avant_montant} €` : null;
   const titre = `Mise en avant : ${perime.medicament}${montant ? ` (${montant})` : ''}`;
   const taskId = await createTask(
     titre,

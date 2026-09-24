@@ -1,6 +1,11 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { ArrowLeft, Users, Plus, Phone, Edit, Trash2, Filter } from 'lucide-react';
-import { fetchContacts, deleteContact } from '../services/directoryService.js';
+import {
+  fetchContacts,
+  deleteContact,
+  PARTENAIRE_TYPES,
+  labelPartenaireType,
+} from '../services/directoryService.js';
 import DirectoryForm from './DirectoryForm.jsx';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 
@@ -10,6 +15,7 @@ export default function DirectoryManager({ onNavigate }) {
   const [expandedId, setExpandedId] = useState(null);
   const [editingContact, setEditingContact] = useState(null);
   const [filterType, setFilterType] = useState('all');
+  const [partenaireFilter, setPartenaireFilter] = useState('all');
 
   const loadContacts = useCallback(async () => {
     try {
@@ -47,7 +53,13 @@ export default function DirectoryManager({ onNavigate }) {
     }
   };
 
-  const filteredContacts = contacts.filter((c) => filterType === 'all' || c.type === filterType);
+  const filteredContacts = contacts.filter((c) => {
+    if (filterType !== 'all' && c.type !== filterType) return false;
+    if (filterType === 'commercial_partner' && partenaireFilter !== 'all') {
+      return c.partenaire_type === partenaireFilter;
+    }
+    return true;
+  });
 
   return (
     <div className="w-full">
@@ -104,26 +116,48 @@ export default function DirectoryManager({ onNavigate }) {
             </div>
             <button
               type="button"
-              onClick={() => setFilterType('all')}
+              onClick={() => { setFilterType('all'); setPartenaireFilter('all'); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filterType === 'all' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               Tous
             </button>
             <button
               type="button"
-              onClick={() => setFilterType('health_professional')}
+              onClick={() => { setFilterType('health_professional'); setPartenaireFilter('all'); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filterType === 'health_professional' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               Pros de Santé
             </button>
             <button
               type="button"
-              onClick={() => setFilterType('commercial_partner')}
+              onClick={() => { setFilterType('commercial_partner'); setPartenaireFilter('all'); }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${filterType === 'commercial_partner' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
             >
               Partenaires Commerciaux
             </button>
           </div>
+
+          {filterType === 'commercial_partner' && (
+            <div className="flex flex-wrap gap-1.5 px-1">
+              <button
+                type="button"
+                onClick={() => setPartenaireFilter('all')}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${partenaireFilter === 'all' ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                Tous types
+              </button>
+              {PARTENAIRE_TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setPartenaireFilter(t.value)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition ${partenaireFilter === t.value ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <table className="w-full text-left text-sm text-slate-600">
@@ -135,7 +169,9 @@ export default function DirectoryManager({ onNavigate }) {
                 </tr>
               </thead>
               <tbody>
-                {filteredContacts.map((c) => (
+                {filteredContacts.map((c) => {
+                  const partnerLabel = labelPartenaireType(c.partenaire_type, c.partenaire_type_autre);
+                  return (
                   <React.Fragment key={c.id}>
                     <tr
                       onClick={() => toggleRow(c.id)}
@@ -145,10 +181,15 @@ export default function DirectoryManager({ onNavigate }) {
                         <div className="font-bold text-slate-800 text-base">
                           {c.nom} {c.prenom && c.prenom}
                         </div>
-                        <div className="text-xs mt-1">
+                        <div className="text-xs mt-1 flex flex-wrap gap-1">
                           <span className={`px-2 py-0.5 rounded-full font-medium ${c.type === 'health_professional' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
                             {c.type === 'health_professional' ? (c.specialite || 'Pro de Santé') : 'Partenaire'}
                           </span>
+                          {c.type === 'commercial_partner' && partnerLabel && (
+                            <span className="px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600">
+                              {partnerLabel}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-4">
@@ -208,6 +249,11 @@ export default function DirectoryManager({ onNavigate }) {
                             <div className="grid grid-cols-3 gap-6">
                               <div>
                                 <h4 className="font-semibold text-indigo-700 mb-2 border-b border-indigo-200 pb-1">Contact Délégué</h4>
+                                {partnerLabel && (
+                                  <p className="mb-2 text-xs font-medium text-indigo-600">
+                                    Type : {partnerLabel}
+                                  </p>
+                                )}
                                 <ul className="space-y-1 text-slate-700">
                                   {c.prenom && <li><span className="font-medium text-slate-500">Nom :</span> {c.prenom}</li>}
                                   {c.telephone_prive && <li><span className="font-medium text-slate-500">Portable :</span> {c.telephone_prive}</li>}
@@ -237,7 +283,8 @@ export default function DirectoryManager({ onNavigate }) {
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
                 {filteredContacts.length === 0 && (
                   <tr>
                     <td colSpan="3" className="p-8 text-center text-slate-500">

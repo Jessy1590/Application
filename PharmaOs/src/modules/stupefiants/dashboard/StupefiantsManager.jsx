@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lock, ExternalLink, Save, Trash2 } from 'lucide-react';
+import { Lock, ExternalLink, Save, Trash2, Pencil, X } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 import StupefiantReceptionForm, {
@@ -19,6 +19,7 @@ import {
   closeErreurReception,
   STUPEFIANT_STATUS_LABELS,
   CLOSED_STATUSES,
+  formatLivreurLabel,
 } from '../services/stupefiantService.js';
 
 const STATUS_FILTERS = [
@@ -34,6 +35,24 @@ const STATUS_FILTERS = [
 ];
 
 const inputCls = 'w-full p-2 border border-slate-300 rounded-lg text-sm';
+
+function formatFrDate(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('fr-FR');
+  } catch {
+    return '—';
+  }
+}
+
+function DetailRow({ label, children }) {
+  return (
+    <div className="flex justify-between gap-3 text-sm py-1 border-b border-slate-100 last:border-0">
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className="text-slate-800 text-right">{children}</span>
+    </div>
+  );
+}
 
 function StockPairInputs({ labels, values, onChange }) {
   return (
@@ -101,6 +120,7 @@ export default function StupefiantsManager({
     stock_corrige_unites: '',
   });
   const [editForm, setEditForm] = useState(null);
+  const [listeEditing, setListeEditing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ ...EMPTY_RECEPTION_FORM });
   const [createBl, setCreateBl] = useState(null);
@@ -110,7 +130,7 @@ export default function StupefiantsManager({
     try {
       const [releves, livs, profiles] = await Promise.all([
         fetchReleves(),
-        fetchLivreurs({ actifsOnly: false }),
+        fetchLivreurs(),
         fetchStaffProfiles(),
       ]);
       setRows(releves);
@@ -125,7 +145,11 @@ export default function StupefiantsManager({
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useRealtimeRefresh(load, { tables: ['stupefiant_releves', 'tasks', 'task_assignments'] });
+  useRealtimeRefresh(load, { tables: ['stupefiant_releves', 'directory_contacts', 'tasks', 'task_assignments'] });
+
+  const openDirectory = useCallback(() => {
+    if (typeof onNavigate === 'function') onNavigate('directory');
+  }, [onNavigate]);
 
   useEffect(() => {
     if (focusReleveId) {
@@ -141,7 +165,18 @@ export default function StupefiantsManager({
   const selected = rows.find((r) => r.id === selectedId) || null;
 
   useEffect(() => {
+    const id = selected?.livreur_id;
+    if (!id) return undefined;
+    let cancelled = false;
+    fetchLivreurs({ includeId: id })
+      .then((livs) => { if (!cancelled) setLivreurs(livs); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selected?.livreur_id]);
+
+  useEffect(() => {
     setAllowReceptionEdit(false);
+    setListeEditing(false);
     if (!selected) {
       setEditForm(null);
       return;
@@ -155,10 +190,10 @@ export default function StupefiantsManager({
       is_du: !!selected.is_du,
       du_patient_label: selected.du_patient_label || '',
       du_unites_promisees: selected.du_unites_promisees ?? '',
-      armoire_boites: selected.armoire_boites ?? '',
-      armoire_unites: selected.armoire_unites ?? '',
-      stock_visuel_boites: selected.stock_visuel_boites ?? '',
-      stock_visuel_unites: selected.stock_visuel_unites ?? '',
+      armoire_boites: selected.armoire_boites ?? selected.stock_visuel_boites ?? '',
+      armoire_unites: selected.armoire_unites ?? selected.stock_visuel_unites ?? '',
+      stock_visuel_boites: selected.stock_visuel_boites ?? selected.armoire_boites ?? '',
+      stock_visuel_unites: selected.stock_visuel_unites ?? selected.armoire_unites ?? '',
       stock_lgo_boites: selected.stock_lgo_boites ?? '',
       stock_lgo_unites: selected.stock_lgo_unites ?? '',
       bl_numero: selected.bl_numero || '',
@@ -191,6 +226,8 @@ export default function StupefiantsManager({
         || (r.cip || '').toLowerCase().includes(q)
         || (r.bl_numero || '').toLowerCase().includes(q)
         || (r.author_name || '').toLowerCase().includes(q)
+        || (r.livreur_label || '').toLowerCase().includes(q)
+        || (r.directory_contacts?.nom || '').toLowerCase().includes(q)
       );
     }
     return true;
@@ -215,6 +252,45 @@ export default function StupefiantsManager({
     } catch (e) {
       setErr(e.message);
     }
+  };
+
+  const saveListeEdit = () => {
+    if (!selected || !editForm) return;
+    const armoireBoites = editForm.stock_visuel_boites === '' && editForm.armoire_boites === ''
+      ? null
+      : parseInt(editForm.stock_visuel_boites ?? editForm.armoire_boites, 10);
+    const armoireUnites = editForm.stock_visuel_unites === '' && editForm.armoire_unites === ''
+      ? null
+      : parseInt(editForm.stock_visuel_unites ?? editForm.armoire_unites, 10);
+    return run(async () => {
+      await updateReleve(selected.id, {
+        medicament: (editForm.medicament || '').trim(),
+        cip: (editForm.cip || '').trim() || null,
+        produit_hors_bdm: !!editForm.produit_hors_bdm,
+        nb_boites_recues: parseInt(editForm.nb_boites_recues, 10) || 0,
+        livreur_id: editForm.livreur_id || null,
+        is_du: !!editForm.is_du,
+        du_patient_label: editForm.is_du
+          ? ((editForm.du_patient_label || '').trim() || null)
+          : null,
+        du_unites_promisees: editForm.is_du
+          ? (editForm.du_unites_promisees === '' ? null : parseInt(editForm.du_unites_promisees, 10))
+          : null,
+        armoire_boites: Number.isNaN(armoireBoites) ? null : armoireBoites,
+        armoire_unites: Number.isNaN(armoireUnites) ? null : armoireUnites,
+        stock_visuel_boites: Number.isNaN(armoireBoites) ? null : armoireBoites,
+        stock_visuel_unites: Number.isNaN(armoireUnites) ? null : armoireUnites,
+        stock_lgo_boites: editForm.stock_lgo_boites === ''
+          ? null
+          : parseInt(editForm.stock_lgo_boites, 10),
+        stock_lgo_unites: editForm.stock_lgo_unites === ''
+          ? null
+          : parseInt(editForm.stock_lgo_unites, 10),
+        bl_numero: (editForm.bl_numero || '').trim() || null,
+        notes: (editForm.notes || '').trim() || null,
+      });
+      setListeEditing(false);
+    });
   };
 
   if (loading && rows.length === 0) {
@@ -246,7 +322,8 @@ export default function StupefiantsManager({
           <StupefiantReceptionForm
             form={editForm}
             onChange={(p) => setEditForm((prev) => ({ ...prev, ...p }))}
-            livreurs={livreurs.filter((l) => l.actif || l.id === editForm.livreur_id)}
+            livreurs={livreurs}
+            onOpenDirectory={typeof onNavigate === 'function' ? openDirectory : null}
             showCountFields={false}
             compact
           />
@@ -421,15 +498,16 @@ export default function StupefiantsManager({
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Contrôle hors LGO — 1er comptage réceptionnaire, puis vérification pharmacien si écart.
+            Livreurs = partenaires annuaire (grossiste / génériqueur / plateforme).
           </p>
         </div>
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => onNavigate?.('parametres', { tab: 'general' })}
+            onClick={() => onNavigate?.('directory')}
             className="text-sm px-3 py-2 border rounded-lg hover:bg-slate-50"
           >
-            Livreurs
+            Annuaire (livreurs)
           </button>
           {mainTab === 'liste' && (
             <button
@@ -488,6 +566,7 @@ export default function StupefiantsManager({
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
+                  {r.livreur_label && r.livreur_label !== '—' ? `${r.livreur_label} · ` : ''}
                   {r.author_name} · armoire {r.stock_visuel_boites}/{r.stock_visuel_unites}
                   {' ≠ '}LGO {r.stock_lgo_boites}/{r.stock_lgo_unites}
                 </p>
@@ -510,16 +589,18 @@ export default function StupefiantsManager({
               <StupefiantReceptionForm
                 form={createForm}
                 onChange={(p) => setCreateForm((prev) => ({ ...prev, ...p }))}
-                livreurs={livreurs.filter((l) => l.actif)}
+                livreurs={livreurs}
                 operatorName={profile?.display_name || ''}
                 blFile={createBl}
                 onBlFile={setCreateBl}
+                onOpenDirectory={typeof onNavigate === 'function' ? openDirectory : null}
                 compact
                 showCountFields
               />
               <button
                 type="button"
-                className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm"
+                disabled={livreurs.length === 0}
+                className="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm disabled:opacity-60"
                 onClick={() => run(async () => {
                   await declareReception(user.id, createForm, createBl);
                   setCreateForm({ ...EMPTY_RECEPTION_FORM });
@@ -559,10 +640,7 @@ export default function StupefiantsManager({
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedId(r.id);
-                    if (!CLOSED_STATUSES.has(r.status)) setMainTab('verifier');
-                  }}
+                  onClick={() => setSelectedId(r.id)}
                   className={`w-full text-left bg-white border rounded-xl p-3 text-sm ${
                     selectedId === r.id ? 'border-rose-400 ring-1 ring-rose-200' : 'hover:border-slate-300'
                   }`}
@@ -576,49 +654,186 @@ export default function StupefiantsManager({
                     </span>
                   </div>
                   <p className="text-slate-600 mt-1 text-xs">
-                    {r.nb_boites_recues} boîte(s) — BL {r.bl_numero} · {r.author_name}
+                    {r.nb_boites_recues} boîte(s)
+                    {r.livreur_label && r.livreur_label !== '—' ? ` · ${r.livreur_label}` : ''}
+                    {' — '}BL {r.bl_numero} · {r.author_name}
                   </p>
                 </button>
               ))}
             </div>
-            <div className="bg-white border rounded-xl p-4 min-h-[280px]">
+            <div className="bg-white border rounded-xl p-4 min-h-[280px] max-h-[70vh] overflow-y-auto">
               {!selected ? (
                 <p className="text-sm text-slate-400">Sélectionnez un relevé.</p>
+              ) : listeEditing && editForm && canManage ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="font-bold text-slate-800">Modifier le relevé</h2>
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 inline-flex items-center gap-1 hover:text-slate-800"
+                      onClick={() => setListeEditing(false)}
+                    >
+                      <X size={14} /> Annuler
+                    </button>
+                  </div>
+                  <StupefiantReceptionForm
+                    form={editForm}
+                    onChange={(p) => setEditForm((prev) => ({ ...prev, ...p }))}
+                    livreurs={livreurs}
+                    onOpenDirectory={typeof onNavigate === 'function' ? openDirectory : null}
+                    showCountFields
+                    compact
+                  />
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Notes</label>
+                    <textarea
+                      rows={3}
+                      value={editForm.notes || ''}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Notes internes…"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 px-3 py-2 bg-slate-800 text-white rounded-lg text-sm"
+                    onClick={saveListeEdit}
+                  >
+                    <Save size={14} /> Enregistrer
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <h2 className="font-bold">{selected.medicament}</h2>
-                    {selected.bl_path && (
-                      <button type="button" onClick={() => openBl(selected.bl_path)} className="text-xs text-sky-700 inline-flex items-center gap-1">
-                        <ExternalLink size={12} /> BL
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h2 className="font-bold text-slate-800">{selected.medicament}</h2>
+                      <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded ${
+                        CLOSED_STATUSES.has(selected.status)
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-amber-50 text-amber-800'
+                      }`}>
+                        {STUPEFIANT_STATUS_LABELS[selected.status] || selected.status}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {selected.bl_path && (
+                        <button
+                          type="button"
+                          onClick={() => openBl(selected.bl_path)}
+                          className="text-xs text-sky-700 inline-flex items-center gap-1"
+                        >
+                          <ExternalLink size={12} /> BL
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          type="button"
+                          className="text-xs px-2 py-1 border rounded-lg inline-flex items-center gap-1 hover:bg-slate-50"
+                          onClick={() => setListeEditing(true)}
+                        >
+                          <Pencil size={12} /> Modifier
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <StupefiantReceptionSummary releve={selected} onOpenBl={openBl} />
+
+                  <div className="rounded-xl border border-slate-200 p-3 space-y-0.5">
+                    <DetailRow label="Statut">
+                      {STUPEFIANT_STATUS_LABELS[selected.status] || selected.status}
+                    </DetailRow>
+                    <DetailRow label="Livreur">
+                      {selected.livreur_label || formatLivreurLabel(selected)}
+                    </DetailRow>
+                    <DetailRow label="CIP">{selected.cip || '—'}</DetailRow>
+                    <DetailRow label="Boîtes reçues">{selected.nb_boites_recues ?? '—'}</DetailRow>
+                    <DetailRow label="N° BL">{selected.bl_numero || '—'}</DetailRow>
+                    {selected.produit_hors_bdm && (
+                      <DetailRow label="Référentiel">Hors BDPM</DetailRow>
+                    )}
+                    {selected.is_du && (
+                      <>
+                        <DetailRow label="Dû patient">{selected.du_patient_label || '—'}</DetailRow>
+                        <DetailRow label="Unités promises">
+                          {selected.du_unites_promisees ?? '—'}
+                        </DetailRow>
+                      </>
+                    )}
+                    <DetailRow label="Armoire">
+                      {selected.stock_visuel_boites ?? '—'}/{selected.stock_visuel_unites ?? '—'}
+                    </DetailRow>
+                    <DetailRow label="LGO">
+                      {selected.stock_lgo_boites ?? '—'}/{selected.stock_lgo_unites ?? '—'}
+                    </DetailRow>
+                    {(selected.recompte_boites != null || selected.recompte_unites != null) && (
+                      <DetailRow label="Recompte pharma.">
+                        {selected.recompte_boites ?? '—'}/{selected.recompte_unites ?? '—'}
+                      </DetailRow>
+                    )}
+                    {(selected.stock_corrige_boites != null || selected.stock_corrige_unites != null) && (
+                      <DetailRow label="Stock corrigé">
+                        {selected.stock_corrige_boites ?? '—'}/{selected.stock_corrige_unites ?? '—'}
+                      </DetailRow>
+                    )}
+                    <DetailRow label="Réceptionnaire">{selected.author_name || '—'}</DetailRow>
+                    <DetailRow label="Créé le">{formatFrDate(selected.created_at)}</DetailRow>
+                    {selected.verifier_name && (
+                      <DetailRow label="Vérifié par">{selected.verifier_name}</DetailRow>
+                    )}
+                    {selected.verified_at && (
+                      <DetailRow label="Vérifié le">{formatFrDate(selected.verified_at)}</DetailRow>
+                    )}
+                    {selected.closed_at && (
+                      <DetailRow label="Clôturé le">{formatFrDate(selected.closed_at)}</DetailRow>
+                    )}
+                  </div>
+
+                  {selected.notes && (
+                    <div className="text-sm">
+                      <p className="font-semibold text-slate-800">Notes</p>
+                      <p className="whitespace-pre-wrap text-slate-600 mt-1">{selected.notes}</p>
+                    </div>
+                  )}
+
+                  {selected.commentaire_analyse && (
+                    <div className="text-sm border-t pt-3">
+                      <p className="font-semibold text-slate-800">Analyse</p>
+                      <p className="whitespace-pre-wrap text-slate-600 mt-1">{selected.commentaire_analyse}</p>
+                      {selected.responsable_name && (
+                        <p className="text-xs mt-2 text-slate-500">
+                          Responsable : {selected.responsable_name}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {!CLOSED_STATUSES.has(selected.status) && (
+                      <button
+                        type="button"
+                        className="text-sm text-rose-700 underline"
+                        onClick={() => setMainTab('verifier')}
+                      >
+                        Ouvrir dans Vérifier →
+                      </button>
+                    )}
+                    {canManage && CLOSED_STATUSES.has(selected.status) && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded inline-flex items-center gap-1"
+                        onClick={() => {
+                          if (!confirm('Supprimer ce relevé ?')) return;
+                          run(async () => {
+                            await deleteReleve(selected.id);
+                            setSelectedId(null);
+                          });
+                        }}
+                      >
+                        <Trash2 size={12} /> Supprimer
                       </button>
                     )}
                   </div>
-                  <StupefiantReceptionSummary releve={selected} />
-                  {canManage && CLOSED_STATUSES.has(selected.status) && (
-                    <button
-                      type="button"
-                      className="text-xs text-red-600 border border-red-200 px-2 py-1 rounded"
-                      onClick={() => {
-                        if (!confirm('Supprimer ce relevé ?')) return;
-                        run(async () => {
-                          await deleteReleve(selected.id);
-                          setSelectedId(null);
-                        });
-                      }}
-                    >
-                      <Trash2 size={12} className="inline" /> Supprimer
-                    </button>
-                  )}
-                  {!CLOSED_STATUSES.has(selected.status) && (
-                    <button
-                      type="button"
-                      className="text-sm text-rose-700 underline"
-                      onClick={() => setMainTab('verifier')}
-                    >
-                      Ouvrir dans Vérifier →
-                    </button>
-                  )}
                 </div>
               )}
             </div>

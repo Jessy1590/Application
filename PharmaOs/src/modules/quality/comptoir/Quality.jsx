@@ -9,6 +9,7 @@ import {
   updateQualityEventFull,
   fetchMyQualityEvents,
   fetchPendingQualityEvents,
+  fetchQualityById,
   qualityFormHasContent,
   qualityRowToForm,
   cancelQualityEvent,
@@ -75,7 +76,33 @@ export default function Quality({ data: prefill }) {
   useEffect(() => { loadLists(); }, [loadLists]);
 
   useEffect(() => {
+    let cancelled = false;
+    const resumeId = prefill?.qualityId || prefill?.resumeId || null;
+    if (!resumeId) return undefined;
+
+    (async () => {
+      try {
+        const row = await fetchQualityById(resumeId);
+        if (cancelled) return;
+        if (row) {
+          setEditingId(row.id);
+          setForm(qualityRowToForm(row));
+          setSuccessMsg('');
+          setErrorMsg('');
+        } else {
+          setErrorMsg('NC introuvable pour reprise.');
+        }
+      } catch (err) {
+        if (!cancelled) setErrorMsg(err.message || 'Impossible de charger la NC.');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [prefill]);
+
+  useEffect(() => {
     if (!prefill?.fromCall) return;
+    if (prefill?.qualityId || prefill?.resumeId) return;
     setForm((prev) => ({
       ...prev,
       type: 'reclamation_patient',

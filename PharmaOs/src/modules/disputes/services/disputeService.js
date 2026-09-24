@@ -112,6 +112,17 @@ export async function fetchPendingDisputes(userId) {
   return data || [];
 }
 
+export async function fetchDisputeById(id) {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from('supplier_disputes')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function cancelDispute(id) {
   return updateDisputeStatus(id, 'annule');
 }

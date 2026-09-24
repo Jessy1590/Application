@@ -116,6 +116,17 @@ export async function fetchPendingQualityEvents(userId) {
   return data || [];
 }
 
+export async function fetchQualityById(id) {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from('quality_events')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function cancelQualityEvent(id) {
   return updateQualityEvent(id, { status: 'annule' });
 }

@@ -223,7 +223,7 @@ export default function Taskbar() {
       title: 'À traiter — file d’attente et tâches du jour',
       onClick: () => openModuleWindow('inbox'),
       tone: 'warning',
-      label: 'Inbox',
+      label: 'À traiter',
       node: (
         <span className="relative inline-flex">
           <Inbox size={18} />

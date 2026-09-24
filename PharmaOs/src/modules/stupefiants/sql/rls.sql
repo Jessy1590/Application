@@ -1,6 +1,6 @@
 -- =============================================================================
--- RLS — module stupéfiants (doc miroir migration 037)
+-- RLS — module stupéfiants (doc miroir migration 037 + 051)
 -- =============================================================================
--- stupefiant_livreurs : ALL staff
 -- stupefiant_releves : INSERT own+staff ; SELECT/UPDATE staff ; DELETE admin/pharmacien
 -- Storage bucket stupefiants-bl : staff CRUD
+-- Livreurs : lecture via directory_contacts (RLS annuaire)

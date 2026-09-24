@@ -56,6 +56,7 @@ Dashboard Supabase → Authentication → Password / Providers → option dédi�
 Intention : complément LGO (clipboard aujourd’hui ; WinPharma / source CIP plus tard).
 **En attente d’infos techniques** — ne pas inventer d’intégration produit.
 
-## 7. Autocorrection / inbox
-Module `inbox` (taskbar + dashboard) : file « À traiter » + correction de ses saisies.
-Voir `DASHBOARD_EQUIPE.md` (implémenté via `inbox`, plus un dashboard « rôle équipe » séparé).
+## 7. Autocorrection / hub À traiter
+- **À traiter** : modèle tasks (`task_assignments`) — taskbar `#inbox`/`#tasks` + dashboard page inbox ; alias accès `tasks`↔`inbox`.
+- **Mes saisies** : module `inbox` — own UPDATE règle B 72h (migrations `048` + `050`) ; pas de nav « Mes tâches » séparée.
+Voir `DASHBOARD_EQUIPE.md`.

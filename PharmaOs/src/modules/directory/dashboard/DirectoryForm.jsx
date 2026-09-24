@@ -1,5 +1,9 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { insertContact, updateContact } from '../services/directoryService.js';
+import {
+  insertContact,
+  updateContact,
+  PARTENAIRE_TYPES,
+} from '../services/directoryService.js';
 
 const DEFAULT_STATE = {
   type: 'health_professional',
@@ -9,6 +13,7 @@ const DEFAULT_STATE = {
   infos_contact: '', switch_rupture: '', commentaires: '',
   site_web: '', mode_commande: '', franco: '', remise_commande: '',
   nom_service_client: '', tel_service_client: '', email_service_client: '',
+  partenaire_type: '', partenaire_type_autre: '',
 };
 
 const Field = ({ label, children }) => (
@@ -27,17 +32,44 @@ export default function DirectoryForm({ onContactSaved, contactToEdit, onCancelE
       const sanitizedData = Object.fromEntries(
         Object.entries(contactToEdit).map(([k, v]) => [k, v === null ? '' : v]),
       );
-      setFormData(sanitizedData);
+      setFormData({ ...DEFAULT_STATE, ...sanitizedData });
     } else {
       setFormData(DEFAULT_STATE);
     }
     setStatus('');
   }, [contactToEdit]);
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === 'type') {
+        if (value === 'health_professional') {
+          next.partenaire_type = '';
+          next.partenaire_type_autre = '';
+        } else if (!next.partenaire_type) {
+          next.partenaire_type = 'laboratoire';
+        }
+      }
+      if (name === 'partenaire_type' && value !== 'autre') {
+        next.partenaire_type_autre = '';
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (formData.type === 'commercial_partner') {
+      if (!formData.partenaire_type) {
+        setStatus('error');
+        return;
+      }
+      if (formData.partenaire_type === 'autre' && !(formData.partenaire_type_autre || '').trim()) {
+        setStatus('error');
+        return;
+      }
+    }
     setStatus('saving');
     try {
       if (contactToEdit) {
@@ -73,7 +105,7 @@ export default function DirectoryForm({ onContactSaved, contactToEdit, onCancelE
         <Field label="Type de contact">
           <select name="type" value={formData.type} onChange={handleChange} disabled={isEditing} className="w-full rounded-lg border-slate-300 bg-slate-50 p-2.5 font-medium border focus:ring-blue-500 disabled:opacity-50">
             <option value="health_professional">Professionnel de santé</option>
-            <option value="commercial_partner">Partenaire commercial (labo / grossiste)</option>
+            <option value="commercial_partner">Partenaire commercial</option>
           </select>
         </Field>
 
@@ -114,8 +146,34 @@ export default function DirectoryForm({ onContactSaved, contactToEdit, onCancelE
         ) : (
           <>
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Identité labo / grossiste</h3>
-              <Field label="Nom du laboratoire *"><input name="nom" value={formData.nom} required onChange={handleChange} className={inp} /></Field>
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider border-b pb-1">Identité partenaire</h3>
+              <Field label="Type de partenaire *">
+                <select
+                  name="partenaire_type"
+                  value={formData.partenaire_type}
+                  onChange={handleChange}
+                  required
+                  className="w-full rounded-lg border-slate-300 bg-slate-50 p-2.5 font-medium border focus:ring-blue-500"
+                >
+                  <option value="" disabled>Choisir…</option>
+                  {PARTENAIRE_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </Field>
+              {formData.partenaire_type === 'autre' && (
+                <Field label="Préciser le type *">
+                  <input
+                    name="partenaire_type_autre"
+                    value={formData.partenaire_type_autre}
+                    onChange={handleChange}
+                    required
+                    className={inp}
+                    placeholder="Ex. Transporteur, prestataire…"
+                  />
+                </Field>
+              )}
+              <Field label="Nom du partenaire *"><input name="nom" value={formData.nom} required onChange={handleChange} className={inp} /></Field>
               <Field label="Portail B2B (site web)"><input name="site_web" value={formData.site_web} onChange={handleChange} className={inp} /></Field>
             </div>
 
@@ -149,7 +207,7 @@ export default function DirectoryForm({ onContactSaved, contactToEdit, onCancelE
           {status === 'saving' ? 'Enregistrement…' : (isEditing ? 'Enregistrer les modifications' : 'Ajouter le contact')}
         </button>
         {status === 'success' && <div className="p-3 bg-green-50 text-green-700 rounded-md text-sm text-center">Contact {isEditing ? 'modifié' : 'ajouté'} !</div>}
-        {status === 'error' && <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm text-center">Erreur lors de l&apos;enregistrement.</div>}
+        {status === 'error' && <div className="p-3 bg-red-50 text-red-700 rounded-md text-sm text-center">Erreur lors de l&apos;enregistrement. Vérifiez les champs obligatoires.</div>}
       </form>
     </div>
   );

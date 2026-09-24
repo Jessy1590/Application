@@ -8,6 +8,7 @@ import {
   updateDispute,
   fetchMyDisputes,
   fetchPendingDisputes,
+  fetchDisputeById,
   fetchCommercialPartners,
   disputeFormHasContent,
   disputeRowToForm,
@@ -90,7 +91,33 @@ export default function Disputes({ data: prefill }) {
   useRealtimeRefresh(loadLists, { tables: ['supplier_disputes'], enabled: !!user?.id });
 
   useEffect(() => {
+    let cancelled = false;
+    const resumeId = prefill?.disputeId || prefill?.resumeId || null;
+    if (!resumeId) return undefined;
+
+    (async () => {
+      try {
+        const row = await fetchDisputeById(resumeId);
+        if (cancelled) return;
+        if (row) {
+          setEditingId(row.id);
+          setForm(disputeRowToForm(row));
+          setMsg('');
+          setErr('');
+        } else {
+          setErr('Litige introuvable pour reprise.');
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e.message || 'Impossible de charger le litige.');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [prefill]);
+
+  useEffect(() => {
     if (!prefill?.fromCall) return;
+    if (prefill?.disputeId || prefill?.resumeId) return;
     setForm((prev) => ({
       ...prev,
       dispute_type: prev.dispute_type || 'commande',
@@ -106,6 +133,7 @@ export default function Disputes({ data: prefill }) {
 
   useEffect(() => {
     if (!prefill?.fromPerime) return;
+    if (prefill?.disputeId || prefill?.resumeId) return;
     setForm((prev) => ({
       ...prev,
       dispute_type: 'perimes',

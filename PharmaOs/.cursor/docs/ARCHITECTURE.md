@@ -35,7 +35,7 @@ flowchart TB
 - `shared/` — supabaseClient, **windowService** (seul pont IPC), logService, dbServices
 - `modules/<domaine>/` — comptoir + dashboard + services + sql
 
-Modules notables : `inbox` (À traiter / mes saisies), `conseil`, `bdm`, `stupefiants`, `location`, `magistral`, `admin`.
+Modules notables : hub **À traiter** (`tasks` + alias `#inbox`), `inbox` (Mes saisies 72h), `conseil`, `bdm`, `stupefiants`, `location`, `magistral`, `admin`.
 
 Ancien module `rental/` **supprimé** (supersédé par `location/`).
 

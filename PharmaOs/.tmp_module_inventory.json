@@ -1,0 +1,6086 @@
+{
+  "account": {
+    "services": {},
+    "ui": {
+      "dashboard/AccountPage.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "openPortail"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 1,
+    "totalBytes": 6021
+  },
+  "admin": {
+    "services": {
+      "services/accessService.js": {
+        "exports": [
+          "fetchRoleAccess",
+          "upsertRoleAccess",
+          "fetchAllProfiles",
+          "updateProfileRole",
+          "fetchRoleDashboardWidgets",
+          "upsertRoleDashboardWidget",
+          "fetchTaskRoleRules",
+          "upsertTaskRoleRule"
+        ],
+        "functions": [
+          {
+            "name": "fetchRoleAccess",
+            "args": "",
+            "tables": [
+              "role_access"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertRoleAccess",
+            "args": "role, surface, featureId, allowed, userId",
+            "tables": [
+              "role_access"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAllProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateProfileRole",
+            "args": "profileId, role, actorName, { actorId } = {}",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchRoleDashboardWidgets",
+            "args": "",
+            "tables": [
+              "role_dashboard_widgets"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertRoleDashboardWidget",
+            "args": "role, widgetId, visible, userId",
+            "tables": [
+              "role_dashboard_widgets"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTaskRoleRules",
+            "args": "",
+            "tables": [
+              "task_role_rules"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertTaskRoleRule",
+            "args": "category, role, mode, delayHours, userId",
+            "tables": [
+              "task_role_rules"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "services/adminLogService.js": {
+        "exports": [
+          "fetchAppLogs",
+          "fetchLogCategories",
+          "fetchAppLogStats",
+          "aggregateLogStats"
+        ],
+        "functions": [
+          {
+            "name": "fetchAppLogs",
+            "args": "{ level = 'all', category = 'all', search = '', sinceHours = 48, limit = 200, offset = 0, } = {}",
+            "tables": [
+              "app_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchLogCategories",
+            "args": "",
+            "tables": [
+              "app_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAppLogStats",
+            "args": "{ sinceHours = 48 } = {}",
+            "tables": [
+              "app_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "aggregateLogStats",
+            "args": "rows, sinceHours = 48",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/bugService.js": {
+        "exports": [
+          "BUG_STATUTS",
+          "BUG_STATUT_LABELS",
+          "createBug",
+          "fetchBugs",
+          "fetchBugStats",
+          "updateBugStatut"
+        ],
+        "functions": [
+          {
+            "name": "createBug",
+            "args": "{ userId, userName, information }",
+            "tables": [
+              "bugs"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "bug"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchBugs",
+            "args": "{ statut = 'all' } = {}",
+            "tables": [
+              "bugs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchBugStats",
+            "args": "{ days = 30 } = {}",
+            "tables": [
+              "bugs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateBugStatut",
+            "args": "id, statut, { userId, userName }",
+            "tables": [
+              "bugs"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "bug"
+            ],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "services/casquetteService.js": {
+        "exports": [
+          "fetchCasquettes",
+          "fetchCasquetteFeatures",
+          "fetchAllProfileCasquettes",
+          "fetchMyCasquetteGrants",
+          "createCasquette",
+          "updateCasquette",
+          "setCasquetteFeatures",
+          "setProfileCasquettes"
+        ],
+        "functions": [
+          {
+            "name": "fetchCasquettes",
+            "args": "{ activeOnly = false } = {}",
+            "tables": [
+              "casquettes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCasquetteFeatures",
+            "args": "casquetteId = null",
+            "tables": [
+              "casquette_features"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAllProfileCasquettes",
+            "args": "",
+            "tables": [
+              "profile_casquettes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyCasquetteGrants",
+            "args": "profileId",
+            "tables": [
+              "profile_casquettes",
+              "casquettes",
+              "casquette_features"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createCasquette",
+            "args": "{ slug, label, description }, userId",
+            "tables": [
+              "casquettes"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "updateCasquette",
+            "args": "id, patch, userId",
+            "tables": [
+              "casquettes"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "setCasquetteFeatures",
+            "args": "casquetteId, featureRows, userId",
+            "tables": [
+              "casquette_features",
+              "casquettes"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "setProfileCasquettes",
+            "args": "profileId, casquetteIds, actorName",
+            "tables": [
+              "profile_casquettes"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "access"
+            ],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "services/mailTemplatesCatalog.js": {
+        "exports": [
+          "MAIL_MODULES",
+          "MAIL_PLACEHOLDERS_BY_MODULE",
+          "MAIL_TEMPLATE_DEFS",
+          "DEFAULT_MAIL_TEMPLATES",
+          "asTemplateObj",
+          "getDefaultTemplate",
+          "renderPlaceholders"
+        ],
+        "functions": [
+          {
+            "name": "asTemplateObj",
+            "args": "raw, def = { subject: '', body: '' }",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getDefaultTemplate",
+            "args": "moduleId, key",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "renderPlaceholders",
+            "args": "text, ctx",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/mailTemplatesService.js": {
+        "exports": [
+          "fetchMailTemplates",
+          "invalidateMailTemplatesCache",
+          "getMailTemplatesForEdit",
+          "saveMailTemplates",
+          "resolveMailTemplate",
+          "renderAppMail",
+          "getDefaultTemplate",
+          "renderPlaceholders"
+        ],
+        "functions": [
+          {
+            "name": "fetchMailTemplates",
+            "args": "{ force = false } = {}",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "invalidateMailTemplatesCache",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getMailTemplatesForEdit",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveMailTemplates",
+            "args": "tree",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "settings"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "resolveMailTemplate",
+            "args": "moduleId, key, legacyModuleSettings = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "renderAppMail",
+            "args": "moduleId, key, ctx = {}, legacyModuleSettings = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "services/pharmacySettingsService.js": {
+        "exports": [
+          "EMPTY_PHARMACY",
+          "invalidatePharmacyCache",
+          "fetchPharmacySettings",
+          "getPharmacySettingsForEdit",
+          "savePharmacySettings",
+          "pharmacyToMailFields",
+          "mergePharmacyIntoSettings",
+          "loadSettingsWithPharmacy"
+        ],
+        "functions": [
+          {
+            "name": "invalidatePharmacyCache",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPharmacySettings",
+            "args": "{ force = false } = {}",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getPharmacySettingsForEdit",
+            "args": "",
+            "tables": [
+              "magistral_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "savePharmacySettings",
+            "args": "input",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "settings"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "pharmacyToMailFields",
+            "args": "pharmacy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "mergePharmacyIntoSettings",
+            "args": "settings, pharmacy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "loadSettingsWithPharmacy",
+            "args": "settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "services/settingsNav.js": {
+        "exports": [
+          "SETTINGS_TABS",
+          "resolveSettingsTab"
+        ],
+        "functions": [
+          {
+            "name": "resolveSettingsTab",
+            "args": "raw",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "dashboard/AccessManager.jsx": {
+        "handlers": [
+          "handleRole",
+          "handleToggle",
+          "handleProfileCasquettes",
+          "handleCreateCasquette",
+          "handleToggleCasquetteActive",
+          "handleToggleCasquetteFeature",
+          "handleWidgetToggle",
+          "handleTaskRule"
+        ],
+        "onClickRefs": [
+          "setPageTab",
+          "setSelectedCasquetteId",
+          "setTaskModuleTab"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/BugsManager.jsx": {
+        "handlers": [
+          "handleStatut"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/GeneralSettingsPanel.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/LogsCharts.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/LogsManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "setOpenId"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/MailTemplatesSettings.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "toggle",
+          "onInsert",
+          "setModuleId",
+          "setMailKey",
+          "resetMailDefaults",
+          "save"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/SettingsManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "setTab"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 15,
+    "totalBytes": 101130
+  },
+  "agenda": {
+    "services": {
+      "services/agendaService.js": {
+        "exports": [
+          "fetchAgendaEvents",
+          "createAgendaEvent",
+          "deleteAgendaEvent",
+          "updateAgendaEvent",
+          "fetchProfiles"
+        ],
+        "functions": [
+          {
+            "name": "fetchAgendaEvents",
+            "args": "",
+            "tables": [
+              "agenda_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createAgendaEvent",
+            "args": "type, startDate, details, assignees, createdBy",
+            "tables": [
+              "agenda_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "deleteAgendaEvent",
+            "args": "id, groupId = null, deleteFuture = false, dateEvenement = null",
+            "tables": [
+              "agenda_events",
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateAgendaEvent",
+            "args": "eventId, groupId, oldDate, newData, updateFuture, assignees, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "dashboard/AgendaManager.jsx": {
+        "handlers": [
+          "handleSubmit",
+          "handleDelete"
+        ],
+        "onClickRefs": [
+          "setSelectedEvent",
+          "openEditForm",
+          "handleDelete"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 2,
+    "totalBytes": 13889
+  },
+  "bdm": {
+    "services": {
+      "services/bdmService.js": {
+        "exports": [
+          "fetchBdmStats",
+          "searchProducts",
+          "suggestBdm",
+          "getByCip",
+          "triggerBdpmSync",
+          "SUGGEST_KIND_LABELS"
+        ],
+        "functions": [
+          {
+            "name": "fetchBdmStats",
+            "args": "",
+            "tables": [
+              "specialites",
+              "presentations",
+              "compositions",
+              "generiques",
+              "molecules",
+              "sync_meta"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "searchProducts",
+            "args": "query, limit = 50",
+            "tables": [],
+            "rpcs": [
+              "search_products"
+            ],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "suggestBdm",
+            "args": "query, limit = 20",
+            "tables": [],
+            "rpcs": [
+              "suggest"
+            ],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getByCip",
+            "args": "cip",
+            "tables": [],
+            "rpcs": [
+              "get_by_cip"
+            ],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "triggerBdpmSync",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "dashboard/BdmExplorer.jsx": {
+        "handlers": [
+          "onDoc",
+          "onPickSuggestion",
+          "onSync"
+        ],
+        "onClickRefs": [
+          "onSync",
+          "onPickSuggestion"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 2,
+    "totalBytes": 12731
+  },
+  "calls": {
+    "services": {
+      "services/callService.js": {
+        "exports": [
+          "CALL_TYPES",
+          "CALL_MOTIFS",
+          "motifsForContactType",
+          "CALL_STATUTS_COMPTOIR",
+          "CALL_STATUT_CLOTURE",
+          "CALL_FORM_DEFAULTS",
+          "labelCallType",
+          "labelCallMotif",
+          "labelCallStatut",
+          "isIpMotif",
+          "isQualityMotif",
+          "isDisputeMotif",
+          "callFormHasContent",
+          "callRowToForm",
+          "fetchRecentCallLogs",
+          "fetchPendingCalls",
+          "fetchCallById",
+          "insertCallLog",
+          "insertCallLogReturning",
+          "fetchCallLogs",
+          "fetchCallLogsWithProfiles",
+          "updateCallLog",
+          "cancelCall",
+          "createPharmacistCallTask",
+          "createPendingCallTask",
+          "completePendingCallTask",
+          "cancelPendingCallTask",
+          "submitCallLog",
+          "saveCallPending",
+          "buildCallPayload"
+        ],
+        "functions": [
+          {
+            "name": "motifsForContactType",
+            "args": "contactType",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelCallType",
+            "args": "value",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelCallMotif",
+            "args": "value",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelCallStatut",
+            "args": "value",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isIpMotif",
+            "args": "motif",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isQualityMotif",
+            "args": "motif",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isDisputeMotif",
+            "args": "motif",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "callFormHasContent",
+            "args": "form",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "callRowToForm",
+            "args": "row",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchRecentCallLogs",
+            "args": "limit = 10",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPendingCalls",
+            "args": "userId",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCallById",
+            "args": "id",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertCallLog",
+            "args": "payload",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertCallLogReturning",
+            "args": "payload",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCallLogs",
+            "args": "",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCallLogsWithProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateCallLog",
+            "args": "id, updates",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelCall",
+            "args": "id",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createPharmacistCallTask",
+            "args": "callRow, createdBy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "createPendingCallTask",
+            "args": "row, createdBy",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "completePendingCallTask",
+            "args": "callId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelPendingCallTask",
+            "args": "callId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitCallLog",
+            "args": "form, userId, { editingId = null, completeDraftTask = false, displayName } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveCallPending",
+            "args": "form, userId, editingId = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/Calls.jsx": {
+        "handlers": [
+          "handleValidate",
+          "handlePending",
+          "handleCancel"
+        ],
+        "onClickRefs": [
+          "handlePending",
+          "handleCancel",
+          "startFinishPending"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/CallTracking.jsx": {
+        "handlers": [
+          "handleCreate",
+          "handlePendingCreate",
+          "handleSave"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setShowForm",
+          "handlePendingCreate",
+          "setDayFilter",
+          "handleSave",
+          "setEditingId"
+        ],
+        "serviceImports": []
+      },
+      "shared/CallForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 42887
+  },
+  "cash": {
+    "services": {
+      "services/cashService.js": {
+        "exports": [
+          "submitCashClosure",
+          "fetchMyClosures",
+          "calcEcart",
+          "fetchCashClosures",
+          "exportMonthlyCsv",
+          "exportMonthlyPdf",
+          "getAccountantEmail",
+          "setAccountantEmail",
+          "emailMonthlyReport"
+        ],
+        "functions": [
+          {
+            "name": "submitCashClosure",
+            "args": "userId, authorName, payload",
+            "tables": [
+              "cash_closures"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "cash"
+            ],
+            "createsTasks": true
+          },
+          {
+            "name": "fetchMyClosures",
+            "args": "userId",
+            "tables": [
+              "cash_closures"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "calcEcart",
+            "args": "c",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCashClosures",
+            "args": "{ from, to } = {}",
+            "tables": [
+              "cash_closures"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "exportMonthlyCsv",
+            "args": "closures, yearMonth",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "exportMonthlyPdf",
+            "args": "closures, yearMonth",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getAccountantEmail",
+            "args": "",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "setAccountantEmail",
+            "args": "email",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "settings"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "emailMonthlyReport",
+            "args": "closures, yearMonth, toEmail",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/CashClosure.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/CashManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "exportMonthlyPdf",
+          "exportMonthlyCsv"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/CashSettingsPanel.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 22099
+  },
+  "conseil": {
+    "services": {
+      "services/conseilMatch.js": {
+        "exports": [
+          "normalizeForMatch",
+          "matchConseil"
+        ],
+        "functions": [
+          {
+            "name": "normalizeForMatch",
+            "args": "value",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "matchConseil",
+            "args": "text, conseils, opts = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/conseilService.js": {
+        "exports": [
+          "fetchActiveConseils",
+          "fetchConseils",
+          "createConseil",
+          "updateConseil",
+          "setConseilActive",
+          "insertConseilEvent",
+          "fetchConseilEvents",
+          "fetchConseilStats",
+          "fetchTeamProfiles"
+        ],
+        "functions": [
+          {
+            "name": "fetchActiveConseils",
+            "args": "",
+            "tables": [
+              "conseils"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchConseils",
+            "args": "{ includeInactive = true } = {}",
+            "tables": [
+              "conseils"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createConseil",
+            "args": "payload, userId",
+            "tables": [
+              "conseils"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateConseil",
+            "args": "id, patch",
+            "tables": [
+              "conseils"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "setConseilActive",
+            "args": "id, isActive",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertConseilEvent",
+            "args": "event",
+            "tables": [
+              "conseil_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchConseilEvents",
+            "args": "{ status = null, userId = null, since = null, until = null, limit = 200, } = {}",
+            "tables": [
+              "conseil_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchConseilStats",
+            "args": "{ days = 30 } = {}",
+            "tables": [
+              "conseil_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTeamProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/ConseilPanel.jsx": {
+        "handlers": [
+          "onFocus"
+        ],
+        "onClickRefs": [
+          "resolve"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/ConseilManager.jsx": {
+        "handlers": [
+          "handleSuggestSelect",
+          "handleSubmit"
+        ],
+        "onClickRefs": [
+          "setTab",
+          "openCreate",
+          "openEdit",
+          "async",
+          "loadEvents"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 28568
+  },
+  "directory": {
+    "services": {
+      "services/directoryService.js": {
+        "exports": [
+          "fetchContacts",
+          "fetchContactsSafe",
+          "fetchHealthProfessionals",
+          "fetchContactById",
+          "insertContact",
+          "updateContact",
+          "updateContactSwitchRupture",
+          "deleteContact"
+        ],
+        "functions": [
+          {
+            "name": "fetchContacts",
+            "args": "",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchContactsSafe",
+            "args": "",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchHealthProfessionals",
+            "args": "",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchContactById",
+            "args": "id",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertContact",
+            "args": "contactData",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateContact",
+            "args": "id, contactData",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateContactSwitchRupture",
+            "args": "id, switch_rupture",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteContact",
+            "args": "id",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Directory.jsx": {
+        "handlers": [
+          "handleCall"
+        ],
+        "onClickRefs": [
+          "toggleExpand"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/DirectoryForm.jsx": {
+        "handlers": [
+          "handleChange",
+          "handleSubmit"
+        ],
+        "onClickRefs": [
+          "onCancelEdit"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/DirectoryManager.jsx": {
+        "handlers": [
+          "handleEditClick",
+          "handleDeleteClick"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setFilterType",
+          "toggleRow"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 38613
+  },
+  "disputes": {
+    "services": {
+      "services/disputeService.js": {
+        "exports": [
+          "DISPUTE_TYPES",
+          "DISPUTE_FORM_DEFAULTS",
+          "disputeFormHasContent",
+          "disputeRowToForm",
+          "createDispute",
+          "updateDispute",
+          "fetchMyDisputes",
+          "fetchPendingDisputes",
+          "fetchDisputeById",
+          "cancelDispute",
+          "createPendingDisputeTask",
+          "completePendingDisputeTask",
+          "cancelPendingDisputeTask",
+          "fetchCommercialPartners",
+          "fetchDisputes",
+          "updateDisputeStatus",
+          "createDisputeFromLotAlert"
+        ],
+        "functions": [
+          {
+            "name": "disputeFormHasContent",
+            "args": "form",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "disputeRowToForm",
+            "args": "row",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createDispute",
+            "args": "userId, payload, statut = 'ouvert'",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateDispute",
+            "args": "id, payload, statut",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyDisputes",
+            "args": "userId",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPendingDisputes",
+            "args": "userId",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDisputeById",
+            "args": "id",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelDispute",
+            "args": "id",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createPendingDisputeTask",
+            "args": "row, createdBy",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "completePendingDisputeTask",
+            "args": "disputeId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelPendingDisputeTask",
+            "args": "disputeId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchCommercialPartners",
+            "args": "",
+            "tables": [
+              "directory_contacts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDisputes",
+            "args": "{ statut } = {}",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateDisputeStatus",
+            "args": "id, statut",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createDisputeFromLotAlert",
+            "args": "userId, alert, returnLocation",
+            "tables": [
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/Disputes.jsx": {
+        "handlers": [
+          "handleValidate",
+          "handlePending",
+          "handleCancel"
+        ],
+        "onClickRefs": [
+          "handlePending",
+          "handleCancel",
+          "startFinishPending"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/DisputesManager.jsx": {
+        "handlers": [
+          "handleSave"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "openCreate",
+          "setFilter",
+          "openEdit",
+          "moveStatus"
+        ],
+        "serviceImports": []
+      },
+      "shared/DisputeForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 36778
+  },
+  "documents": {
+    "services": {
+      "services/documentService.js": {
+        "exports": [
+          "fetchActiveDocuments",
+          "fetchMySignatures",
+          "signDocument",
+          "fetchDocuments",
+          "createDocument",
+          "updateDocument",
+          "fetchDocumentSignatures"
+        ],
+        "functions": [
+          {
+            "name": "fetchActiveDocuments",
+            "args": "",
+            "tables": [
+              "documents"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMySignatures",
+            "args": "userId",
+            "tables": [
+              "document_signatures"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "signDocument",
+            "args": "userId, documentId, documentVersion",
+            "tables": [
+              "document_signatures"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDocuments",
+            "args": "",
+            "tables": [
+              "documents"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createDocument",
+            "args": "doc, userId",
+            "tables": [
+              "documents"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateDocument",
+            "args": "id, updates",
+            "tables": [
+              "documents"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDocumentSignatures",
+            "args": "documentId",
+            "tables": [
+              "document_signatures",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Documents.jsx": {
+        "handlers": [
+          "handleSign"
+        ],
+        "onClickRefs": [
+          "setSelected",
+          "handleSign"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/DocumentManager.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "viewSignatures",
+          "startEdit",
+          "setViewSigs"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 13410
+  },
+  "home": {
+    "services": {
+      "services/statsService.js": {
+        "exports": [
+          "fetchTaskbarUsageStats",
+          "getMockAdviceStats",
+          "fetchDashboardInsights",
+          "fetchDashboardCharts"
+        ],
+        "functions": [
+          {
+            "name": "fetchTaskbarUsageStats",
+            "args": "days = 7",
+            "tables": [
+              "taskbar_logs",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getMockAdviceStats",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDashboardInsights",
+            "args": "days = 30",
+            "tables": [
+              "profiles",
+              "task_assignments",
+              "act_ip_logs",
+              "quality_events",
+              "stock_errors",
+              "supplier_disputes",
+              "hr_absences",
+              "hr_schedule_changes",
+              "taskbar_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDashboardCharts",
+            "args": "days = 30",
+            "tables": [
+              "call_logs",
+              "act_ip_logs",
+              "task_assignments",
+              "quality_events",
+              "stock_errors",
+              "supplier_disputes",
+              "magistral_orders",
+              "conseil_events",
+              "hr_absences",
+              "hr_schedule_changes",
+              "cash_closures",
+              "location_dossiers"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "dashboard/HomeDashboard.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/components/AdminOpsCharts.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/AdviceStatsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/CallStatsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/ChartShell.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/components/DashboardCharts.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate",
+          "it"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/DashboardFilters.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onDaysChange",
+          "onCategoryChange",
+          "onModuleChange",
+          "onClick"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/IpStatsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/MagistralAlertsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/QualityStatsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/RecurringIssuesCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/StaffEfficiencyCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/StatCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onClick"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/StupefiantsChartsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/StupefiantsOpsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/TaskStatsCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/components/TaskbarUsageCard.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "toggleMetric"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 18,
+    "totalBytes": 106666
+  },
+  "hr": {
+    "services": {
+      "services/hrService.js": {
+        "exports": [
+          "ABSENCE_TYPE_LABELS",
+          "ABSENCE_STATUT_LABELS",
+          "CHANGE_TYPE_LABELS",
+          "WEEK_PATTERN_LABELS",
+          "labelAbsenceType",
+          "labelAbsenceStatut",
+          "labelChangeType",
+          "labelWeekPattern",
+          "mondayOfISOWeek",
+          "getISOWeekNumber",
+          "isoWeekParity",
+          "weekMeta",
+          "effectiveSchedulesForDate",
+          "effectiveSchedulesForUser",
+          "buildWeekGrid",
+          "fetchTeamProfiles",
+          "JOB_TITLE_LABELS",
+          "labelJobTitle",
+          "updateProfileJobTitle",
+          "fetchWorkSchedules",
+          "upsertWorkSchedule",
+          "createScheduleSlots",
+          "sundayOfISOWeek",
+          "mondaysInDateRange",
+          "fetchSpecialWeeks",
+          "createSpecialWeek",
+          "deleteSpecialWeek",
+          "specialWeeksForMonday",
+          "PLANNING_HOUR_START",
+          "PLANNING_HOUR_END",
+          "PLANNING_SLOT_MIN",
+          "minutesToTime",
+          "timeToMinutes",
+          "snapMinutes",
+          "colorForUser",
+          "deactivateWorkSchedule",
+          "fetchAbsences",
+          "createAbsence",
+          "updateAbsence",
+          "reviewAbsence",
+          "deleteAbsence",
+          "createAbsenceRequestTask",
+          "createAbsenceResponseTask",
+          "fetchScheduleChanges",
+          "createScheduleChange",
+          "reviewScheduleChange",
+          "deleteScheduleChange",
+          "createScheduleChangeRequestTask",
+          "createScheduleChangeResponseTask",
+          "DEFAULT_MIN_STAFF",
+          "normalizeMinStaff",
+          "isStaffingShortage",
+          "staffingShortageDetails",
+          "fetchMinStaff",
+          "saveMinStaff",
+          "fetchStaffingShortages",
+          "fetchPresenceForDay",
+          "fetchMonthlyHoursRecap",
+          "fetchMonthDailyPresence",
+          "plannedStartForDay",
+          "DAY_LABELS"
+        ],
+        "functions": [
+          {
+            "name": "labelAbsenceType",
+            "args": "type",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelAbsenceStatut",
+            "args": "statut",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelChangeType",
+            "args": "type",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelWeekPattern",
+            "args": "pattern",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "mondayOfISOWeek",
+            "args": "dateStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getISOWeekNumber",
+            "args": "dateStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isoWeekParity",
+            "args": "dateStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "weekMeta",
+            "args": "dateStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "effectiveSchedulesForDate",
+            "args": "schedules, userId, dateStr, { fallbackPharmacy = true } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "effectiveSchedulesForUser",
+            "args": "schedules, userId, { dateStr = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildWeekGrid",
+            "args": "schedules, profiles, { weekDate = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTeamProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "labelJobTitle",
+            "args": "job",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateProfileJobTitle",
+            "args": "profileId, jobTitle",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchWorkSchedules",
+            "args": "{ includeInactive = false } = {}",
+            "tables": [
+              "work_schedules"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertWorkSchedule",
+            "args": "payload, id = null",
+            "tables": [
+              "work_schedules"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createScheduleSlots",
+            "args": "{ user_id = null, daysOfWeek = [], start_time, end_time, label = null, week_pattern = 'all', exceptionMondays = [], special_week_id = null, }",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "sundayOfISOWeek",
+            "args": "mondayStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "mondaysInDateRange",
+            "args": "from, to",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchSpecialWeeks",
+            "args": "",
+            "tables": [
+              "hr_special_weeks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createSpecialWeek",
+            "args": "createdBy, { label, week_start, week_end, note = null }",
+            "tables": [
+              "hr_special_weeks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteSpecialWeek",
+            "args": "id",
+            "tables": [
+              "hr_special_weeks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "specialWeeksForMonday",
+            "args": "specialWeeks, monday",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "minutesToTime",
+            "args": "totalMin",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "timeToMinutes",
+            "args": "timeStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "snapMinutes",
+            "args": "min, step = PLANNING_SLOT_MIN",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "colorForUser",
+            "args": "userId, profiles = []",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deactivateWorkSchedule",
+            "args": "id",
+            "tables": [
+              "work_schedules"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAbsences",
+            "args": "{ from, to, userId, statut } = {}",
+            "tables": [
+              "hr_absences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createAbsence",
+            "args": "createdBy, payload, { mode = 'admin' } = {}",
+            "tables": [
+              "hr_absences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateAbsence",
+            "args": "id, updates",
+            "tables": [
+              "hr_absences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "reviewAbsence",
+            "args": "id, reviewerId, { statut, review_note = null } = {}",
+            "tables": [
+              "hr_absences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteAbsence",
+            "args": "id",
+            "tables": [
+              "hr_absences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createAbsenceRequestTask",
+            "args": "absenceRow, createdBy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "createAbsenceResponseTask",
+            "args": "absenceRow, createdBy",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "fetchScheduleChanges",
+            "args": "{ userId, statut, changeType } = {}",
+            "tables": [
+              "hr_schedule_changes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createScheduleChange",
+            "args": "createdBy, payload, { mode = 'admin' } = {}",
+            "tables": [
+              "hr_schedule_changes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "reviewScheduleChange",
+            "args": "id, reviewerId, { statut, review_note = null } = {}",
+            "tables": [
+              "hr_schedule_changes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteScheduleChange",
+            "args": "id",
+            "tables": [
+              "hr_schedule_changes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createScheduleChangeRequestTask",
+            "args": "changeRow, createdBy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "createScheduleChangeResponseTask",
+            "args": "changeRow, createdBy",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "normalizeMinStaff",
+            "args": "value",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isStaffingShortage",
+            "args": "counts, thresholds",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "staffingShortageDetails",
+            "args": "counts, thresholds",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMinStaff",
+            "args": "",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveMinStaff",
+            "args": "thresholds",
+            "tables": [
+              "app_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchStaffingShortages",
+            "args": "{ from, to, minStaff = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPresenceForDay",
+            "args": "dateStr, { schedules = null, profiles = null } = {}",
+            "tables": [
+              "taskbar_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMonthlyHoursRecap",
+            "args": "year, month",
+            "tables": [
+              "taskbar_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMonthDailyPresence",
+            "args": "year, month",
+            "tables": [
+              "taskbar_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "plannedStartForDay",
+            "args": "schedules, userId, dateStr",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/Hr.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "setTab"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/HrManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate",
+          "setTab",
+          "async",
+          "printPayroll"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/HrPlanningCalendar.jsx": {
+        "handlers": [
+          "handlePrintMonth",
+          "onPointerDown",
+          "onPointerMove",
+          "onPointerUp"
+        ],
+        "onClickRefs": [
+          "onWeekDateChange",
+          "handlePrintMonth",
+          "setSettingsOpen",
+          "saveSettings",
+          "toggleJob",
+          "async",
+          "toggleDay",
+          "setModal",
+          "removeSlot",
+          "saveModal"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 124168
+  },
+  "inbox": {
+    "services": {
+      "services/inboxService.js": {
+        "exports": [
+          "isWithinEditableWindow",
+          "isUnmodifiedByOthers",
+          "isEditableSaisie",
+          "fetchInboxItems",
+          "updateMyCall",
+          "updateMyIp",
+          "updateMyQuality",
+          "updateMyStock"
+        ],
+        "functions": [
+          {
+            "name": "isWithinEditableWindow",
+            "args": "createdAt",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isUnmodifiedByOthers",
+            "args": "row, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isEditableSaisie",
+            "args": "kind, row, userId",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchInboxItems",
+            "args": "userId",
+            "tables": [
+              "call_logs",
+              "quality_events",
+              "stock_errors",
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateMyCall",
+            "args": "id, updates",
+            "tables": [
+              "call_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateMyIp",
+            "args": "id, updates",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateMyQuality",
+            "args": "id, updates",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateMyStock",
+            "args": "id, updates",
+            "tables": [
+              "stock_errors"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Inbox.jsx": {
+        "handlers": [
+          "onChange"
+        ],
+        "onClickRefs": [
+          "onClick",
+          "onEdit",
+          "setSaisieFilter",
+          "saveEdit",
+          "setEdit"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/InboxManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onNavigate"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 24585
+  },
+  "ip": {
+    "services": {
+      "services/ipService.js": {
+        "exports": [
+          "fetchRecentIpLogs",
+          "insertIpLog",
+          "appendDoctorSwitchNote",
+          "fetchIps",
+          "updateIp",
+          "fetchIpsWithProfiles",
+          "insertIpLogReturning",
+          "createPendingIpTask",
+          "fetchPendingIps",
+          "fetchIpById",
+          "cancelIp",
+          "completePendingIpTask",
+          "cancelPendingIpTask",
+          "ipFormHasContent",
+          "ipRowToForm",
+          "buildIpPayload",
+          "fetchHealthProfessionals"
+        ],
+        "functions": [
+          {
+            "name": "fetchRecentIpLogs",
+            "args": "limit = 10",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertIpLog",
+            "args": "payload",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "appendDoctorSwitchNote",
+            "args": "medecinId, doctors, noteText",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchIps",
+            "args": "",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateIp",
+            "args": "id, updates",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchIpsWithProfiles",
+            "args": "",
+            "tables": [
+              "act_ip_logs",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertIpLogReturning",
+            "args": "payload",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createPendingIpTask",
+            "args": "ipRow, createdBy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "fetchPendingIps",
+            "args": "userId = null",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchIpById",
+            "args": "id",
+            "tables": [
+              "act_ip_logs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelIp",
+            "args": "ipId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "completePendingIpTask",
+            "args": "ipId, displayName",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelPendingIpTask",
+            "args": "ipId, displayName",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ipFormHasContent",
+            "args": "form",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ipRowToForm",
+            "args": "row",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildIpPayload",
+            "args": "form, userId, doctors, statutIp",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/IP.jsx": {
+        "handlers": [
+          "handleValidate",
+          "handlePending",
+          "handleCancel"
+        ],
+        "onClickRefs": [
+          "handlePending",
+          "handleCancel",
+          "startFinishPending"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/IpManagement.jsx": {
+        "handlers": [
+          "handleSaveEdit",
+          "handleOpenDeclare",
+          "handleCopyJsonAndDeclare"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setShowForm",
+          "async",
+          "setEditingIp",
+          "setDeclareIp",
+          "handleCopyJsonAndDeclare",
+          "handleSaveEdit"
+        ],
+        "serviceImports": []
+      },
+      "shared/IpForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 4,
+    "totalBytes": 55809
+  },
+  "location": {
+    "services": {
+      "services/locationAccess.js": {
+        "exports": [
+          "PARAM_KEY",
+          "ROLES",
+          "FEATURES",
+          "DEFAULTS",
+          "MODULE_FEATURE",
+          "cloneDefaults",
+          "normalize",
+          "isLocked",
+          "isEditableFeature",
+          "can",
+          "resolveRoleFromPortail",
+          "resolveRole",
+          "loadMatrix",
+          "invalidate",
+          "featureForModule",
+          "featureForView",
+          "canAccessLocation",
+          "canAccessLocationView",
+          "LocationAccessApi"
+        ],
+        "functions": [
+          {
+            "name": "cloneDefaults",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "normalize",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isLocked",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isEditableFeature",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "can",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "resolveRoleFromPortail",
+            "args": "portailRole, opts = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "resolveRole",
+            "args": "snap",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "loadMatrix",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "invalidate",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "featureForModule",
+            "args": "moduleName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "featureForView",
+            "args": "view",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "canAccessLocation",
+            "args": "role, _feature = null, overrides = [], casquetteGrants = []",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "canAccessLocationView",
+            "args": "role, _view, overrides = [], casquetteGrants = []",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/locationGlobals.js": {
+        "exports": [
+          "ensureLocationGlobals"
+        ],
+        "functions": [
+          {
+            "name": "ensureLocationGlobals",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/locationPrint.js": {
+        "exports": [
+          "printFiche",
+          "printTableau",
+          "printContactList",
+          "buildFicheHtml",
+          "buildSuiviEventRows"
+        ],
+        "functions": [],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/locationRules.js": {
+        "exports": [
+          "TYPE_LABELS",
+          "MOTIF_TO_TEMPLATE",
+          "parseJson",
+          "addDuration",
+          "daysBetween",
+          "todayISO",
+          "templateMotifFor",
+          "isGenericContactMotif",
+          "pickContactMotif",
+          "resolveLgo",
+          "formatDateFr",
+          "interpolate",
+          "varsFromConditions",
+          "typeLabel",
+          "isFactureParPrestataire",
+          "evaluate",
+          "listRules",
+          "upsertRule",
+          "deleteRule"
+        ],
+        "functions": [
+          {
+            "name": "parseJson",
+            "args": "v, fallback",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "addDuration",
+            "args": "dateStr, duree, unite",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "daysBetween",
+            "args": "a, b",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "todayISO",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "templateMotifFor",
+            "args": "motif",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isGenericContactMotif",
+            "args": "motif",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "pickContactMotif",
+            "args": "reasons",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "resolveLgo",
+            "args": "ctx, reasons, params",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "formatDateFr",
+            "args": "iso",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "interpolate",
+            "args": "text, vars",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "varsFromConditions",
+            "args": "cond, extra",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "typeLabel",
+            "args": "type",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isFactureParPrestataire",
+            "args": "ctx",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "evaluate",
+            "args": "ctx, rules, params",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "listRules",
+            "args": "client",
+            "tables": [
+              "location_regles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertRule",
+            "args": "clientOrRow, maybeRow",
+            "tables": [
+              "location_regles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteRule",
+            "args": "clientOrId, maybeId",
+            "tables": [
+              "location_regles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/locationService.js": {
+        "exports": [
+          "sb",
+          "invalidateCache",
+          "loadParams",
+          "setParam",
+          "loadRules",
+          "CREATION_ETAPES",
+          "CREATION_FIELD_INDEX",
+          "getCreationChamp",
+          "listCreationFieldsForEtape",
+          "isCreationActif",
+          "isCreationRequired",
+          "isRequired",
+          "buildCreationChampsPayload",
+          "listPrestataires",
+          "searchPatients",
+          "createPatient",
+          "updatePatient",
+          "listDossiers",
+          "matchesDossierSearch",
+          "getDossier",
+          "enrichDossier",
+          "dossierContext",
+          "createDossierComplet",
+          "updateDossierComplet",
+          "updateDossier",
+          "cloturerDossier",
+          "deleteDossier",
+          "updateAppareil",
+          "changerAppareil",
+          "addProlongation",
+          "updateProlongation",
+          "deleteProlongation",
+          "recalcProlongationChain",
+          "listTemplates",
+          "findTemplateByMotif",
+          "findTemplateById",
+          "contactInterpVars",
+          "buildLocationMailContext",
+          "sendContactProblemEmail",
+          "listChampsCreation",
+          "upsertChampCreation",
+          "deleteChampCreation",
+          "upsertTemplate",
+          "deleteTemplate",
+          "upsertPrestataire",
+          "deletePrestataire",
+          "listOpenContacts",
+          "listOutcomeContacts",
+          "upsertContact",
+          "isContactCycleObsolete",
+          "shouldResetContactToCommentaire",
+          "archiveDossierContactSiblings",
+          "invalidateDossierCommentaire",
+          "cancelOpenContactsForDossier",
+          "syncContactQueue",
+          "isFactureParPrestataire",
+          "splitList",
+          "joinList",
+          "appareilIdentiteParc",
+          "dossierLiePrestataire",
+          "listParcPrestataire",
+          "listParcPharmacie"
+        ],
+        "functions": [],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      },
+      "shared/LocationPhieMount.jsx": {
+        "exports": [],
+        "functions": [],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Location.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/LocationManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/LocationTranscription.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "shared/LocationPhieMount.jsx": {
+        "handlers": [
+          "onNavigateRef"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 21,
+    "totalBytes": 513229
+  },
+  "lot-alerts": {
+    "services": {
+      "services/lotAlertService.js": {
+        "exports": [
+          "fetchTeamProfiles",
+          "fetchOpenLotAlerts",
+          "fetchMyAcks",
+          "acknowledgeLotAlert",
+          "fetchLotAlerts",
+          "fetchAcksForAlert",
+          "createLotAlert",
+          "updateLotAlertSteps",
+          "closeLotAlert",
+          "createRetraitLotTask",
+          "fetchAnsmSecurityAlerts"
+        ],
+        "functions": [
+          {
+            "name": "fetchTeamProfiles",
+            "args": "",
+            "tables": [
+              "profiles",
+              "supplier_disputes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchOpenLotAlerts",
+            "args": "",
+            "tables": [
+              "lot_alerts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyAcks",
+            "args": "userId",
+            "tables": [
+              "lot_alert_acks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "acknowledgeLotAlert",
+            "args": "alertId, userId",
+            "tables": [
+              "lot_alert_acks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchLotAlerts",
+            "args": "",
+            "tables": [
+              "lot_alerts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAcksForAlert",
+            "args": "alertId",
+            "tables": [
+              "lot_alert_acks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createLotAlert",
+            "args": "payload, userId",
+            "tables": [
+              "profiles",
+              "tasks",
+              "task_assignments",
+              "lot_alerts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateLotAlertSteps",
+            "args": "id, { steps_done, reception_validated }",
+            "tables": [
+              "lot_alerts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "closeLotAlert",
+            "args": "id",
+            "tables": [
+              "lot_alerts"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createRetraitLotTask",
+            "args": "form, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAnsmSecurityAlerts",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/LotAlerts.jsx": {
+        "handlers": [
+          "handleAck"
+        ],
+        "onClickRefs": [
+          "handleAck"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/RetraitLotManager.jsx": {
+        "handlers": [
+          "handleSubmit",
+          "handleSaveSteps"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "loadAnsm",
+          "applyAnsm",
+          "async",
+          "handleSaveSteps",
+          "setSelected"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 23202
+  },
+  "magistral": {
+    "services": {
+      "services/magistralParams.js": {
+        "exports": [
+          "CREATION_ETAPES",
+          "CREATION_FIELD_DEFS",
+          "MAIL_PLACEHOLDERS",
+          "MAIL_TEMPLATE_KEYS",
+          "DEFAULT_MAIL_TEMPLATES",
+          "getCreationChamp",
+          "listCreationFieldsForEtape",
+          "buildDefaultCreationChamps",
+          "normalizeCreationChamps",
+          "isFieldActive",
+          "isFieldRequired",
+          "validateCreationForm",
+          "getMailTemplate",
+          "buildMailContext",
+          "renderPlaceholders",
+          "renderMailTemplate"
+        ],
+        "functions": [
+          {
+            "name": "getCreationChamp",
+            "args": "settings, code",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "listCreationFieldsForEtape",
+            "args": "settings, etapeId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildDefaultCreationChamps",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "normalizeCreationChamps",
+            "args": "uiMap",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isFieldActive",
+            "args": "settings, code",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isFieldRequired",
+            "args": "settings, code",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "validateCreationForm",
+            "args": "form, settings, { asDraft = false, ordonnanceFile = null, existingOrdonnance = false } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getMailTemplate",
+            "args": "settings, key",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildMailContext",
+            "args": "order, settings, extra = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "renderPlaceholders",
+            "args": "text, ctx",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "renderMailTemplate",
+            "args": "settings, key, order, extra = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/magistralPrint.js": {
+        "exports": [
+          "buildFicheDemandeHtml",
+          "buildFeuilleSuiviHtml",
+          "printFicheDemande",
+          "printFeuilleSuivi",
+          "printListeDossiers"
+        ],
+        "functions": [
+          {
+            "name": "buildFicheDemandeHtml",
+            "args": "order, settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildFeuilleSuiviHtml",
+            "args": "order, settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "printFicheDemande",
+            "args": "order, settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "printFeuilleSuivi",
+            "args": "order, settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "printListeDossiers",
+            "args": "orders",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "services/magistralService.js": {
+        "exports": [
+          "MAGISTRAL_STATUTS",
+          "JUSTIFS",
+          "APPEL_RESULTAT_LABELS",
+          "RECEPTION_CHECKLIST_KEYS",
+          "EMPTY_FORM",
+          "calcMagistralPrice",
+          "maskPatient",
+          "fetchSettings",
+          "ensureSettings",
+          "updateSettings",
+          "uploadMagistralFile",
+          "sendTransactionalEmail",
+          "buildOrderHtml",
+          "sendProviderEmail",
+          "createMagistralOrder",
+          "searchOrdersForRenewal",
+          "renewMagistralOrder",
+          "updateOrder",
+          "deleteOrder",
+          "saveOrderFromForm",
+          "fetchMyOrders",
+          "fetchOrders",
+          "fetchOrderById",
+          "countAlerts",
+          "validateAnalyse",
+          "submitDraftToProvider",
+          "validateDevis",
+          "recordProviderQuote",
+          "hasProviderQuote",
+          "markInTransit",
+          "markArrived",
+          "saveReceptionControl",
+          "recordPatientCall",
+          "markOrderReceived",
+          "receiveOrder",
+          "dispenseOrder",
+          "closeOrder",
+          "reopenNonConforme",
+          "orderToForm",
+          "formFromSettings",
+          "saveOrderEdit",
+          "orderToAdminDraft",
+          "saveOrderAdmin",
+          "CREATION_ETAPES",
+          "CREATION_FIELD_DEFS",
+          "MAIL_PLACEHOLDERS",
+          "MAIL_TEMPLATE_KEYS",
+          "DEFAULT_MAIL_TEMPLATES",
+          "getCreationChamp",
+          "listCreationFieldsForEtape",
+          "buildDefaultCreationChamps",
+          "normalizeCreationChamps",
+          "isFieldActive",
+          "isFieldRequired",
+          "validateCreationForm",
+          "getMailTemplate",
+          "renderMailTemplate",
+          "buildMailContext"
+        ],
+        "functions": [
+          {
+            "name": "calcMagistralPrice",
+            "args": "settings, prixHtNet, tvaRate, portOverride = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "maskPatient",
+            "args": "nom, prenom",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchSettings",
+            "args": "",
+            "tables": [
+              "magistral_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ensureSettings",
+            "args": "seed = {}",
+            "tables": [
+              "magistral_settings"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateSettings",
+            "args": "payload, id",
+            "tables": [
+              "magistral_settings"
+            ],
+            "rpcs": [],
+            "logs": true,
+            "logCats": [
+              "settings"
+            ],
+            "createsTasks": false
+          },
+          {
+            "name": "uploadMagistralFile",
+            "args": "orderId, file, kind = 'ordonnance'",
+            "tables": [
+              "magistral-ordonnances"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "sendTransactionalEmail",
+            "args": "to, subject, html, meta = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "buildOrderHtml",
+            "args": "order, settings, title",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "sendProviderEmail",
+            "args": "order, settings, subjectKey, subjectFallback",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createMagistralOrder",
+            "args": "userId, form, { asDraft = false, ordonnanceFile = null } = {}",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "searchOrdersForRenewal",
+            "args": "query, { limit = 40 } = {}",
+            "tables": [
+              "magistral_orders",
+              "magistral-ordonnances"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "renewMagistralOrder",
+            "args": "userId, sourceOrderId",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateOrder",
+            "args": "id, payload",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "deleteOrder",
+            "args": "id",
+            "tables": [
+              "magistral-ordonnances",
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveOrderFromForm",
+            "args": "orderId, form, { sendEmail: doSend = false, userId = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyOrders",
+            "args": "userId, { limit = 50 } = {}",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchOrders",
+            "args": "{ statut = null, limit = 200 } = {}",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchOrderById",
+            "args": "id",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "countAlerts",
+            "args": "",
+            "tables": [
+              "magistral_orders"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "validateAnalyse",
+            "args": "orderId, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitDraftToProvider",
+            "args": "orderId, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "validateDevis",
+            "args": "orderId, { launchOrder = true, sendEmail: doSend = true, notifyPatient = false, userId = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "recordProviderQuote",
+            "args": "orderId, userId, { prixHt, tvaRate = 5.5, note = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "hasProviderQuote",
+            "args": "order",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "markInTransit",
+            "args": "orderId, userId, providerRef = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "markArrived",
+            "args": "orderId, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveReceptionControl",
+            "args": "orderId, userId, payload",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "recordPatientCall",
+            "args": "orderId, userId, attempt",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "markOrderReceived",
+            "args": "orderId, prixHtNet, tvaRate, notifyPatient = false",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "receiveOrder",
+            "args": "orderId, prixHtNet, opts = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "dispenseOrder",
+            "args": "orderId, userId, { ordonnancier_number, conseil_note = null } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "closeOrder",
+            "args": "orderId, reason = '', userId = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "reopenNonConforme",
+            "args": "orderId, userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "orderToForm",
+            "args": "order, settings = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "formFromSettings",
+            "args": "settings",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveOrderEdit",
+            "args": "orderId, formData, opts = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "orderToAdminDraft",
+            "args": "order, settings = null",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "saveOrderAdmin",
+            "args": "orderId, draft, opts = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": true,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Magistral.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "comptoir/MagistralCreate.jsx": {
+        "handlers": [
+          "handleCreate"
+        ],
+        "onClickRefs": [
+          "setWizardStep",
+          "handleCreate"
+        ],
+        "serviceImports": []
+      },
+      "comptoir/MagistralDevis.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "openOrder",
+          "setSelected",
+          "saveQuote",
+          "decide"
+        ],
+        "serviceImports": []
+      },
+      "comptoir/MagistralDispenser.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "printFeuilleSuivi",
+          "async",
+          "setDispOrder"
+        ],
+        "serviceImports": []
+      },
+      "comptoir/MagistralRappel.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "async"
+        ],
+        "serviceImports": []
+      },
+      "comptoir/MagistralRenouvellement.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "async",
+          "setSelected"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/MagistralManager.jsx": {
+        "handlers": [
+          "handleAdminSave",
+          "handleDeleteOrder"
+        ],
+        "onClickRefs": [
+          "setFilter",
+          "printListeDossiers",
+          "setSelectedId",
+          "selectPrev",
+          "selectNext",
+          "printFeuilleSuivi",
+          "printFicheDemande",
+          "enterAdminMode",
+          "handleDeleteOrder",
+          "cancelAdminMode",
+          "handleAdminSave",
+          "async",
+          "setRecvMode"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/MagistralSettingsPanel.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "setTab",
+          "setCreationEtape",
+          "saveParams"
+        ],
+        "serviceImports": []
+      },
+      "shared/MagistralAdminEdit.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "shared/MagistralOrderForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "shared/MagistralReceptionCall.jsx": {
+        "handlers": [
+          "handleControlOk",
+          "handleControlNc"
+        ],
+        "onClickRefs": [
+          "handleControlOk",
+          "handleControlNc",
+          "setCallStep",
+          "finishCall",
+          "goDecide",
+          "onCancel"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 14,
+    "totalBytes": 199204
+  },
+  "perimes": {
+    "services": {
+      "services/perimesService.js": {
+        "exports": [
+          "PERIME_FORM_DEFAULTS",
+          "PERIME_STATUS_LABELS",
+          "validatePerimeHorizon",
+          "isWithinDecisionWindow",
+          "fetchEmplacements",
+          "createEmplacement",
+          "updateEmplacement",
+          "deleteEmplacement",
+          "fetchPerimes",
+          "fetchVisiblePerimes",
+          "fetchTodayActions",
+          "splitTracking",
+          "createPerimeDecisionTask",
+          "createPerimeChallengeTask",
+          "ensurePerimeExecutionTasks",
+          "insertPerime",
+          "ensurePerimeDecisionTasks",
+          "ensureAllPerimeTasks",
+          "completePerimeDecisionTask",
+          "applyValorisation",
+          "applyLaisserPerimer",
+          "linkDisputeFromPerime",
+          "attachDisputeToPerime",
+          "markAssociation",
+          "updatePerimeStatus"
+        ],
+        "functions": [
+          {
+            "name": "validatePerimeHorizon",
+            "args": "datePeremption",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchEmplacements",
+            "args": "{ actifsOnly = false } = {}",
+            "tables": [
+              "perime_emplacements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createEmplacement",
+            "args": "label",
+            "tables": [
+              "perime_emplacements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateEmplacement",
+            "args": "id, updates",
+            "tables": [
+              "perime_emplacements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteEmplacement",
+            "args": "id",
+            "tables": [
+              "perime_emplacements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPerimes",
+            "args": "",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchVisiblePerimes",
+            "args": "",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTodayActions",
+            "args": "",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "splitTracking",
+            "args": "items",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createPerimeDecisionTask",
+            "args": "perime, createdBy",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "createPerimeChallengeTask",
+            "args": "perime, createdBy",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "ensurePerimeExecutionTasks",
+            "args": "createdBy",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertPerime",
+            "args": "userId, form",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ensurePerimeDecisionTasks",
+            "args": "createdBy",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ensureAllPerimeTasks",
+            "args": "createdBy",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "completePerimeDecisionTask",
+            "args": "perimeId, displayName",
+            "tables": [
+              "perimes",
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "applyValorisation",
+            "args": "id, options, userId, displayName",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "applyLaisserPerimer",
+            "args": "id, destination, userId, displayName, notes",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "linkDisputeFromPerime",
+            "args": "perime, userId",
+            "tables": [
+              "supplier_disputes",
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "attachDisputeToPerime",
+            "args": "perimeId, disputeId",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "markAssociation",
+            "args": "id, notes, userId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updatePerimeStatus",
+            "args": "id, status",
+            "tables": [
+              "perimes"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/Perimes.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "comptoir/PerimesVitrine.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/PerimesEmplacementsSettings.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "addEmplacement",
+          "async"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/PerimesManager.jsx": {
+        "handlers": [
+          "handleValoriser",
+          "handleAssociation",
+          "handleLitige"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setFilter",
+          "openDecision",
+          "handleValoriser",
+          "handleLitige",
+          "handleAssociation",
+          "setDeciding"
+        ],
+        "serviceImports": []
+      },
+      "shared/PerimeForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 6,
+    "totalBytes": 59799
+  },
+  "prefs": {
+    "services": {
+      "services/prefsService.js": {
+        "exports": [
+          "THEME_OPTIONS",
+          "PLACEMENT_OPTIONS",
+          "DENSITY_OPTIONS",
+          "FONT_SIZE_OPTIONS",
+          "DEFAULT_PREFERENCES",
+          "applyTheme",
+          "applyFontSizes",
+          "fetchPreferences",
+          "upsertPreferences"
+        ],
+        "functions": [
+          {
+            "name": "applyTheme",
+            "args": "theme",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "applyFontSizes",
+            "args": "{ font_size_taskbar: tb = DEFAULT_PREFERENCES.font_size_taskbar, font_size_dashboard: dash = DEFAULT_PREFERENCES.font_size_dashboard, } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPreferences",
+            "args": "userId",
+            "tables": [
+              "user_preferences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "upsertPreferences",
+            "args": "userId, patch = {}",
+            "tables": [
+              "user_preferences"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {},
+    "fileCount": 1,
+    "totalBytes": 4905
+  },
+  "psl": {
+    "services": {
+      "services/pslService.js": {
+        "exports": [
+          "parseDatamatrix",
+          "receivePslUnit",
+          "deliverPslUnit",
+          "updatePslUnit",
+          "updatePslMovement",
+          "fetchStockUnits",
+          "fetchDeliveryHistory",
+          "fetchPslUnits",
+          "fetchPslMovements",
+          "fetchMdsDeliveries",
+          "printMdsRegistry",
+          "exportPslRegisterCsv"
+        ],
+        "functions": [
+          {
+            "name": "parseDatamatrix",
+            "args": "raw",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "receivePslUnit",
+            "args": "userId, payload",
+            "tables": [
+              "psl_units",
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deliverPslUnit",
+            "args": "userId, unitId, payload",
+            "tables": [
+              "psl_units",
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updatePslUnit",
+            "args": "id, payload",
+            "tables": [
+              "psl_units"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updatePslMovement",
+            "args": "id, payload",
+            "tables": [
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchStockUnits",
+            "args": "",
+            "tables": [
+              "psl_units"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchDeliveryHistory",
+            "args": "limit = 50",
+            "tables": [
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPslUnits",
+            "args": "{ statut } = {}",
+            "tables": [
+              "psl_units"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPslMovements",
+            "args": "limit = 200",
+            "tables": [
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMdsDeliveries",
+            "args": "",
+            "tables": [
+              "psl_movements"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "printMdsRegistry",
+            "args": "movements, pharmacyName = 'Pharmacie'",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "exportPslRegisterCsv",
+            "args": "movements",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/Psl.jsx": {
+        "handlers": [
+          "handleRecv",
+          "handleDeliv"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/PslManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "printMdsRegistry",
+          "exportPslRegisterCsv",
+          "setEditUnit",
+          "setEditMov"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 36270
+  },
+  "quality": {
+    "services": {
+      "services/qualityService.js": {
+        "exports": [
+          "QUALITY_TYPES",
+          "SEVERITY_LEVELS",
+          "QUALITY_FORM_DEFAULTS",
+          "qualityFormHasContent",
+          "qualityRowToForm",
+          "insertQualityEvent",
+          "insertQualityEventReturning",
+          "updateQualityEventFull",
+          "fetchMyQualityEvents",
+          "fetchPendingQualityEvents",
+          "fetchQualityById",
+          "cancelQualityEvent",
+          "createPendingQualityTask",
+          "completePendingQualityTask",
+          "cancelPendingQualityTask",
+          "fetchQualityEvents",
+          "updateQualityEvent",
+          "fetchQualityStats"
+        ],
+        "functions": [
+          {
+            "name": "qualityFormHasContent",
+            "args": "form",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "qualityRowToForm",
+            "args": "row",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertQualityEvent",
+            "args": "userId, payload, status = 'ouvert'",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "insertQualityEventReturning",
+            "args": "userId, payload, status = 'ouvert'",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateQualityEventFull",
+            "args": "id, payload, status",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyQualityEvents",
+            "args": "userId, limit = 10",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchPendingQualityEvents",
+            "args": "userId",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchQualityById",
+            "args": "id",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelQualityEvent",
+            "args": "id",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createPendingQualityTask",
+            "args": "row, createdBy",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "completePendingQualityTask",
+            "args": "qualityId, displayName",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "cancelPendingQualityTask",
+            "args": "qualityId, displayName",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchQualityEvents",
+            "args": "",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateQualityEvent",
+            "args": "id, updates",
+            "tables": [
+              "quality_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchQualityStats",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      }
+    },
+    "ui": {
+      "comptoir/Quality.jsx": {
+        "handlers": [
+          "handleValidate",
+          "handlePending",
+          "handleCancel"
+        ],
+        "onClickRefs": [
+          "handlePending",
+          "handleCancel",
+          "startFinishPending"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/QualityManager.jsx": {
+        "handlers": [
+          "handleSave"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setEditing",
+          "handleSave"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 30882
+  },
+  "stock": {
+    "services": {
+      "services/stockService.js": {
+        "exports": [
+          "STOCK_STATUS_LABELS",
+          "declareStockError",
+          "fetchMyStockErrors",
+          "fetchStockErrors",
+          "resolveStockError",
+          "submitRecountResult",
+          "closeStockErrorAfterRecount"
+        ],
+        "functions": [
+          {
+            "name": "declareStockError",
+            "args": "userId, payload",
+            "tables": [
+              "tasks",
+              "task_assignments",
+              "stock_errors"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyStockErrors",
+            "args": "userId",
+            "tables": [
+              "stock_errors"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchStockErrors",
+            "args": "{ status, decision } = {}",
+            "tables": [
+              "stock_errors",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "resolveStockError",
+            "args": "id, decision, adminNotes, adminUserId",
+            "tables": [
+              "stock_errors",
+              "tasks",
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitRecountResult",
+            "args": "{ stockErrorId, taskId, quantiteFinale, note, userId, displayName, }",
+            "tables": [
+              "stock_errors",
+              "task_assignments",
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "closeStockErrorAfterRecount",
+            "args": "id, adminNotes, adminUserId",
+            "tables": [
+              "stock_errors",
+              "tasks",
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/StockError.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/StockErrorManager.jsx": {
+        "handlers": [
+          "handleDecision",
+          "handleClose"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "handleDecision",
+          "handleClose",
+          "setStatusFilter"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 3,
+    "totalBytes": 25388
+  },
+  "stupefiants": {
+    "services": {
+      "services/stupefiantService.js": {
+        "exports": [
+          "STUPEFIANT_STATUS_LABELS",
+          "LIVREUR_TYPE_LABELS",
+          "CLOSED_STATUSES",
+          "fetchLivreurs",
+          "createLivreur",
+          "updateLivreur",
+          "deleteLivreur",
+          "uploadBlFile",
+          "getBlSignedUrl",
+          "fetchReleves",
+          "fetchMyReleves",
+          "fetchReleveById",
+          "declareReception",
+          "finalizeHeldReception",
+          "updateReleve",
+          "submitVerification",
+          "submitRecount",
+          "closeErreurReception",
+          "submitAnalyse",
+          "deleteReleve",
+          "fetchStupefiantOpsStats",
+          "fetchStaffProfiles"
+        ],
+        "functions": [
+          {
+            "name": "fetchLivreurs",
+            "args": "{ actifsOnly = false } = {}",
+            "tables": [
+              "stupefiant_livreurs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createLivreur",
+            "args": "{ label, type = 'grossiste', sort_order = 0 }",
+            "tables": [
+              "stupefiant_livreurs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateLivreur",
+            "args": "id, patch",
+            "tables": [
+              "stupefiant_livreurs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteLivreur",
+            "args": "id",
+            "tables": [
+              "stupefiant_livreurs"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "uploadBlFile",
+            "args": "releveId, file",
+            "tables": [
+              "stupefiants-bl"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getBlSignedUrl",
+            "args": "blPath, expiresIn = 3600",
+            "tables": [
+              "stupefiants-bl"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchReleves",
+            "args": "{ status } = {}",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyReleves",
+            "args": "userId",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchReleveById",
+            "args": "id",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "declareReception",
+            "args": "userId, payload, blFile, opts = {}",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "finalizeHeldReception",
+            "args": "id, payload, userId, blFile = null",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateReleve",
+            "args": "id, patch",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitVerification",
+            "args": "id, payload, adminUserId",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitRecount",
+            "args": "id, payload, adminUserId",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "closeErreurReception",
+            "args": "id, notes, adminUserId",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "submitAnalyse",
+            "args": "id, payload, adminUserId",
+            "tables": [
+              "stupefiant_releves"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "deleteReleve",
+            "args": "id",
+            "tables": [
+              "stupefiant_releves",
+              "stupefiants-bl"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchStupefiantOpsStats",
+            "args": "days = 90",
+            "tables": [
+              "stupefiant_releves",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchStaffProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/StupefiantReception.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [
+          "resumeHeld"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/StupefiantsCharts.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "dashboard/StupefiantsLivreursSettings.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "async"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/StupefiantsManager.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "run",
+          "onNavigate",
+          "setShowCreate",
+          "setMainTab",
+          "setSelectedId",
+          "setStatusFilter",
+          "openBl"
+        ],
+        "serviceImports": []
+      },
+      "shared/StupefiantReceptionForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [
+          "onOpenBl"
+        ],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 6,
+    "totalBytes": 76211
+  },
+  "tasks": {
+    "services": {
+      "services/taskService.js": {
+        "exports": [
+          "resolveAssigneeIds",
+          "ensureTaskEscalations",
+          "fetchAdminIds",
+          "fetchAssigneeIds",
+          "fetchTeamProfiles",
+          "fetchMyOpenAssignments",
+          "countTodayPendingAssignments",
+          "updateTaskDescription",
+          "completeAssignmentByTaskId",
+          "fetchTasks",
+          "fetchMyTasks",
+          "fetchTasksCompletionMap",
+          "createTask",
+          "createTaskForCategory",
+          "findOpenTask",
+          "ensureCategoryTask",
+          "completeCategoryTasks",
+          "completeTaskGlobal",
+          "uncompleteTaskGlobal",
+          "updateTask",
+          "createComptoirQuickAction",
+          "TASK_RULE_CATEGORIES",
+          "TASK_MODULES",
+          "taskCategoriesForModule",
+          "getTaskRuleCategory"
+        ],
+        "functions": [
+          {
+            "name": "resolveAssigneeIds",
+            "args": "category",
+            "tables": [
+              "task_role_rules"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ensureTaskEscalations",
+            "args": "",
+            "tables": [
+              "task_role_rules",
+              "tasks",
+              "task_assignments"
+            ],
+            "rpcs": [
+              "ensure_task_escalations"
+            ],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAdminIds",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchAssigneeIds",
+            "args": "",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTeamProfiles",
+            "args": "",
+            "tables": [
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyOpenAssignments",
+            "args": "userId",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "countTodayPendingAssignments",
+            "args": "userId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateTaskDescription",
+            "args": "taskId, description",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "completeAssignmentByTaskId",
+            "args": "taskId, commentaire",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTasks",
+            "args": "",
+            "tables": [
+              "tasks",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchMyTasks",
+            "args": "userId",
+            "tables": [
+              "task_assignments",
+              "tasks",
+              "profiles"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "fetchTasksCompletionMap",
+            "args": "taskIds",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createTask",
+            "args": "titre, description, userIds, createdBy",
+            "tables": [
+              "tasks",
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "createTaskForCategory",
+            "args": "category, titre, description, createdBy, extraIds = []",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "findOpenTask",
+            "args": "matchFn, { limit = 250 } = {}",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "ensureCategoryTask",
+            "args": "category, titre, details, createdBy, { extraIds = [], matchKey, matchValue, } = {}",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          },
+          {
+            "name": "completeCategoryTasks",
+            "args": "category, matchKey, matchValue, commentaire = 'Clos automatiquement'",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "completeTaskGlobal",
+            "args": "taskId, commentaire, timeSeconds, completedBy",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "uncompleteTaskGlobal",
+            "args": "taskId",
+            "tables": [
+              "task_assignments"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "updateTask",
+            "args": "taskId, titre, description",
+            "tables": [
+              "tasks"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "createComptoirQuickAction",
+            "args": "type, form, userId",
+            "tables": [
+              "agenda_events"
+            ],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": true
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": true
+      },
+      "shared/taskActions.js": {
+        "exports": [
+          "TASK_ACTIONS",
+          "getTaskAction",
+          "runTaskNavigation"
+        ],
+        "functions": [
+          {
+            "name": "getTaskAction",
+            "args": "detailsOrDesc",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "runTaskNavigation",
+            "args": "def, details",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "shared/taskCatalog.js": {
+        "exports": [
+          "TASK_MODULES",
+          "TASK_RULE_CATEGORIES",
+          "taskCategoriesForModule",
+          "getTaskRuleCategory"
+        ],
+        "functions": [
+          {
+            "name": "taskCategoriesForModule",
+            "args": "moduleId",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getTaskRuleCategory",
+            "args": "id",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      },
+      "shared/taskDisplay.js": {
+        "exports": [
+          "parseTaskDetails",
+          "isPlainTaskDetails",
+          "getTaskCategory",
+          "TASK_CATEGORY_LABELS",
+          "plainTaskText"
+        ],
+        "functions": [
+          {
+            "name": "parseTaskDetails",
+            "args": "desc",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "isPlainTaskDetails",
+            "args": "details",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "getTaskCategory",
+            "args": "description, titre = ''",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          },
+          {
+            "name": "plainTaskText",
+            "args": "description",
+            "tables": [],
+            "rpcs": [],
+            "logs": false,
+            "logCats": [],
+            "createsTasks": false
+          }
+        ],
+        "hasAnyLog": false,
+        "hasAnyTask": false
+      }
+    },
+    "ui": {
+      "comptoir/QuickAction.jsx": {
+        "handlers": [
+          "handleSubmit"
+        ],
+        "onClickRefs": [],
+        "serviceImports": []
+      },
+      "comptoir/Tasks.jsx": {
+        "handlers": [
+          "handlePrimaryAction",
+          "handleRecompteConfirm",
+          "handleRetraitConfirm"
+        ],
+        "onClickRefs": [
+          "handlePrimaryAction",
+          "setRetraitModal",
+          "handleRetraitConfirm",
+          "setRecompteModal",
+          "handleRecompteConfirm"
+        ],
+        "serviceImports": []
+      },
+      "dashboard/TasksManager.jsx": {
+        "handlers": [
+          "handleCreate",
+          "handleCompleteTask",
+          "handleUncomplete"
+        ],
+        "onClickRefs": [
+          "onNavigate",
+          "setShowForm",
+          "saveEditTask",
+          "setEditingTaskId",
+          "startEditing",
+          "handleCompleteTask",
+          "handleUncomplete"
+        ],
+        "serviceImports": []
+      },
+      "shared/PatientOrderForm.jsx": {
+        "handlers": [],
+        "onClickRefs": [],
+        "serviceImports": []
+      }
+    },
+    "fileCount": 8,
+    "totalBytes": 100347
+  }
+}

@@ -1,5 +1,6 @@
 import { supabase } from '../../../shared/supabaseClient.js';
 import { resolveAssigneeIds } from '../../tasks/services/taskService.js';
+import { labelPartenaireType } from '../../directory/services/directoryService.js';
 
 export const STUPEFIANT_STATUS_LABELS = Object.freeze({
   en_attente: 'En attente',
@@ -13,6 +14,10 @@ export const STUPEFIANT_STATUS_LABELS = Object.freeze({
   erreur_reception: 'Erreur de réception',
 });
 
+/** Types de partenaires commerciaux utilisables comme livreurs stupéfiants. */
+export const LIVREUR_PARTENAIRE_TYPES = Object.freeze(['grossiste', 'generiqueur', 'plateforme']);
+
+/** @deprecated préférer labelPartenaireType — conservé pour libellés UI select */
 export const LIVREUR_TYPE_LABELS = Object.freeze({
   grossiste: 'Grossiste',
   generiqueur: 'Génériqueur',
@@ -22,6 +27,27 @@ export const LIVREUR_TYPE_LABELS = Object.freeze({
 export const CLOSED_STATUSES = new Set([
   'ras', 'ras_recompte', 'corrige_compris', 'corrige_sans', 'erreur_reception',
 ]);
+
+/** Hint FK explicite — évite l’échec PostgREST après drop de stupefiant_livreurs. */
+const RELEVE_LIVREUR_SELECT = '*, directory_contacts!livreur_id ( id, nom, partenaire_type )';
+
+function mapLivreurRow(c) {
+  if (!c) return null;
+  return {
+    id: c.id,
+    label: c.nom,
+    type: c.partenaire_type,
+    type_label: labelPartenaireType(c.partenaire_type) || c.partenaire_type,
+  };
+}
+
+/** Libellé affichage livreur depuis un relevé (join annuaire). */
+export function formatLivreurLabel(releve) {
+  const c = releve?.directory_contacts;
+  if (!c?.nom) return '—';
+  const typeLabel = labelPartenaireType(c.partenaire_type) || c.partenaire_type;
+  return typeLabel ? `${c.nom} (${typeLabel})` : c.nom;
+}
 
 function toInt(v, fallback = null) {
   if (v === '' || v == null) return fallback;
@@ -57,6 +83,7 @@ async function enrichWithProfiles(rows) {
     verifier_name: r.verified_by ? (profilesMap[r.verified_by] || 'Pharmacien') : null,
     responsable_name: r.responsable_erreur_label
       || (r.responsable_erreur_id ? (profilesMap[r.responsable_erreur_id] || '—') : null),
+    livreur_label: formatLivreurLabel(r),
   }));
 }
 
@@ -89,57 +116,33 @@ async function createCategoryTask(category, titre, details, createdBy) {
   return task;
 }
 
-// —— Livreurs ——
+// —— Livreurs (annuaire : grossiste / génériqueur / plateforme) ——
 
-export async function fetchLivreurs({ actifsOnly = false } = {}) {
-  let q = supabase
-    .from('stupefiant_livreurs')
-    .select('*')
-    .order('sort_order', { ascending: true });
-  if (actifsOnly) q = q.eq('actif', true);
-  const { data, error } = await q;
+/**
+ * Partenaires commerciaux de l’annuaire utilisables comme livreurs.
+ * Shape UI : { id, label, type, type_label } (label = nom directory).
+ * @param {{ includeId?: string|null }} [opts] — force l’inclusion d’un contact (édition relevé)
+ */
+export async function fetchLivreurs({ includeId = null } = {}) {
+  const { data, error } = await supabase
+    .from('directory_contacts')
+    .select('id, nom, partenaire_type')
+    .eq('type', 'commercial_partner')
+    .in('partenaire_type', [...LIVREUR_PARTENAIRE_TYPES])
+    .order('nom', { ascending: true });
   if (error) throw new Error(error.message || 'Impossible de charger les livreurs.');
-  const rows = data || [];
-  return [...rows].sort((a, b) => {
-    const so = (a.sort_order ?? 0) - (b.sort_order ?? 0);
-    if (so !== 0) return so;
-    return String(a.label || '').localeCompare(String(b.label || ''), 'fr');
-  });
-}
 
-export async function createLivreur({ label, type = 'grossiste', sort_order = 0 }) {
-  const clean = String(label || '').trim();
-  if (!clean) throw new Error('Nom du livreur obligatoire.');
-  const allowed = ['grossiste', 'generiqueur', 'plateforme'];
-  const t = allowed.includes(type) ? type : 'grossiste';
-  const { data, error } = await supabase
-    .from('stupefiant_livreurs')
-    .insert([{
-      label: clean,
-      type: t,
-      sort_order: toInt(sort_order, 0) ?? 0,
-      actif: true,
-    }])
-    .select()
-    .single();
-  if (error) throw new Error(error.message || 'Échec ajout livreur (droits ou schéma).');
-  return data;
-}
-
-export async function updateLivreur(id, patch) {
-  const { data, error } = await supabase
-    .from('stupefiant_livreurs')
-    .update(patch)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-export async function deleteLivreur(id) {
-  const { error } = await supabase.from('stupefiant_livreurs').delete().eq('id', id);
-  if (error) throw new Error(error.message);
+  const rows = (data || []).map(mapLivreurRow);
+  if (includeId && !rows.some((r) => r.id === includeId)) {
+    const { data: extra, error: extraErr } = await supabase
+      .from('directory_contacts')
+      .select('id, nom, partenaire_type')
+      .eq('id', includeId)
+      .maybeSingle();
+    if (extraErr) throw new Error(extraErr.message);
+    if (extra) rows.push(mapLivreurRow(extra));
+  }
+  return rows.sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'fr'));
 }
 
 // —— Storage BL ——
@@ -170,7 +173,7 @@ export async function getBlSignedUrl(blPath, expiresIn = 3600) {
 export async function fetchReleves({ status } = {}) {
   let q = supabase
     .from('stupefiant_releves')
-    .select('*, stupefiant_livreurs ( id, label, type )')
+    .select(RELEVE_LIVREUR_SELECT)
     .order('created_at', { ascending: false });
   if (status) q = q.eq('status', status);
   const { data, error } = await q;
@@ -181,18 +184,18 @@ export async function fetchReleves({ status } = {}) {
 export async function fetchMyReleves(userId) {
   const { data, error } = await supabase
     .from('stupefiant_releves')
-    .select('*, stupefiant_livreurs ( id, label, type )')
+    .select(RELEVE_LIVREUR_SELECT)
     .eq('created_by', userId)
     .order('created_at', { ascending: false })
     .limit(20);
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []).map((r) => ({ ...r, livreur_label: formatLivreurLabel(r) }));
 }
 
 export async function fetchReleveById(id) {
   const { data, error } = await supabase
     .from('stupefiant_releves')
-    .select('*, stupefiant_livreurs ( id, label, type )')
+    .select(RELEVE_LIVREUR_SELECT)
     .eq('id', id)
     .single();
   if (error) throw new Error(error.message);
@@ -427,7 +430,7 @@ export async function updateReleve(id, patch) {
     .from('stupefiant_releves')
     .update(row)
     .eq('id', id)
-    .select('*, stupefiant_livreurs ( id, label, type )')
+    .select(RELEVE_LIVREUR_SELECT)
     .single();
   if (error) throw new Error(error.message);
   const [enriched] = await enrichWithProfiles([data]);

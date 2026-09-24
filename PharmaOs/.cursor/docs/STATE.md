@@ -6,22 +6,24 @@
 - Monorepo `PharmaOs/` : Vite + React 18 + Tailwind + Electron + electron-builder.
 - Entrées : `index.html`, `module.html`, `dashboard.html`, `bug.html`.
 - Auth : `portail.profiles` — `pharmacien` | `administrateur` | `préparateur` | `désactivé` + casquettes.
-- Shell : Login + Taskbar (Dashboard si `canAccess`) + DashboardShell + hub inbox.
+- Shell : Login + Taskbar (Dashboard si `canAccess`) + DashboardShell + hub « À traiter » (tasks).
 - Thèmes CSS : `src/styles/themes.css` via `data-theme` (`clair` | `sombre` | `colore` | `contraste` | `daltonien`).
 - Préférences UI : `"PharmaOs".user_preferences` (thème, placement / densité, polices) — page **Mon compte**.
 - Polices : `data-font-tb` / `data-font-dash` (`sm` | `md` | `lg`).
 
 ## Modules (fait)
 
-Principal, qualité, métier, admin, RH, magistrales, location (Phie), conseil, BDPM, stupéfiants, **inbox** (À traiter) + **Mes saisies** (dashboard only).
+Principal, qualité, métier, admin, RH, magistrales, location (Phie), conseil, BDPM, stupéfiants, hub **À traiter** (tasks) + **Mes saisies** (autocorrection 72h).
 
 Ancien module **`rental/` retiré** (tables droppées migration `041`) — remplacé par `location/`.
 
-## Hub À traiter / Mes saisies / Mes tâches (2026-09-23)
+## Hub À traiter / Mes saisies (2026-09-23)
 
-- **Comptoir** : 1 bouton Inbox « À traiter » + badge `countTodayPendingAssignments` (plus de bouton CheckSquare séparé) ; filtres chips ; **pas** de Mes saisies.
-- **Dashboard** : nav **À traiter** | **Mes saisies** | **Mes tâches** | **Mon compte**.
-- Inbox = agrégation lecture (pas de tables SQL inbox). Tasks = `tasks` + `task_assignments`.
+- **À traiter** = modèle **tasks** (`tasks` + `task_assignments` `en_cours`) : clôture + commentaire, actions typées (close / dashboard / resume via `taskActions.js`).
+- **Comptoir** : `#inbox` et `#tasks` → UI Tasks « À traiter » ; badge taskbar `countTodayPendingAssignments` ; plus de hub agrégat Inbox.
+- **Dashboard** : nav **À traiter** | **Mes saisies** | **Mon compte** (quotidien) — **pas** de nav séparée « Mes tâches » (`tasks` alias → `inbox`).
+- **Mes saisies** = autocorrection règle **B** : créateur + `created_at` &lt; 72h + non clôturé/annulé + (`updated_by` null ou = soi) — migrations `048` + `050` ; UI chips tous modules avec saisies corrigeables.
+- Module `inbox/` : Mes saisies seulement (`Inbox.jsx` mode `saisies`) ; stub legacy si `mode=hub`.
 
 ## Compte Auth (Portail Application — pas PharmaOS)
 
@@ -42,7 +44,9 @@ Pas d’OTP / reset / invite dans Electron.
 
 - Migration `040` : REVOKE `anon`/`authenticated` sur RPC BDPM destructives.
 - Migration `041` : drop `daily_controls`, `equipment_calibrations`, `rental_*`.
-- Migration `042` : UPDATE own saisies non clôturées + admin policies via `is_pharma_admin`.
+- Migration `042` : UPDATE own saisies non clôturées + admin policies via `is_pharma_admin` (renforcé par `048`).
+- Migration `048` : Mes saisies 72h — `updated_at` / `updated_by` + RLS règle B (appels / IP / qualité / stock).
+- Migration `050` : Mes saisies étendu — même pattern sur litiges, périmés, magistrales, location, RH, caisse, stupéfiants, MDS, documents, conseils.
 - Migration `043` : `portail.profiles.must_change_password` (utilisé par le Portail Application).
 - Migration `044` : GRANT schema `portail` à `service_role` + `portail.is_admin()` legacy.
 - Migration `045` : `"PharmaOs".user_preferences` + RLS own.
@@ -64,7 +68,7 @@ Conserver les deux tant que l’UI Logs / analytics s’appuient dessus.
 
 ## Phase SQL
 
-- Migrations repo : `001` … `045` (voir `supabase/migrations/README.md`).
+- Migrations repo : `001` … `050` (voir `supabase/migrations/README.md`).
 - Source de vérité : agrégat `supabase/migrations/` ; miroirs `src/modules/*/sql/` (prefs, admin, conseil, inbox README-only).
 - Live projet `kpjflntnotftpzffjbud` — schemas dédiés ; autres apps cohabitent (`phieevreux`, etc.) — ne pas toucher hors `PharmaOs` (+ REVOKE `bdm`).
 

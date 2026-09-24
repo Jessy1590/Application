@@ -373,7 +373,7 @@ export default function TasksManager({ onNavigate }) {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-[var(--fg)] flex items-center gap-2">
           <CheckSquare className="text-orange-600" />
-          {isAdminView ? 'Tâches d\'équipe' : 'Mes tâches'}
+          {isAdminView ? 'À traiter — équipe' : 'À traiter'}
         </h1>
         {isAdminView && (
           <button type="button" onClick={() => setShowForm(!showForm)} className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex gap-2">

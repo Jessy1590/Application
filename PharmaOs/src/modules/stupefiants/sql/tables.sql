@@ -1,17 +1,7 @@
 -- =============================================================================
--- Tables — module stupéfiants (miroir 037 + 038 + 039)
+-- Tables — module stupéfiants (miroir 037 + 038 + 039 + 051)
+-- Livreurs = directory_contacts (partenaire_type grossiste|generiqueur|plateforme)
 -- =============================================================================
-
-CREATE TABLE IF NOT EXISTS "PharmaOs".stupefiant_livreurs (
-  id uuid DEFAULT gen_random_uuid() NOT NULL,
-  label text NOT NULL,
-  type text NOT NULL DEFAULT 'grossiste',
-  actif boolean NOT NULL DEFAULT true,
-  sort_order integer NOT NULL DEFAULT 0,
-  created_at timestamptz DEFAULT now() NOT NULL,
-  CHECK (type = ANY (ARRAY['grossiste'::text, 'generiqueur'::text, 'plateforme'::text])),
-  PRIMARY KEY (id)
-);
 
 CREATE TABLE IF NOT EXISTS "PharmaOs".stupefiant_releves (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -59,7 +49,9 @@ CREATE TABLE IF NOT EXISTS "PharmaOs".stupefiant_releves (
     'corrige_compris'::text,
     'corrige_sans'::text,
     'erreur_reception'::text
-  ]))
+  ])),
+  FOREIGN KEY (livreur_id) REFERENCES "PharmaOs".directory_contacts(id) ON DELETE SET NULL
 );
 
 -- Note : bl_numero nullable (039). Accès UI via canAccess (matrice Accès & rôles).
+-- stupefiant_livreurs droppée (051) — livreurs via annuaire.

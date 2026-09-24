@@ -34,7 +34,7 @@ import LogsManager from '../modules/admin/dashboard/LogsManager.jsx';
 import BugsManager from '../modules/admin/dashboard/BugsManager.jsx';
 import AccessManager from '../modules/admin/dashboard/AccessManager.jsx';
 import SettingsManager from '../modules/admin/dashboard/SettingsManager.jsx';
-import InboxManager, { InboxSaisiesManager } from '../modules/inbox/dashboard/InboxManager.jsx';
+import { InboxSaisiesManager } from '../modules/inbox/dashboard/InboxManager.jsx';
 import AccountPage from '../modules/account/dashboard/AccountPage.jsx';
 
 function PlaceholderPage({ label }) {
@@ -111,13 +111,12 @@ function renderDashboardPage(pageId, activeLabel, onNavigate, pageData) {
     case 'agenda':
       return <AgendaManager onNavigate={onNavigate} />;
     case 'tasks':
+    case 'inbox':
       return <TasksManager onNavigate={onNavigate} />;
     case 'ip':
       return <IpManagement onNavigate={onNavigate} />;
     case 'calls':
       return <CallTracking onNavigate={onNavigate} />;
-    case 'inbox':
-      return <InboxManager onNavigate={onNavigate} />;
     case 'inbox_saisies':
       return <InboxSaisiesManager onNavigate={onNavigate} />;
     case 'account':

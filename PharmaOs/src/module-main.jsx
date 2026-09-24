@@ -24,7 +24,6 @@ import StockError from './modules/stock/comptoir/StockError.jsx';
 import LotAlerts from './modules/lot-alerts/comptoir/LotAlerts.jsx';
 import StupefiantReception from './modules/stupefiants/comptoir/StupefiantReception.jsx';
 import Hr from './modules/hr/comptoir/Hr.jsx';
-import Inbox from './modules/inbox/comptoir/Inbox.jsx';
 
 /** Placeholder jusqu'à migration des modules restants. */
 function PlaceholderModule({ title }) {
@@ -41,7 +40,7 @@ const VIEW_TITLES = {
   directory: 'Annuaire',
   call: 'Appels',
   ip: 'Act-IP',
-  tasks: 'Tâches',
+  tasks: 'À traiter',
   order: 'Commande médicament',
   billing: 'Facturation',
   quality: 'Qualité',
@@ -73,15 +72,14 @@ const VIEW_TITLES = {
 function renderModuleView(view, moduleData) {
   switch (view) {
     case 'inbox':
-      return <Inbox mode="hub" />;
+    case 'tasks':
+      return <Tasks title="À traiter" />;
     case 'directory':
       return <Directory />;
     case 'call':
       return <Calls data={moduleData} />;
     case 'ip':
       return <Ip data={moduleData} />;
-    case 'tasks':
-      return <Tasks />;
     case 'order':
       return <QuickAction type="order" />;
     case 'billing':

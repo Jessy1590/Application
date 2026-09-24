@@ -3,6 +3,7 @@ import { useAuth } from '../../../core/AuthContext.jsx';
 import {
   fetchRecentIpLogs,
   fetchPendingIps,
+  fetchIpById,
   fetchHealthProfessionals,
   appendDoctorSwitchNote,
   insertIpLogReturning,
@@ -66,6 +67,13 @@ export default function Ip({ data: prefill }) {
     if (!pend.error) setPendingList(pend.data || []);
   }, [user?.id]);
 
+  const startFinishPending = (row) => {
+    setEditingId(row.id);
+    setFormData(ipRowToForm(row));
+    setSuccessMsg('');
+    setErrorMsg('');
+  };
+
   useEffect(() => {
     loadLists();
     fetchHealthProfessionals().then(({ data, error }) => {
@@ -74,7 +82,28 @@ export default function Ip({ data: prefill }) {
   }, [loadLists]);
 
   useEffect(() => {
+    let cancelled = false;
+    const resumeId = prefill?.ipId || prefill?.resumeId || null;
+    if (!resumeId) return undefined;
+
+    (async () => {
+      try {
+        const { data, error } = await fetchIpById(resumeId);
+        if (cancelled) return;
+        if (error) throw new Error(error.message);
+        if (data) startFinishPending(data);
+        else setErrorMsg('IP introuvable pour reprise.');
+      } catch (err) {
+        if (!cancelled) setErrorMsg(err.message || 'Impossible de charger l’IP.');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [prefill]);
+
+  useEffect(() => {
     if (!prefill?.fromCall) return;
+    if (prefill?.ipId || prefill?.resumeId) return;
     setFormData((prev) => {
       const doctorMatch = prefill.contact_id
         && doctors.some((d) => d.id === prefill.contact_id);
@@ -204,13 +233,6 @@ export default function Ip({ data: prefill }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const startFinishPending = (row) => {
-    setEditingId(row.id);
-    setFormData(ipRowToForm(row));
-    setSuccessMsg('');
-    setErrorMsg('');
   };
 
   return (

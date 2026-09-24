@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, Save, CheckCircle2, History, PauseCircle } from 'lucide-react';
 import { useAuth } from '../../../core/AuthContext.jsx';
-import { closeModuleWindow } from '../../../shared/windowService.js';
+import { closeModuleWindow, openModuleWindow } from '../../../shared/windowService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
 import StupefiantReceptionForm, { EMPTY_RECEPTION_FORM } from '../shared/StupefiantReceptionForm.jsx';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../services/stupefiantService.js';
 
 export default function StupefiantReception() {
-  const { user, profile } = useAuth();
+  const { user, profile, canAccess } = useAuth();
   const [form, setForm] = useState({ ...EMPTY_RECEPTION_FORM });
   const [blFile, setBlFile] = useState(null);
   const [livreurs, setLivreurs] = useState([]);
@@ -23,10 +23,16 @@ export default function StupefiantReception() {
   const [errorMsg, setErrorMsg] = useState('');
   const [resumeId, setResumeId] = useState(null);
 
+  const openDirectory = useCallback(() => {
+    if (canAccess('taskbar', 'directory')) {
+      openModuleWindow('directory');
+    }
+  }, [canAccess]);
+
   const load = useCallback(async () => {
     if (!user?.id) return;
     const [livs, hist] = await Promise.all([
-      fetchLivreurs({ actifsOnly: true }),
+      fetchLivreurs(),
       fetchMyReleves(user.id),
     ]);
     setLivreurs(livs);
@@ -34,7 +40,7 @@ export default function StupefiantReception() {
   }, [user?.id]);
 
   useEffect(() => { load().catch((e) => setErrorMsg(e.message)); }, [load]);
-  useRealtimeRefresh(load, { tables: ['stupefiant_releves', 'stupefiant_livreurs'], enabled: !!user?.id });
+  useRealtimeRefresh(load, { tables: ['stupefiant_releves', 'directory_contacts'], enabled: !!user?.id });
 
   const afterOk = async (msg) => {
     setSuccessMsg(msg);
@@ -129,13 +135,14 @@ export default function StupefiantReception() {
             operatorName={profile?.display_name || user?.email || ''}
             blFile={blFile}
             onBlFile={setBlFile}
+            onOpenDirectory={canAccess('taskbar', 'directory') ? openDirectory : null}
             showCountFields
           />
           <div className="flex flex-col gap-2">
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-lg flex justify-center gap-2"
+              disabled={loading || livreurs.length === 0}
+              className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-lg flex justify-center gap-2 disabled:opacity-60"
             >
               <Save size={18} />
               {loading ? 'Envoi…' : (resumeId ? 'Finaliser comptage' : 'Valider réception + comptage')}
@@ -143,9 +150,9 @@ export default function StupefiantReception() {
             {!resumeId && (
               <button
                 type="button"
-                disabled={loading}
+                disabled={loading || livreurs.length === 0}
                 onClick={(e) => handleSubmit(e, { hold: true })}
-                className="w-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold py-3 rounded-lg flex justify-center gap-2"
+                className="w-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold py-3 rounded-lg flex justify-center gap-2 disabled:opacity-60"
               >
                 <PauseCircle size={18} /> Mettre en attente
               </button>
@@ -184,6 +191,7 @@ export default function StupefiantReception() {
             </div>
             <p className="text-slate-600 mt-1">
               {h.nb_boites_recues} boîte(s)
+              {h.livreur_label && h.livreur_label !== '—' ? ` · ${h.livreur_label}` : ''}
               {h.bl_numero ? ` — BL ${h.bl_numero}` : ''}
               {h.is_du ? ' — dû' : ''}
             </p>

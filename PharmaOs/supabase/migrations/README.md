@@ -40,6 +40,11 @@ Ordre :
 36. `043_profiles_must_change_password.sql` — flag MDP temporaire sur `portail.profiles`
 37. `044_portail_service_role_schema_usage.sql` — GRANT schema portail à service_role + is_admin legacy `admin`
 38. `045_user_preferences.sql` — préférences UI (thème, placement / densité taskbar) + RLS own
+39. `046`–`048` — thèmes / densité / fonts prefs ; mes saisies 72h (appels / IP / qualité / stock)
+40. `049_directory_partenaire_type.sql` — `partenaire_type` / `partenaire_type_autre` sur `directory_contacts`
+41. `050_mes_saisies_all_modules.sql` — mes saisies : couverture modules
+42. `051_stupefiants_livreur_directory.sql` — livreurs stupéfiants → `directory_contacts` ; drop `stupefiant_livreurs`
+41. `050_mes_saisies_all_modules.sql` — Mes saisies règle B étendue (litiges, périmés, magistrales, location, RH, caisse, stupéfiants, MDS, documents, conseils)
 
 Source de vérité : `supabase/migrations/` (agrégat live). Miroirs `src/modules/<domaine>/sql/` (certains README-only : admin, conseil, inbox).
 

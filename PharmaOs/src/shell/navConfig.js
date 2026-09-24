@@ -1,5 +1,5 @@
 import {
-  PhoneCall, Calendar, CheckSquare, Activity, BookOpen, ShieldAlert,
+  PhoneCall, Calendar, Activity, BookOpen, ShieldAlert,
   FileText, AlertOctagon, Package, PackageX, BedDouble, Scale, FlaskConical, Droplets,
   Wallet, Users, LayoutDashboard, Pill, MessageCircle, Inbox, Pencil, User,
   ClipboardList, PlusCircle, RefreshCw, Lock, Phone, Receipt, Warehouse, ScanText, Settings,
@@ -19,7 +19,6 @@ export const NAV_SECTIONS = [
     items: [
       { id: 'inbox', label: 'À traiter', icon: Inbox, color: 'indigo' },
       { id: 'inbox_saisies', label: 'Mes saisies', icon: Pencil, color: 'indigo' },
-      { id: 'tasks', label: 'Mes tâches', icon: CheckSquare, color: 'orange' },
       { id: 'agenda', label: 'Agenda', icon: Calendar, color: 'purple' },
     ],
   },
@@ -114,11 +113,12 @@ export const NAV_SECTIONS = [
 
 export const ALL_NAV_ITEMS = NAV_SECTIONS.flatMap((s) => s.items);
 
-/** Alias legacy : ancien onglet unique Location / Magistrales → Suivi ; paramètres module → admin. */
+/** Alias legacy : ancien onglet unique Location / Magistrales → Suivi ; paramètres module → admin ; Mes tâches → À traiter. */
 export function resolveNavPageId(pageId) {
   if (pageId === 'location') return 'location_suivi';
   if (pageId === 'magistral') return 'magistral_suivi';
   if (pageId === 'location_parametres' || pageId === 'magistral_parametres') return 'parametres';
+  if (pageId === 'tasks') return 'inbox';
   return pageId;
 }
 

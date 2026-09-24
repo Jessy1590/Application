@@ -6,8 +6,9 @@ Accès UI : `canAccess('taskbar'|'dashboard', 'stupefiants')` (matrice Accès & 
 
 ## Tables
 
-- `PharmaOs.stupefiant_livreurs` — grossistes / généricueurs / plateformes
 - `PharmaOs.stupefiant_releves` — relevés réception + workflow pharmacien
+  - `livreur_id` → `directory_contacts` (partenaires `grossiste` | `generiqueur` | `plateforme`)
+- ~~`stupefiant_livreurs`~~ — droppée (`051`) ; référentiel = annuaire
 
 ## Statuts
 
@@ -25,4 +26,4 @@ Bucket `stupefiants-bl` (PDF / images BL).
 
 ## Migrations
 
-`037_stupefiants.sql`, `038_stupefiants_erreur_reception.sql`, `039_stupefiants_en_attente.sql`
+`037_stupefiants.sql`, `038_stupefiants_erreur_reception.sql`, `039_stupefiants_en_attente.sql`, `051_stupefiants_livreur_directory.sql`

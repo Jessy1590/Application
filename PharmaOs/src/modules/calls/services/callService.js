@@ -168,6 +168,17 @@ export async function fetchPendingCalls(userId) {
   return data || [];
 }
 
+export async function fetchCallById(id) {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function insertCallLog(payload) {
   return supabase.from('call_logs').insert([payload]).select().single();
 }

@@ -15,13 +15,13 @@ import {
 } from '../shared/taskDisplay.js';
 import {
   CheckCircle, MessageSquare, CheckSquare, User, Calendar, Tag, FileText,
-  ShoppingBag, AlertOctagon, Filter, LayoutDashboard, PackageX,
+  ShoppingBag, AlertOctagon, Filter, LayoutDashboard, PackageX, Play,
 } from 'lucide-react';
-import { openDashboardWindow, closeModuleWindow } from '../../../shared/windowService.js';
 import { submitRecountResult } from '../../stock/services/stockService.js';
 import { useRealtimeRefresh } from '../../../shared/useRealtimeRefresh.js';
+import { getTaskAction, runTaskNavigation } from '../shared/taskActions.js';
 
-export default function Tasks() {
+export default function Tasks({ title = 'À traiter' }) {
   const { user, profile } = useAuth();
   const [assignments, setAssignments] = useState([]);
   const [comments, setComments] = useState({});
@@ -82,23 +82,24 @@ export default function Tasks() {
     }
   };
 
-  const handleCompleteTask = (assignment) => {
+  const handlePrimaryAction = async (assignment) => {
     const details = parseTaskDetails(assignment.tasks?.description);
-    if (details.type === 'retrait_lot') {
+    const def = getTaskAction(details);
+
+    if (def.action === 'dashboard' || def.action === 'resume') {
+      const ok = await runTaskNavigation(def, details);
+      if (!ok && def.action === 'resume') {
+        alert('Impossible de reprendre : identifiant métier manquant.');
+      }
+      return;
+    }
+
+    if (def.closeMode === 'retrait_lot') {
       setRetraitModal(assignment);
       return;
     }
-    if (details.type === 'stock_recompte') {
+    if (def.closeMode === 'stock_recompte') {
       setRecompteModal(assignment);
-      return;
-    }
-    if (details.type === 'stock_recompte_result') {
-      openDashboardWindow({ page: 'stock' });
-      closeModuleWindow();
-      return;
-    }
-    if (details.type === 'stupefiant_verification' || details.type === 'stupefiant_recompte') {
-      openStupefiantVerify(assignment);
       return;
     }
     completeTask(assignment);
@@ -127,45 +128,6 @@ export default function Tasks() {
     } catch (e) {
       alert(e.message);
     }
-  };
-
-  const openPerimeDecisionOnDashboard = async (assignment) => {
-    const details = parseTaskDetails(assignment.tasks?.description);
-    await openDashboardWindow({
-      page: 'perimes',
-      perimeId: details.perime_id || null,
-    });
-    await closeModuleWindow();
-  };
-
-  const openHrOnDashboard = async () => {
-    await openDashboardWindow({ page: 'hr' });
-    await closeModuleWindow();
-  };
-
-  const isPerimeDecision = (assignment) => {
-    const details = parseTaskDetails(assignment.tasks?.description);
-    return details.type === 'perime_decision';
-  };
-
-  const isHrAdminAction = (assignment) => {
-    const details = parseTaskDetails(assignment.tasks?.description);
-    return details.type === 'hr_absence_demande' || details.type === 'hr_horaire_demande';
-  };
-
-  const isStupefiantVerify = (assignment) => {
-    const t = parseTaskDetails(assignment.tasks?.description).type;
-    return t === 'stupefiant_verification' || t === 'stupefiant_recompte';
-  };
-
-  const openStupefiantVerify = async (assignment) => {
-    const details = parseTaskDetails(assignment.tasks?.description);
-    await openDashboardWindow({
-      page: 'stupefiants',
-      releveId: details.releve_id || null,
-      tab: 'verifier',
-    });
-    await closeModuleWindow();
   };
 
   const handleRetraitConfirm = () => {
@@ -394,6 +356,35 @@ export default function Tasks() {
         </div>
       );
     }
+    if (data.type?.startsWith('magistral_')) {
+      return (
+        <div className="mt-3 p-4 bg-fuchsia-50 border border-fuchsia-200 rounded-lg text-sm">
+          <p className="font-bold text-fuchsia-800 mb-1">{TASK_CATEGORY_LABELS[data.type] || 'Magistrale'}</p>
+          <p>{data.patient_initiales || '—'}{data.formule ? ` — ${data.formule}` : ''}</p>
+        </div>
+      );
+    }
+    if (data.type === 'location_a_rappeler' || data.type === 'location_attente_suite') {
+      return (
+        <div className="mt-3 p-4 bg-cyan-50 border border-cyan-200 rounded-lg text-sm">
+          <p className="font-bold text-cyan-800 mb-1">{TASK_CATEGORY_LABELS[data.type]}</p>
+          <p>{data.patient || data.motif || '—'}</p>
+          {data.resultat && <p className="text-xs italic mt-1">{data.resultat}</p>}
+        </div>
+      );
+    }
+    if (data.type === 'cash_ecart') {
+      return (
+        <div className="mt-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-sm">
+          <p className="font-bold text-emerald-800 mb-1">Écart caisse — {data.closure_date}</p>
+          <p>
+            {data.ecart != null ? `${Number(data.ecart).toFixed(2)} €` : '—'}
+            {' '}(réel {data.fond_reel ?? '—'} / logiciel {data.fond_logiciel ?? '—'})
+          </p>
+          {data.author_name && <p className="text-xs text-slate-600 mt-1">Par {data.author_name}</p>}
+        </div>
+      );
+    }
     if (data.type === 'etalonnage_rdv') {
       return (
         <div className="mt-3 p-4 bg-teal-50 border border-teal-200 rounded-lg text-sm">
@@ -440,14 +431,68 @@ export default function Tasks() {
     return <p className="text-slate-600 mt-2 text-sm whitespace-pre-wrap">{typeof desc === 'string' ? desc : ''}</p>;
   };
 
-  const isRetrait = (assignment) => parseTaskDetails(assignment.tasks?.description).type === 'retrait_lot';
+  const isRetrait = (assignment) => getTaskAction(parseTaskDetails(assignment.tasks?.description)).closeMode === 'retrait_lot';
+
+  const renderPrimaryControls = (assignment) => {
+    const details = parseTaskDetails(assignment.tasks?.description);
+    const def = getTaskAction(details);
+    const btnBase = 'w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white';
+
+    if (def.action === 'dashboard') {
+      return (
+        <button
+          type="button"
+          onClick={() => handlePrimaryAction(assignment)}
+          className={`${btnBase} ${def.buttonClass || 'bg-amber-600 hover:bg-amber-700'}`}
+        >
+          <LayoutDashboard size={18} /> {def.label || 'Ouvrir le dashboard'}
+        </button>
+      );
+    }
+
+    if (def.action === 'resume') {
+      return (
+        <button
+          type="button"
+          onClick={() => handlePrimaryAction(assignment)}
+          className={`${btnBase} ${def.buttonClass || 'bg-sky-600 hover:bg-sky-700'}`}
+        >
+          <Play size={18} /> {def.label || 'Reprendre'}
+        </button>
+      );
+    }
+
+    return (
+      <>
+        <MessageSquare size={18} className="text-slate-400 shrink-0" />
+        <input
+          type="text"
+          placeholder={
+            def.closeMode === 'stock_recompte'
+              ? 'Note optionnelle (qté finale demandée à la clôture)'
+              : 'Ajouter une note ou visa de clôture...'
+          }
+          value={comments[assignment.id] || ''}
+          onChange={(e) => setComments({ ...comments, [assignment.id]: e.target.value })}
+          className="flex-1 text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500"
+        />
+        <button
+          type="button"
+          onClick={() => handlePrimaryAction(assignment)}
+          className={`font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors shrink-0 text-white ${def.closeMode === 'retrait_lot' ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+        >
+          <CheckCircle size={18} /> {def.label || 'Clôturer'}
+        </button>
+      </>
+    );
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-[var(--surface)] text-[var(--fg)]">
       <div className="px-6 py-4 border-b border-[var(--border)] bg-[var(--surface-elevated)] shadow-sm space-y-3">
         <div className="flex items-center gap-2">
           <CheckSquare className="text-amber-500" />
-          <h2 className="font-bold text-xl">Mes Tâches en cours</h2>
+          <h2 className="font-bold text-xl">{title}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Filter size={14} className="text-slate-400" />
@@ -480,61 +525,7 @@ export default function Tasks() {
                 {renderDescription(assignment.tasks?.description, assignment.tasks?.titre)}
               </div>
               <div className="flex items-center gap-3 pt-4 mt-4 border-t border-slate-100">
-                {isPerimeDecision(assignment) ? (
-                  <button
-                    type="button"
-                    onClick={() => openPerimeDecisionOnDashboard(assignment)}
-                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-amber-600 hover:bg-amber-700"
-                  >
-                    <LayoutDashboard size={18} /> Décider sur le dashboard
-                  </button>
-                ) : isHrAdminAction(assignment) ? (
-                  <button
-                    type="button"
-                    onClick={() => openHrOnDashboard()}
-                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-indigo-600 hover:bg-indigo-700"
-                  >
-                    <LayoutDashboard size={18} /> Ouvrir RH dashboard
-                  </button>
-                ) : isStupefiantVerify(assignment) ? (
-                  <button
-                    type="button"
-                    onClick={() => openStupefiantVerify(assignment)}
-                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-rose-600 hover:bg-rose-700"
-                  >
-                    <LayoutDashboard size={18} /> Ouvrir vérification
-                  </button>
-                ) : parseTaskDetails(assignment.tasks?.description).type === 'stock_recompte_result' ? (
-                  <button
-                    type="button"
-                    onClick={() => handleCompleteTask(assignment)}
-                    className="w-full font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors text-white bg-violet-600 hover:bg-violet-700"
-                  >
-                    <LayoutDashboard size={18} /> Ouvrir stock dashboard
-                  </button>
-                ) : (
-                  <>
-                    <MessageSquare size={18} className="text-slate-400 shrink-0" />
-                    <input
-                      type="text"
-                      placeholder={
-                        parseTaskDetails(assignment.tasks?.description).type === 'stock_recompte'
-                          ? 'Note optionnelle (qté finale demandée à la clôture)'
-                          : 'Ajouter une note ou visa de clôture...'
-                      }
-                      value={comments[assignment.id] || ''}
-                      onChange={(e) => setComments({ ...comments, [assignment.id]: e.target.value })}
-                      className="flex-1 text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleCompleteTask(assignment)}
-                      className={`font-bold px-4 py-2.5 rounded-lg flex items-center gap-2 transition-colors shrink-0 text-white ${isRetrait(assignment) ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
-                    >
-                      <CheckCircle size={18} /> Clôturer
-                    </button>
-                  </>
-                )}
+                {renderPrimaryControls(assignment)}
               </div>
             </div>
           ))

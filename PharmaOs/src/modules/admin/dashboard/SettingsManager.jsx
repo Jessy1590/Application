@@ -24,7 +24,7 @@ const TAB_ICONS = {
  */
 export default function SettingsManager({
   initialTab = null,
-  onNavigate: _onNavigate = null,
+  onNavigate = null,
   pageData = null,
 }) {
   const { canAccess } = useAuth();
@@ -35,8 +35,17 @@ export default function SettingsManager({
   );
 
   const requested = resolveSettingsTab(initialTab || pageData?.tab || pageData?.settingsTab);
+
+  useEffect(() => {
+    if (requested === 'directory_redirect' && typeof onNavigate === 'function') {
+      onNavigate('directory');
+    }
+  }, [requested, onNavigate]);
+
   const [tab, setTab] = useState(() => {
-    if (requested && visibleTabs.some((t) => t.id === requested)) return requested;
+    if (requested && requested !== 'directory_redirect' && visibleTabs.some((t) => t.id === requested)) {
+      return requested;
+    }
     return visibleTabs[0]?.id || null;
   });
 
@@ -46,6 +55,7 @@ export default function SettingsManager({
       return;
     }
     const next = resolveSettingsTab(initialTab || pageData?.tab || pageData?.settingsTab);
+    if (next === 'directory_redirect') return;
     if (next && visibleTabs.some((t) => t.id === next)) {
       setTab(next);
       return;
@@ -100,9 +110,9 @@ export default function SettingsManager({
       </div>
 
       <div>
-        {tab === 'general' && <GeneralSettingsPanel />}
+        {tab === 'general' && <GeneralSettingsPanel onNavigate={onNavigate} />}
         {tab === 'location' && (
-          <LocationManager view="parametres" onNavigate={_onNavigate} pageData={pageData} />
+          <LocationManager view="parametres" onNavigate={onNavigate} pageData={pageData} />
         )}
         {tab === 'preparations' && <MagistralSettingsPanel />}
         {tab === 'perimes' && <PerimesEmplacementsSettings />}

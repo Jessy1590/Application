@@ -26,6 +26,22 @@ CREATE TABLE IF NOT EXISTS "PharmaOs".directory_contacts (
   site_web text,
   tel_service_client text,
   email_service_client text,
+  partenaire_type text,
+  partenaire_type_autre text,
   CHECK ((type = ANY (ARRAY['health_professional'::text, 'commercial_partner'::text]))),
+  CHECK (
+    partenaire_type IS NULL
+    OR partenaire_type = ANY (ARRAY[
+      'laboratoire'::text,
+      'grossiste'::text,
+      'plateforme'::text,
+      'generiqueur'::text,
+      'autre'::text
+    ])
+  ),
+  CHECK (
+    type = 'commercial_partner'
+    OR (partenaire_type IS NULL AND partenaire_type_autre IS NULL)
+  ),
   PRIMARY KEY ("id")
 );

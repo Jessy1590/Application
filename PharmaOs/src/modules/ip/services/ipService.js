@@ -104,6 +104,15 @@ export async function fetchPendingIps(userId = null) {
   return { data: data || [], error };
 }
 
+export async function fetchIpById(id) {
+  if (!id) return { data: null, error: null };
+  return supabase
+    .from('act_ip_logs')
+    .select('*, directory_contacts(nom, prenom)')
+    .eq('id', id)
+    .maybeSingle();
+}
+
 export async function cancelIp(ipId) {
   return updateIp(ipId, { statut_ip: 'Annulee' });
 }

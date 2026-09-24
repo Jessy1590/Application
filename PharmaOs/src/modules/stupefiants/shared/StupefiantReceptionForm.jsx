@@ -1,6 +1,6 @@
 import React from 'react';
 import MedicamentFields from '../../../shared/MedicamentFields.jsx';
-import { LIVREUR_TYPE_LABELS } from '../services/stupefiantService.js';
+import { LIVREUR_TYPE_LABELS, formatLivreurLabel } from '../services/stupefiantService.js';
 
 const inputCls = 'w-full p-2 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-rose-500';
 
@@ -15,12 +15,14 @@ export default function StupefiantReceptionForm({
   operatorName = '',
   blFile = null,
   onBlFile,
+  onOpenDirectory = null,
   compact = false,
   showCountFields = true,
   readOnly = false,
 }) {
   const patch = (p) => { if (!readOnly) onChange(p); };
   const disabled = !!readOnly;
+  const noLivreurs = !livreurs.length;
 
   return (
     <div className={`space-y-4 text-sm ${compact ? '' : ''}`}>
@@ -85,18 +87,41 @@ export default function StupefiantReceptionForm({
           <label className="block font-semibold mb-1">Livreur *</label>
           <select
             required
-            disabled={disabled}
+            disabled={disabled || noLivreurs}
             value={form.livreur_id || ''}
             onChange={(e) => patch({ livreur_id: e.target.value })}
             className={inputCls}
           >
-            <option value="">Choisir…</option>
+            <option value="">
+              {noLivreurs ? 'Aucun partenaire dans l’annuaire…' : 'Choisir…'}
+            </option>
             {livreurs.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.label} ({LIVREUR_TYPE_LABELS[l.type] || l.type})
+                {l.label} ({l.type_label || LIVREUR_TYPE_LABELS[l.type] || l.type})
               </option>
             ))}
           </select>
+          <p className="text-[11px] text-slate-500 mt-1">
+            Grossistes, génériqueurs et plateformes de l’annuaire.
+            {onOpenDirectory && (
+              <>
+                {' '}
+                <button
+                  type="button"
+                  onClick={onOpenDirectory}
+                  className="text-sky-700 underline font-medium"
+                >
+                  Ouvrir l’annuaire
+                </button>
+              </>
+            )}
+          </p>
+          {noLivreurs && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
+              Ajoutez un partenaire commercial (type grossiste, génériqueur ou plateforme)
+              dans l’annuaire pour pouvoir saisir une réception.
+            </p>
+          )}
         </div>
       </div>
 
@@ -267,7 +292,7 @@ export const EMPTY_RECEPTION_FORM = {
 /** Résumé compact lecture seule (onglet vérification pharmacien). */
 export function StupefiantReceptionSummary({ releve, onOpenBl }) {
   if (!releve) return null;
-  const liv = releve.stupefiant_livreurs?.label || '—';
+  const liv = releve.livreur_label || formatLivreurLabel(releve);
   return (
     <div className="text-sm bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
       <div className="flex justify-between gap-2">
