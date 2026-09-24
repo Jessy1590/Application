@@ -1,6 +1,6 @@
 // Gate UX uniquement — ne remplace PAS la RLS Supabase.
 // Contournable via DevTools ou appels API directs avec JWT valide.
-const URL_PORTAIL = "https://jessy1590.github.io/Application";
+const URL_PORTAIL = "/";
 
 function getSupabaseConfig() {
   const cfg = window.SUPABASE_CONFIG;

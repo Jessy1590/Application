@@ -1,0 +1,9 @@
+# Même périmètre public que l’ancien artefact GitHub Pages :
+# docs internes, SQL et règles Cursor ne sont pas servis.
+**/*.sql
+**/*.md
+**/*.mdc
+**/.cursor
+**/.github
+**/node_modules
+dist

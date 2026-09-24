@@ -38,14 +38,13 @@ Conserver / appliquer séparément si besoin (fichiers historiques, non versionn
 
 Vérifier que **Exposed schemas** inclut : `portail`, `PharmaOs`, `autres`, `valorisation`, `phieevreux`, `public`.
 
-## 4. Secrets GitHub Actions
+## 4. Hébergement Vercel
 
-Dans le repo GitHub → Settings → Secrets → Actions :
+Le hub statique est servi par Vercel à la racine du domaine. La configuration publique du client est lue telle quelle, sans injection au build.
 
-| Secret | Valeur |
-|--------|--------|
-| `SUPABASE_URL` | `https://kpjflntnotftpzffjbud.supabase.co` |
-| `SUPABASE_ANON_KEY` | Clé anon du dashboard |
+- URL et clé anon du hub : `shared/supabase-config.js` (clé anon publique par conception).
+- Variables d’environnement : tableau de bord Vercel, jamais dans le dépôt.
+- Secrets des Edge Functions (`service_role`, Azure, Resend, Gemini) : dashboard Supabase.
 
 ## 5. Edge Function invite-user
 
@@ -96,5 +95,5 @@ Voir `supabase/functions/ocr-document/README.md` et `ocr-map-fields/README.md`.
 ## 6. Rotation clé anon (après RLS verrouillée)
 
 1. Settings → API → Regenerate anon key
-2. Mettre à jour le secret GitHub `SUPABASE_ANON_KEY`
-3. Redéployer GitHub Pages
+2. Mettre à jour `shared/supabase-config.js`
+3. Redéployer le projet sur Vercel
