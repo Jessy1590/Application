@@ -1,0 +1,21 @@
+# Hub applicatif — contexte permanent
+
+## Architecture du projet
+Ce dépôt est un hub / portail central pour les applications personnelles et professionnelles.
+Les applications statiques (HTML, CSS, JavaScript) sont servies depuis la racine du dépôt et leurs dossiers dédiés.
+PharmaOs (`PharmaOs/`) est une application Electron à part : son outillage (Vite, `package.json`, `base: './'`) sert au bureau, pas à l’hébergement web du hub.
+
+## Hébergement
+Le hub est déployé sur Vercel, à la racine du domaine.
+Les recommandations d’architecture, de routage et de performance privilégient l’écosystème Vercel : fonctions Serverless, Edge, et configuration via `vercel.json` lorsque c’est nécessaire (en-têtes, redirections, réécritures).
+Ne pas réintroduire de déploiement GitHub Pages (workflow Actions, paquet `gh-pages`, clé `homepage`, préfixe de chemin du type `/Application`).
+
+## Base de données
+Les données et l’authentification sont gérées via Supabase (PostgreSQL, Auth, RLS, temps réel, Edge Functions).
+Côté navigateur, seule la clé anon est utilisable. La clé `service_role` reste côté Supabase (secrets des fonctions) et ne doit jamais apparaître dans le dépôt ni dans le client.
+
+## Variables d’environnement
+Les variables d’environnement ne doivent pas être versionnées.
+Elles sont définies dans le tableau de bord Vercel.
+Les secrets des Edge Functions Supabase se configurent dans le dashboard Supabase.
+Un fichier d’exemple (`.env.example`) peut lister les noms de variables, sans valeurs réelles.

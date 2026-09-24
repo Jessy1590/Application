@@ -2,7 +2,7 @@
  * FABs Accueil + Bug (partagés hub / apps).
  */
 (function (global) {
-  const PORTAIL_URL = 'https://jessy1590.github.io/Application';
+  const PORTAIL_URL = '/';
 
   /**
    * @param {{
