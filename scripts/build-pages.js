@@ -43,32 +43,63 @@ function copyRecursive(src, dest, rel = '') {
     return;
   }
   if (shouldExclude(rel)) return;
+  if (path.basename(src) === '.DS_Store') return;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.copyFileSync(src, dest);
 }
 
-function injectSupabaseConfig() {
-  const configPath = path.join(DIST, 'shared', 'supabase-config.js');
-  if (!fs.existsSync(configPath)) return;
+function jsString(value) {
+  return `'${String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
 
-  const url = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
+function injectSupabaseConfig() {
+  const url = (process.env.SUPABASE_URL || '').trim().replace(/\/$/, '');
+  const anonKey = (process.env.SUPABASE_ANON_KEY || '').trim();
   if (!url || !anonKey) {
-    console.log('[build-pages] Secrets Supabase absents — config locale conservée.');
-    return;
+    console.error('[build-pages] SUPABASE_URL et SUPABASE_ANON_KEY sont requis.');
+    process.exit(1);
+  }
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) {
+    console.error('[build-pages] SUPABASE_URL invalide.');
+    process.exit(1);
   }
 
-  let content = fs.readFileSync(configPath, 'utf8');
-  content = content.replace(
-    /url:\s*'[^']*'/,
-    `url: '${url}'`
-  );
-  content = content.replace(
-    /anonKey:\s*'[^']*'/,
-    `anonKey: '${anonKey}'`
-  );
+  const configPath = path.join(DIST, 'shared', 'supabase-config.js');
+  if (!fs.existsSync(configPath)) {
+    console.error('[build-pages] shared/supabase-config.js absent de dist/.');
+    process.exit(1);
+  }
+
+  const content = [
+    'window.SUPABASE_CONFIG = {',
+    `  url: ${jsString(url)},`,
+    `  anonKey: ${jsString(anonKey)},`,
+    '};',
+    '',
+  ].join('\n');
   fs.writeFileSync(configPath, content);
-  console.log('[build-pages] Config Supabase injectée depuis secrets CI.');
+
+  const host = url.slice('https://'.length);
+  const httpToken = '__SUPABASE_HTTP__';
+  const wssToken = '__SUPABASE_WSS__';
+  let rewritten = 0;
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!/\.(html|js)$/i.test(entry.name)) continue;
+      const raw = fs.readFileSync(full, 'utf8');
+      if (!raw.includes(httpToken) && !raw.includes(wssToken)) continue;
+      const next = raw.split(httpToken).join(url).split(wssToken).join(`wss://${host}`);
+      fs.writeFileSync(full, next);
+      rewritten += 1;
+    }
+  }
+  walk(DIST);
+  console.log(`[build-pages] Config Supabase injectée (${rewritten} fichier(s) CSP).`);
 }
 
 if (fs.existsSync(DIST)) fs.rmSync(DIST, { recursive: true, force: true });
