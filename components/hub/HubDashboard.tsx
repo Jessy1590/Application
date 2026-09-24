@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
+import { resolveSiteHref } from '@/config/sites';
 import {
   PASSWORD_HINT,
   PortailProfile,
@@ -353,7 +354,7 @@ function MineView({
               key={site.id}
               className="card available"
               style={{ ['--card-color' as string]: color }}
-              href={site.url}
+              href={resolveSiteHref(site)}
             >
               <span className="sweep" />
               <div className="card-top">
@@ -747,7 +748,7 @@ function AdminView({
           </div>
           <div className="field">
             <label>URL</label>
-            <input name="url" type="url" placeholder="https://..." required />
+            <input name="url" type="text" placeholder="/Banque/ ou https://…" required />
           </div>
           <div className="field">
             <label>Description</label>
@@ -860,11 +861,12 @@ function AdminView({
             <label>URL</label>
             <input
               name="url"
-              type="url"
+              type="text"
               key={editId + '-url'}
               defaultValue={selected?.url || ''}
               required
               disabled={!editId}
+              placeholder="/Banque/ ou https://…"
             />
           </div>
           <div className="field">

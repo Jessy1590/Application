@@ -55,3 +55,36 @@ export function siteByPathPrefix(pathname: string): SiteConfig | undefined {
     (s) => normalized === s.publicPath || normalized.startsWith(s.publicPath),
   );
 }
+
+export function publicPathBySiteId(siteId: string): string | undefined {
+  return Object.values(SITES).find((s) => s.siteId === siteId)?.publicPath;
+}
+
+/**
+ * Lien d’ouverture hub → app : chemin relatif vers le fichier HTML
+ * (`/Banque/index.html`). Next ne résout pas seul `/Banque/` → index.html.
+ */
+export function resolveSiteHref(site: { id: string; url?: string | null }): string {
+  const mapped = publicPathBySiteId(site.id);
+  if (mapped) {
+    const base = mapped.endsWith('/') ? mapped : `${mapped}/`;
+    return `${base}index.html`;
+  }
+
+  const raw = (site.url || '').trim();
+  if (!raw) return '/';
+
+  let path = raw;
+  if (!raw.startsWith('/')) {
+    try {
+      path = new URL(raw).pathname || '/';
+    } catch {
+      path = raw.startsWith('/') ? raw : `/${raw}`;
+    }
+  }
+
+  if (path.endsWith('index.html')) return path;
+  if (path.endsWith('.html')) return path;
+  const base = path.endsWith('/') ? path : `${path}/`;
+  return `${base}index.html`;
+}
