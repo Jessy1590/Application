@@ -2,7 +2,14 @@
  * Module Transcription — import/OCR + formulaire création ouvert (scroll) + persist.
  */
 (function (global) {
-  const TYPES = ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
+  function typeCodes() {
+    if (typeof LocationRules?.typeCodes === 'function') {
+      const list = LocationRules.typeCodes();
+      if (list && list.length) return list;
+    }
+    const keys = Object.keys(LocationRules?.TYPE_LABELS || {});
+    return keys.length ? keys : ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
+  }
 
   const MOTIF_LABELS = {
     prolongation: 'Prolongation',
@@ -492,7 +499,7 @@
           state.notes = v;
           break;
         case 'type_appareil': {
-          const code = resolveEnumCode(v, TYPES, [
+          const code = resolveEnumCode(v, typeCodes(), [
             [/neurostim|tens|neuro.?stim/i, 'tens'],
             [/tire.?lait|tirelait|medela|symphony/i, 'tire_lait'],
             [/a[eé]rosol|nebul/i, 'aerosol'],
@@ -821,13 +828,11 @@
      */
     function buildAiFieldSchema() {
       const typeLabels = LocationRules.TYPE_LABELS || {};
-      const typeCodes = Object.keys(typeLabels).length
-        ? Object.keys(typeLabels)
-        : TYPES.slice();
+      const codes = typeCodes();
 
       /** Listes déroulantes = mêmes options que le formulaire Création. */
       const DROPDOWNS = {
-        type_appareil: typeCodes.map((value) => ({
+        type_appareil: codes.map((value) => ({
           value,
           label: typeLabels[value] || value,
           aliases: ({
@@ -1033,7 +1038,7 @@
         fields,
         workflow: workflowParts.join(' '),
         generated_at: new Date().toISOString(),
-        types: typeCodes,
+        types: codes,
       };
     }
 
@@ -1584,7 +1589,7 @@
         <h3>Personnel</h3>
         ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}">`, req('personnel', 'code_op'), 'code_op') : ''}
         ${show('personnel', 'caution') ? field('Caution', `<select name="caution">
-          <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}>Rien</option>
+          <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}></option>
           <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
           <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Espèces</option>
         </select>`, req('personnel', 'caution'), 'caution') : ''}
@@ -1609,7 +1614,7 @@
         <h3>Appareil</h3>
         ${attentions}
         ${show('appareil', 'type_appareil') ? field('Type d’appareil', `<select name="type_appareil">
-          ${TYPES.map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
+          ${typeCodes().map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
         </select>`, req('appareil', 'type_appareil'), 'type_appareil') : `<input type="hidden" name="type_appareil" value="${esc(state.appareil.type_appareil)}">`}
         ${autre && show('appareil', 'type_libelle') ? field('Libellé (autre)', `<input name="type_libelle" value="${esc(state.appareil.type_libelle || '')}">`, req('appareil', 'type_libelle'), 'type_libelle') : ''}
         ${show('appareil', 'source') ? field('Source', `<select name="source">
@@ -1695,7 +1700,7 @@
             )}
             ${field('Notes', `<input name="pr_notes_${i}" value="${esc(pr.notes || '')}" placeholder="Optionnel">`, false, 'prolong_notes')}
           </div>
-          <p class="loc-hint">Fin après celle-ci : <strong>${fin || '—'}</strong></p>
+          <p class="loc-hint">Fin après celle-ci : <strong data-prolong-fin>${fin || '—'}</strong></p>
         </div>`;
         })
         .join('');
@@ -1917,15 +1922,35 @@
         recalcProlongHint();
       };
 
+      function prolongFinBaseFromForm() {
+        const dd = formEl.querySelector('[name=date_debut]')?.value || state.date_debut;
+        const duree = Number(formEl.querySelector('[name=duree]')?.value || state.duree);
+        const unite = formEl.querySelector('[name=unite]')?.value || state.unite;
+        return (
+          LocationRules.addDuration(dd || state.date_ordo, duree, unite) ||
+          dd ||
+          state.date_ordo ||
+          LocationRules.todayISO()
+        );
+      }
+
       function recalcProlongHint() {
-        let running = locationFinBase();
-        (state.prolongations || []).forEach((pr, i) => {
-          const duree = Number(formEl.querySelector('[name=pr_duree_' + i + ']')?.value || pr.duree || 0);
-          const unite = formEl.querySelector('[name=pr_unite_' + i + ']')?.value || pr.unite || 'semaines';
-          if (duree > 0) running = LocationRules.addDuration(running, duree, unite) || running;
+        let running = prolongFinBaseFromForm();
+        const cards = formEl.querySelectorAll('[data-prolong-idx]');
+        cards.forEach((card) => {
+          const i = card.getAttribute('data-prolong-idx');
+          const duree = Number(formEl.querySelector('[name=pr_duree_' + i + ']')?.value || 0);
+          const unite = formEl.querySelector('[name=pr_unite_' + i + ']')?.value || 'semaines';
+          let fin = null;
+          if (duree > 0) {
+            fin = LocationRules.addDuration(running, duree, unite);
+            if (fin) running = fin;
+          }
+          const elFin = card.querySelector('[data-prolong-fin]');
+          if (elFin) elFin.textContent = fin || '—';
         });
         const ph = formEl.querySelector('#trProlongFinHint');
-        if (ph) ph.textContent = (state.prolongations || []).length ? running || '—' : '—';
+        if (ph) ph.textContent = cards.length ? running || '—' : '—';
       }
 
       formEl.querySelector('#trAddProlong')?.addEventListener('click', (e) => {

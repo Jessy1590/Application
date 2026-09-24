@@ -2,7 +2,14 @@
  * Module Création — patient → personnel/caution → appareil → ordo.
  */
 (function (global) {
-  const TYPES = ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
+  function typeCodes() {
+    if (typeof LocationRules?.typeCodes === 'function') {
+      const list = LocationRules.typeCodes();
+      if (list && list.length) return list;
+    }
+    const keys = Object.keys(LocationRules?.TYPE_LABELS || {});
+    return keys.length ? keys : ['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'];
+  }
 
   function el(html) {
     const t = document.createElement('template');
@@ -163,7 +170,7 @@
     if (prefill.source === 'parc' || prefill.source === 'prestataire') {
       state.appareil.source = prefill.source;
     }
-    if (prefill.type_appareil && TYPES.includes(prefill.type_appareil)) {
+    if (prefill.type_appareil && typeCodes().includes(prefill.type_appareil)) {
       state.appareil.type_appareil = prefill.type_appareil;
     }
     if (prefill.numero_pharmacie) {
@@ -580,7 +587,7 @@
       formEl.innerHTML = `
         ${show('personnel', 'code_op') ? field('Code OP', `<input name="code_op" value="${esc(state.code_op)}">`, req('personnel', 'code_op')) : ''}
         ${show('personnel', 'caution') ? field('Caution', `<select name="caution">
-          <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}>Rien</option>
+          <option value=""${state.caution === '' || state.caution == null ? ' selected' : ''}></option>
           <option value="cheque_150"${state.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
           <option value="especes"${state.caution === 'especes' ? ' selected' : ''}>Espèces</option>
         </select>`, req('personnel', 'caution')) : ''}
@@ -604,7 +611,7 @@
       formEl.innerHTML = `
         ${attentions}
         ${show('appareil', 'type_appareil') ? field('Type d’appareil', `<select name="type_appareil">
-          ${TYPES.map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
+          ${typeCodes().map((t) => `<option value="${t}"${state.appareil.type_appareil === t ? ' selected' : ''}>${LocationRules.typeLabel(t)}</option>`).join('')}
         </select>`, req('appareil', 'type_appareil')) : `<input type="hidden" name="type_appareil" value="${esc(state.appareil.type_appareil)}">`}
         ${autre && show('appareil', 'type_libelle') ? field('Libellé (autre)', `<input name="type_libelle" value="${esc(state.appareil.type_libelle || '')}">`, req('appareil', 'type_libelle')) : ''}
         ${show('appareil', 'source') ? field('Source', `<select name="source">

@@ -201,8 +201,10 @@
   }
 
   /**
-   * Si le document montre clairement NEUROSTIMULATEUR / TENS, forcer type_appareil=tens
+   * Si le document montre clairement NEUROSTIMULATEUR, forcer type_appareil=tens
    * (corrige IA qui omet ou met « autre »).
+   * Ne pas écraser un type déjà résolu (aerosol, tire_lait…) juste parce que
+   * le mot « TENS » figure dans une liste de cases du formulaire.
    */
   function enforceTypeFromDocument(mappings, fullText) {
     const detected = detectTypeAppareil(fullText);
@@ -210,41 +212,58 @@
     const map = new Map((mappings || []).map((m) => [m.code, m]));
     const cur = map.get('type_appareil');
     const curNorm = resolveLooseType(cur?.value);
+    const curWeak = !curNorm || curNorm === 'autre';
+    const strongTens = /neurostim|neuro.?stimul|neurostimulation/.test(n);
 
     let forced = detected;
-    if (/neurostim/.test(n) || (/\btens\b/.test(n) && !/tire.?lait/.test(n))) {
-      forced = 'tens';
-    }
+    if (strongTens) forced = 'tens';
 
-    if (forced && forced !== curNorm) {
-      map.set('type_appareil', {
-        code: 'type_appareil',
-        value: forced,
-        confidence: 0.95,
-        source: 'ocr-force',
-        previous: cur?.value ?? null,
-      });
-    } else if (forced && !curNorm) {
-      map.set('type_appareil', {
-        code: 'type_appareil',
-        value: forced,
-        confidence: 0.9,
-        source: 'ocr-force',
-      });
-    }
+    if (!forced || forced === curNorm) return Array.from(map.values());
+    /* Neurostim clair : corrige même une valeur IA erronée. Sinon : seulement vide/autre. */
+    if (!strongTens && !curWeak) return Array.from(map.values());
+
+    map.set('type_appareil', {
+      code: 'type_appareil',
+      value: forced,
+      confidence: 0.95,
+      source: 'ocr-force',
+      previous: cur?.value ?? null,
+    });
     return Array.from(map.values());
   }
 
   function resolveLooseType(v) {
-    const s = String(v || '').trim().toLowerCase();
-    if (!s) return '';
+    const raw = String(v || '').trim();
+    if (!raw) return '';
+    const s = raw
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
     if (['aerosol', 'tire_lait', 'pese_bebe', 'tens', 'fauteuil', 'autre'].includes(s)) return s;
-    if (/neurostim|tens/.test(s)) return 'tens';
-    if (/tire.?lait/.test(s)) return 'tire_lait';
-    if (/a[eé]rosol/.test(s)) return 'aerosol';
-    if (/p[eè]se/.test(s)) return 'pese_bebe';
+    if (/neurostim|actitens|cefar|(^|_)tens(_|$)|tens_eco/.test(s)) return 'tens';
+    if (/tire_?lait|tirelait|medela|symphony/.test(s)) return 'tire_lait';
+    if (/aeroso|nebuliseur|aerosoltherapie/.test(s)) return 'aerosol';
+    if (/pese_?beb|pesee_?beb|pesebebe/.test(s)) return 'pese_bebe';
     if (/fauteuil/.test(s)) return 'fauteuil';
     return '';
+  }
+
+  /** Valeur saisie après un libellé « type d'appareil » / « type location » déjà prévu. */
+  function extractTypeAppareilFromLabel(text) {
+    const raw = String(text || '');
+    const patterns = [
+      /type\s*d[''\u2019 ]?\s*appareil\s*[:.\-–—]?\s*([^\n\r]{1,80})/i,
+      /type\s*appareil\s*[:.\-–—]?\s*([^\n\r]{1,80})/i,
+      /type\s*(?:de\s+)?location\s*[:.\-–—]?\s*([^\n\r]{1,80})/i,
+    ];
+    for (const re of patterns) {
+      const m = raw.match(re);
+      if (!m) continue;
+      const resolved = resolveLooseType(m[1]);
+      if (resolved && resolved !== 'autre') return resolved;
+    }
+    return null;
   }
 
   function scaleWords(words, srcW, srcH, dstW, dstH) {
@@ -615,14 +634,22 @@
   }
 
   function detectTypeAppareil(text) {
+    const fromLabel = extractTypeAppareilFromLabel(text);
+    if (fromLabel) return fromLabel;
+
     const n = normalizeText(text);
-    /* Neurostimulateur / TENS en premier (fiche papier : section + case TENS) */
+    /* Section NEUROSTIMULATEUR = signal fort (pas une simple case listée). */
     if (/neurostim|neuro.?stimul|neurostimulation/.test(n)) return 'tens';
-    if (/\btens\b|tens\s*eco|actitens|cefar/.test(n)) return 'tens';
-    if (/tire.?lait|tirelait|medela|symphony/.test(n)) return 'tire_lait';
-    if (/a[eé]rosol|nebuliseur|n[eé]buliseur|aerosoltherapie/.test(n)) return 'aerosol';
-    if (/p[eè]se.?b[eé]b[eé]|pesee.?bebe|pesebebe/.test(n)) return 'pese_bebe';
-    if (/fauteuil/.test(n)) return 'fauteuil';
+
+    const hits = [];
+    if (/\btens\b|tens\s*eco|actitens|cefar/.test(n)) hits.push('tens');
+    if (/tire.?lait|tirelait|medela|symphony/.test(n)) hits.push('tire_lait');
+    if (/aeroso|nebuliseur|aerosoltherapie/.test(n)) hits.push('aerosol');
+    if (/pese.?beb|pesee.?bebe|pesebebe/.test(n)) hits.push('pese_bebe');
+    if (/fauteuil/.test(n)) hits.push('fauteuil');
+
+    if (hits.length === 1) return hits[0];
+    /* Plusieurs libellés de types dans le texte (cases du formulaire) → ambigu. */
     return null;
   }
 

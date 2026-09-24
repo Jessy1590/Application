@@ -3,7 +3,8 @@
  * Table : phieevreux.location_regles
  */
 (function (global) {
-  const TYPE_LABELS = {
+  /** Catalogue de base (toujours présent). Les types admin sont fusionnés via applyCustomTypes. */
+  const DEFAULT_TYPE_LABELS = {
     aerosol: 'Aérosol',
     tire_lait: 'Tire-lait',
     pese_bebe: 'Pèse-bébé',
@@ -11,6 +12,40 @@
     fauteuil: 'Fauteuil',
     autre: 'Autre',
   };
+
+  /** Objet mutable partagé (référence stable pour les selects). */
+  const TYPE_LABELS = Object.assign({}, DEFAULT_TYPE_LABELS);
+
+  function normalizeTypeCode(raw) {
+    return String(raw || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '');
+  }
+
+  /**
+   * Fusionne location_parametres.types_appareil ({ code: libellé }) dans TYPE_LABELS.
+   * Réinitialise d’abord aux défauts pour retirer les codes plus présents en base.
+   */
+  function applyCustomTypes(custom) {
+    Object.keys(TYPE_LABELS).forEach((k) => {
+      if (!(k in DEFAULT_TYPE_LABELS)) delete TYPE_LABELS[k];
+    });
+    Object.assign(TYPE_LABELS, DEFAULT_TYPE_LABELS);
+    if (!custom || typeof custom !== 'object' || Array.isArray(custom)) return;
+    for (const [rawCode, rawLabel] of Object.entries(custom)) {
+      const code = normalizeTypeCode(rawCode);
+      if (!code || !/^[a-z][a-z0-9_]*$/.test(code)) continue;
+      const label = String(rawLabel ?? '').trim();
+      if (!label) continue;
+      TYPE_LABELS[code] = label;
+    }
+  }
+
+  function typeCodes() {
+    return Object.keys(TYPE_LABELS);
+  }
 
   const GENERIC_CONTACT_MOTIFS = new Set([
     'fin_location',
@@ -345,6 +380,7 @@
 
   global.LocationRules = {
     TYPE_LABELS,
+    DEFAULT_TYPE_LABELS,
     MOTIF_TO_TEMPLATE,
     MOTIF_PRIORITY,
     GENERIC_CONTACT_MOTIFS,
@@ -362,6 +398,9 @@
     evaluate,
     isHorsFileContact,
     typeLabel,
+    normalizeTypeCode,
+    applyCustomTypes,
+    typeCodes,
     listRules,
     upsertRule,
     deleteRule,

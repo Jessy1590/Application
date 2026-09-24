@@ -336,12 +336,13 @@
       detailEl.innerHTML = '<p class="loc-muted">Chargement…</p>';
       try {
         const d = await LocationData.getDossier(id);
-        const [rules, params, champsDef] = await Promise.all([
+        const [rules, params, champsDef, prestataires] = await Promise.all([
           LocationData.loadRules(),
           LocationData.loadParams(),
           LocationData.listChampsCreation(null, false),
+          LocationData.listPrestataires(true),
         ]);
-        renderDetail(d, rules, params, champsDef);
+        renderDetail(d, rules, params, champsDef, prestataires);
         if (pendingCloture) {
           pendingCloture = false;
           const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
@@ -433,7 +434,7 @@
       return `Attention après ${n} mois faire passer l'appareil chez le prestataire`;
     }
 
-    function renderDetail(d, rules, params, champsDef) {
+    function renderDetail(d, rules, params, champsDef, prestataires) {
       const p = d.patient || {};
       const a = d.appareil_actif || {};
       const canEdit = typeof ctx.can === 'function' ? ctx.can('edition_suivi') : true;
@@ -444,6 +445,8 @@
       const canCloturerRole = typeof ctx.can === 'function' ? ctx.can('module_cloture') : true;
       const prest = a.source === 'prestataire';
       const parc = !prest;
+      const autre = a.type_appareil === 'autre';
+      const prestList = Array.isArray(prestataires) ? prestataires : [];
       const prolongCount = (d.prolongations || []).length;
       const appCount = (d.appareils || []).length;
       const contactCount = (d.contacts || []).length;
@@ -509,7 +512,7 @@
             <div class="loc-grid-2">
               <label class="loc-field">Code OP${creHint('personnel', 'code_op')}<input name="code_op" value="${esc(d.code_op || '')}"></label>
               <label class="loc-field">Caution${creHint('personnel', 'caution')}<select name="caution">
-                <option value=""${!d.caution ? ' selected' : ''}>Rien</option>
+                <option value=""${!d.caution ? ' selected' : ''}></option>
                 <option value="cheque_150"${d.caution === 'cheque_150' ? ' selected' : ''}>Chèque 150 €</option>
                 <option value="especes"${d.caution === 'especes' ? ' selected' : ''}>Espèces</option>
               </select></label>
@@ -542,35 +545,42 @@
           <summary>Appareil · ${esc(LocationRules.typeLabel(a.type_appareil) || '—')}${appCount ? ` · ${appCount} hist.` : ''}</summary>
           <div class="loc-card-body">
             <div class="loc-appareil-actif loc-grid-2">
-              <label class="loc-field">Type${creHint('appareil', 'type_appareil')}<input value="${esc(LocationRules.typeLabel(a.type_appareil))}${a.type_libelle ? ' (' + esc(a.type_libelle) + ')' : ''}" disabled></label>
+              <label class="loc-field">Type d’appareil${creHint('appareil', 'type_appareil')}<input value="${esc(LocationRules.typeLabel(a.type_appareil))}" disabled></label>
+              ${
+                autre
+                  ? `<label class="loc-field">Libellé (autre)${creHint('appareil', 'type_libelle')}<input name="a_type_libelle" value="${esc(a.type_libelle || '')}"></label>`
+                  : ''
+              }
               <label class="loc-field">Source${creHint('appareil', 'source')}<select name="a_source">
                 <option value="parc"${parc ? ' selected' : ''}>Parc pharmacie</option>
                 <option value="prestataire"${prest ? ' selected' : ''}>Prestataire</option>
               </select></label>
-              <label class="loc-field">Matricule${creHint('appareil', 'matricule')}<input name="a_matricule" value="${esc(a.matricule || '')}"></label>
-              <label class="loc-field">N° pharmacie${creHint('appareil', 'numero_pharmacie')}<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
-              <label class="loc-field">Obtention${creHint('appareil', 'mode_obtention')}<select name="a_obtention">
-                <option value="">—</option>
-                <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
-                <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel</option>
-              </select></label>
-              <label class="loc-field">Livraison${creHint('appareil', 'livraison')}<select name="a_livraison">
-                <option value="">—</option>
-                <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>Pharmacie</option>
-                <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Patient</option>
-              </select></label>
-              <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite${creOff('appareil', 'desinfection') ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>' : ''}</label>
-              <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
-              ${a.type_appareil === 'pese_bebe' ? `
-                <label class="loc-check"><input type="checkbox" name="a_pese_avance"${a.pese_bebe_regler_avance ? ' checked' : ''}> Régler d’avance</label>
-                <label class="loc-field">Période<select name="a_pese_periode">
-                  <option value="semaine"${a.pese_bebe_periode === 'semaine' ? ' selected' : ''}>Semaine</option>
-                  <option value="mois"${a.pese_bebe_periode === 'mois' ? ' selected' : ''}>Mois</option>
+              <div class="loc-appareil-prest loc-span-2 loc-grid-2"${prest ? '' : ' hidden'}>
+                <label class="loc-field">Prestataire${creHint('appareil', 'prestataire_id')}<select name="a_prestataire_id">
+                  <option value="">—</option>
+                  ${prestList.map((pr) => `<option value="${esc(pr.id)}"${a.prestataire_id === pr.id ? ' selected' : ''}>${esc(pr.nom)}</option>`).join('')}
                 </select></label>
-              ` : ''}
-              ${a.type_appareil === 'tire_lait' ? `
-                <label class="loc-field">Date accouchement<input type="date" name="a_accouchement" value="${esc(a.date_accouchement || '')}"></label>
-              ` : ''}
+                <div class="loc-field">
+                  <span class="loc-field-label-row">
+                    <label for="suMatricule">Matricule${creHint('appareil', 'matricule')}</label>
+                    ${helpTipHtml('Si le matricule est connu.', 'Aide : matricule')}
+                  </span>
+                  <input id="suMatricule" name="a_matricule" value="${esc(a.matricule || '')}">
+                </div>
+                <label class="loc-field">Obtention${creHint('appareil', 'mode_obtention')}<select name="a_obtention">
+                  <option value="depot"${a.mode_obtention === 'depot' ? ' selected' : ''}>Dépôt</option>
+                  <option value="appel"${a.mode_obtention === 'appel' ? ' selected' : ''}>Appel pour l’obtenir</option>
+                </select></label>
+                <label class="loc-field">Livraison${creHint('appareil', 'livraison')}<select name="a_livraison">
+                  <option value="pharmacie"${a.livraison === 'pharmacie' ? ' selected' : ''}>À la pharmacie</option>
+                  <option value="patient"${a.livraison === 'patient' ? ' selected' : ''}>Chez le patient</option>
+                </select></label>
+              </div>
+              <div class="loc-appareil-parc loc-span-2 loc-grid-2"${parc ? '' : ' hidden'}>
+                <label class="loc-field">N° appareil pharmacie${creHint('appareil', 'numero_pharmacie')}<input name="a_numero" value="${esc(a.numero_pharmacie || '')}"></label>
+                <label class="loc-check"><input type="checkbox" name="a_desinfection"${a.desinfection ? ' checked' : ''}> Désinfection faite${creOff('appareil', 'desinfection') ? ' <span class="loc-muted" style="font-weight:normal;font-size:11px">(désactivé à la création)</span>' : ''}</label>
+              </div>
+              <label class="loc-check"><input type="checkbox" name="facturation_prestataire"${a.facturation_prestataire ? ' checked' : ''}> Facturation prestataire (hors file contact)</label>
               ${specHtml}
               <label class="loc-field loc-span-2">Commentaire${creHint('appareil', 'encart_texte')}<textarea name="encart_texte" rows="3">${esc(a.encart_texte || '')}</textarea></label>
               ${customHtml('appareil')}
@@ -579,7 +589,15 @@
             <ul class="loc-history">
               ${(d.appareils || []).map((x) => `<li>${esc(LocationRules.typeLabel(x.type_appareil))} · ${x.source || ''} · ${x.actif ? 'actif' : 'inactif'} · n° ${esc(x.numero_pharmacie || x.matricule || '—')} · ${esc(x.date_debut || '')} → ${esc(x.date_fin || '…')}</li>`).join('') || '<li>Aucun</li>'}
             </ul>
-            ${canEdit ? '<button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button><div id="suNewAppForm" hidden></div>' : ''}
+            ${
+              canEdit
+                ? `<button type="button" class="loc-btn loc-btn-ghost" id="suNewApp">Changer d’appareil</button>${
+                    appCount > 1
+                      ? '<button type="button" class="loc-btn loc-btn-ghost" id="suCancelAppChange">Annuler le changement</button>'
+                      : ''
+                  }<div id="suNewAppForm" hidden></div>`
+                : ''
+            }
           </div>
         </details>
 
@@ -641,6 +659,12 @@
       wireAccordion(detailEl.querySelector('.loc-accordion'));
       bindHelpTips(detailEl);
 
+      detailEl.querySelector('[name=a_source]')?.addEventListener('change', (e) => {
+        const isPrest = e.target.value === 'prestataire';
+        detailEl.querySelector('.loc-appareil-prest')?.toggleAttribute('hidden', !isPrest);
+        detailEl.querySelector('.loc-appareil-parc')?.toggleAttribute('hidden', isPrest);
+      });
+
       LocationFields.mountPhones(
         detailEl.querySelector('#phonesList'),
         detailEl.querySelector('#addPhoneBtn'),
@@ -680,6 +704,7 @@
       detailEl.querySelector('#suAddProlong')?.addEventListener('click', () => addProlong(d));
       detailEl.querySelector('#suDelete')?.addEventListener('click', () => deleteFiche(d));
       detailEl.querySelector('#suNewApp')?.addEventListener('click', () => showNewAppForm(d));
+      detailEl.querySelector('#suCancelAppChange')?.addEventListener('click', () => cancelAppChange(d));
       detailEl.querySelectorAll('[data-edit-pr]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const pr = (d.prolongations || []).find((x) => x.id === btn.dataset.editPr);
@@ -767,10 +792,17 @@
           <label class="loc-field">Source<select name="na_src"><option value="parc">Parc</option><option value="prestataire">Prestataire</option></select></label>
           <label class="loc-field loc-span-2">Commentaire<textarea name="na_enc" rows="2"></textarea></label>
         </div>
-        <button type="button" class="loc-btn" id="suConfirmApp">Confirmer le changement</button>
+        <div class="loc-step-actions" style="margin-top:8px">
+          <button type="button" class="loc-btn" id="suConfirmApp">Confirmer le changement</button>
+          <button type="button" class="loc-btn loc-btn-ghost" id="suCancelApp">Annuler</button>
+        </div>
       `;
       const typeSel = box.querySelector('[name=na_type]');
       const enc = box.querySelector('[name=na_enc]');
+      box.querySelector('#suCancelApp').addEventListener('click', () => {
+        box.hidden = true;
+        box.innerHTML = '';
+      });
       box.querySelector('#suConfirmApp').addEventListener('click', async () => {
         try {
           await LocationData.changerAppareil(d.id, {
@@ -786,6 +818,21 @@
           showMsg(e.message, true);
         }
       });
+    }
+
+    async function cancelAppChange(d) {
+      if (typeof ctx.can === 'function' && !ctx.can('edition_suivi')) {
+        showMsg('Édition non autorisée pour votre rôle.', true);
+        return;
+      }
+      if (!window.confirm('Annuler le dernier changement d’appareil ?')) return;
+      try {
+        await LocationData.annulerChangementAppareil(d.id);
+        showMsg('Changement d’appareil annulé.');
+        await openDetail(d.id);
+      } catch (e) {
+        showMsg(e.message || 'Erreur', true);
+      }
     }
 
     async function saveDetail(d) {
@@ -820,22 +867,28 @@
           notes: g('notes').value.trim() || null,
         });
         if (d.appareil_actif) {
+          const source = g('a_source').value || 'parc';
           const appPatch = {
-            source: g('a_source').value,
-            matricule: g('a_matricule').value.trim() || null,
-            numero_pharmacie: g('a_numero').value.trim() || null,
-            mode_obtention: g('a_obtention').value || null,
-            livraison: g('a_livraison').value || null,
+            source,
+            type_libelle: g('a_type_libelle')
+              ? g('a_type_libelle').value.trim() || null
+              : d.appareil_actif.type_libelle || null,
+            prestataire_id: g('a_prestataire_id')?.value || null,
+            matricule: g('a_matricule')?.value.trim() || null,
+            numero_pharmacie: g('a_numero')?.value.trim() || null,
+            mode_obtention: g('a_obtention')?.value || null,
+            livraison: g('a_livraison')?.value || null,
             desinfection: !!g('a_desinfection')?.checked,
             encart_texte: g('encart_texte').value,
             facturation_prestataire: g('facturation_prestataire').checked,
           };
-          if (g('a_pese_avance')) {
-            appPatch.pese_bebe_regler_avance = g('a_pese_avance').checked;
-            appPatch.pese_bebe_periode = g('a_pese_periode')?.value || null;
+          if (source === 'parc') {
+            appPatch.prestataire_id = null;
+            appPatch.mode_obtention = null;
           }
-          if (g('a_accouchement')) {
-            appPatch.date_accouchement = g('a_accouchement').value || null;
+          if (source === 'prestataire') {
+            appPatch.numero_pharmacie = null;
+            appPatch.desinfection = false;
           }
           const nextExtra = {
             ...(d.appareil_actif.champs_extra && typeof d.appareil_actif.champs_extra === 'object'

@@ -24,8 +24,19 @@
     rulesCache = null;
   }
 
+  function syncTypeLabels(params) {
+    try {
+      global.LocationRules?.applyCustomTypes?.(params?.types_appareil);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
   async function loadParams() {
-    if (paramsCache) return paramsCache;
+    if (paramsCache) {
+      syncTypeLabels(paramsCache);
+      return paramsCache;
+    }
     const { data, error } = await sb().from('location_parametres').select('*');
     if (error) throw error;
     const map = {};
@@ -34,6 +45,7 @@
       map['__meta_' + row.cle] = row;
     }
     paramsCache = map;
+    syncTypeLabels(map);
     return map;
   }
 
@@ -53,6 +65,34 @@
     }
     if (error) throw error;
     paramsCache = null;
+    if (cle === 'types_appareil') {
+      syncTypeLabels({ types_appareil: valeur });
+    }
+  }
+
+  /** Enregistre un type d’appareil (code → libellé) dans location_parametres.types_appareil. */
+  async function upsertTypeAppareil(codeRaw, libelleRaw, userId) {
+    const code =
+      (global.LocationRules && global.LocationRules.normalizeTypeCode
+        ? global.LocationRules.normalizeTypeCode(codeRaw)
+        : String(codeRaw || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '')) || '';
+    const libelle = String(libelleRaw || '').trim();
+    if (!code || !/^[a-z][a-z0-9_]*$/.test(code)) {
+      throw new Error('Code type invalide (lettres / chiffres / _, commencer par une lettre).');
+    }
+    if (!libelle) throw new Error('Libellé du type obligatoire.');
+    const params = await loadParams();
+    const current =
+      params.types_appareil && typeof params.types_appareil === 'object' && !Array.isArray(params.types_appareil)
+        ? { ...params.types_appareil }
+        : {};
+    current[code] = libelle;
+    await setParam('types_appareil', current, userId);
+    return { code, libelle };
   }
 
   async function loadRules(force) {
@@ -732,7 +772,8 @@
       if (pErr) throw pErr;
     }
 
-    const updated = await getDossier(dossierId);
+    /* Recalcule toute la chaîne (ex. prolongations inscrites par transcription). */
+    const updated = await recalcProlongationChain(dossierId);
     audit('dossier_update', { dossier_id: dossierId, statut });
     return updated;
   }
@@ -848,6 +889,45 @@
     audit('appareil_change', {
       dossier_id: dossierId,
       type_appareil: newApp?.type_appareil || null,
+    });
+    return data;
+  }
+
+  /** Annule le dernier changement d’appareil : restaure le précédent, supprime l’actuel. */
+  async function annulerChangementAppareil(dossierId) {
+    const { data: apps, error } = await sb()
+      .from('location_appareils')
+      .select('*')
+      .eq('dossier_id', dossierId);
+    if (error) throw error;
+    const list = apps || [];
+    const current = list.find((a) => a.actif) || null;
+    const previous = list
+      .filter((a) => !a.actif && (!current || a.id !== current.id))
+      .slice()
+      .sort((a, b) =>
+        String(b.date_fin || b.updated_at || b.created_at || '').localeCompare(
+          String(a.date_fin || a.updated_at || a.created_at || '')
+        )
+      )[0];
+    if (!current || !previous) {
+      throw new Error('Aucun changement d’appareil à annuler.');
+    }
+    const { error: delErr } = await sb()
+      .from('location_appareils')
+      .delete()
+      .eq('id', current.id);
+    if (delErr) throw delErr;
+    const { data, error: upErr } = await sb()
+      .from('location_appareils')
+      .update({ actif: true, date_fin: null, updated_at: new Date().toISOString() })
+      .eq('id', previous.id)
+      .select()
+      .single();
+    if (upErr) throw upErr;
+    audit('appareil_change_annule', {
+      dossier_id: dossierId,
+      appareil_id: previous.id,
     });
     return data;
   }
@@ -1623,6 +1703,7 @@
     invalidateCache,
     loadParams,
     setParam,
+    upsertTypeAppareil,
     loadRules,
     CREATION_ETAPES,
     CREATION_FIELD_INDEX,
@@ -1648,6 +1729,7 @@
     deleteDossier,
     updateAppareil,
     changerAppareil,
+    annulerChangementAppareil,
     addProlongation,
     updateProlongation,
     deleteProlongation,

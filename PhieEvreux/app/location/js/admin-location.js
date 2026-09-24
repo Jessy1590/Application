@@ -1126,6 +1126,7 @@
     }
 
     async function renderChampsCreation() {
+      await LocationData.loadParams();
       const rows = await LocationData.listChampsCreation(null, false);
       const typeEntries = Object.entries(LocationRules.TYPE_LABELS);
       if (!selectedTypeAppareil && typeEntries[0]) selectedTypeAppareil = typeEntries[0][0];
@@ -1155,6 +1156,15 @@
             </button>`
             )
             .join('')}
+        </div>
+        <div class="loc-creation-add" id="adTypeAdd" style="margin-bottom:12px">
+          <div class="loc-creation-add-row">
+            <label class="loc-field">Code type<input data-n="type_code" placeholder="ex. lit" autocomplete="off"></label>
+            <label class="loc-field">Libellé type<input data-n="type_libelle" placeholder="ex. Lit" autocomplete="off"></label>
+            <span class="loc-field-label-row">
+              <button type="button" class="loc-btn" id="adAddType">＋ Ajouter un type</button>
+            </span>
+          </div>
         </div>
         <div class="loc-params-split">
           <div class="loc-params-nav" role="list">
@@ -1213,6 +1223,21 @@
 
       const editor = body.querySelector('[data-champ-editor]');
       if (editor) bindOptionsForm(editor);
+
+      body.querySelector('#adAddType')?.addEventListener('click', async () => {
+        const box = body.querySelector('#adTypeAdd');
+        const codeRaw = box?.querySelector('[data-n=type_code]')?.value || '';
+        const libelle = (box?.querySelector('[data-n=type_libelle]')?.value || '').trim();
+        try {
+          const created = await LocationData.upsertTypeAppareil(codeRaw, libelle, ctx.userId);
+          selectedTypeAppareil = created.code;
+          selectedChampId = null;
+          showMsg(`Type « ${created.libelle} » enregistré.`);
+          await renderChampsCreation();
+        } catch (e) {
+          showMsg(e.message || 'Ajout du type impossible', true);
+        }
+      });
 
       body.querySelectorAll('[data-type-appareil]').forEach((btn) => {
         btn.addEventListener('click', async () => {
