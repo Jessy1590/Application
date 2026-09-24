@@ -1,9 +1,23 @@
-# Même périmètre public que l’ancien artefact GitHub Pages :
-# docs internes, SQL et règles Cursor ne sont pas servis.
+# Hub Next.js — ne pas ignorer public/** (apps statiques après Agent D).
+# Continuer d’exclure outillage, dumps et dépendances locales.
+
+# Dépendances / builds locaux
+**/node_modules
+PharmaOs/node_modules
+PharmaOs/dist
+dist
+.next
+
+# Dumps SQL et docs internes (non servis)
 **/*.sql
-**/*.md
 **/*.mdc
 **/.cursor
 **/.github
-**/node_modules
-dist
+
+# Archive pré-migration (référence, pas de déploiement)
+archive/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini

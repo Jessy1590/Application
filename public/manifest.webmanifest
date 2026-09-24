@@ -1,0 +1,14 @@
+{
+  "name": "Hub — Projets Jessy",
+  "short_name": "Hub",
+  "description": "Portail d'accès aux applications",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F6F3",
+  "theme_color": "#28453A",
+  "icons": [
+    { "src": "/hub-icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/hub-icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

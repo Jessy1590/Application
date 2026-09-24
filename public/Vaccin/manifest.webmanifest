@@ -1,0 +1,14 @@
+{
+  "name": "Vaccins France",
+  "short_name": "Vaccin",
+  "description": "Aide-mémoire valences et schémas vaccinaux",
+  "start_url": "/Vaccin/",
+  "scope": "/Vaccin/",
+  "display": "standalone",
+  "background_color": "#E8F4FC",
+  "theme_color": "#1B4D6E",
+  "icons": [
+    { "src": "/Vaccin/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/Vaccin/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

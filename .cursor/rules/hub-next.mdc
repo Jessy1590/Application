@@ -1,0 +1,26 @@
+---
+description: Conventions du hub Next.js (App Router) et frontières avec public/ et PharmaOs
+globs: app/**/*,config/sites.ts,middleware.ts,lib/supabase/**/*,next.config.*,vercel.json,package.json
+alwaysApply: false
+---
+
+# Hub Next.js
+
+## Rôle
+- `app/` = hub uniquement (login, mes accès, admin). Pas de réécriture React des apps métier.
+- Apps HTML/JS sous `public/` ; chemins publics stables (`/Banque/`, `/Vaccin/`, …).
+- `config/sites.ts` = seule source des UUID / `publicPath` pour le hub et le middleware — pas d’UUIDs dispersés.
+
+## Frontières
+- **Ne pas** déplacer ni migrer `PharmaOs/` vers Next ou `public/`.
+- **Ne pas** supprimer `public/protect.js`, les Edge Functions Supabase, ni les schémas SQL.
+- Règles par app : conserver les `.cursor/rules` sous chaque app (`public/Banque/`, `public/PhieEvreux/`, `PharmaOs/`, …).
+
+## Auth & données
+- Session via `@supabase/ssr` (cookies) côté hub / middleware ; `protect.js` reste la gate client des apps statiques.
+- RLS Supabase = source de vérité. Clé `service_role` interdite dans le client et le dépôt.
+- Env : `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Vercel) ; miroir possible dans `public/shared/` pour les apps statiques.
+
+## Déploiement
+- Vercel à la racine du domaine. Pas de GitHub Pages / préfixe `/Application`.
+- Archive pré-migration : `archive/pre-next/` (ne pas servir, ne pas remettre `index.html` à la racine).

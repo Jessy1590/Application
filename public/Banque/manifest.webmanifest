@@ -1,0 +1,25 @@
+{
+  "name": "Budget Partagé",
+  "short_name": "Banque",
+  "description": "Application de gestion de budget multi-utilisateurs",
+  "start_url": "/Banque/",
+  "scope": "/Banque/",
+  "display": "standalone",
+  "background_color": "#F3F6F3",
+  "theme_color": "#3E6B57",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/Banque/icons/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/Banque/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

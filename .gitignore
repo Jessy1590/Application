@@ -11,6 +11,9 @@ PharmaOs/Dashboard/.env
 credentials.json
 dist/
 /PharmaOs-legacy
+# Next.js hub (racine)
+node_modules/
+.next/
 # OS junk
 .DS_Store
 Thumbs.db

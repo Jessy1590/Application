@@ -1,0 +1,13 @@
+2026-09-24 10:25:57,444 [INFO] === Démarrage de la partie 1 ===
+2026-09-24 10:25:57,445 [INFO] Fichier de log: logs/game_1.log
+2026-09-24 10:25:57,447 [INFO] Configuration JSON chargée et réinitialisée avec succès
+2026-09-24 10:25:58,137 [INFO] Initialisation de l'application principale
+2026-09-24 10:25:58,139 [DEBUG] Interface principale créée
+2026-09-24 10:25:58,158 [DEBUG] Menu principal créé avec succès
+2026-09-24 10:25:58,158 [INFO] Application démarrée avec succès
+2026-09-24 10:26:01,980 [INFO] Ouverture de la fenêtre de choix des joueurs
+2026-09-24 10:26:15,703 [INFO] Démarrage du round 1
+2026-09-24 10:26:15,704 [INFO] Rechargement des données du jeu depuis config.json
+2026-09-24 10:26:15,705 [INFO] Données du jeu rechargées avec succès
+2026-09-24 10:26:15,705 [INFO] Rechargement des données du jeu depuis config.json
+2026-09-24 10:26:15,705 [INFO] Données du jeu rechargées avec succès

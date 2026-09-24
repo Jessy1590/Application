@@ -2,20 +2,26 @@
 
 ## Architecture du projet
 Ce dépôt est un hub / portail central pour les applications personnelles et professionnelles.
-Les applications statiques (HTML, CSS, JavaScript) sont servies depuis la racine du dépôt et leurs dossiers dédiés.
-PharmaOs (`PharmaOs/`) est une application Electron à part : son outillage (Vite, `package.json`, `base: './'`) sert au bureau, pas à l’hébergement web du hub.
+
+- **Hub Next.js** (`app/`, App Router) : portail (login, mes accès, admin). C’est la surface web du domaine.
+- **Apps métier statiques** : HTML / CSS / JavaScript (ou React CDN) sous `public/` (`public/Banque/`, `public/Vaccin/`, `public/shared/`, `public/protect.js`, etc.). URLs publiques inchangées (`/Banque/`, `/Vaccin/`, …).
+- **PharmaOs** (`PharmaOs/`) : application Electron à part. Son outillage (Vite, `package.json`, `base: './'`) sert au bureau. **Ne pas** la déplacer sous `public/` ni la migrer vers Next.
+- **Archive** : `archive/pre-next/` conserve l’ancien portail HTML figé (référence, non servi).
+
+La map slug ↔ `siteId` ↔ chemin public vit dans `config/sites.ts` (contrat partagé hub / middleware / docs).
 
 ## Hébergement
-Le hub est déployé sur Vercel, à la racine du domaine.
+Le hub est déployé sur Vercel, à la racine du domaine (`projets-jessy1590.vercel.app`).
 Les recommandations d’architecture, de routage et de performance privilégient l’écosystème Vercel : fonctions Serverless, Edge, et configuration via `vercel.json` lorsque c’est nécessaire (en-têtes, redirections, réécritures).
 Ne pas réintroduire de déploiement GitHub Pages (workflow Actions, paquet `gh-pages`, clé `homepage`, préfixe de chemin du type `/Application`).
 
 ## Base de données
 Les données et l’authentification sont gérées via Supabase (PostgreSQL, Auth, RLS, temps réel, Edge Functions).
-Côté navigateur, seule la clé anon est utilisable. La clé `service_role` reste côté Supabase (secrets des fonctions) et ne doit jamais apparaître dans le dépôt ni dans le client.
+RLS reste la source de vérité des accès ; le middleware Next et `public/protect.js` sont des barrières complémentaires.
+Côté navigateur et code client (Next ou apps `public/`), seule la clé anon / publishable est utilisable. La clé `service_role` reste côté Supabase (secrets des Edge Functions) et ne doit jamais apparaître dans le dépôt ni dans le client.
 
 ## Variables d’environnement
 Les variables d’environnement ne doivent pas être versionnées.
-Elles sont définies dans le tableau de bord Vercel.
+Elles sont définies dans le tableau de bord Vercel (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, etc.).
 Les secrets des Edge Functions Supabase se configurent dans le dashboard Supabase.
 Un fichier d’exemple (`.env.example`) peut lister les noms de variables, sans valeurs réelles.
