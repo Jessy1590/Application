@@ -1,6 +1,0 @@
--- =============================================================================
--- RLS — module perimes
--- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
--- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
--- =============================================================================
--- is_pharma_staff() ALL. migrations/005

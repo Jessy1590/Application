@@ -1,3 +1,0 @@
--- Module Conseil (réf. migration 022_conseils.sql)
--- Tables : PharmaOs.conseils, PharmaOs.conseil_events
--- RLS : staff CRUD conseils ; events insert own / select own + admin

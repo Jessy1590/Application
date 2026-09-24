@@ -1,6 +1,0 @@
--- =============================================================================
--- RLS — module calls
--- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
--- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
--- =============================================================================
--- own + admin SELECT/UPDATE. migrations/004

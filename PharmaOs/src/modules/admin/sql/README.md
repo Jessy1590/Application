@@ -1,9 +1,0 @@
--- Module admin : logs, bugs, matrice d'accès
--- Source agrégée : supabase/migrations/024_roles_logs_bugs.sql + 025_roles_logs_harden.sql
--- Tables : PharmaOs.app_logs, PharmaOs.bugs, PharmaOs.role_access
--- Rôles portail.profiles : pharmacien | administrateur | préparateur | désactivé
--- Casquettes : PharmaOs.casquettes / casquette_features / profile_casquettes
--- Widgets : PharmaOs.role_dashboard_widgets
--- Tâches : PharmaOs.task_role_rules
--- NOTE : sous-rôle Location Phie « gestionnaire » ≠ rôle portail
--- Legacy mappés en app : admin | équipe | member | gestionnaire → préparateur / administrateur

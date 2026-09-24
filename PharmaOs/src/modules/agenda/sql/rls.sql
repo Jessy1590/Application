@@ -1,6 +1,0 @@
--- =============================================================================
--- RLS — module agenda
--- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
--- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
--- =============================================================================
--- ALL authenticated. migrations/004

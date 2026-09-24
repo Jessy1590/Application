@@ -1,6 +1,0 @@
--- =============================================================================
--- RLS — module documents
--- DDL aligné projet Supabase live kpjflntnotftpzffjbud (2026-09-03)
--- Rôles canoniques app : admin | équipe (member = legacy CHECK seulement)
--- =============================================================================
--- documents staff ALL ; signatures insert own. migrations/005
