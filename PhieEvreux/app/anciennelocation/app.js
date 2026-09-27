@@ -1474,6 +1474,12 @@ function parcSaisieManuelle() {
   el('parcRightGridBody').querySelector('input')?.focus();
 }
 
+function parcMatriculesSeuls() {
+  clearParcCompareVisual();
+  showParcRightMode('textarea');
+  el('parcRight').focus();
+}
+
 function compareParc() {
   const leftMats = parseMatLines(el('parcLeft').value);
   const leftSet = new Set(leftMats.map(normMat));
@@ -1553,6 +1559,7 @@ el('parcDepuisFichesBtn').addEventListener('click', () => {
   parcDepuisFichesFresh().catch((err) => toast(err.message || String(err), 'error'));
 });
 el('parcSaisieBtn').addEventListener('click', parcSaisieManuelle);
+el('parcMatriculesSeulsBtn').addEventListener('click', parcMatriculesSeuls);
 el('parcCompareBtn').addEventListener('click', compareParc);
 el('parcPrintBtn').addEventListener('click', printParcCompare);
 
