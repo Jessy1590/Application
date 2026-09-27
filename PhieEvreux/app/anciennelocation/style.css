@@ -373,6 +373,9 @@ body > a[title="Retour au portail"] {
 .parc-line.miss {
   background: rgba(217,107,92,0.18); border-color: rgba(217,107,92,0.4); color: #F0A89E;
 }
+.parc-line.pad {
+  opacity: 0.35;
+}
 .parc-grid {
   flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 200px;
 }
@@ -532,9 +535,10 @@ body.parc-open { padding-bottom: 0; }
   #printRoot th:nth-child(4) { width: 7%; }
   #printRoot th:nth-child(5) { width: 18%; }
   #printRoot th:nth-child(6) { width: 27%; }
-  .print-parc-root th:nth-child(1),
-  .print-parc-root th:nth-child(2),
-  .print-parc-root th:nth-child(3) { width: 33.33%; }
+  .print-parc-root:not(.print-parc-mat-only) th:nth-child(1),
+  .print-parc-root:not(.print-parc-mat-only) th:nth-child(2),
+  .print-parc-root:not(.print-parc-mat-only) th:nth-child(3) { width: 33.33%; }
+  .print-parc-root.print-parc-mat-only th { width: 100%; }
   .print-identity strong,
   .print-location strong,
   .print-call strong {

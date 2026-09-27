@@ -18,7 +18,7 @@
 <style>body{display:none}</style>
 <script src="../../../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
-<link rel="stylesheet" href="style.css?v=20260927a">
+<link rel="stylesheet" href="style.css?v=20260927d">
 <link rel="stylesheet" href="../../shared/fab.css">
 </head>
 <body>
@@ -344,7 +344,7 @@
     <h2>Encore sur la facture</h2>
     <table>
       <thead>
-        <tr>
+        <tr id="printParcGreenHead">
           <th>Nom</th>
           <th>Prénom</th>
           <th>Matricule</th>
@@ -355,13 +355,22 @@
     <h2>Plus sur la facture</h2>
     <table>
       <thead>
-        <tr>
+        <tr id="printParcRedHead">
           <th>Nom</th>
           <th>Prénom</th>
           <th>Matricule</th>
         </tr>
       </thead>
       <tbody id="printParcRed"></tbody>
+    </table>
+    <h2>Sur la facture sans dossier</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Matricule</th>
+        </tr>
+      </thead>
+      <tbody id="printParcLeftOnly"></tbody>
     </table>
   </div>
 
@@ -398,6 +407,6 @@
   <script src="../../shared/logs.js"></script>
   <script src="../../shared/bugs.js"></script>
   <script src="../../shared/fab.js"></script>
-  <script src="app.js?v=20260927b"></script>
+  <script src="app.js?v=20260927d"></script>
 </body>
 </html>
