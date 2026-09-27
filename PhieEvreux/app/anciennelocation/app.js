@@ -1319,20 +1319,20 @@ function parseMatLines(text) {
 function showParcRightMode(mode) {
   parcState.rightMode = mode;
   const ta = el('parcRight');
-  const hi = el('parcRightHighlight');
   const grid = el('parcRightGrid');
   ta.classList.toggle('hidden', mode !== 'textarea');
-  hi.classList.add('hidden');
   grid.classList.toggle('hidden', mode !== 'grid');
   if (mode === 'textarea') ta.classList.remove('hidden');
 }
 
+function clearParcAlignResult() {
+  const box = el('parcAlignResult');
+  box.classList.add('hidden');
+  box.innerHTML = '';
+}
+
 function clearParcCompareVisual() {
-  el('parcLeftHighlight').classList.add('hidden');
-  el('parcLeftHighlight').innerHTML = '';
-  el('parcLeft').classList.remove('hidden');
-  el('parcRightHighlight').classList.add('hidden');
-  el('parcRightHighlight').innerHTML = '';
+  clearParcAlignResult();
   if (parcState.rightMode === 'grid') {
     el('parcRight').classList.add('hidden');
     el('parcRightGrid').classList.remove('hidden');
@@ -1345,15 +1345,7 @@ function clearParcCompareVisual() {
   el('parcPrintBtn').hidden = true;
 }
 
-function formatParcRightLine(entry) {
-  if (!entry) return '';
-  const parts = [entry.nom, entry.prenom, entry.matricule]
-    .map((v) => String(v || '').trim())
-    .filter(Boolean);
-  return parts.join(' · ');
-}
-
-/** Aligne gauche/droite : matches côte à côte, puis left-only, puis right-only (pads vides). */
+/** Construit les lignes alignées (matches, left-only, right-only) sans muter les saisies. */
 function buildParcAlignedCompare(leftMats, rightEntries) {
   const rightQ = new Map();
   rightEntries.forEach((entry) => {
@@ -1363,8 +1355,7 @@ function buildParcAlignedCompare(leftMats, rightEntries) {
     rightQ.get(key).push(entry);
   });
 
-  const leftLines = [];
-  const rightLines = [];
+  const rows = [];
   const green = [];
   const red = [];
   const leftOnly = [];
@@ -1377,33 +1368,72 @@ function buildParcAlignedCompare(leftMats, rightEntries) {
     if (q && q.length) {
       const entry = q.shift();
       matchedRight.add(entry);
-      leftLines.push({ text: m, cls: 'match' });
-      rightLines.push({ text: formatParcRightLine(entry), cls: 'match' });
+      rows.push({ kind: 'match', left: m, right: entry });
       green.push(entry);
       return;
     }
-    leftLines.push({ text: m, cls: 'miss' });
-    rightLines.push({ text: '', cls: 'pad' });
+    rows.push({ kind: 'leftOnly', left: m, right: null });
     leftOnly.push({ matricule: m });
   });
 
   rightEntries.forEach((entry) => {
     const key = normMat(entry.matricule);
     if (!key || matchedRight.has(entry)) return;
-    leftLines.push({ text: '', cls: 'pad' });
-    rightLines.push({ text: formatParcRightLine(entry), cls: 'miss' });
+    rows.push({ kind: 'rightOnly', left: '', right: entry });
     red.push(entry);
   });
 
-  return { leftLines, rightLines, green, red, leftOnly };
+  return { rows, green, red, leftOnly };
 }
 
-function renderParcLines(target, lines) {
-  target.innerHTML = lines.map((line) => {
-    const cls = ['parc-line', line.cls].filter(Boolean).join(' ');
-    const body = line.text ? escapeHtml(line.text) : '&nbsp;';
-    return `<div class="${cls}">${body}</div>`;
-  }).join('') || '<div class="parc-line">—</div>';
+function renderParcAlignTable(rows, withNames) {
+  const box = el('parcAlignResult');
+  if (!rows.length) {
+    box.innerHTML = '<p class="parc-align-empty">Aucune ligne à comparer</p>';
+    box.classList.remove('hidden');
+    return;
+  }
+
+  const head = withNames
+    ? '<th>Matricule gauche</th><th>Nom</th><th>Prénom</th><th>Matricule droite</th>'
+    : '<th>Matricule gauche</th><th>Matricule droite</th>';
+
+  const body = rows.map((row) => {
+    const cls = row.kind === 'match' ? 'match' : 'miss';
+    const leftMat = escapeHtml(row.left || '');
+    const right = row.right;
+    if (withNames) {
+      return `<tr class="${cls}">
+        <td>${leftMat || '&nbsp;'}</td>
+        <td>${escapeHtml(right?.nom || '') || '&nbsp;'}</td>
+        <td>${escapeHtml(right?.prenom || '') || '&nbsp;'}</td>
+        <td>${escapeHtml(right?.matricule || '') || '&nbsp;'}</td>
+      </tr>`;
+    }
+    return `<tr class="${cls}">
+      <td>${leftMat || '&nbsp;'}</td>
+      <td>${escapeHtml(right?.matricule || '') || '&nbsp;'}</td>
+    </tr>`;
+  }).join('');
+
+  box.innerHTML = `<table class="parc-align-table">
+    <thead><tr>${head}</tr></thead>
+    <tbody>${body}</tbody>
+  </table>`;
+  box.classList.remove('hidden');
+}
+
+function highlightParcGridRows(green, red) {
+  if (parcState.rightMode !== 'grid') return;
+  const greenKeys = new Set(green.map((e) => normMat(e.matricule)).filter(Boolean));
+  const redKeys = new Set(red.map((e) => normMat(e.matricule)).filter(Boolean));
+  $$('.parc-grid-row', el('parcRightGridBody')).forEach((row) => {
+    const mat = normMat($('input[data-field="matricule"]', row)?.value);
+    row.classList.remove('match', 'miss');
+    if (!mat) return;
+    if (greenKeys.has(mat)) row.classList.add('match');
+    else if (redKeys.has(mat)) row.classList.add('miss');
+  });
 }
 
 function addParcGridRow(nom = '', prenom = '', matricule = '') {
@@ -1439,9 +1469,7 @@ function addParcGridRow(nom = '', prenom = '', matricule = '') {
       next.querySelector('input')?.focus();
     });
     input.addEventListener('input', () => {
-      row.classList.remove('match', 'miss');
-      el('parcPrintBtn').hidden = true;
-      parcState.compare = null;
+      clearParcCompareVisual();
     });
   });
   body.appendChild(row);
@@ -1550,18 +1578,11 @@ function parcMatriculesSeuls() {
 function compareParc() {
   const leftMats = parseMatLines(el('parcLeft').value);
   const rightEntries = collectParcRightEntries();
-  const { leftLines, rightLines, green, red, leftOnly } = buildParcAlignedCompare(leftMats, rightEntries);
+  const { rows, green, red, leftOnly } = buildParcAlignedCompare(leftMats, rightEntries);
+  const withNames = rightEntries.some((r) => (r.nom || '').trim() || (r.prenom || '').trim());
 
-  const leftHi = el('parcLeftHighlight');
-  renderParcLines(leftHi, leftLines);
-  el('parcLeft').classList.add('hidden');
-  leftHi.classList.remove('hidden');
-
-  const rightHi = el('parcRightHighlight');
-  renderParcLines(rightHi, rightLines);
-  el('parcRight').classList.add('hidden');
-  el('parcRightGrid').classList.add('hidden');
-  rightHi.classList.remove('hidden');
+  renderParcAlignTable(rows, withNames);
+  highlightParcGridRows(green, red);
 
   parcState.compare = { green, red, leftOnly };
   el('parcPrintBtn').hidden = false;
@@ -1621,24 +1642,8 @@ el('parcPrintBtn').addEventListener('click', printParcCompare);
 el('parcLeft').addEventListener('input', () => {
   clearParcCompareVisual();
 });
-el('parcLeftHighlight').addEventListener('click', () => {
-  el('parcLeftHighlight').classList.add('hidden');
-  el('parcLeft').classList.remove('hidden');
-  el('parcLeft').focus();
-});
 el('parcRight').addEventListener('input', () => {
   clearParcCompareVisual();
-});
-el('parcRightHighlight').addEventListener('click', () => {
-  el('parcRightHighlight').classList.add('hidden');
-  el('parcRightHighlight').innerHTML = '';
-  if (parcState.rightMode === 'grid') {
-    el('parcRight').classList.add('hidden');
-    el('parcRightGrid').classList.remove('hidden');
-  } else {
-    el('parcRight').classList.remove('hidden');
-    el('parcRight').focus();
-  }
 });
 
 /* FABs partagés Accueil + Bug */

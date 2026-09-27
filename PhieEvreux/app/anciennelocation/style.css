@@ -356,26 +356,6 @@ body > a[title="Retour au portail"] {
 .parc-textarea:focus {
   outline: 2px solid rgba(59,167,217,0.45); border-color: var(--accent);
 }
-.parc-lines {
-  flex: 1; min-height: 200px; overflow: auto;
-  background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-  padding: 8px; display: flex; flex-direction: column; gap: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 14px; line-height: 1.4;
-}
-.parc-line {
-  padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
-  word-break: break-all;
-}
-.parc-line.match {
-  background: rgba(47,155,122,0.22); border-color: rgba(47,155,122,0.45); color: #7ED4B5;
-}
-.parc-line.miss {
-  background: rgba(217,107,92,0.18); border-color: rgba(217,107,92,0.4); color: #F0A89E;
-}
-.parc-line.pad {
-  opacity: 0.35;
-}
 .parc-grid {
   flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 200px;
 }
@@ -407,6 +387,34 @@ body > a[title="Retour au portail"] {
 }
 .parc-footer {
   display: grid; gap: 8px;
+}
+.parc-align-result {
+  overflow: auto; max-height: min(40vh, 320px);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 8px;
+}
+.parc-align-result.hidden { display: none; }
+.parc-align-empty {
+  margin: 0; padding: 10px; text-align: center; color: var(--muted); font-size: 13px;
+}
+.parc-align-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.parc-align-table th {
+  text-align: left; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line);
+}
+.parc-align-table td {
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  word-break: break-all; vertical-align: top;
+}
+.parc-align-table tr.match td {
+  background: rgba(47,155,122,0.22); color: #7ED4B5;
+}
+.parc-align-table tr.miss td {
+  background: rgba(217,107,92,0.18); color: #F0A89E;
 }
 body.parc-open .topbar,
 body.parc-open .views,

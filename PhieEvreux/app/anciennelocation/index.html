@@ -18,7 +18,7 @@
 <style>body{display:none}</style>
 <script src="../../../protect.js"></script>
 <script>initialiserSite("9dd064a4-13ec-4cc2-9707-29210c3744ce");</script>
-<link rel="stylesheet" href="style.css?v=20260927d">
+<link rel="stylesheet" href="style.css?v=20260927e">
 <link rel="stylesheet" href="../../shared/fab.css">
 </head>
 <body>
@@ -296,14 +296,12 @@
           <button type="button" class="btn tiny" id="parcSaveBtn">Save</button>
         </div>
         <textarea id="parcLeft" class="parc-textarea" rows="12" placeholder="Un matricule par ligne…" spellcheck="false"></textarea>
-        <div id="parcLeftHighlight" class="parc-lines hidden" aria-live="polite"></div>
       </div>
       <div class="parc-col">
         <div class="parc-col-head">
           <span>Dossiers</span>
         </div>
         <textarea id="parcRight" class="parc-textarea" rows="12" placeholder="Un matricule par ligne…" spellcheck="false"></textarea>
-        <div id="parcRightHighlight" class="parc-lines hidden" aria-live="polite"></div>
         <div id="parcRightGrid" class="parc-grid hidden" role="grid" aria-label="Nom prénom matricule">
           <div class="parc-grid-head" role="row">
             <span>Nom</span>
@@ -315,6 +313,7 @@
       </div>
     </div>
     <div class="parc-footer">
+      <div id="parcAlignResult" class="parc-align-result hidden" aria-live="polite"></div>
       <button type="button" class="btn primary block" id="parcCompareBtn">Comparer</button>
       <button type="button" class="btn ghost block" id="parcPrintBtn" hidden>Imprimer</button>
     </div>
@@ -407,6 +406,6 @@
   <script src="../../shared/logs.js"></script>
   <script src="../../shared/bugs.js"></script>
   <script src="../../shared/fab.js"></script>
-  <script src="app.js?v=20260927d"></script>
+  <script src="app.js?v=20260927e"></script>
 </body>
 </html>
