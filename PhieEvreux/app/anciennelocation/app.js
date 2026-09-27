@@ -1285,6 +1285,7 @@ el('fabPrint').addEventListener('click', async () => {
     <td class="print-followup">${escapeHtml(suiviPrint(r))}</td>
   </tr>`).join('') || '<tr><td colspan="6">Aucune ligne</td></tr>';
 
+  el('printParcRoot').hidden = true;
   el('printRoot').hidden = false;
   window.print();
   setTimeout(() => { el('printRoot').hidden = true; }, 500);
@@ -1293,6 +1294,291 @@ el('fabPrint').addEventListener('click', async () => {
       count: rows.length,
     }, { app: 'anciennelocation' });
   } catch (_) { /* ignore */ }
+});
+
+/* ---------- Parc ---------- */
+const TABLE_PARC = 'anciennelocation_parc';
+const PARC_CLE = 'derniere_facture';
+
+const parcState = {
+  rightMode: 'textarea', // 'textarea' | 'grid'
+  compare: null, // { green: [], red: [] } with { nom, prenom, matricule }
+};
+
+function normMat(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+function parseMatLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+function showParcRightMode(mode) {
+  parcState.rightMode = mode;
+  const ta = el('parcRight');
+  const hi = el('parcRightHighlight');
+  const grid = el('parcRightGrid');
+  ta.classList.toggle('hidden', mode !== 'textarea');
+  hi.classList.add('hidden');
+  grid.classList.toggle('hidden', mode !== 'grid');
+  if (mode === 'textarea') ta.classList.remove('hidden');
+}
+
+function clearParcCompareVisual() {
+  el('parcLeftHighlight').classList.add('hidden');
+  el('parcLeftHighlight').innerHTML = '';
+  el('parcLeft').classList.remove('hidden');
+  el('parcRightHighlight').classList.add('hidden');
+  el('parcRightHighlight').innerHTML = '';
+  if (parcState.rightMode === 'textarea') el('parcRight').classList.remove('hidden');
+  $$('.parc-grid-row').forEach((row) => row.classList.remove('match', 'miss'));
+  parcState.compare = null;
+  el('parcPrintBtn').hidden = true;
+}
+
+function addParcGridRow(nom = '', prenom = '', matricule = '') {
+  const body = el('parcRightGridBody');
+  const row = document.createElement('div');
+  row.className = 'parc-grid-row';
+  row.setAttribute('role', 'row');
+  const fields = [
+    { key: 'nom', value: nom, placeholder: 'Nom' },
+    { key: 'prenom', value: prenom, placeholder: 'Prénom' },
+    { key: 'matricule', value: matricule, placeholder: 'Matricule' },
+  ];
+  const inputs = fields.map((f) => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.dataset.field = f.key;
+    input.placeholder = f.placeholder;
+    input.value = f.value || '';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    row.appendChild(input);
+    return input;
+  });
+  inputs.forEach((input, idx) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (idx < inputs.length - 1) {
+        inputs[idx + 1].focus();
+        return;
+      }
+      const next = addParcGridRow();
+      next.querySelector('input')?.focus();
+    });
+    input.addEventListener('input', () => {
+      row.classList.remove('match', 'miss');
+      el('parcPrintBtn').hidden = true;
+      parcState.compare = null;
+    });
+  });
+  body.appendChild(row);
+  return row;
+}
+
+function resetParcGrid(rows = [{ nom: '', prenom: '', matricule: '' }]) {
+  el('parcRightGridBody').innerHTML = '';
+  (rows.length ? rows : [{ nom: '', prenom: '', matricule: '' }]).forEach((r) => {
+    addParcGridRow(r.nom || '', r.prenom || '', r.matricule || '');
+  });
+}
+
+function collectParcGridRows() {
+  return $$('.parc-grid-row', el('parcRightGridBody')).map((row) => ({
+    nom: ($('input[data-field="nom"]', row)?.value || '').trim(),
+    prenom: ($('input[data-field="prenom"]', row)?.value || '').trim(),
+    matricule: ($('input[data-field="matricule"]', row)?.value || '').trim(),
+  }));
+}
+
+function collectParcRightEntries() {
+  if (parcState.rightMode === 'grid') {
+    return collectParcGridRows().filter((r) => r.nom || r.prenom || r.matricule);
+  }
+  return parseMatLines(el('parcRight').value).map((matricule) => ({
+    nom: '',
+    prenom: '',
+    matricule,
+  }));
+}
+
+async function loadParcLeft() {
+  const { data, error } = await sb
+    .from(TABLE_PARC)
+    .select('contenu')
+    .eq('cle', PARC_CLE)
+    .maybeSingle();
+  if (error) { toast(error.message, 'error'); return; }
+  el('parcLeft').value = data?.contenu || '';
+}
+
+async function saveParcLeft() {
+  const contenu = el('parcLeft').value;
+  let userId = null;
+  try {
+    const { data: authData } = await sb.auth.getUser();
+    userId = authData?.user?.id || null;
+  } catch (_) { /* ignore */ }
+  const payload = {
+    cle: PARC_CLE,
+    contenu,
+    updated_at: new Date().toISOString(),
+    updated_by: userId,
+  };
+  const { error } = await sb.from(TABLE_PARC).upsert(payload, { onConflict: 'cle' });
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Matricules enregistrés');
+}
+
+async function openParcView() {
+  clearParcCompareVisual();
+  showParcRightMode('textarea');
+  el('parcRight').value = '';
+  el('view-parc').hidden = false;
+  document.body.classList.add('parc-open');
+  await loadParcLeft();
+}
+
+function closeParcView() {
+  el('view-parc').hidden = true;
+  document.body.classList.remove('parc-open');
+  clearParcCompareVisual();
+}
+
+function parcDepuisFiches() {
+  clearParcCompareVisual();
+  const rows = (state.all || []).map((r) => ({
+    nom: (r.nom || '').trim(),
+    prenom: (r.prenom || '').trim(),
+    matricule: '',
+  }));
+  showParcRightMode('grid');
+  resetParcGrid(rows.length ? rows : [{ nom: '', prenom: '', matricule: '' }]);
+  toast(`${rows.length} fiche${rows.length > 1 ? 's' : ''} importée${rows.length > 1 ? 's' : ''}`);
+}
+
+async function parcDepuisFichesFresh() {
+  await refresh();
+  parcDepuisFiches();
+}
+
+function parcSaisieManuelle() {
+  clearParcCompareVisual();
+  showParcRightMode('grid');
+  resetParcGrid([{ nom: '', prenom: '', matricule: '' }]);
+  el('parcRightGridBody').querySelector('input')?.focus();
+}
+
+function compareParc() {
+  const leftMats = parseMatLines(el('parcLeft').value);
+  const leftSet = new Set(leftMats.map(normMat));
+  const rightEntries = collectParcRightEntries();
+
+  const green = [];
+  const red = [];
+
+  rightEntries.forEach((entry) => {
+    const key = normMat(entry.matricule);
+    if (!key) return;
+    if (leftSet.has(key)) green.push(entry);
+    else red.push(entry);
+  });
+
+  const greenKeys = new Set(green.map((e) => normMat(e.matricule)));
+
+  // Gauche : surlignage vert si présent à droite
+  const leftHi = el('parcLeftHighlight');
+  leftHi.innerHTML = leftMats.map((m) => {
+    const cls = greenKeys.has(normMat(m)) ? 'match' : '';
+    return `<div class="parc-line ${cls}">${escapeHtml(m)}</div>`;
+  }).join('') || '<div class="parc-line">—</div>';
+  el('parcLeft').classList.add('hidden');
+  leftHi.classList.remove('hidden');
+
+  if (parcState.rightMode === 'grid') {
+    $$('.parc-grid-row', el('parcRightGridBody')).forEach((row) => {
+      row.classList.remove('match', 'miss');
+      const mat = normMat($('input[data-field="matricule"]', row)?.value);
+      if (!mat) return;
+      row.classList.add(leftSet.has(mat) ? 'match' : 'miss');
+    });
+  } else {
+    const rightMats = parseMatLines(el('parcRight').value);
+    const rightHi = el('parcRightHighlight');
+    rightHi.innerHTML = rightMats.map((m) => {
+      const key = normMat(m);
+      const cls = leftSet.has(key) ? 'match' : 'miss';
+      return `<div class="parc-line ${cls}">${escapeHtml(m)}</div>`;
+    }).join('') || '<div class="parc-line">—</div>';
+    el('parcRight').classList.add('hidden');
+    rightHi.classList.remove('hidden');
+  }
+
+  parcState.compare = { green, red };
+  el('parcPrintBtn').hidden = false;
+}
+
+function printParcCompare() {
+  if (!parcState.compare) { toast('Comparer d’abord', 'error'); return; }
+  const { green, red } = parcState.compare;
+  const rowHtml = (list) => list.map((r) => `<tr>
+    <td>${escapeHtml(r.nom || '')}</td>
+    <td>${escapeHtml(r.prenom || '')}</td>
+    <td>${escapeHtml(r.matricule || '')}</td>
+  </tr>`).join('') || '<tr><td colspan="3">Aucune ligne</td></tr>';
+
+  el('printParcDate').textContent = `Imprimé le ${new Date().toLocaleString('fr-FR')}`;
+  el('printParcGreen').innerHTML = rowHtml(green);
+  el('printParcRed').innerHTML = rowHtml(red);
+
+  el('printRoot').hidden = true;
+  el('printParcRoot').hidden = false;
+  window.print();
+  setTimeout(() => { el('printParcRoot').hidden = true; }, 500);
+}
+
+el('fabParc').addEventListener('click', () => {
+  openParcView().catch((err) => toast(err.message || String(err), 'error'));
+});
+el('parcRetourBtn').addEventListener('click', closeParcView);
+el('parcSaveBtn').addEventListener('click', () => {
+  saveParcLeft().catch((err) => toast(err.message || String(err), 'error'));
+});
+el('parcDepuisFichesBtn').addEventListener('click', () => {
+  parcDepuisFichesFresh().catch((err) => toast(err.message || String(err), 'error'));
+});
+el('parcSaisieBtn').addEventListener('click', parcSaisieManuelle);
+el('parcCompareBtn').addEventListener('click', compareParc);
+el('parcPrintBtn').addEventListener('click', printParcCompare);
+
+el('parcLeft').addEventListener('input', () => {
+  el('parcLeftHighlight').classList.add('hidden');
+  el('parcLeftHighlight').innerHTML = '';
+  el('parcLeft').classList.remove('hidden');
+  el('parcPrintBtn').hidden = true;
+  parcState.compare = null;
+});
+el('parcLeftHighlight').addEventListener('click', () => {
+  el('parcLeftHighlight').classList.add('hidden');
+  el('parcLeft').classList.remove('hidden');
+  el('parcLeft').focus();
+});
+el('parcRight').addEventListener('input', () => {
+  el('parcRightHighlight').classList.add('hidden');
+  el('parcRightHighlight').innerHTML = '';
+  if (parcState.rightMode === 'textarea') el('parcRight').classList.remove('hidden');
+  el('parcPrintBtn').hidden = true;
+  parcState.compare = null;
+});
+el('parcRightHighlight').addEventListener('click', () => {
+  el('parcRightHighlight').classList.add('hidden');
+  el('parcRight').classList.remove('hidden');
+  el('parcRight').focus();
 });
 
 /* FABs partagés Accueil + Bug */
