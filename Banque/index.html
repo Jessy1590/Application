@@ -1771,7 +1771,7 @@
     async logExpenseChange({ expenseId, accountId, changeType, oldAmount, newAmount, oldPayload, newPayload, monthKey }) {
       if (!accountId) return;
       try {
-        await supabaseApp.from('expense_change_log').insert([{
+        const { error } = await supabaseApp.from('expense_change_log').insert([{
           expense_id: expenseId || null,
           account_id: accountId,
           change_type: changeType,
@@ -1782,6 +1782,7 @@
           month_key: monthKey || this.monthKey(new Date()),
           changed_by: this.user?.id || null
         }]);
+        if (error) console.warn('expense_change_log', error);
       } catch (e) {
         console.warn('expense_change_log', e);
       }
@@ -1919,8 +1920,24 @@
       await withRetry(async () => {
         if (mode === 'perm') {
           const table = kind === 'income' ? 'incomes' : 'expenses';
+          const oldExp = kind === 'expense' ? this.state.expenses.find(e => e.id === expId) : null;
+          const oldAmount = oldExp ? Number(oldExp.amount) : (kind === 'income' ? Number(this.state.incomes.find(i => i.id === expId)?.amount) : null);
           const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
           if (e1) throw e1;
+          if (kind === 'expense' && oldExp) {
+            await this.logExpenseChange({
+              expenseId: expId,
+              accountId: accId,
+              changeType: 'update_amount',
+              oldAmount,
+              newAmount,
+              oldPayload: this.expenseSnapshotRow(oldExp),
+              newPayload: this.expenseSnapshotRow({ ...oldExp, amount: newAmount }),
+              monthKey: this.monthKey(new Date())
+            });
+            // Mettre à jour l'état local pour le snapshot immédiat
+            oldExp.amount = newAmount;
+          }
         }
         const mKey = this.monthKey(new Date());
         if (kind === 'income') {
@@ -1931,7 +1948,11 @@
         } else {
           let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
           recs[expId] = { amount: newAmount, on: new Date().toISOString() };
-          await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
+          const patch = { paid_expenses: recs };
+          if (mode === 'perm') {
+            patch.theoretical_expenses = this.buildTheoreticalSnapshot(accId, mKey);
+          }
+          await this.upsertMonthRecord(accId, mKey, patch);
           toast(mode === 'perm' ? "Montant mis à jour durablement et validé" : "Validé avec le montant ponctuel");
         }
         this.closeDifferentAmount();
@@ -2094,12 +2115,11 @@
 
     // Totaux par catégorie pour un mois (inclut les portefeuilles)
     categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
-       // Théorique + mois passé : lire le snapshot figé (inclut dépenses depuis supprimées)
+       // Théorique + mois passé : snapshot figé uniquement (pas de rejeu du budget actuel)
        if (mode === 'theorique') {
           const curKey = this.monthKey(new Date());
           if (mKey !== curKey) {
-             const fromSnap = this.categoryTotalsFromTheoreticalSnapshots(mKey, accFilter);
-             if (fromSnap) return fromSnap;
+             return this.categoryTotalsFromTheoreticalSnapshots(mKey, accFilter) || {};
           }
        }
        const totals = {};
@@ -2170,13 +2190,16 @@
 
           const curKey = this.monthKey(new Date());
           const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
-          if (mode === 'theorique' && mKey !== curKey && snap && Object.keys(snap).length) {
-             Object.values(snap).forEach(row => {
-                const amt = Number(row.amount) || 0;
-                if (amt <= 0) return;
-                if (/(é|e)pargne/i.test(row.category || '')) epargne += amt;
-                else depenses += amt;
-             });
+          if (mode === 'theorique' && mKey !== curKey) {
+             // Mois passé : uniquement le snapshot (sinon 0 — pas le budget actuel)
+             if (snap && Object.keys(snap).length) {
+                Object.values(snap).forEach(row => {
+                   const amt = Number(row.amount) || 0;
+                   if (amt <= 0) return;
+                   if (/(é|e)pargne/i.test(row.category || '')) epargne += amt;
+                   else depenses += amt;
+                });
+             }
           } else {
              this.state.expenses.forEach(exp => {
                 if (exp.account_id !== accId) return;
@@ -2337,7 +2360,12 @@
        }
 
        // 3. Bilan revenus / dépenses / épargne (comparaison)
-       this.renderSavingsStackChart(months, opts);
+       if (theoPastEmpty && mode === 'theorique') {
+          const el = document.getElementById('chart-savings-stack');
+          if (el) el.innerHTML = `<div class="chart-empty">Bilan théorique multi-mois disponible dès qu’au moins un mois passé aura un budget figé.</div>`;
+       } else {
+          this.renderSavingsStackChart(months, opts);
+       }
     },
 
     renderSavingsStackChart(months, opts) {
@@ -2907,9 +2935,27 @@
       if (!source) return;
       const { id, created_at, ...rest } = source;
       rest.description = rest.description + ' (copie)';
+      const mKey = this.monthKey(new Date());
       await withRetry(async () => {
-        const { error } = await supabaseApp.from(table).insert([rest]);
+        const { data, error } = await supabaseApp.from(table).insert([rest]).select('id').single();
         if (error) throw error;
+        if (type === 'expense' && data?.id) {
+          const created = { id: data.id, ...rest };
+          this.state.expenses.push(created);
+          await this.logExpenseChange({
+            expenseId: data.id,
+            accountId: rest.account_id,
+            changeType: 'create',
+            oldAmount: null,
+            newAmount: Number(rest.amount),
+            oldPayload: null,
+            newPayload: this.expenseSnapshotRow(created),
+            monthKey: mKey
+          });
+          await this.upsertMonthRecord(rest.account_id, mKey, {
+            theoretical_expenses: this.buildTheoreticalSnapshot(rest.account_id, mKey)
+          });
+        }
         toast("Entrée dupliquée");
         this.closeSheet();
         this.fetchData();
@@ -3008,15 +3054,70 @@
       }
 
       const table = type === 'expense' ? 'expenses' : 'incomes';
+      const mKey = this.monthKey(new Date());
+      const oldExp = (type === 'expense' && this.sheetEditId)
+        ? this.state.expenses.find(e => e.id === this.sheetEditId)
+        : null;
+      const previousAccId = oldExp?.account_id || null;
       
       await withRetry(async () => {
         let error;
-        if(this.sheetEditId) {
+        let savedId = this.sheetEditId;
+        if (this.sheetEditId) {
            ({ error } = await supabaseApp.from(table).update(payload).eq('id', this.sheetEditId));
         } else {
-           ({ error } = await supabaseApp.from(table).insert([payload]));
+           const res = await supabaseApp.from(table).insert([payload]).select('id').single();
+           error = res.error;
+           savedId = res.data?.id;
         }
         if (error) throw error;
+
+        if (type === 'expense') {
+          if (oldExp) {
+            const amountChanged = Number(oldExp.amount) !== Number(amount);
+            const metaChanged = (oldExp.category || '') !== (payload.category || '')
+              || !!oldExp.is_wallet !== !!payload.is_wallet
+              || (oldExp.description || '') !== desc
+              || Number(oldExp.day) !== Number(day)
+              || (oldExp.end_date || null) !== (endDate || null)
+              || previousAccId !== accId;
+            if (amountChanged || metaChanged) {
+              await this.logExpenseChange({
+                expenseId: savedId,
+                accountId: accId,
+                changeType: amountChanged ? 'update_amount' : 'update_meta',
+                oldAmount: Number(oldExp.amount),
+                newAmount: Number(amount),
+                oldPayload: this.expenseSnapshotRow(oldExp),
+                newPayload: this.expenseSnapshotRow({ ...payload, id: savedId }),
+                monthKey: mKey
+              });
+            }
+            Object.assign(oldExp, payload);
+          } else if (savedId) {
+            const created = { id: savedId, ...payload };
+            this.state.expenses.push(created);
+            await this.logExpenseChange({
+              expenseId: savedId,
+              accountId: accId,
+              changeType: 'create',
+              oldAmount: null,
+              newAmount: Number(amount),
+              oldPayload: null,
+              newPayload: this.expenseSnapshotRow(created),
+              monthKey: mKey
+            });
+          }
+          await this.upsertMonthRecord(accId, mKey, {
+            theoretical_expenses: this.buildTheoreticalSnapshot(accId, mKey)
+          });
+          if (previousAccId && previousAccId !== accId) {
+            await this.upsertMonthRecord(previousAccId, mKey, {
+              theoretical_expenses: this.buildTheoreticalSnapshot(previousAccId, mKey)
+            });
+          }
+        }
+
         toast("Enregistré");
         this.closeSheet();
         this.fetchData();
@@ -3042,9 +3143,29 @@
 
     async deleteEntry() {
        const table = this.sheetMode === 'expense' ? 'expenses' : 'incomes';
+       const mKey = this.monthKey(new Date());
+       const oldExp = this.sheetMode === 'expense'
+         ? this.state.expenses.find(e => e.id === this.sheetEditId)
+         : null;
        await withRetry(async () => {
          const { error } = await supabaseApp.from(table).delete().eq('id', this.sheetEditId);
          if (error) throw error;
+         if (oldExp) {
+           await this.logExpenseChange({
+             expenseId: oldExp.id,
+             accountId: oldExp.account_id,
+             changeType: 'delete',
+             oldAmount: Number(oldExp.amount),
+             newAmount: null,
+             oldPayload: this.expenseSnapshotRow(oldExp),
+             newPayload: null,
+             monthKey: mKey
+           });
+           this.state.expenses = this.state.expenses.filter(e => e.id !== oldExp.id);
+           await this.upsertMonthRecord(oldExp.account_id, mKey, {
+             theoretical_expenses: this.buildTheoreticalSnapshot(oldExp.account_id, mKey)
+           });
+         }
          toast("Supprimé");
          this.closeSheet();
          this.fetchData();
