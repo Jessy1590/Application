@@ -420,13 +420,15 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
           </button>
           <div class="chart-filter-panel" id="stats-filter-pie">
-            <label for="stat-cat-acc-pie">Compte</label>
-            <select id="stat-cat-acc-pie" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
-            <label for="stat-cat-mode-pie">Mode</label>
-            <select id="stat-cat-mode-pie" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+            <label for="stat-pie-month">Mois</label>
+            <select id="stat-pie-month" class="bh-input" onchange="BH.setPieFilter('month', this.value)"></select>
+            <label for="stat-pie-mode">Mode</label>
+            <select id="stat-pie-mode" class="bh-input" onchange="BH.setPieFilter('mode', this.value)">
               <option value="effective">Effectives</option>
               <option value="theorique">Théoriques</option>
             </select>
+            <label for="stat-pie-acc">Compte</label>
+            <select id="stat-pie-acc" class="bh-input" onchange="BH.setPieFilter('acc', this.value)"></select>
           </div>
         </div>
       </div>
@@ -976,8 +978,9 @@
       if (arrow) arrow.textContent = open ? '▾' : '▸';
     },
 
-    // Filtres stats partagés (répartition / comparaison / bilan)
+    // Filtres stats : comparaison / bilan (partagés) + répartition (indépendants)
     statsFilters: { acc: '', mode: 'effective', range: '1', excludeCurrent: false },
+    pieFilters: { month: '', mode: 'effective', acc: '' },
     _statsFilterOpen: null,
 
     getStatsFilters() {
@@ -990,12 +993,40 @@
       };
     },
 
+    getPieFilters() {
+      const f = this.pieFilters || {};
+      const curKey = this.monthKey(new Date());
+      const month = f.month || curKey;
+      return {
+        month,
+        mode: f.mode === 'theorique' ? 'theorique' : 'effective',
+        acc: f.acc || ''
+      };
+    },
+
+    last12MonthOptions() {
+      const opts = [];
+      const now = new Date();
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = this.monthKey(d);
+        const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        opts.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1), date: d });
+      }
+      return opts;
+    },
+
     setStatsFilter(key, value) {
       if (!this.statsFilters) this.statsFilters = { acc: '', mode: 'effective', range: '1', excludeCurrent: false };
       if (key === 'excludeCurrent') this.statsFilters.excludeCurrent = !!value;
       else this.statsFilters[key] = value;
-      // Alias historique
       this.bilanExcludeCurrent = !!this.statsFilters.excludeCurrent;
+      this.renderCategoryStats();
+    },
+
+    setPieFilter(key, value) {
+      if (!this.pieFilters) this.pieFilters = { month: '', mode: 'effective', acc: '' };
+      this.pieFilters[key] = value;
       this.renderCategoryStats();
     },
 
@@ -1031,9 +1062,36 @@
 
     syncStatsFilterControls() {
       const f = this.getStatsFilters();
+      const pf = this.getPieFilters();
       const accHtml = '<option value="">Tous les comptes</option>' +
         (this.state.accounts || []).map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
-      ['pie', 'compare', 'bilan'].forEach(id => {
+
+      // Répartition : mois (12) + mode + compte
+      const monthSel = document.getElementById('stat-pie-month');
+      if (monthSel) {
+        const months = this.last12MonthOptions();
+        monthSel.innerHTML = months.map(m =>
+          `<option value="${m.key}">${this.esc(m.label)}</option>`
+        ).join('');
+        const valid = months.some(m => m.key === pf.month);
+        monthSel.value = valid ? pf.month : months[0].key;
+        if (!this.pieFilters) this.pieFilters = {};
+        this.pieFilters.month = monthSel.value;
+      }
+      const pieMode = document.getElementById('stat-pie-mode');
+      if (pieMode) pieMode.value = pf.mode;
+      const pieAcc = document.getElementById('stat-pie-acc');
+      if (pieAcc) {
+        pieAcc.innerHTML = accHtml;
+        pieAcc.value = (this.state.accounts || []).some(a => a.id === pf.acc) ? pf.acc : '';
+        if (pieAcc.value !== pf.acc) {
+          if (!this.pieFilters) this.pieFilters = {};
+          this.pieFilters.acc = pieAcc.value;
+        }
+      }
+
+      // Comparaison / bilan (partagés)
+      ['compare', 'bilan'].forEach(id => {
         const acc = document.getElementById('stat-cat-acc-' + id);
         if (acc) {
           acc.innerHTML = accHtml;
@@ -2461,27 +2519,40 @@
 
        this.syncStatsFilterControls();
        const f = this.getStatsFilters();
+       const pf = this.getPieFilters();
        const mode = f.mode;
        const offset = Math.max(1, Number(f.range) || 1);
        const accFilter = f.acc;
        const excludeCur = !!f.excludeCurrent;
        const opts = { accFilter, mode };
 
-       const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
-       const centerSub = mode === 'theorique' ? 'Budget' : 'Dépensé';
-
-       // 1. Camembert (mois courant)
-       const cur = this.categoryTotalsForMonth(curKey, opts);
+       // 1. Camembert — filtres propres (mois / mode / compte)
+       const pieOpts = { accFilter: pf.acc, mode: pf.mode };
+       const pieModeLabel = pf.mode === 'theorique' ? 'théoriques' : 'effectives';
+       const centerSub = pf.mode === 'theorique' ? 'Budget' : 'Dépensé';
+       const pieMonthLbl = (() => {
+          const [y, m] = pf.month.split('-').map(Number);
+          const d = new Date(y, (m || 1) - 1, 1);
+          return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+       })();
+       const cur = this.categoryTotalsForMonth(pf.month, pieOpts);
        const pieEl = document.getElementById('chart-categories');
        const catItems = Object.entries(cur)
           .map(([label, value]) => ({ label, value: Number(value) || 0 }))
           .filter(it => it.value > 0);
+       const pieTitle = document.querySelector('#stats-filter-pie')?.closest('.bh-card')?.querySelector('.chart-title');
+       if (pieTitle) {
+          const nice = pieMonthLbl.charAt(0).toUpperCase() + pieMonthLbl.slice(1);
+          pieTitle.textContent = `Répartition — ${nice}`;
+       }
        pieEl.innerHTML = catItems.length
           ? this.pieChart(catItems, { centerSub })
-          : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
+          : `<div class="chart-empty">Aucune dépense ${pieModeLabel} en ${this.esc(pieMonthLbl)}${pf.acc ? ' pour ce compte' : ''}.</div>`;
 
        const histBlock = document.getElementById('stat-history-block');
        if (histBlock) histBlock.style.display = '';
+
+       const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
 
        // Du plus ancien au plus récent, couleur arc-en-ciel selon le mois calendaire
        const monthsAll = this.monthKeysBack(offset).slice().reverse().map((m) => ({
@@ -2493,8 +2564,10 @@
        const months = (excludeCur && monthsAll.length > 1)
           ? monthsAll.filter(m => m.key !== curKey)
           : monthsAll;
+       // Tri des catégories : privilégier le mois de la répartition si c'est le courant, sinon totaux du dernier mois affiché
+       const sortRef = this.categoryTotalsForMonth(months.length ? months[months.length - 1].key : curKey, opts);
        const allCats = [...new Set(months.flatMap(m => Object.keys(m.totals)))]
-          .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
+          .sort((a, b) => (sortRef[b] || 0) - (sortRef[a] || 0));
 
        // 2. Comparaison multi-mois : schéma en grille (comme le bilan) par catégorie
        const compEl = document.getElementById('stat-comparison');
