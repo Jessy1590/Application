@@ -353,15 +353,17 @@
       <div class="chart-title">Répartition</div>
       <div id="chart-categories"></div>
     </div>
-    <div class="bh-card">
-      <div class="chart-title" style="font-size:12px; margin-bottom:8px;">Comparaison par catégorie</div>
-      <div id="stat-comparison"></div>
-    </div>
+    <div id="stat-history-block">
+      <div class="bh-card">
+        <div class="chart-title" style="font-size:12px; margin-bottom:8px;">Comparaison par catégorie</div>
+        <div id="stat-comparison"></div>
+      </div>
 
-    <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
-    <div class="bh-card">
-      <div class="chart-title">Bilan mensuel (revenus → dépenses → épargne)</div>
-      <div id="chart-savings-stack"></div>
+      <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
+      <div class="bh-card">
+        <div class="chart-title">Bilan mensuel (revenus → dépenses → épargne)</div>
+        <div id="chart-savings-stack"></div>
+      </div>
     </div>
 
     <div class="bh-section-label">Export</div>
@@ -1873,6 +1875,7 @@
 
     // Agrégats revenus / dépenses / épargne pour un mois (filtre + mode)
     // Revenus = revenus directs + apports entrants (comptes sans salaire propre)
+    // Mode effectif : uniquement montants validés/encaissés — pas les apports sortants théoriques
     monthIncomeExpenseBreakdown(mKey, { accFilter = '', mode = 'effective' } = {}) {
        const mainId = this.state.profile?.main_account_id;
        // Sans filtre : vision capacité perso = compte principal
@@ -1881,6 +1884,7 @@
           : (mainId ? [mainId] : this.state.accounts.map(a => a.id));
 
        let revenusDirects = 0, apports = 0, depenses = 0, epargne = 0;
+       let apportsSortants = 0, apportsSortantsEpargne = 0;
 
        focusIds.forEach(accId => {
           this.state.incomes.forEach(inc => {
@@ -1904,18 +1908,26 @@
           });
        });
 
-       // Sur le compte principal (filtre vide ou principal) : apports sortants = dépenses / épargne
+       // Apports sortants du principal : seulement en mode théorique
+       // (en effectif, le début de mois ne doit pas afficher tout le budget d'apports comme déjà dépensé)
        const lookingAtMain = !accFilter || accFilter === mainId;
        if (mainId && lookingAtMain) {
           const contribs = this.outboundContributionsBreakdown(mainId);
-          depenses += contribs.nonSavings;
-          epargne += contribs.savings;
+          apportsSortants = contribs.nonSavings;
+          apportsSortantsEpargne = contribs.savings;
+          if (mode === 'theorique') {
+             depenses += contribs.nonSavings;
+             epargne += contribs.savings;
+          }
        }
 
        const revenus = revenusDirects + apports;
        const capacite = Math.max(0, revenus - depenses - epargne);
        const overflow = Math.max(0, (depenses + epargne) - revenus);
-       return { revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow };
+       return {
+          revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow,
+          apportsSortants, apportsSortantsEpargne, mode
+       };
     },
 
     renderCategoryStats() {
@@ -1935,9 +1947,31 @@
              this.state.accounts.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
           accSel.value = this.state.accounts.some(a => a.id === prevAccVal) ? prevAccVal : '';
        }
-       if (rangeSel) rangeSel.value = ['1','2','5','11'].includes(prevRangeVal) ? prevRangeVal : '1';
+       if (rangeSel) {
+          rangeSel.value = ['1','2','5','11'].includes(prevRangeVal) ? prevRangeVal : '1';
+          rangeSel.style.display = mode === 'theorique' ? 'none' : '';
+       }
        const accFilter = accSel ? accSel.value : '';
        const opts = { accFilter, mode };
+
+       const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
+       const centerSub = mode === 'theorique' ? 'Budget' : 'Dépensé';
+
+       // 1. Camembert (mois courant) — seul graphique pertinent en mode théorique
+       const cur = this.categoryTotalsForMonth(curKey, opts);
+       const pieEl = document.getElementById('chart-categories');
+       const catItems = Object.entries(cur).map(([label, value]) => ({ label, value }));
+       pieEl.innerHTML = catItems.length
+          ? this.pieChart(catItems, { centerSub })
+          : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
+
+       const histBlock = document.getElementById('stat-history-block');
+       if (mode === 'theorique') {
+          // Pas d'historique des budgets passés : comparaison multi-mois et bilan seraient trompeurs
+          if (histBlock) histBlock.style.display = 'none';
+          return;
+       }
+       if (histBlock) histBlock.style.display = '';
 
        // Du plus ancien au plus récent, couleur arc-en-ciel selon le mois calendaire
        const months = this.monthKeysBack(offset).slice().reverse().map((m) => ({
@@ -1946,19 +1980,8 @@
           color: this.monthColor(m.date),
           totals: this.categoryTotalsForMonth(m.key, opts)
        }));
-       const cur = this.categoryTotalsForMonth(curKey, opts);
        const allCats = [...new Set(months.flatMap(m => Object.keys(m.totals)))]
           .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
-
-       const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
-       const centerSub = mode === 'theorique' ? 'Budget' : 'Dépensé';
-
-       // 1. Camembert (mois courant)
-       const pieEl = document.getElementById('chart-categories');
-       const catItems = Object.entries(cur).map(([label, value]) => ({ label, value }));
-       pieEl.innerHTML = catItems.length
-          ? this.pieChart(catItems, { centerSub })
-          : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
        // 2. Comparaison multi-mois : une barre colorée par mois pour chaque catégorie
        const compEl = document.getElementById('stat-comparison');
@@ -2049,8 +2072,11 @@
 
        const mainId = this.state.profile?.main_account_id;
        const mainName = (this.state.accounts.find(a => a.id === mainId) || {}).name || 'compte principal';
+       const isEff = opts.mode === 'effective';
        const scopeNote = !opts.accFilter
-          ? `Vision capacité perso (${this.esc(mainName)}) : revenus du compte principal, apports versés inclus dans dépenses / épargne.`
+          ? (isEff
+             ? `Vision capacité perso (${this.esc(mainName)}) — mode effectif : seules les dépenses / revenus validés. Les apports versés prévus sont indiqués à part, non comptés dans les dépenses.`
+             : `Vision capacité perso (${this.esc(mainName)}) — mode théorique : budget complet + apports versés inclus dans dépenses / épargne.`)
           : `Compte filtré : les apports configurés comptent comme revenus s'il n'y a pas (ou peu) de revenus directs.`;
 
        const cards = rows.map(r => {
@@ -2058,6 +2084,7 @@
           const depPct = (r.depenses / base) * 100;
           const epPct = (r.epargne / base) * 100;
           const capPct = (r.capacite / base) * 100;
+          const plannedOut = (r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0);
           return `<div class="month-fin-card">
             <div class="month-fin-head">
               <div class="month-fin-title">${this.esc(r.label)}</div>
@@ -2065,8 +2092,9 @@
             </div>
             <div class="month-fin-row"><span>Revenus directs</span><span class="num">${this.fmt(r.revenusDirects)}</span></div>
             ${r.apports > 0 ? `<div class="month-fin-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
-            <div class="month-fin-row"><span>Dépenses</span><span class="num" style="color:var(--clay);">${this.fmt(r.depenses)}</span></div>
-            <div class="month-fin-row"><span>Déjà épargné</span><span class="num" style="color:var(--gold);">${this.fmt(r.epargne)}</span></div>
+            <div class="month-fin-row"><span>Dépenses${isEff ? ' validées' : ''}</span><span class="num" style="color:var(--clay);">${this.fmt(r.depenses)}</span></div>
+            <div class="month-fin-row"><span>Déjà épargné${isEff ? ' (validé)' : ''}</span><span class="num" style="color:var(--gold);">${this.fmt(r.epargne)}</span></div>
+            ${isEff && plannedOut > 0 ? `<div class="month-fin-row"><span>Apports prévus (non comptés)</span><span class="num" style="color:var(--ink-faint);">${this.fmt(plannedOut)}</span></div>` : ''}
             <div class="month-fin-row"><span>Capacité d'épargne restante</span><span class="num" style="color:var(--sage-deep); font-weight:700;">${this.fmt(r.capacite)}</span></div>
             ${r.overflow > 0 ? `<div class="month-fin-row"><span>Dépassement</span><span class="num" style="color:var(--clay);">${this.fmt(r.overflow)}</span></div>` : ''}
             <div class="month-fin-bar" title="Proportion dépenses / épargné / capacité">
