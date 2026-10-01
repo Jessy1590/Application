@@ -276,7 +276,6 @@
     </div>
     <div id="bh-wallets-section"></div>
     <div id="bh-due-section"></div>
-    <div id="bh-incomes-due-section"></div>
     <div class="bh-section-label">Dépenses validées</div>
     <div class="bh-card" id="bh-paid-list-wrap">
       <div id="bh-paid-list"></div>
@@ -732,6 +731,27 @@
 
     // Palette cyclique pour les camemberts
     chartPalette: ['#3E6B57','#B8793A','#AE4B3C','#B7912F','#5A8A73','#D3A15C','#C97564','#8FA396','#28453A','#E0B96B'],
+    // Arc-en-ciel : 1 couleur fixe par mois calendaire (jan→déc)
+    monthRainbow: [
+      '#E53935', // jan — rouge
+      '#FB8C00', // fév — orange
+      '#FDD835', // mar — jaune
+      '#7CB342', // avr — vert clair
+      '#00897B', // mai — turquoise
+      '#039BE5', // juin — bleu ciel
+      '#3949AB', // juil — indigo
+      '#8E24AA', // août — violet
+      '#D81B60', // sept — magenta
+      '#6D4C41', // oct — brun
+      '#546E7A', // nov — bleu-gris
+      '#43A047'  // déc — vert
+    ],
+    monthColor(dateOrMonthIndex) {
+      const idx = (dateOrMonthIndex instanceof Date)
+        ? dateOrMonthIndex.getMonth()
+        : Number(dateOrMonthIndex) || 0;
+      return this.monthRainbow[((idx % 12) + 12) % 12];
+    },
 
     // Génère un camembert (donut) SVG + légende à partir d'items [{label, value}]
     // centerLabel / centerSub : texte optionnel affiché au centre
@@ -815,19 +835,19 @@
       const mKey = this.monthKey(now);
 
       let totalDue = 0, totalPaid = 0;
-      let paidHtml = '';
-      const late = [], today = [], soon = [];
+      let paidExpHtml = '', paidIncHtml = '';
+      const late = [], today = [], soonExp = [], soonInc = [];
 
       this.state.expenses.forEach(exp => {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if(!acc) return;
-        if (exp.is_wallet) return; // les portefeuilles sont traités séparément plus bas
+        if (exp.is_wallet) return;
         const paidRec = this.state.months[acc.id + '_' + mKey]?.[exp.id];
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
 
         if (paidRec) {
           totalPaid += Number(paidRec.amount);
-          paidHtml += `
+          paidExpHtml += `
             <div class="bh-due${expiredCls}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
               <div style="min-width:0;">
                  <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(exp.description)}</div>
@@ -841,17 +861,70 @@
         } else {
           totalDue += Number(exp.amount);
           const diff = Math.min(exp.day, dim) - now.getDate();
-          const item = { exp, acc, diff };
+          const item = { kind: 'expense', exp, acc, diff };
           if (diff < 0) late.push(item);
           else if (diff === 0) today.push(item);
-          else soon.push(item);
+          else soonExp.push(item);
+        }
+      });
+
+      this.state.incomes.forEach(inc => {
+        if (Number(inc.amount) <= 0) return;
+        const acc = this.state.accounts.find(a => a.id === inc.account_id);
+        if (!acc) return;
+        const paidRec = this.state.monthsIncomes?.[acc.id + '_' + mKey]?.[inc.id];
+        if (paidRec) {
+          paidIncHtml += `
+            <div class="bh-due" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <div style="min-width:0;">
+                 <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(inc.description)}</div>
+                 <div class="bh-due-meta">${this.esc(acc.name)}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler l'encaissement" onclick="BH.unmarkIncome('${inc.id}', '${acc.id}')">Annuler</button>
+              </div>
+            </div>`;
+        } else {
+          const diff = Math.min(Number(inc.day) || 1, dim) - now.getDate();
+          const item = { kind: 'income', inc, acc, diff };
+          if (diff < 0) late.push(item);
+          else if (diff === 0) today.push(item);
+          else soonInc.push(item);
         }
       });
 
       late.sort((a,b)=>a.diff-b.diff);
-      soon.sort((a,b)=>a.diff-b.diff);
+      today.sort((a,b)=>a.diff-b.diff);
+      soonExp.sort((a,b)=>a.diff-b.diff);
+      soonInc.sort((a,b)=>a.diff-b.diff);
 
-      const dueItemHtml = ({exp, acc, diff}) => {
+      const dueItemHtml = (item) => {
+        if (item.kind === 'income') {
+          const { inc, acc, diff } = item;
+          const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
+          const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
+          return `
+            <div class="bh-due">
+              <div class="bh-due-top">
+                <div>
+                  <div class="bh-due-desc">${this.esc(inc.description)}</div>
+                  <div class="bh-due-meta">
+                    <span class="bh-pill ${cls}">${lbl}</span>
+                    <span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Revenu</span>
+                    <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
+                    ${inc.income_type === 'remboursement' ? `<span class="bh-pill" style="background:var(--gold-pale); color:var(--gold);">Remboursement</span>` : ''}
+                  </div>
+                </div>
+                <div class="bh-due-amount num" style="color:var(--sage-deep);">+${this.fmt(inc.amount)}</div>
+              </div>
+              <div class="bh-due-actions">
+                <button class="bh-btn bh-btn-primary" onclick="BH.markIncome('${inc.id}', ${inc.amount}, '${acc.id}')">Encaisser ${this.fmt(inc.amount)}</button>
+                <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${inc.id}', '${acc.id}', 'income')">Montant différent</button>
+              </div>
+            </div>`;
+        }
+        const { exp, acc, diff } = item;
         const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
         const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
@@ -881,7 +954,10 @@
           + items.map(dueItemHtml).join('');
       };
 
-      let dueHtml = section('En retard', late) + section("Aujourd'hui", today) + section('À venir', soon);
+      let dueHtml = section('En retard', late)
+        + section("Aujourd'hui", today)
+        + section('Dépenses à venir', soonExp)
+        + section('Revenus à venir', soonInc);
 
       // Portefeuilles (budgets enveloppe avec dépenses internes multiples)
       const wallets = this.state.expenses.filter(e => e.is_wallet).map(exp => {
@@ -901,78 +977,9 @@
       document.getElementById('bh-stat-remaining').textContent = this.fmt(totalDue);
       document.getElementById('bh-stat-paid').textContent = this.fmt(totalPaid);
       document.getElementById('bh-due-section').innerHTML = dueHtml || '<div class="bh-empty">Tout est à jour !</div>';
-      document.getElementById('bh-paid-list').innerHTML = paidHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
-
-      this.renderTodayIncomes(mKey, now, dim);
-    },
-
-    renderTodayIncomes(mKey, now, dim) {
-      let paidHtml = '';
-      const late = [], today = [], soon = [];
-
-      this.state.incomes.forEach(inc => {
-        if (Number(inc.amount) <= 0) return;
-        const acc = this.state.accounts.find(a => a.id === inc.account_id);
-        if (!acc) return;
-        const paidRec = this.state.monthsIncomes?.[acc.id + '_' + mKey]?.[inc.id];
-        if (paidRec) {
-          paidHtml += `
-            <div class="bh-due" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <div style="min-width:0;">
-                 <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(inc.description)}</div>
-                 <div class="bh-due-meta">${this.esc(acc.name)}</div>
-              </div>
-              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-                <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
-                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler l'encaissement" onclick="BH.unmarkIncome('${inc.id}', '${acc.id}')">Annuler</button>
-              </div>
-            </div>`;
-        } else {
-          const diff = Math.min(Number(inc.day) || 1, dim) - now.getDate();
-          const item = { inc, acc, diff };
-          if (diff < 0) late.push(item);
-          else if (diff === 0) today.push(item);
-          else soon.push(item);
-        }
-      });
-
-      late.sort((a,b)=>a.diff-b.diff);
-      soon.sort((a,b)=>a.diff-b.diff);
-
-      const incomeItemHtml = ({inc, acc, diff}) => {
-        const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
-        const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
-        return `
-          <div class="bh-due">
-            <div class="bh-due-top">
-              <div>
-                <div class="bh-due-desc">${this.esc(inc.description)}</div>
-                <div class="bh-due-meta">
-                  <span class="bh-pill ${cls}">${lbl}</span>
-                  <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
-                  ${inc.income_type === 'remboursement' ? `<span class="bh-pill" style="background:var(--gold-pale); color:var(--gold);">Remboursement</span>` : ''}
-                </div>
-              </div>
-              <div class="bh-due-amount num" style="color:var(--sage-deep);">+${this.fmt(inc.amount)}</div>
-            </div>
-            <div class="bh-due-actions">
-              <button class="bh-btn bh-btn-primary" onclick="BH.markIncome('${inc.id}', ${inc.amount}, '${acc.id}')">Encaisser ${this.fmt(inc.amount)}</button>
-              <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${inc.id}', '${acc.id}', 'income')">Montant différent</button>
-            </div>
-          </div>`;
-      };
-
-      const section = (label, items) => {
-        if (!items.length) return '';
-        return `<div class="bh-section-label"><span>${label}</span><span class="bh-section-count">${items.length}</span></div>`
-          + items.map(incomeItemHtml).join('');
-      };
-
-      const dueHtml = section('Revenus en retard', late) + section("Revenus aujourd'hui", today) + section('Revenus à venir', soon);
-      const dueEl = document.getElementById('bh-incomes-due-section');
-      if (dueEl) dueEl.innerHTML = dueHtml;
-      const paidEl = document.getElementById('bh-paid-incomes-list');
-      if (paidEl) paidEl.innerHTML = paidHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
+      document.getElementById('bh-paid-list').innerHTML = paidExpHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
+      const paidIncEl = document.getElementById('bh-paid-incomes-list');
+      if (paidIncEl) paidIncEl.innerHTML = paidIncHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
     },
 
     fmtDate(d) {
@@ -1932,11 +1939,11 @@
        const accFilter = accSel ? accSel.value : '';
        const opts = { accFilter, mode };
 
-       // Du plus ancien au plus récent, une couleur par mois
-       const months = this.monthKeysBack(offset).slice().reverse().map((m, idx) => ({
+       // Du plus ancien au plus récent, couleur arc-en-ciel selon le mois calendaire
+       const months = this.monthKeysBack(offset).slice().reverse().map((m) => ({
           ...m,
           label: monthLabel(m.date),
-          color: this.chartPalette[idx % this.chartPalette.length],
+          color: this.monthColor(m.date),
           totals: this.categoryTotalsForMonth(m.key, opts)
        }));
        const cur = this.categoryTotalsForMonth(curKey, opts);
