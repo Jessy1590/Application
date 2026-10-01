@@ -218,16 +218,31 @@
   .stack-legend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11.5px; color:var(--ink-soft); margin-bottom:12px; }
   .stack-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .stack-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
-  .comp-month-bars{ display:flex; flex-direction:column; gap:3px; }
-  .bilan-compose{ display:flex; align-items:flex-end; gap:6px; overflow-x:auto; padding:4px 0 8px; min-height:120px; }
-  .bilan-compose-col{ flex:1; min-width:40px; max-width:72px; display:flex; flex-direction:column; align-items:center; gap:5px; }
-  .bilan-compose-bar{ width:100%; height:100px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:6px 6px 0 0; overflow:hidden; background:var(--line-soft); }
-  .bilan-compose-bar > span{ display:block; width:100%; min-height:0; }
-  .bilan-compose-lbl{ font-size:10px; color:var(--ink-faint); text-align:center; line-height:1.15; }
-  .bilan-metric{ padding:10px 0; border-bottom:1px solid var(--line-soft); }
-  .bilan-metric-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px; }
-  .bilan-metric-label{ font-size:12.5px; font-weight:600; }
+  .bilan-compose{ display:grid; grid-template-columns:repeat(auto-fit, minmax(40px, 1fr)); gap:6px; align-items:end; padding:4px 0 8px; }
+  .bilan-compose-col{ display:flex; flex-direction:column; align-items:center; gap:4px; min-width:0; }
+  .bilan-compose-bar{ width:100%; max-width:56px; height:100px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:6px 6px 0 0; overflow:visible; background:var(--line-soft); margin:0 auto; position:relative; }
+  .bilan-compose-bar.short{ height:72px; }
+  .bilan-compose-bar > .tip-seg{ display:block; width:100%; min-height:0; position:relative; cursor:help; }
+  .bilan-compose-lbl{ font-size:10px; color:var(--ink-faint); text-align:center; line-height:1.15; display:flex; align-items:center; justify-content:center; gap:2px; flex-wrap:wrap; }
+  .bilan-compose-lbl button.bh-info-btn{ width:14px; height:14px; font-size:9px; margin-left:0; }
+  .bilan-metric{ padding:8px 0; border-bottom:1px solid var(--line-soft); }
+  .bilan-metric-head{ display:flex; justify-content:space-between; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+  .bilan-metric-label{ font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px; }
+  .bilan-metric-arrow{ font-size:11px; color:var(--ink-faint); width:14px; display:inline-block; }
+  .bilan-metric-body{ margin-top:6px; }
   .bilan-metric-vals{ display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:5px; }
+  .cat-compose-wrap{ margin-top:6px; }
+  .tip-seg[data-tip]::after,
+  .tip-lbl[data-tip]::after{
+    content:attr(data-tip);
+    position:absolute; left:50%; bottom:calc(100% + 4px); transform:translateX(-50%);
+    background:var(--ink); color:#fff; font-size:10px; font-weight:600; font-family:'Inter',sans-serif;
+    padding:4px 7px; border-radius:6px; white-space:nowrap; z-index:20;
+    opacity:0; pointer-events:none; transition:opacity .12s;
+  }
+  .tip-seg[data-tip]:hover::after, .tip-seg[data-tip]:focus::after,
+  .tip-lbl[data-tip]:hover::after, .tip-lbl[data-tip]:focus::after{ opacity:1; }
+  .tip-lbl{ position:relative; cursor:help; font-weight:600; }
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -755,56 +770,102 @@
     },
 
     // Génère un camembert (donut) SVG + légende à partir d'items [{label, value}]
-    // centerLabel / centerSub : texte optionnel affiché au centre
     pieChart(items, opts) {
       opts = opts || {};
       const size = opts.size || 150;
-      const filtered = (items||[]).filter(it => Number(it.value) > 0);
+      const filtered = (items || [])
+        .map(it => ({ label: it.label, value: Number(it.value) || 0, color: it.color }))
+        .filter(it => it.value > 0)
+        .sort((a, b) => b.value - a.value);
       if (!filtered.length) return `<div class="chart-empty">Pas encore de données.</div>`;
 
-      const total = filtered.reduce((s,it)=>s+Number(it.value),0);
-      const r = size/2, cx = size/2, cy = size/2, rInner = r*0.6;
-      let angle = -Math.PI/2;
+      const total = filtered.reduce((s, it) => s + it.value, 0);
+      if (!(total > 0)) return `<div class="chart-empty">Pas encore de données.</div>`;
+
+      const r = size / 2, cx = size / 2, cy = size / 2, rInner = r * 0.58;
+      const holeFill = '#FFFFFF';
+      let angle = -Math.PI / 2;
       let paths = '';
       const legendRows = [];
 
-      filtered.sort((a,b)=>b.value-a.value).forEach((it, idx) => {
-        const color = it.color || this.chartPalette[idx % this.chartPalette.length];
-        const frac = it.value / total;
-        const a0 = angle;
-        const a1 = angle + frac * Math.PI * 2;
-        angle = a1;
-        const x0 = cx + r*Math.cos(a0), y0 = cy + r*Math.sin(a0);
-        const x1 = cx + r*Math.cos(a1), y1 = cy + r*Math.sin(a1);
-        const xi0 = cx + rInner*Math.cos(a0), yi0 = cy + rInner*Math.sin(a0);
-        const xi1 = cx + rInner*Math.cos(a1), yi1 = cy + rInner*Math.sin(a1);
-        const largeArc = (a1 - a0) > Math.PI ? 1 : 0;
-        // Slice complet (évite un arc invalide quand frac ~ 1)
-        if (frac > 0.9999) {
-          paths += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"></circle>
-                     <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="var(--card)"></circle>`;
-        } else {
-          paths += `<path d="M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1} L ${xi1} ${yi1} A ${rInner} ${rInner} 0 ${largeArc} 0 ${xi0} ${yi0} Z" fill="${color}"></path>`;
-        }
-        const pct = Math.round(frac*100);
+      // Un seul segment : anneau plein (évite les arcs SVG dégénérés)
+      if (filtered.length === 1) {
+        const it = filtered[0];
+        const color = it.color || this.chartPalette[0];
+        paths = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"></circle>
+                 <circle cx="${cx}" cy="${cy}" r="${rInner}" fill="${holeFill}"></circle>`;
         legendRows.push(`<div class="chart-legend-row">
           <span class="chart-legend-swatch" style="background:${color};"></span>
           <span class="chart-legend-label">${this.esc(it.label)}</span>
-          <span class="chart-legend-value">${this.fmt(it.value)} · ${pct}%</span>
+          <span class="chart-legend-value">${this.fmt(it.value)} · 100%</span>
         </div>`);
-      });
+      } else {
+        filtered.forEach((it, idx) => {
+          const color = it.color || this.chartPalette[idx % this.chartPalette.length];
+          const frac = it.value / total;
+          const a0 = angle;
+          const a1 = angle + frac * Math.PI * 2;
+          angle = a1;
+          const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+          const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+          const xi0 = cx + rInner * Math.cos(a0), yi0 = cy + rInner * Math.sin(a0);
+          const xi1 = cx + rInner * Math.cos(a1), yi1 = cy + rInner * Math.sin(a1);
+          const largeArc = (a1 - a0) > Math.PI ? 1 : 0;
+          paths += `<path d="M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1} L ${xi1} ${yi1} A ${rInner} ${rInner} 0 ${largeArc} 0 ${xi0} ${yi0} Z" fill="${color}"></path>`;
+          const pct = Math.round(frac * 100);
+          legendRows.push(`<div class="chart-legend-row">
+            <span class="chart-legend-swatch" style="background:${color};"></span>
+            <span class="chart-legend-label">${this.esc(it.label)}</span>
+            <span class="chart-legend-value">${this.fmt(it.value)} · ${pct}%</span>
+          </div>`);
+        });
+        // Disque central opaque (évite les variables CSS SVG non supportées sur iOS)
+        paths += `<circle cx="${cx}" cy="${cy}" r="${rInner}" fill="${holeFill}"></circle>`;
+      }
 
-      const centerLabel = opts.centerLabel != null ? opts.centerLabel : this.fmt(total);
+      const centerLabel = opts.centerLabel != null ? String(opts.centerLabel) : this.fmt(total);
       const centerSub = opts.centerSub || '';
 
       return `<div class="chart-wrap">
-        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img">
           ${paths}
-          <text x="${cx}" y="${cy - (centerSub?4:0)}" text-anchor="middle" font-size="${size*0.1}" class="chart-center-label">${this.esc(centerLabel)}</text>
-          ${centerSub ? `<text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9" class="chart-center-sub">${this.esc(centerSub)}</text>` : ''}
+          <text x="${cx}" y="${cy - (centerSub ? 6 : 0)}" text-anchor="middle" font-size="${Math.round(size * 0.095)}" class="chart-center-label">${this.esc(centerLabel)}</text>
+          ${centerSub ? `<text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="9" class="chart-center-sub">${this.esc(centerSub)}</text>` : ''}
         </svg>
         <div class="chart-legend">${legendRows.join('')}</div>
       </div>`;
+    },
+
+    toggleBilanMetric(id) {
+      if (!this.bilanMetricOpen) this.bilanMetricOpen = {};
+      this.bilanMetricOpen[id] = !this.bilanMetricOpen[id];
+      const open = !!this.bilanMetricOpen[id];
+      const body = document.getElementById('bilan-metric-body-' + id);
+      const arrow = document.getElementById('bilan-metric-arrow-' + id);
+      if (body) body.style.display = open ? 'block' : 'none';
+      if (arrow) arrow.textContent = open ? '▾' : '▸';
+    },
+
+    showBilanMonthInfo(mKey) {
+      const r = (this._bilanRows || []).find(x => x.key === mKey);
+      if (!r) return;
+      const isEff = r.mode === 'effective';
+      const planned = (r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0);
+      let rows = `
+        <div class="bh-info-row"><span>Revenus totaux</span><span class="num">${this.fmt(r.revenus)}</span></div>
+        <div class="bh-info-row"><span>Revenus directs</span><span class="num">${this.fmt(r.revenusDirects)}</span></div>
+        ${r.apports > 0 ? `<div class="bh-info-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
+        <div class="bh-info-row"><span>Dépenses${isEff ? ' validées' : ''}</span><span class="num">${this.fmt(r.depenses)}</span></div>
+        <div class="bh-info-row"><span>Déjà épargné</span><span class="num">${this.fmt(r.epargne)}</span></div>
+        ${isEff && planned > 0 ? `<div class="bh-info-row"><span>Apports prévus (non comptés)</span><span class="num">${this.fmt(planned)}</span></div>` : ''}
+        <div class="bh-info-row"><span>Capacité d'épargne restante</span><span class="num">${this.fmt(r.capacite)}</span></div>`;
+      if (r.overflow > 0) {
+        rows += `<div class="bh-info-row"><span>Dépassement</span><span class="num">${this.fmt(r.overflow)}</span></div>`;
+      }
+      const longLbl = r.date
+        ? r.date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+        : r.label;
+      this.openInfo(`Bilan — ${longLbl}`, rows);
     },
 
     switchTab(tab) {
@@ -1996,7 +2057,9 @@
        // 1. Camembert (mois courant) — seul graphique pertinent en mode théorique
        const cur = this.categoryTotalsForMonth(curKey, opts);
        const pieEl = document.getElementById('chart-categories');
-       const catItems = Object.entries(cur).map(([label, value]) => ({ label, value }));
+       const catItems = Object.entries(cur)
+          .map(([label, value]) => ({ label, value: Number(value) || 0 }))
+          .filter(it => it.value > 0);
        pieEl.innerHTML = catItems.length
           ? this.pieChart(catItems, { centerSub })
           : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
@@ -2019,15 +2082,11 @@
        const allCats = [...new Set(months.flatMap(m => Object.keys(m.totals)))]
           .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
 
-       // 2. Comparaison multi-mois : une barre colorée par mois pour chaque catégorie
+       // 2. Comparaison multi-mois : schéma en grille (comme le bilan) par catégorie
        const compEl = document.getElementById('stat-comparison');
        if (allCats.length === 0) {
           compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
        } else {
-          const maxCat = Math.max(
-             ...allCats.flatMap(c => months.map(m => m.totals[c] || 0)),
-             1
-          );
           const oldest = months[0];
           const newest = months[months.length - 1];
           const oldestTotal = this.sumCategoryTotals(oldest.totals);
@@ -2041,6 +2100,7 @@
              deltaTotalHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
           }
 
+          const nCols = months.length;
           let html = `
             <div class="stack-legend" style="margin-bottom:8px;">
               ${months.map(m => `<span><i style="background:${m.color};"></i>${this.esc(m.label)}</span>`).join('')}
@@ -2060,22 +2120,26 @@
                 deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
                 color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
              }
-             const amountsHtml = months.map(m =>
-                `<span class="num" style="color:${m.color}; font-size:10.5px;">${this.fmt(m.totals[cat] || 0)}</span>`
-             ).join('');
-             const barsHtml = months.map(m => {
+             const maxV = Math.max(...months.map(m => m.totals[cat] || 0), 1);
+             const cols = months.map(m => {
                 const v = m.totals[cat] || 0;
-                const pct = Math.max(v > 0 ? 2 : 0, (v / maxCat) * 100);
-                return `<div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pct}%; background:${m.color};"></div></div>`;
+                const h = Math.round((v / maxV) * 68);
+                return `<div class="bilan-compose-col">
+                  <div class="bilan-compose-bar short">
+                    ${v > 0 ? `<span class="tip-seg" tabindex="0" data-tip="${this.esc(m.label)} : ${this.fmt(v)}" style="height:${Math.max(h, 3)}px;background:${m.color};"></span>` : ''}
+                  </div>
+                  <div class="bilan-compose-lbl tip-lbl" tabindex="0" data-tip="${this.fmt(v)}" style="color:${m.color};">${this.esc(m.label)}</div>
+                </div>`;
              }).join('');
 
-             html += `<div style="padding:8px 0; border-bottom:1px solid var(--line-soft);">
-                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
+             html += `<div style="padding:10px 0; border-bottom:1px solid var(--line-soft);">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px;">
                    <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
                    <span style="font-weight:700; color:${color}; font-size:11px; flex-shrink:0;">${deltaLabel}</span>
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:5px;">${amountsHtml}</div>
-                <div class="comp-month-bars">${barsHtml}</div>
+                <div class="cat-compose-wrap">
+                  <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(32px, 1fr));">${cols}</div>
+                </div>
              </div>`;
           });
 
@@ -2088,7 +2152,7 @@
           compEl.innerHTML = html;
        }
 
-       // 3. Bilan revenus / dépenses / épargne (montants lisibles)
+       // 3. Bilan revenus / dépenses / épargne (comparaison)
        this.renderSavingsStackChart(months, opts);
     },
 
@@ -2096,14 +2160,16 @@
        const el = document.getElementById('chart-savings-stack');
        if (!el) return;
        const shortLbl = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-       // months : déjà colorés, du plus ancien au plus récent
        const rows = months.map(m => ({
           key: m.key,
           date: m.date,
           color: m.color,
           label: shortLbl(m.date),
+          mode: opts.mode,
           ...this.monthIncomeExpenseBreakdown(m.key, opts)
        }));
+       this._bilanRows = rows;
+
        const hasData = rows.some(r => r.revenus > 0 || r.depenses > 0 || r.epargne > 0);
        if (!hasData) {
           el.innerHTML = `<div class="chart-empty">Pas encore de données sur cette période${opts.mode === 'effective' ? " (validez dépenses et revenus dans Aujourd'hui)" : ''}.</div>`;
@@ -2136,84 +2202,85 @@
           return Number(r[key]) || 0;
        };
 
-       const deltaHtml = (oldest, newest) => {
-          if (oldest === 0 && newest > 0) return `<span style="font-weight:700;color:var(--amber);">nouveau</span>`;
-          if (oldest === 0 && newest === 0) return `<span style="color:var(--ink-faint);">—</span>`;
-          const d = Math.round(((newest - oldest) / oldest) * 100);
-          // Pour dépenses : hausse = mauvais (clay) ; pour revenus/capacité/épargne : hausse = bon (sage)
-          return `<span style="font-weight:700;color:${d === 0 ? 'var(--ink-faint)' : (d > 0 ? 'var(--clay)' : 'var(--sage-deep)')};">${d > 0 ? '+' : ''}${d}%</span>`;
-       };
-
-       // 1. Composition côte à côte (dépenses / épargné / capacité) pour comparer la structure
        const maxStack = Math.max(...rows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
+       const nCols = rows.length;
        const composeCols = rows.map(r => {
           const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
           const usedH = Math.round((base / maxStack) * 100);
           const depH = Math.round((r.depenses / base) * usedH);
           const epH = Math.round((r.epargne / base) * usedH);
           const capH = Math.max(0, usedH - depH - epH);
-          return `<div class="bilan-compose-col" title="${this.esc(r.label)} · Rev. ${this.fmt(r.revenus)}">
+          return `<div class="bilan-compose-col">
             <div class="bilan-compose-bar">
-              ${capH > 0 ? `<span style="height:${capH}px;background:var(--sage);"></span>` : ''}
-              ${epH > 0 ? `<span style="height:${epH}px;background:var(--gold);"></span>` : ''}
-              ${depH > 0 ? `<span style="height:${depH}px;background:var(--clay);"></span>` : ''}
+              ${capH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Capacité : ${this.fmt(r.capacite)}" style="height:${capH}px;background:var(--sage);"></span>` : ''}
+              ${epH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Épargné : ${this.fmt(r.epargne)}" style="height:${epH}px;background:var(--gold);"></span>` : ''}
+              ${depH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Dépenses : ${this.fmt(r.depenses)}" style="height:${depH}px;background:var(--clay);"></span>` : ''}
             </div>
-            <div class="bilan-compose-lbl" style="color:${r.color}; font-weight:600;">${this.esc(r.label)}</div>
+            <div class="bilan-compose-lbl">
+              <span class="tip-lbl" tabindex="0" data-tip="Revenus : ${this.fmt(r.revenus)}" style="color:${r.color};">${this.esc(r.label)}</span>
+              <button type="button" class="bh-info-btn" title="Détail du mois" onclick="event.stopPropagation(); BH.showBilanMonthInfo('${r.key}')">i</button>
+            </div>
           </div>`;
        }).join('');
 
-       // 2. Une ligne par indicateur, barres colorées par mois (même logique que comparaison catégories)
+       if (!this.bilanMetricOpen) this.bilanMetricOpen = {};
        const oldest = rows[0], newest = rows[rows.length - 1];
-       const metricRows = metrics.map(met => {
+
+       const metricRows = metrics.map((met, mi) => {
+          const id = 'm' + mi;
+          const open = !!this.bilanMetricOpen[id];
           const vals = rows.map(r => valOf(r, met.key));
           const maxV = Math.max(...vals, 1);
           const o = valOf(oldest, met.key), n = valOf(newest, met.key);
-          // Delta coloré selon le sens « souhaitable » de l'indicateur
+
           let dHtml;
-          if (met.key === 'depenses' || met.key === '_planned') {
-             dHtml = deltaHtml(o, n); // hausse dépenses = clay (déjà dans deltaHtml)
-          } else if (met.key === 'revenus' || met.key === 'revenusDirects' || met.key === 'apports' || met.key === 'epargne' || met.key === 'capacite') {
-             if (o === 0 && n > 0) dHtml = `<span style="font-weight:700;color:var(--amber);">nouveau</span>`;
-             else if (o === 0 && n === 0) dHtml = `<span style="color:var(--ink-faint);">—</span>`;
-             else {
-                const d = Math.round(((n - o) / o) * 100);
-                // hausse revenus/épargne/capacité = sage (bon)
-                dHtml = `<span style="font-weight:700;color:${d === 0 ? 'var(--ink-faint)' : (d > 0 ? 'var(--sage-deep)' : 'var(--clay)')};">${d > 0 ? '+' : ''}${d}%</span>`;
-             }
-          } else {
-             dHtml = deltaHtml(o, n);
+          const goodUp = met.key !== 'depenses' && met.key !== '_planned';
+          if (o === 0 && n > 0) dHtml = `<span style="font-weight:700;color:var(--amber);">nouveau</span>`;
+          else if (o === 0 && n === 0) dHtml = `<span style="color:var(--ink-faint);">—</span>`;
+          else {
+             const d = Math.round(((n - o) / o) * 100);
+             const col = d === 0 ? 'var(--ink-faint)' : (goodUp
+                ? (d > 0 ? 'var(--sage-deep)' : 'var(--clay)')
+                : (d > 0 ? 'var(--clay)' : 'var(--sage-deep)'));
+             dHtml = `<span style="font-weight:700;color:${col};">${d > 0 ? '+' : ''}${d}%</span>`;
           }
 
           const amountsHtml = rows.map(r =>
              `<span class="num" style="color:${r.color}; font-size:10.5px;${met.faint ? 'opacity:0.7;' : ''}">${this.fmt(valOf(r, met.key))}</span>`
           ).join('');
-          const barsHtml = rows.map(r => {
+          const miniCols = rows.map(r => {
              const v = valOf(r, met.key);
-             const pct = Math.max(v > 0 ? 2 : 0, (v / maxV) * 100);
-             return `<div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pct}%; background:${r.color};${met.faint ? 'opacity:0.55;' : ''}"></div></div>`;
+             const h = Math.round((v / maxV) * 40);
+             return `<div class="bilan-compose-col">
+               <div class="bilan-compose-bar" style="height:44px;max-width:40px;">
+                 ${v > 0 ? `<span class="tip-seg" tabindex="0" data-tip="${this.esc(r.label)} : ${this.fmt(v)}" style="height:${Math.max(h, 2)}px;background:${r.color};${met.faint ? 'opacity:0.55;' : ''}"></span>` : ''}
+               </div>
+             </div>`;
           }).join('');
 
           return `<div class="bilan-metric">
-            <div class="bilan-metric-head">
-              <span class="bilan-metric-label" style="${met.emphasize ? 'color:var(--sage-deep);' : ''}${met.faint ? 'color:var(--ink-faint);font-weight:500;' : ''}">${this.esc(met.label)}</span>
+            <div class="bilan-metric-head" onclick="BH.toggleBilanMetric('${id}')">
+              <span class="bilan-metric-label" style="${met.emphasize ? 'color:var(--sage-deep);' : ''}${met.faint ? 'color:var(--ink-faint);font-weight:500;' : ''}">
+                <span class="bilan-metric-arrow" id="bilan-metric-arrow-${id}">${open ? '▾' : '▸'}</span>
+                ${this.esc(met.label)}
+              </span>
               ${dHtml}
             </div>
-            <div class="bilan-metric-vals">${amountsHtml}</div>
-            <div class="comp-month-bars">${barsHtml}</div>
+            <div class="bilan-metric-body" id="bilan-metric-body-${id}" style="display:${open ? 'block' : 'none'};">
+              <div class="bilan-metric-vals">${amountsHtml}</div>
+              <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(28px, 1fr));">${miniCols}</div>
+            </div>
           </div>`;
        }).join('');
 
        el.innerHTML = `
          <div class="stack-legend">
-           ${rows.map(r => `<span><i style="background:${r.color};"></i>${this.esc(r.label)}</span>`).join('')}
-         </div>
-         <div class="stack-legend" style="margin-top:-4px;">
            <span><i style="background:var(--clay);"></i>Dépenses</span>
            <span><i style="background:var(--gold);"></i>Épargné</span>
            <span><i style="background:var(--sage);"></i>Capacité</span>
          </div>
-         <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu (comparer les mois)</div>
-         <div class="bilan-compose">${composeCols}</div>
+         <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu — survol = montant · <strong>i</strong> = détail</div>
+         <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(40px, 1fr));">${composeCols}</div>
          <div style="font-size:11px; color:var(--ink-soft); margin:12px 0 4px;">Détail par indicateur · Δ ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>
          ${metricRows}
          <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">${scopeNote}</div>`;
