@@ -765,11 +765,18 @@
         walletTx: (recs.data || []).reduce((acc, m) => {
           acc[m.account_id + '_' + m.month_key] = m.wallet_transactions || {};
           return acc;
+        }, {}),
+        // Snapshots du budget théorique par compte/mois (pour graphiques historiques)
+        theoreticalMonths: (recs.data || []).reduce((acc, m) => {
+          acc[m.account_id + '_' + m.month_key] = m.theoretical_expenses || {};
+          return acc;
         }, {})
       };
       
       this.render();
       this.checkDueNotifications();
+      // Figé le budget théorique du mois courant (sans bloquer le rendu)
+      this.syncCurrentTheoreticalSnapshots();
     },
 
     monthKey(date) { return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0'); },
@@ -1675,6 +1682,9 @@
       if (patch.wallet_transactions !== undefined) payload.wallet_transactions = patch.wallet_transactions;
       else if (!existing) payload.wallet_transactions = this.state.walletTx?.[key] || {};
 
+      if (patch.theoretical_expenses !== undefined) payload.theoretical_expenses = patch.theoretical_expenses;
+      else if (!existing) payload.theoretical_expenses = this.state.theoreticalMonths?.[key] || {};
+
       if (existing) {
         const { account_id, month_key, ...updates } = payload;
         if (Object.keys(updates).length === 0) return;
@@ -1683,16 +1693,129 @@
           .eq('account_id', accId)
           .eq('month_key', mKey);
         if (error) throw error;
+        // Mettre à jour le cache local immédiatement
+        const rec = (this.state.monthRecords || []).find(r => r.account_id === accId && r.month_key === mKey);
+        if (rec) Object.assign(rec, updates);
+        if (updates.theoretical_expenses !== undefined) {
+          if (!this.state.theoreticalMonths) this.state.theoreticalMonths = {};
+          this.state.theoreticalMonths[key] = updates.theoretical_expenses;
+        }
       } else {
-        const { error } = await supabaseApp.from('month_records').upsert({
+        const row = {
           account_id: accId,
           month_key: mKey,
           paid_expenses: payload.paid_expenses || {},
           paid_incomes: payload.paid_incomes || {},
-          wallet_transactions: payload.wallet_transactions || {}
-        }, { onConflict: 'account_id,month_key' });
+          wallet_transactions: payload.wallet_transactions || {},
+          theoretical_expenses: payload.theoretical_expenses || {}
+        };
+        const { error } = await supabaseApp.from('month_records').upsert(row, { onConflict: 'account_id,month_key' });
         if (error) throw error;
+        if (!this.state.monthRecords) this.state.monthRecords = [];
+        this.state.monthRecords.push(row);
+        if (!this.state.theoreticalMonths) this.state.theoreticalMonths = {};
+        this.state.theoreticalMonths[key] = row.theoretical_expenses;
       }
+    },
+
+    // --- Historique budget théorique ---
+    expenseSnapshotRow(exp) {
+      return {
+        amount: Number(exp.amount) || 0,
+        category: exp.category || 'Autre',
+        description: exp.description || '',
+        is_wallet: !!exp.is_wallet,
+        day: Number(exp.day) || 1,
+        end_date: exp.end_date || null
+      };
+    },
+
+    buildTheoreticalSnapshot(accId, mKey) {
+      const snap = {};
+      (this.state.expenses || []).forEach(exp => {
+        if (exp.account_id !== accId) return;
+        if (!this.isActiveInMonth(exp, mKey)) return;
+        snap[exp.id] = this.expenseSnapshotRow(exp);
+      });
+      return snap;
+    },
+
+    theoreticalSnapFingerprint(snap) {
+      const keys = Object.keys(snap || {}).sort();
+      return JSON.stringify(keys.map(k => {
+        const r = snap[k] || {};
+        return [k, Number(r.amount) || 0, r.category || '', !!r.is_wallet, r.end_date || null];
+      }));
+    },
+
+    // Figé / met à jour le snapshot du mois courant pour chaque compte
+    async syncCurrentTheoreticalSnapshots() {
+      if (this._theoSnapSyncing) return;
+      this._theoSnapSyncing = true;
+      try {
+        const mKey = this.monthKey(new Date());
+        for (const acc of (this.state.accounts || [])) {
+          const key = acc.id + '_' + mKey;
+          const next = this.buildTheoreticalSnapshot(acc.id, mKey);
+          const prev = this.state.theoreticalMonths?.[key] || {};
+          if (this.theoreticalSnapFingerprint(prev) === this.theoreticalSnapFingerprint(next)) continue;
+          await withRetry(async () => {
+            await this.upsertMonthRecord(acc.id, mKey, { theoretical_expenses: next });
+          }, 'snapshot budget théorique');
+        }
+      } finally {
+        this._theoSnapSyncing = false;
+      }
+    },
+
+    async logExpenseChange({ expenseId, accountId, changeType, oldAmount, newAmount, oldPayload, newPayload, monthKey }) {
+      if (!accountId) return;
+      try {
+        await supabaseApp.from('expense_change_log').insert([{
+          expense_id: expenseId || null,
+          account_id: accountId,
+          change_type: changeType,
+          old_amount: oldAmount != null ? Number(oldAmount) : null,
+          new_amount: newAmount != null ? Number(newAmount) : null,
+          old_payload: oldPayload || null,
+          new_payload: newPayload || null,
+          month_key: monthKey || this.monthKey(new Date()),
+          changed_by: this.user?.id || null
+        }]);
+      } catch (e) {
+        console.warn('expense_change_log', e);
+      }
+    },
+
+    hasTheoreticalSnapshot(mKey, accFilter = '') {
+      const ids = accFilter
+        ? [accFilter]
+        : (this.state.accounts || []).map(a => a.id);
+      return ids.some(id => {
+        const s = this.state.theoreticalMonths?.[id + '_' + mKey];
+        return s && Object.keys(s).length > 0;
+      });
+    },
+
+    // Totaux catégories depuis les snapshots (mois passés) — null si aucun snapshot
+    categoryTotalsFromTheoreticalSnapshots(mKey, accFilter = '') {
+      const ids = accFilter
+        ? [accFilter]
+        : (this.state.accounts || []).map(a => a.id);
+      let any = false;
+      const totals = {};
+      ids.forEach(accId => {
+        const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
+        if (!snap || !Object.keys(snap).length) return;
+        any = true;
+        Object.values(snap).forEach(row => {
+          const amt = Number(row.amount) || 0;
+          if (amt <= 0) return;
+          const cat = row.category || 'Autre';
+          totals[cat] = (totals[cat] || 0) + amt;
+        });
+      });
+      return any ? totals : null;
     },
 
     // --- Dépenses expirées (date de fin dépassée) ---
@@ -1940,16 +2063,22 @@
        return paid ? Number(paid.amount || 0) : 0;
     },
 
-    // Montant d'une dépense pour les stats (théorique = budget ; effectif = validé / txs portefeuille)
+    // Montant d'une dépense pour les stats (théorique = budget / snapshot ; effectif = validé / txs portefeuille)
     expenseAmountForStats(exp, mKey, mode) {
        if (!exp) return 0;
-       if (exp.is_wallet) {
-          // Portefeuille : toujours pris en compte (budget ou somme des dépenses saisies)
-          return mode === 'theorique'
-             ? Number(exp.amount) || 0
-             : this.walletSpent(exp.account_id, exp.id, mKey);
+       if (mode === 'theorique') {
+          const curKey = this.monthKey(new Date());
+          // Mois passé : préférer le snapshot figé (budget réel de l'époque)
+          if (mKey !== curKey) {
+             const snap = this.state.theoreticalMonths?.[exp.account_id + '_' + mKey];
+             if (snap && Object.keys(snap).length) {
+                const row = snap[exp.id];
+                return row ? (Number(row.amount) || 0) : 0;
+             }
+          }
+          return Number(exp.amount) || 0;
        }
-       if (mode === 'theorique') return Number(exp.amount) || 0;
+       if (exp.is_wallet) return this.walletSpent(exp.account_id, exp.id, mKey);
        return this.effectiveExpenseAmount(exp, mKey);
     },
 
@@ -1965,6 +2094,14 @@
 
     // Totaux par catégorie pour un mois (inclut les portefeuilles)
     categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
+       // Théorique + mois passé : lire le snapshot figé (inclut dépenses depuis supprimées)
+       if (mode === 'theorique') {
+          const curKey = this.monthKey(new Date());
+          if (mKey !== curKey) {
+             const fromSnap = this.categoryTotalsFromTheoreticalSnapshots(mKey, accFilter);
+             if (fromSnap) return fromSnap;
+          }
+       }
        const totals = {};
        this.state.expenses.forEach(exp => {
           if (accFilter && exp.account_id !== accFilter) return;
@@ -2031,14 +2168,25 @@
              apports += this.inboundContributions(accId);
           }
 
-          this.state.expenses.forEach(exp => {
-             if (exp.account_id !== accId) return;
-             if (!this.isActiveInMonth(exp, mKey)) return;
-             const amt = this.expenseAmountForStats(exp, mKey, mode);
-             if (amt <= 0) return;
-             if (this.isEpargneExpense(exp)) epargne += amt;
-             else depenses += amt;
-          });
+          const curKey = this.monthKey(new Date());
+          const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
+          if (mode === 'theorique' && mKey !== curKey && snap && Object.keys(snap).length) {
+             Object.values(snap).forEach(row => {
+                const amt = Number(row.amount) || 0;
+                if (amt <= 0) return;
+                if (/(é|e)pargne/i.test(row.category || '')) epargne += amt;
+                else depenses += amt;
+             });
+          } else {
+             this.state.expenses.forEach(exp => {
+                if (exp.account_id !== accId) return;
+                if (!this.isActiveInMonth(exp, mKey)) return;
+                const amt = this.expenseAmountForStats(exp, mKey, mode);
+                if (amt <= 0) return;
+                if (this.isEpargneExpense(exp)) epargne += amt;
+                else depenses += amt;
+             });
+          }
        });
 
        // Apports sortants du principal : seulement en mode théorique
@@ -2082,7 +2230,8 @@
        }
        if (rangeSel) {
           rangeSel.value = ['1','2','5','11'].includes(prevRangeVal) ? prevRangeVal : '1';
-          rangeSel.style.display = mode === 'theorique' ? 'none' : '';
+          // Théorique : historique basé sur les snapshots mensuels (vide pour les mois sans historique)
+          rangeSel.style.display = '';
        }
        const accFilter = accSel ? accSel.value : '';
        const opts = { accFilter, mode };
@@ -2090,7 +2239,7 @@
        const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
        const centerSub = mode === 'theorique' ? 'Budget' : 'Dépensé';
 
-       // 1. Camembert (mois courant) — seul graphique pertinent en mode théorique
+       // 1. Camembert (mois courant)
        const cur = this.categoryTotalsForMonth(curKey, opts);
        const pieEl = document.getElementById('chart-categories');
        const catItems = Object.entries(cur)
@@ -2101,11 +2250,6 @@
           : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
        const histBlock = document.getElementById('stat-history-block');
-       if (mode === 'theorique') {
-          // Pas d'historique des budgets passés : comparaison multi-mois et bilan seraient trompeurs
-          if (histBlock) histBlock.style.display = 'none';
-          return;
-       }
        if (histBlock) histBlock.style.display = '';
 
        // Du plus ancien au plus récent, couleur arc-en-ciel selon le mois calendaire
@@ -2120,8 +2264,12 @@
 
        // 2. Comparaison multi-mois : schéma en grille (comme le bilan) par catégorie
        const compEl = document.getElementById('stat-comparison');
+       const theoPastEmpty = mode === 'theorique' && months.filter(m => m.key !== curKey).every(m => !this.hasTheoreticalSnapshot(m.key, accFilter));
        if (allCats.length === 0) {
-          compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
+          compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.${mode === 'theorique' ? ' L’historique se construit au fil des mois.' : ''}</div>`;
+       } else if (theoPastEmpty && offset > 0) {
+          // Snapshot du mois courant seulement : comparer n’aurait pas de sens
+          compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Historique théorique en cours de constitution — les mois passés seront figés automatiquement. Comparaison disponible dès le prochain mois.</div>`;
        } else {
           const oldest = months[0];
           const newest = months[months.length - 1];
@@ -2381,21 +2529,284 @@
     exportPDF() {
        const now = new Date();
        const mKey = this.monthKey(now);
-       let rowsHtml = '';
-       this.state.expenses.forEach(e => {
-          const acc = this.state.accounts.find(a=>a.id===e.account_id);
-          rowsHtml += `<tr><td>${this.esc(e.description)}</td><td>${this.esc(e.category||'')}</td><td>${this.esc(acc?.name||'')}</td><td style="text-align:right;">${this.fmt(e.amount)}</td></tr>`;
+       const monthTitle = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+       const sage = '#3E6B57', sageDeep = '#28453A', clay = '#AE4B3C', gold = '#B7912F';
+       const ink = '#152520', inkSoft = '#5A6B62', line = '#DBE3DD', paper = '#F3F6F3';
+
+       const theoCats = this.categoryTotalsForMonth(mKey, { mode: 'theorique' });
+       const effCats = this.categoryTotalsForMonth(mKey, { mode: 'effective' });
+       const allCats = [...new Set([...Object.keys(theoCats), ...Object.keys(effCats)])]
+          .sort((a, b) => (theoCats[b] || 0) - (theoCats[a] || 0));
+       const theoTotal = this.sumCategoryTotals(theoCats);
+       const effTotal = this.sumCategoryTotals(effCats);
+       const bilan = this.monthIncomeExpenseBreakdown(mKey, { mode: 'effective' });
+       const bilanTheo = this.monthIncomeExpenseBreakdown(mKey, { mode: 'theorique' });
+
+       // Barres comparatives catégorie (théorique vs effectif)
+       const maxCat = Math.max(...allCats.map(c => Math.max(theoCats[c] || 0, effCats[c] || 0)), 1);
+       const catCompareHtml = allCats.length ? allCats.map(cat => {
+          const t = theoCats[cat] || 0, e = effCats[cat] || 0;
+          const tPct = Math.max(t > 0 ? 2 : 0, (t / maxCat) * 100);
+          const ePct = Math.max(e > 0 ? 2 : 0, (e / maxCat) * 100);
+          let delta = '—';
+          if (t > 0) {
+             const d = Math.round(((e - t) / t) * 100);
+             delta = (d > 0 ? '+' : '') + d + '%';
+          } else if (e > 0) delta = 'nouveau';
+          return `<div class="cmp-row">
+            <div class="cmp-head"><span class="cmp-name">${this.esc(cat)}</span>
+              <span class="cmp-vals"><b style="color:${inkSoft}">${this.fmt(t)}</b> → <b style="color:${sageDeep}">${this.fmt(e)}</b> <em>${delta}</em></span>
+            </div>
+            <div class="bar-track"><div class="bar-theo" style="width:${tPct}%"></div></div>
+            <div class="bar-track"><div class="bar-eff" style="width:${ePct}%"></div></div>
+          </div>`;
+       }).join('') : '<p class="muted">Aucune catégorie ce mois.</p>';
+
+       // Camemberts (SVG autonomes pour l'impression)
+       const pieTheo = this.pieChart(
+          Object.entries(theoCats).map(([label, value]) => ({ label, value })),
+          { size: 140, centerSub: 'Budget' }
+       );
+       const pieEff = this.pieChart(
+          Object.entries(effCats).map(([label, value]) => ({ label, value })),
+          { size: 140, centerSub: 'Dépensé' }
+       );
+
+       // Graphiques par compte
+       const accountsHtml = this.getOrderedAccounts().map(acc => {
+          const theo = this.categoryTotalsForMonth(mKey, { accFilter: acc.id, mode: 'theorique' });
+          const eff = this.categoryTotalsForMonth(mKey, { accFilter: acc.id, mode: 'effective' });
+          const tTot = this.sumCategoryTotals(theo);
+          const eTot = this.sumCategoryTotals(eff);
+          if (tTot <= 0 && eTot <= 0) return '';
+          const pie = this.pieChart(
+             Object.entries(eff).map(([label, value]) => ({ label, value })),
+             { size: 110, centerSub: 'Effectif' }
+          );
+          const cats = [...new Set([...Object.keys(theo), ...Object.keys(eff)])]
+             .sort((a, b) => (theo[b] || 0) - (theo[a] || 0));
+          const maxA = Math.max(...cats.map(c => Math.max(theo[c] || 0, eff[c] || 0)), 1);
+          const rows = cats.map(c => {
+             const t = theo[c] || 0, e = eff[c] || 0;
+             return `<tr>
+               <td>${this.esc(c)}</td>
+               <td class="num muted">${this.fmt(t)}</td>
+               <td class="num">${this.fmt(e)}</td>
+               <td><div class="mini-duo">
+                 <span style="width:${(t/maxA)*100}%;background:${inkSoft};opacity:.45"></span>
+                 <span style="width:${(e/maxA)*100}%;background:${sage}"></span>
+               </div></td>
+             </tr>`;
+          }).join('');
+          return `<section class="card account-card">
+            <h3>${this.esc(acc.name)}</h3>
+            <div class="kpi-row">
+              <div class="kpi"><span>Théorique</span><strong>${this.fmt(tTot)}</strong></div>
+              <div class="kpi accent"><span>Effectif</span><strong>${this.fmt(eTot)}</strong></div>
+              <div class="kpi"><span>Écart</span><strong>${this.fmt(eTot - tTot)}</strong></div>
+            </div>
+            <div class="split">
+              <div>${eTot > 0 ? pie : '<p class="muted">Rien de validé</p>'}</div>
+              <table class="slim"><thead><tr><th>Catégorie</th><th>Théo.</th><th>Eff.</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+            </div>
+          </section>`;
+       }).join('');
+
+       // Évolution 6 mois (effectif)
+       const months = this.monthKeysBack(5).slice().reverse();
+       const maxRev = Math.max(...months.map(m => {
+          const b = this.monthIncomeExpenseBreakdown(m.key, { mode: 'effective' });
+          return Math.max(b.revenus, b.depenses + b.epargne);
+       }), 1);
+       const evolHtml = months.map(m => {
+          const b = this.monthIncomeExpenseBreakdown(m.key, { mode: 'effective' });
+          const lbl = m.date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+          const base = Math.max(b.revenus, b.depenses + b.epargne, 0.01);
+          const usedH = Math.round((base / maxRev) * 90);
+          const depH = Math.round((b.depenses / base) * usedH);
+          const epH = Math.round((b.epargne / base) * usedH);
+          const capH = Math.max(0, usedH - depH - epH);
+          return `<div class="evol-col">
+            <div class="evol-bar">
+              ${capH ? `<span style="height:${capH}px;background:${sage}"></span>` : ''}
+              ${epH ? `<span style="height:${epH}px;background:${gold}"></span>` : ''}
+              ${depH ? `<span style="height:${depH}px;background:${clay}"></span>` : ''}
+            </div>
+            <div class="evol-lbl">${this.esc(lbl)}</div>
+            <div class="evol-amt">${this.fmt(b.revenus)}</div>
+          </div>`;
+       }).join('');
+
+       // Apports salaire
+       const mainAccId = this.state.profile?.main_account_id;
+       const salaryItems = [];
+       this.state.accounts.forEach(acc => {
+          if (acc.id === mainAccId) return;
+          const mems = this.state.members.filter(m => m.account_id === acc.id);
+          const myMem = mems.find(m => m.user_id === this.user.id);
+          if (!myMem) return;
+          const exps = this.state.expenses.filter(e => e.account_id === acc.id);
+          const tExp = exps.reduce((s,e)=>s+Number(e.amount),0);
+          const accTInc = this.state.incomes.filter(i => i.account_id === acc.id).reduce((s,i)=>s+Number(i.amount),0);
+          const netExp = Math.max(0, tExp - accTInc);
+          const mode = myMem.contribution_mode || 'fixed';
+          let amt = 0;
+          if (mode === 'prorata') amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
+          else if (mode === 'percent') amt = netExp * (Number(myMem.contribution_target)||0) / 100;
+          else amt = Number(myMem.contribution_target) || 0;
+          if (amt > 0) salaryItems.push({ label: acc.name, value: amt });
        });
+       const salaryPie = salaryItems.length
+          ? this.pieChart(salaryItems, { size: 130, centerSub: 'Apports' })
+          : '<p class="muted">Aucun apport configuré.</p>';
+
+       // Tableau détail dépenses (théo vs eff)
+       let detailRows = '';
+       this.state.expenses.forEach(exp => {
+          if (!this.isActiveInMonth(exp, mKey)) return;
+          const acc = this.state.accounts.find(a => a.id === exp.account_id);
+          const theo = Number(exp.amount) || 0;
+          const eff = this.expenseAmountForStats(exp, mKey, 'effective');
+          if (theo <= 0 && eff <= 0) return;
+          const pct = theo > 0 ? Math.round((eff / theo) * 100) : (eff > 0 ? '—' : '0');
+          detailRows += `<tr>
+            <td>${exp.is_wallet ? '👛 ' : ''}${this.esc(exp.description)}</td>
+            <td>${this.esc(exp.category || 'Autre')}</td>
+            <td>${this.esc(acc?.name || '')}</td>
+            <td class="num muted">${this.fmt(theo)}</td>
+            <td class="num">${this.fmt(eff)}</td>
+            <td class="num">${pct}${typeof pct === 'number' ? ' %' : ''}</td>
+          </tr>`;
+       });
+
        const win = window.open('', '_blank');
-       win.document.write(`<html><head><title>Rapport Budget ${mKey}</title>
-         <style>body{font-family:Arial,sans-serif;padding:24px;} h1{font-size:18px;} table{width:100%; border-collapse:collapse; margin-top:16px;} td,th{border-bottom:1px solid #ddd; padding:6px 8px; font-size:12px; text-align:left;}</style>
-         </head><body>
-         <h1>Rapport Budget — ${mKey}</h1>
-         <table><thead><tr><th>Description</th><th>Catégorie</th><th>Compte</th><th style="text-align:right;">Montant</th></tr></thead>
-         <tbody>${rowsHtml}</tbody></table>
-         </body></html>`);
+       if (!win) { toast('Autorisez les pop-ups pour générer le rapport'); return; }
+
+       win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+         <meta charset="UTF-8">
+         <title>Rapport Budget — ${this.esc(monthTitle)}</title>
+         <style>
+           @page { margin: 14mm; }
+           * { box-sizing: border-box; }
+           body { margin:0; font-family: Inter, system-ui, sans-serif; color:${ink}; background:#fff; font-size:12px; line-height:1.4; }
+           h1 { font-family: 'Space Grotesk', system-ui, sans-serif; font-size:22px; color:${sageDeep}; margin:0 0 4px; }
+           h2 { font-family: 'Space Grotesk', system-ui, sans-serif; font-size:15px; color:${sageDeep}; margin:22px 0 10px; border-bottom:2px solid ${line}; padding-bottom:6px; }
+           h3 { font-size:13px; margin:0 0 8px; color:${sageDeep}; }
+           .sub { color:${inkSoft}; font-size:12px; margin-bottom:16px; }
+           .hero { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:14px 0 8px; }
+           .hero .box { background:${paper}; border:1px solid ${line}; border-radius:12px; padding:12px; }
+           .hero .box span { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:${inkSoft}; font-weight:600; }
+           .hero .box strong { display:block; font-size:16px; margin-top:4px; font-variant-numeric:tabular-nums; }
+           .hero .box.eff strong { color:${sageDeep}; }
+           .hero .box.theo strong { color:${inkSoft}; }
+           .legend { display:flex; gap:14px; font-size:11px; color:${inkSoft}; margin:8px 0 12px; }
+           .legend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+           .cmp-row { padding:7px 0; border-bottom:1px solid ${line}; }
+           .cmp-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:4px; font-size:12px; }
+           .cmp-name { font-weight:600; }
+           .cmp-vals { font-variant-numeric:tabular-nums; font-size:11px; }
+           .cmp-vals em { font-style:normal; font-weight:700; color:${clay}; margin-left:6px; }
+           .bar-track { height:6px; background:${line}; border-radius:3px; overflow:hidden; margin-top:2px; }
+           .bar-theo { height:100%; background:${inkSoft}; opacity:.45; border-radius:3px; }
+           .bar-eff { height:100%; background:${sage}; border-radius:3px; }
+           .charts-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+           .card { background:#fff; border:1px solid ${line}; border-radius:14px; padding:14px; margin-bottom:12px; break-inside:avoid; }
+           .kpi-row { display:flex; gap:8px; margin-bottom:10px; }
+           .kpi { flex:1; background:${paper}; border-radius:10px; padding:8px; }
+           .kpi span { font-size:10px; color:${inkSoft}; text-transform:uppercase; letter-spacing:.03em; }
+           .kpi strong { display:block; margin-top:2px; font-size:13px; }
+           .kpi.accent strong { color:${sageDeep}; }
+           .split { display:grid; grid-template-columns:140px 1fr; gap:12px; align-items:start; }
+           table { width:100%; border-collapse:collapse; }
+           th, td { padding:5px 6px; border-bottom:1px solid ${line}; text-align:left; font-size:11px; }
+           th { color:${inkSoft}; font-weight:600; font-size:10px; text-transform:uppercase; }
+           .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+           .muted { color:${inkSoft}; }
+           .mini-duo { height:8px; background:${line}; border-radius:4px; overflow:hidden; position:relative; min-width:60px; }
+           .mini-duo span { display:block; height:4px; }
+           .evol { display:flex; align-items:flex-end; gap:8px; min-height:120px; padding-top:8px; }
+           .evol-col { flex:1; text-align:center; }
+           .evol-bar { height:90px; display:flex; flex-direction:column; justify-content:flex-end; background:${line}; border-radius:6px 6px 0 0; overflow:hidden; max-width:48px; margin:0 auto; }
+           .evol-bar span { display:block; width:100%; }
+           .evol-lbl { font-size:10px; color:${inkSoft}; margin-top:4px; }
+           .evol-amt { font-size:9px; font-variant-numeric:tabular-nums; color:${inkSoft}; }
+           .chart-wrap { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+           .chart-legend { flex:1; min-width:100px; }
+           .chart-legend-row { display:flex; align-items:center; gap:6px; font-size:10px; margin:3px 0; }
+           .chart-legend-swatch { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+           .chart-legend-label { flex:1; }
+           .chart-legend-value { color:${inkSoft}; font-variant-numeric:tabular-nums; }
+           .chart-center-label { font-family:system-ui,sans-serif; font-weight:700; fill:${sageDeep}; }
+           .chart-center-sub { fill:${inkSoft}; font-family:system-ui,sans-serif; }
+           .chart-empty { color:${inkSoft}; font-size:12px; }
+           .footer { margin-top:24px; font-size:10px; color:${inkSoft}; text-align:center; }
+           @media print {
+             .card { break-inside: avoid; }
+             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+           }
+         </style>
+       </head><body>
+         <h1>Rapport Budget</h1>
+         <div class="sub">${this.esc(monthTitle)} · généré le ${now.toLocaleDateString('fr-FR')} · comparaison dépenses théoriques vs effectives</div>
+
+         <div class="hero">
+           <div class="box theo"><span>Dépenses théoriques</span><strong>${this.fmt(theoTotal)}</strong></div>
+           <div class="box eff"><span>Dépenses effectives</span><strong>${this.fmt(effTotal)}</strong></div>
+           <div class="box"><span>Revenus (effectif)</span><strong>${this.fmt(bilan.revenus)}</strong></div>
+           <div class="box"><span>Capacité restante</span><strong style="color:${sageDeep}">${this.fmt(bilan.capacite)}</strong></div>
+         </div>
+
+         <h2>Théorique vs effectif — par catégorie</h2>
+         <div class="legend">
+           <span><i style="background:${inkSoft};opacity:.5"></i>Théorique (budget)</span>
+           <span><i style="background:${sage}"></i>Effectif (validé / portefeuilles)</span>
+         </div>
+         <div class="card">${catCompareHtml || '<p class="muted">Pas de données.</p>'}</div>
+
+         <h2>Répartition visuelle</h2>
+         <div class="charts-2">
+           <div class="card"><h3>Budget théorique</h3>${pieTheo}</div>
+           <div class="card"><h3>Dépenses effectives</h3>${pieEff}</div>
+         </div>
+
+         <h2>Bilan du mois</h2>
+         <div class="card">
+           <div class="kpi-row">
+             <div class="kpi"><span>Revenus directs</span><strong>${this.fmt(bilan.revenusDirects)}</strong></div>
+             <div class="kpi"><span>Apports reçus</span><strong>${this.fmt(bilan.apports)}</strong></div>
+             <div class="kpi"><span>Déjà épargné</span><strong style="color:${gold}">${this.fmt(bilan.epargne)}</strong></div>
+             <div class="kpi accent"><span>Capacité</span><strong>${this.fmt(bilan.capacite)}</strong></div>
+           </div>
+           <p class="muted" style="margin:0;font-size:11px;">Référence théorique du mois — dépenses ${this.fmt(bilanTheo.depenses)} · épargne ${this.fmt(bilanTheo.epargne)} · capacité ${this.fmt(bilanTheo.capacite)}</p>
+         </div>
+
+         <h2>Évolution (6 mois effectifs)</h2>
+         <div class="legend">
+           <span><i style="background:${clay}"></i>Dépenses</span>
+           <span><i style="background:${gold}"></i>Épargné</span>
+           <span><i style="background:${sage}"></i>Capacité</span>
+         </div>
+         <div class="card"><div class="evol">${evolHtml}</div></div>
+
+         <h2>Répartition du salaire (apports)</h2>
+         <div class="card">${salaryPie}</div>
+
+         <h2>Par compte</h2>
+         ${accountsHtml || '<p class="muted">Aucun compte avec des dépenses ce mois.</p>'}
+
+         <h2>Détail des saisies</h2>
+         <div class="card" style="padding:8px 10px;">
+           <table>
+             <thead><tr><th>Description</th><th>Catégorie</th><th>Compte</th><th style="text-align:right">Théo.</th><th style="text-align:right">Eff.</th><th style="text-align:right">%</th></tr></thead>
+             <tbody>${detailRows || '<tr><td colspan="6" class="muted">Aucune dépense</td></tr>'}</tbody>
+           </table>
+         </div>
+
+         <div class="footer">Budget Partagé · Rapport non contractuel · ${this.esc(mKey)}</div>
+       </body></html>`);
        win.document.close();
-       setTimeout(() => win.print(), 400);
+       setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 500);
+       toast('Rapport prêt à imprimer / enregistrer en PDF');
     },
 
     openAddSheet() {
