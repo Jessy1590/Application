@@ -263,6 +263,39 @@
     display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;
     margin:12px 0 4px;
   }
+  .chart-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    margin:0 0 12px;
+  }
+  .chart-head .chart-title{ margin:0; flex:1; min-width:0; }
+  .chart-filter-wrap{ position:relative; flex-shrink:0; }
+  .chart-filter-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:5px;
+    width:34px; height:34px; padding:0; border-radius:10px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .chart-filter-btn:hover, .chart-filter-btn.open{
+    background:var(--sage-pale); color:var(--sage-deep); border-color:var(--sage);
+  }
+  .chart-filter-btn svg{ width:16px; height:16px; }
+  .chart-filter-panel{
+    display:none; position:absolute; top:calc(100% + 6px); right:0; z-index:40;
+    width:min(260px, calc(100vw - 48px));
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow); padding:12px; 
+  }
+  .chart-filter-panel.open{ display:block; }
+  .chart-filter-panel label{
+    display:block; font-size:11px; font-weight:600; color:var(--ink-soft);
+    text-transform:uppercase; letter-spacing:0.04em; margin:0 0 4px;
+  }
+  .chart-filter-panel .bh-input{ margin-bottom:10px; }
+  .chart-filter-panel .filter-check{
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink);
+    font-weight:500; cursor:pointer; margin-top:2px; text-transform:none; letter-spacing:0;
+  }
+  .chart-filter-panel .filter-check input{ width:16px; height:16px; accent-color:var(--sage); }
   .tip-seg[data-tip]::after,
   .tip-lbl[data-tip]::after{
     content:attr(data-tip);
@@ -379,34 +412,83 @@
     </div>
 
     <div class="bh-section-label">Dépenses par catégorie</div>
-    <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-      <select id="stat-cat-acc" class="bh-input" style="flex:1; min-width:120px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
-        <option value="">Tous les comptes</option>
-      </select>
-      <select id="stat-cat-mode" class="bh-input" style="flex:1; min-width:110px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
-        <option value="effective">Effectives</option>
-        <option value="theorique">Théoriques</option>
-      </select>
-      <select id="stat-cat-range" class="bh-input" style="flex:1; min-width:130px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
-        <option value="1">vs m-1 (2 mois)</option>
-        <option value="2">jusqu'à m-2 (3 mois)</option>
-        <option value="5">jusqu'à m-5 (6 mois)</option>
-        <option value="11">jusqu'à m-11 (12 mois)</option>
-      </select>
-    </div>
     <div class="bh-card">
-      <div class="chart-title">Répartition</div>
+      <div class="chart-head">
+        <div class="chart-title">Répartition</div>
+        <div class="chart-filter-wrap">
+          <button type="button" class="chart-filter-btn" id="stats-filter-btn-pie" title="Filtres" onclick="BH.toggleStatsFilter('pie')" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+          </button>
+          <div class="chart-filter-panel" id="stats-filter-pie">
+            <label for="stat-cat-acc-pie">Compte</label>
+            <select id="stat-cat-acc-pie" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
+            <label for="stat-cat-mode-pie">Mode</label>
+            <select id="stat-cat-mode-pie" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+              <option value="effective">Effectives</option>
+              <option value="theorique">Théoriques</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div id="chart-categories"></div>
     </div>
     <div id="stat-history-block">
       <div class="bh-card">
-        <div class="chart-title" style="font-size:12px; margin-bottom:8px;">Comparaison par catégorie</div>
+        <div class="chart-head">
+          <div class="chart-title" style="font-size:12px;">Comparaison par catégorie</div>
+          <div class="chart-filter-wrap">
+            <button type="button" class="chart-filter-btn" id="stats-filter-btn-compare" title="Filtres" onclick="BH.toggleStatsFilter('compare')" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+            </button>
+            <div class="chart-filter-panel" id="stats-filter-compare">
+              <label for="stat-cat-acc-compare">Compte</label>
+              <select id="stat-cat-acc-compare" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
+              <label for="stat-cat-mode-compare">Mode</label>
+              <select id="stat-cat-mode-compare" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+                <option value="effective">Effectives</option>
+                <option value="theorique">Théoriques</option>
+              </select>
+              <label for="stat-cat-range-compare">Période</label>
+              <select id="stat-cat-range-compare" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
+                <option value="1">vs m-1 (2 mois)</option>
+                <option value="2">jusqu'à m-2 (3 mois)</option>
+                <option value="5">jusqu'à m-5 (6 mois)</option>
+                <option value="11">jusqu'à m-11 (12 mois)</option>
+              </select>
+              <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-compare" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
+            </div>
+          </div>
+        </div>
         <div id="stat-comparison"></div>
       </div>
 
       <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
       <div class="bh-card">
-        <div class="chart-title">Bilan mensuel — comparaison</div>
+        <div class="chart-head">
+          <div class="chart-title">Bilan mensuel — comparaison</div>
+          <div class="chart-filter-wrap">
+            <button type="button" class="chart-filter-btn" id="stats-filter-btn-bilan" title="Filtres" onclick="BH.toggleStatsFilter('bilan')" aria-expanded="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+            </button>
+            <div class="chart-filter-panel" id="stats-filter-bilan">
+              <label for="stat-cat-acc-bilan">Compte</label>
+              <select id="stat-cat-acc-bilan" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
+              <label for="stat-cat-mode-bilan">Mode</label>
+              <select id="stat-cat-mode-bilan" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+                <option value="effective">Effectives</option>
+                <option value="theorique">Théoriques</option>
+              </select>
+              <label for="stat-cat-range-bilan">Période</label>
+              <select id="stat-cat-range-bilan" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
+                <option value="1">vs m-1 (2 mois)</option>
+                <option value="2">jusqu'à m-2 (3 mois)</option>
+                <option value="5">jusqu'à m-5 (6 mois)</option>
+                <option value="11">jusqu'à m-11 (12 mois)</option>
+              </select>
+              <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-bilan" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
+            </div>
+          </div>
+        </div>
         <div id="chart-savings-stack"></div>
       </div>
     </div>
@@ -727,6 +809,16 @@
       } catch (e) {
         console.log("Realtime désactivé dans cet environnement.");
       }
+
+      // Fermer les panels de filtres stats au clic extérieur
+      if (!this._statsFilterDocBound) {
+        this._statsFilterDocBound = true;
+        document.addEventListener('click', (e) => {
+          if (!this._statsFilterOpen) return;
+          if (e.target.closest('.chart-filter-wrap')) return;
+          this.closeStatsFilters();
+        });
+      }
     },
 
     async fetchData() {
@@ -884,9 +976,83 @@
       if (arrow) arrow.textContent = open ? '▾' : '▸';
     },
 
-    toggleBilanExcludeCurrent() {
-      this.bilanExcludeCurrent = !this.bilanExcludeCurrent;
+    // Filtres stats partagés (répartition / comparaison / bilan)
+    statsFilters: { acc: '', mode: 'effective', range: '1', excludeCurrent: false },
+    _statsFilterOpen: null,
+
+    getStatsFilters() {
+      const f = this.statsFilters || {};
+      return {
+        acc: f.acc || '',
+        mode: f.mode === 'theorique' ? 'theorique' : 'effective',
+        range: ['1', '2', '5', '11'].includes(String(f.range)) ? String(f.range) : '1',
+        excludeCurrent: !!f.excludeCurrent
+      };
+    },
+
+    setStatsFilter(key, value) {
+      if (!this.statsFilters) this.statsFilters = { acc: '', mode: 'effective', range: '1', excludeCurrent: false };
+      if (key === 'excludeCurrent') this.statsFilters.excludeCurrent = !!value;
+      else this.statsFilters[key] = value;
+      // Alias historique
+      this.bilanExcludeCurrent = !!this.statsFilters.excludeCurrent;
       this.renderCategoryStats();
+    },
+
+    toggleStatsFilter(which) {
+      const panels = ['pie', 'compare', 'bilan'];
+      const next = this._statsFilterOpen === which ? null : which;
+      this._statsFilterOpen = next;
+      panels.forEach(id => {
+        const panel = document.getElementById('stats-filter-' + id);
+        const btn = document.getElementById('stats-filter-btn-' + id);
+        const open = next === id;
+        if (panel) panel.classList.toggle('open', open);
+        if (btn) {
+          btn.classList.toggle('open', open);
+          btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      });
+    },
+
+    closeStatsFilters() {
+      if (!this._statsFilterOpen) return;
+      this._statsFilterOpen = null;
+      ['pie', 'compare', 'bilan'].forEach(id => {
+        const panel = document.getElementById('stats-filter-' + id);
+        const btn = document.getElementById('stats-filter-btn-' + id);
+        if (panel) panel.classList.remove('open');
+        if (btn) {
+          btn.classList.remove('open');
+          btn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    },
+
+    syncStatsFilterControls() {
+      const f = this.getStatsFilters();
+      const accHtml = '<option value="">Tous les comptes</option>' +
+        (this.state.accounts || []).map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      ['pie', 'compare', 'bilan'].forEach(id => {
+        const acc = document.getElementById('stat-cat-acc-' + id);
+        if (acc) {
+          acc.innerHTML = accHtml;
+          acc.value = (this.state.accounts || []).some(a => a.id === f.acc) ? f.acc : '';
+          if (acc.value !== f.acc) this.statsFilters.acc = acc.value;
+        }
+        const mode = document.getElementById('stat-cat-mode-' + id);
+        if (mode) mode.value = f.mode;
+        const range = document.getElementById('stat-cat-range-' + id);
+        if (range) range.value = f.range;
+      });
+      const exC = document.getElementById('stat-exclude-cur-compare');
+      const exB = document.getElementById('stat-exclude-cur-bilan');
+      if (exC) exC.checked = f.excludeCurrent;
+      if (exB) exB.checked = f.excludeCurrent;
+    },
+
+    toggleBilanExcludeCurrent() {
+      this.setStatsFilter('excludeCurrent', !this.getStatsFilters().excludeCurrent);
     },
 
     showBilanMonthInfo(mKey) {
@@ -898,10 +1064,14 @@
         <div class="bh-info-row"><span>Revenus totaux</span><span class="num">${this.fmt(r.revenus)}</span></div>
         <div class="bh-info-row"><span>Revenus directs</span><span class="num">${this.fmt(r.revenusDirects)}</span></div>
         ${r.apports > 0 ? `<div class="bh-info-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
-        <div class="bh-info-row"><span>Dépenses${isEff ? ' validées' : ''}</span><span class="num">${this.fmt(r.depenses)}</span></div>
-        <div class="bh-info-row"><span>Déjà épargné</span><span class="num">${this.fmt(r.epargne)}</span></div>
+        <div class="bh-info-row"><span>Dépenses${isEff ? ' validées' : ''} (hors épargne)</span><span class="num">${this.fmt(r.depenses)}</span></div>
+        <div class="bh-info-row"><span>Déjà épargné (déduit des dépenses)</span><span class="num">${this.fmt(r.epargne)}</span></div>
         ${isEff && planned > 0 ? `<div class="bh-info-row"><span>Apports restants prévus</span><span class="num">${this.fmt(planned)}</span></div>` : ''}
-        <div class="bh-info-row"><span>Capacité d'épargne restante</span><span class="num">${this.fmt(r.capacite)}</span></div>`;
+        <div class="bh-info-row"><span>Capacité d'épargne (= revenus − dépenses)</span><span class="num">${this.fmt(r.capacite)}</span></div>`;
+      if (r.epargne > 0) {
+        const dispo = Math.max(0, r.capacite - r.epargne);
+        rows += `<div class="bh-info-row"><span>dont reste disponible</span><span class="num">${this.fmt(dispo)}</span></div>`;
+      }
       if (r.isGlobal) {
         rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.45;">Vue tous comptes : somme des revenus et dépenses de chaque compte. Les apports entre comptes ne sont pas ajoutés (évite le double comptage).</div>`;
       } else if (r.lookingAtMain) {
@@ -2274,8 +2444,10 @@
        }
 
        const revenus = revenusDirects + apports;
-       const capacite = Math.max(0, revenus - depenses - epargne);
-       const overflow = Math.max(0, (depenses + epargne) - revenus);
+       // Capacité = revenus − dépenses courantes : le déjà épargné est sorti des dépenses
+       // (il ne réduit pas la capacité, c’est de l’épargne déjà réalisée)
+       const capacite = Math.max(0, revenus - depenses);
+       const overflow = Math.max(0, depenses - revenus);
        return {
           revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow,
           apportsSortants, apportsSortantsEpargne, mode, isGlobal, lookingAtMain
@@ -2287,24 +2459,12 @@
        const curKey = this.monthKey(now);
        const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
 
-       const accSel = document.getElementById('stat-cat-acc');
-       const modeSel = document.getElementById('stat-cat-mode');
-       const rangeSel = document.getElementById('stat-cat-range');
-       const prevAccVal = accSel ? accSel.value : '';
-       const prevRangeVal = rangeSel ? rangeSel.value : '1';
-       const mode = modeSel ? modeSel.value : 'effective';
-       const offset = Math.max(1, Number(rangeSel ? rangeSel.value : 1) || 1);
-       if (accSel) {
-          accSel.innerHTML = '<option value="">Tous les comptes</option>' +
-             this.state.accounts.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
-          accSel.value = this.state.accounts.some(a => a.id === prevAccVal) ? prevAccVal : '';
-       }
-       if (rangeSel) {
-          rangeSel.value = ['1','2','5','11'].includes(prevRangeVal) ? prevRangeVal : '1';
-          // Théorique : historique basé sur les snapshots mensuels (vide pour les mois sans historique)
-          rangeSel.style.display = '';
-       }
-       const accFilter = accSel ? accSel.value : '';
+       this.syncStatsFilterControls();
+       const f = this.getStatsFilters();
+       const mode = f.mode;
+       const offset = Math.max(1, Number(f.range) || 1);
+       const accFilter = f.acc;
+       const excludeCur = !!f.excludeCurrent;
        const opts = { accFilter, mode };
 
        const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
@@ -2324,12 +2484,15 @@
        if (histBlock) histBlock.style.display = '';
 
        // Du plus ancien au plus récent, couleur arc-en-ciel selon le mois calendaire
-       const months = this.monthKeysBack(offset).slice().reverse().map((m) => ({
+       const monthsAll = this.monthKeysBack(offset).slice().reverse().map((m) => ({
           ...m,
           label: monthLabel(m.date),
           color: this.monthColor(m.date),
           totals: this.categoryTotalsForMonth(m.key, opts)
        }));
+       const months = (excludeCur && monthsAll.length > 1)
+          ? monthsAll.filter(m => m.key !== curKey)
+          : monthsAll;
        const allCats = [...new Set(months.flatMap(m => Object.keys(m.totals)))]
           .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
 
@@ -2338,8 +2501,7 @@
        const theoPastEmpty = mode === 'theorique' && months.filter(m => m.key !== curKey).every(m => !this.hasTheoreticalSnapshot(m.key, accFilter));
        if (allCats.length === 0) {
           compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.${mode === 'theorique' ? ' L’historique se construit au fil des mois.' : ''}</div>`;
-       } else if (theoPastEmpty && offset > 0) {
-          // Snapshot du mois courant seulement : comparer n’aurait pas de sens
+       } else if (theoPastEmpty && months.every(m => m.key === curKey)) {
           compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Historique théorique en cours de constitution — les mois passés seront figés automatiquement. Comparaison disponible dès le prochain mois.</div>`;
        } else {
           const oldest = months[0];
@@ -2356,8 +2518,11 @@
           }
 
           const nCols = months.length;
-          // Grille : catégories côte à côte (ex. Épargne | Transport) pour limiter la hauteur
+          const excludeHint = excludeCur && monthsAll.length > months.length
+             ? `<div style="font-size:11px;color:var(--ink-faint);margin-bottom:6px;">Mois en cours masqué — % sur ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>`
+             : '';
           let html = `
+            ${excludeHint}
             <div class="stack-legend" style="margin-bottom:8px;">
               ${months.map(m => `<span><i style="background:${m.color};"></i>${this.esc(m.label)}</span>`).join('')}
             </div>
@@ -2408,11 +2573,11 @@
        }
 
        // 3. Bilan revenus / dépenses / épargne (comparaison)
-       if (theoPastEmpty && mode === 'theorique') {
+       if (theoPastEmpty && mode === 'theorique' && monthsAll.filter(m => m.key !== curKey).every(m => !this.hasTheoreticalSnapshot(m.key, accFilter))) {
           const el = document.getElementById('chart-savings-stack');
           if (el) el.innerHTML = `<div class="chart-empty">Bilan théorique multi-mois disponible dès qu’au moins un mois passé aura un budget figé.</div>`;
        } else {
-          this.renderSavingsStackChart(months, opts);
+          this.renderSavingsStackChart(monthsAll, opts);
        }
     },
 
@@ -2456,10 +2621,10 @@
           { key: 'revenus', label: 'Revenus totaux' },
           { key: 'revenusDirects', label: 'Revenus directs' },
           ...(hasApports ? [{ key: 'apports', label: 'Apports reçus' }] : []),
-          { key: 'depenses', label: isEff ? 'Dépenses validées' : 'Dépenses' },
+          { key: 'depenses', label: isEff ? 'Dépenses validées (hors épargne)' : 'Dépenses (hors épargne)' },
           { key: 'epargne', label: isEff ? 'Déjà épargné (validé)' : 'Déjà épargné' },
           ...(hasPlanned ? [{ key: '_planned', label: 'Apports restants prévus', faint: true }] : []),
-          { key: 'capacite', label: "Capacité d'épargne restante", emphasize: true }
+          { key: 'capacite', label: "Capacité d'épargne", emphasize: true }
        ];
 
        const valOf = (r, key) => {
@@ -2467,27 +2632,29 @@
           return Number(r[key]) || 0;
        };
 
-       const excludeCur = !!this.bilanExcludeCurrent && rows.length > 1;
+       const excludeCur = !!this.getStatsFilters().excludeCurrent && rows.length > 1;
        // Mois affichés / utilisés pour les % (sans le mois en cours si option active)
        const viewRows = excludeCur ? rows.slice(0, -1) : rows;
        const curRow = excludeCur ? rows[rows.length - 1] : null;
 
-       const maxStack = Math.max(...viewRows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
+       // Capacité = revenus − dépenses : l'épargne fait partie de la capacité (barre or + vert)
+       const maxStack = Math.max(...viewRows.map(r => Math.max(r.revenus, r.depenses + r.capacite, r.depenses + r.epargne)), 1);
        const nCols = viewRows.length;
        const composeCols = viewRows.map(r => {
-          const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
+          const base = Math.max(r.revenus, r.depenses + r.capacite, 0.01);
           const usedH = Math.round((base / maxStack) * 100);
           const depH = Math.round((r.depenses / base) * usedH);
-          const epH = Math.round((r.epargne / base) * usedH);
-          const capH = Math.max(0, usedH - depH - epH);
+          const epInCap = Math.min(r.epargne, r.capacite);
+          const epH = Math.round((epInCap / base) * usedH);
+          const resteH = Math.max(0, Math.round((r.capacite / base) * usedH) - epH);
           return `<div class="bilan-compose-col">
             <div class="bilan-compose-bar">
-              ${capH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Capacité : ${this.fmt(r.capacite)}" style="height:${capH}px;background:var(--sage);"></span>` : ''}
+              ${resteH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Reste dispo : ${this.fmt(Math.max(0, r.capacite - r.epargne))}" style="height:${resteH}px;background:var(--sage);"></span>` : ''}
               ${epH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Épargné : ${this.fmt(r.epargne)}" style="height:${epH}px;background:var(--gold);"></span>` : ''}
               ${depH > 0 ? `<span class="tip-seg" tabindex="0" data-tip="Dépenses : ${this.fmt(r.depenses)}" style="height:${depH}px;background:var(--clay);"></span>` : ''}
             </div>
             <div class="bilan-compose-lbl">
-              <span class="tip-lbl" tabindex="0" data-tip="Revenus : ${this.fmt(r.revenus)}" style="color:${r.color};">${this.esc(r.label)}</span>
+              <span class="tip-lbl" tabindex="0" data-tip="Revenus : ${this.fmt(r.revenus)} · Capacité : ${this.fmt(r.capacite)}" style="color:${r.color};">${this.esc(r.label)}</span>
               <button type="button" class="bh-info-btn" title="Détail du mois" onclick="event.stopPropagation(); BH.showBilanMonthInfo('${r.key}')">i</button>
             </div>
           </div>`;
@@ -2543,7 +2710,6 @@
           </div>`;
        }).join('');
 
-       const excludeBtnLabel = excludeCur ? 'Afficher mois en cours' : 'Ne pas afficher mois en cours';
        const excludeHint = excludeCur && curRow
           ? `<div style="font-size:11px;color:var(--ink-faint);margin-bottom:6px;">Mois en cours masqué (${this.esc(curRow.label)}) — % calculés sur ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>`
           : '';
@@ -2551,14 +2717,13 @@
        el.innerHTML = `
          <div class="stack-legend">
            <span><i style="background:var(--clay);"></i>Dépenses</span>
-           <span><i style="background:var(--gold);"></i>Épargné</span>
-           <span><i style="background:var(--sage);"></i>Capacité</span>
+           <span><i style="background:var(--gold);"></i>Épargné (dans la capacité)</span>
+           <span><i style="background:var(--sage);"></i>Reste dispo</span>
          </div>
-         <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu — survol = montant · <strong>i</strong> = détail</div>
+         <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu — capacité = revenus − dépenses · <strong>i</strong> = détail</div>
          <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(40px, 1fr));">${composeCols}</div>
          <div class="bilan-detail-head">
            <span style="font-size:11px; color:var(--ink-soft);">Détail par indicateur · Δ ${this.esc(oldest.label)} → ${this.esc(newest.label)}</span>
-           <button type="button" class="bilan-toggle-btn${excludeCur ? ' active' : ''}" onclick="BH.toggleBilanExcludeCurrent()">${excludeBtnLabel}</button>
          </div>
          ${excludeHint}
          ${metricRows}
