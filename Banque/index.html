@@ -218,17 +218,16 @@
   .stack-legend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11.5px; color:var(--ink-soft); margin-bottom:12px; }
   .stack-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .stack-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
-  .month-fin-list{ display:flex; flex-direction:column; gap:10px; }
-  .month-fin-card{ background:var(--paper); border:1px solid var(--line-soft); border-radius:12px; padding:12px 12px 10px; }
-  .month-fin-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; gap:8px; }
-  .month-fin-title{ font-family:'Space Grotesk'; font-weight:700; font-size:13px; color:var(--sage-deep); text-transform:capitalize; }
-  .month-fin-rev{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--ink); }
-  .month-fin-row{ display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:3px 0; gap:10px; }
-  .month-fin-row span:first-child{ color:var(--ink-soft); }
-  .month-fin-row .num{ font-size:12px; }
-  .month-fin-bar{ display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--line-soft); margin-top:8px; }
-  .month-fin-bar > span{ display:block; height:100%; min-width:0; }
   .comp-month-bars{ display:flex; flex-direction:column; gap:3px; }
+  .bilan-compose{ display:flex; align-items:flex-end; gap:6px; overflow-x:auto; padding:4px 0 8px; min-height:120px; }
+  .bilan-compose-col{ flex:1; min-width:40px; max-width:72px; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .bilan-compose-bar{ width:100%; height:100px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:6px 6px 0 0; overflow:hidden; background:var(--line-soft); }
+  .bilan-compose-bar > span{ display:block; width:100%; min-height:0; }
+  .bilan-compose-lbl{ font-size:10px; color:var(--ink-faint); text-align:center; line-height:1.15; }
+  .bilan-metric{ padding:10px 0; border-bottom:1px solid var(--line-soft); }
+  .bilan-metric-head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px; }
+  .bilan-metric-label{ font-size:12.5px; font-weight:600; }
+  .bilan-metric-vals{ display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:5px; }
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -361,7 +360,7 @@
 
       <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
       <div class="bh-card">
-        <div class="chart-title">Bilan mensuel (revenus → dépenses → épargne)</div>
+        <div class="chart-title">Bilan mensuel — comparaison</div>
         <div id="chart-savings-stack"></div>
       </div>
     </div>
@@ -1516,11 +1515,16 @@
 
     // --- PORTEFEUILLE (dépenses internes multiples pour un budget enveloppe) ---
     getWalletTx(accId, expId, mKey) {
-      const bucket = this.state.walletTx?.[accId + '_' + (mKey || this.monthKey(new Date()))] || {};
-      return bucket[expId] || [];
+      const key = accId + '_' + (mKey || this.monthKey(new Date()));
+      const bucket = this.state.walletTx?.[key];
+      if (!bucket || typeof bucket !== 'object') return [];
+      const raw = bucket[expId] ?? bucket[String(expId)];
+      if (Array.isArray(raw)) return raw;
+      if (raw && Array.isArray(raw.transactions)) return raw.transactions;
+      return [];
     },
     walletSpent(accId, expId, mKey) {
-      return this.getWalletTx(accId, expId, mKey).reduce((s,t)=>s+Number(t.amount),0);
+      return this.getWalletTx(accId, expId, mKey).reduce((s,t)=>s+Number(t.amount||0),0);
     },
     toggleWalletExpand(expId) {
       if (!this.walletExpanded) this.walletExpanded = {};
@@ -1559,18 +1563,39 @@
       }, 'suppression dépense portefeuille');
     },
 
-    // Upsert month_records en préservant les colonnes JSONB non touchées
+    // Upsert month_records : n'écrit que les colonnes fournies (évite d'écraser portefeuilles / validations)
     async upsertMonthRecord(accId, mKey, patch) {
       const key = accId + '_' + mKey;
-      const payload = {
-        account_id: accId,
-        month_key: mKey,
-        paid_expenses: patch.paid_expenses !== undefined ? patch.paid_expenses : (this.state.months[key] || {}),
-        paid_incomes: patch.paid_incomes !== undefined ? patch.paid_incomes : (this.state.monthsIncomes?.[key] || {}),
-        wallet_transactions: patch.wallet_transactions !== undefined ? patch.wallet_transactions : (this.state.walletTx?.[key] || {})
-      };
-      const { error } = await supabaseApp.from('month_records').upsert(payload, { onConflict: 'account_id,month_key' });
-      if (error) throw error;
+      const existing = (this.state.monthRecords || []).find(r => r.account_id === accId && r.month_key === mKey);
+      const payload = { account_id: accId, month_key: mKey };
+
+      if (patch.paid_expenses !== undefined) payload.paid_expenses = patch.paid_expenses;
+      else if (!existing) payload.paid_expenses = this.state.months[key] || {};
+
+      if (patch.paid_incomes !== undefined) payload.paid_incomes = patch.paid_incomes;
+      else if (!existing) payload.paid_incomes = this.state.monthsIncomes?.[key] || {};
+
+      if (patch.wallet_transactions !== undefined) payload.wallet_transactions = patch.wallet_transactions;
+      else if (!existing) payload.wallet_transactions = this.state.walletTx?.[key] || {};
+
+      if (existing) {
+        const { account_id, month_key, ...updates } = payload;
+        if (Object.keys(updates).length === 0) return;
+        const { error } = await supabaseApp.from('month_records')
+          .update(updates)
+          .eq('account_id', accId)
+          .eq('month_key', mKey);
+        if (error) throw error;
+      } else {
+        const { error } = await supabaseApp.from('month_records').upsert({
+          account_id: accId,
+          month_key: mKey,
+          paid_expenses: payload.paid_expenses || {},
+          paid_incomes: payload.paid_incomes || {},
+          wallet_transactions: payload.wallet_transactions || {}
+        }, { onConflict: 'account_id,month_key' });
+        if (error) throw error;
+      }
     },
 
     // --- Dépenses expirées (date de fin dépassée) ---
@@ -1818,6 +1843,19 @@
        return paid ? Number(paid.amount || 0) : 0;
     },
 
+    // Montant d'une dépense pour les stats (théorique = budget ; effectif = validé / txs portefeuille)
+    expenseAmountForStats(exp, mKey, mode) {
+       if (!exp) return 0;
+       if (exp.is_wallet) {
+          // Portefeuille : toujours pris en compte (budget ou somme des dépenses saisies)
+          return mode === 'theorique'
+             ? Number(exp.amount) || 0
+             : this.walletSpent(exp.account_id, exp.id, mKey);
+       }
+       if (mode === 'theorique') return Number(exp.amount) || 0;
+       return this.effectiveExpenseAmount(exp, mKey);
+    },
+
     effectiveIncomeAmount(inc, mKey) {
        if (!inc) return 0;
        const paid = this.state.monthsIncomes?.[inc.account_id + '_' + mKey]?.[inc.id];
@@ -1828,15 +1866,13 @@
        return !!(exp && /(é|e)pargne/i.test(exp.category || ''));
     },
 
-    // Totaux par catégorie pour un mois (mode effective | theorique, filtre compte optionnel)
+    // Totaux par catégorie pour un mois (inclut les portefeuilles)
     categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
        const totals = {};
        this.state.expenses.forEach(exp => {
           if (accFilter && exp.account_id !== accFilter) return;
           if (!this.isActiveInMonth(exp, mKey)) return;
-          let amt = 0;
-          if (mode === 'theorique') amt = Number(exp.amount) || 0;
-          else amt = this.effectiveExpenseAmount(exp, mKey);
+          const amt = this.expenseAmountForStats(exp, mKey, mode);
           if (amt <= 0) return;
           const cat = exp.category || 'Autre';
           totals[cat] = (totals[cat] || 0) + amt;
@@ -1901,7 +1937,7 @@
           this.state.expenses.forEach(exp => {
              if (exp.account_id !== accId) return;
              if (!this.isActiveInMonth(exp, mKey)) return;
-             const amt = mode === 'theorique' ? Number(exp.amount) || 0 : this.effectiveExpenseAmount(exp, mKey);
+             const amt = this.expenseAmountForStats(exp, mKey, mode);
              if (amt <= 0) return;
              if (this.isEpargneExpense(exp)) epargne += amt;
              else depenses += amt;
@@ -2059,10 +2095,14 @@
     renderSavingsStackChart(months, opts) {
        const el = document.getElementById('chart-savings-stack');
        if (!el) return;
-       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-       // months déjà du plus ancien au plus récent
-       const rows = months.map(({ key, date }) => ({
-          key, date, label: monthLabel(date), ...this.monthIncomeExpenseBreakdown(key, opts)
+       const shortLbl = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+       // months : déjà colorés, du plus ancien au plus récent
+       const rows = months.map(m => ({
+          key: m.key,
+          date: m.date,
+          color: m.color,
+          label: shortLbl(m.date),
+          ...this.monthIncomeExpenseBreakdown(m.key, opts)
        }));
        const hasData = rows.some(r => r.revenus > 0 || r.depenses > 0 || r.epargne > 0);
        if (!hasData) {
@@ -2075,43 +2115,107 @@
        const isEff = opts.mode === 'effective';
        const scopeNote = !opts.accFilter
           ? (isEff
-             ? `Vision capacité perso (${this.esc(mainName)}) — mode effectif : seules les dépenses / revenus validés. Les apports versés prévus sont indiqués à part, non comptés dans les dépenses.`
-             : `Vision capacité perso (${this.esc(mainName)}) — mode théorique : budget complet + apports versés inclus dans dépenses / épargne.`)
-          : `Compte filtré : les apports configurés comptent comme revenus s'il n'y a pas (ou peu) de revenus directs.`;
+             ? `Vision capacité perso (${this.esc(mainName)}) — effectif : validés uniquement. Apports prévus indiqués à part.`
+             : `Vision capacité perso (${this.esc(mainName)}) — théorique : budget + apports versés.`)
+          : `Compte filtré : apports configurés = revenus si pas de revenus directs.`;
 
-       const cards = rows.map(r => {
+       const hasApports = rows.some(r => r.apports > 0);
+       const hasPlanned = isEff && rows.some(r => ((r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0)) > 0);
+       const metrics = [
+          { key: 'revenus', label: 'Revenus totaux' },
+          { key: 'revenusDirects', label: 'Revenus directs' },
+          ...(hasApports ? [{ key: 'apports', label: 'Apports reçus' }] : []),
+          { key: 'depenses', label: isEff ? 'Dépenses validées' : 'Dépenses' },
+          { key: 'epargne', label: isEff ? 'Déjà épargné (validé)' : 'Déjà épargné' },
+          ...(hasPlanned ? [{ key: '_planned', label: 'Apports prévus (non comptés)', faint: true }] : []),
+          { key: 'capacite', label: "Capacité d'épargne restante", emphasize: true }
+       ];
+
+       const valOf = (r, key) => {
+          if (key === '_planned') return (r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0);
+          return Number(r[key]) || 0;
+       };
+
+       const deltaHtml = (oldest, newest) => {
+          if (oldest === 0 && newest > 0) return `<span style="font-weight:700;color:var(--amber);">nouveau</span>`;
+          if (oldest === 0 && newest === 0) return `<span style="color:var(--ink-faint);">—</span>`;
+          const d = Math.round(((newest - oldest) / oldest) * 100);
+          // Pour dépenses : hausse = mauvais (clay) ; pour revenus/capacité/épargne : hausse = bon (sage)
+          return `<span style="font-weight:700;color:${d === 0 ? 'var(--ink-faint)' : (d > 0 ? 'var(--clay)' : 'var(--sage-deep)')};">${d > 0 ? '+' : ''}${d}%</span>`;
+       };
+
+       // 1. Composition côte à côte (dépenses / épargné / capacité) pour comparer la structure
+       const maxStack = Math.max(...rows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
+       const composeCols = rows.map(r => {
           const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
-          const depPct = (r.depenses / base) * 100;
-          const epPct = (r.epargne / base) * 100;
-          const capPct = (r.capacite / base) * 100;
-          const plannedOut = (r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0);
-          return `<div class="month-fin-card">
-            <div class="month-fin-head">
-              <div class="month-fin-title">${this.esc(r.label)}</div>
-              <div class="month-fin-rev">Revenus ${this.fmt(r.revenus)}</div>
+          const usedH = Math.round((base / maxStack) * 100);
+          const depH = Math.round((r.depenses / base) * usedH);
+          const epH = Math.round((r.epargne / base) * usedH);
+          const capH = Math.max(0, usedH - depH - epH);
+          return `<div class="bilan-compose-col" title="${this.esc(r.label)} · Rev. ${this.fmt(r.revenus)}">
+            <div class="bilan-compose-bar">
+              ${capH > 0 ? `<span style="height:${capH}px;background:var(--sage);"></span>` : ''}
+              ${epH > 0 ? `<span style="height:${epH}px;background:var(--gold);"></span>` : ''}
+              ${depH > 0 ? `<span style="height:${depH}px;background:var(--clay);"></span>` : ''}
             </div>
-            <div class="month-fin-row"><span>Revenus directs</span><span class="num">${this.fmt(r.revenusDirects)}</span></div>
-            ${r.apports > 0 ? `<div class="month-fin-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
-            <div class="month-fin-row"><span>Dépenses${isEff ? ' validées' : ''}</span><span class="num" style="color:var(--clay);">${this.fmt(r.depenses)}</span></div>
-            <div class="month-fin-row"><span>Déjà épargné${isEff ? ' (validé)' : ''}</span><span class="num" style="color:var(--gold);">${this.fmt(r.epargne)}</span></div>
-            ${isEff && plannedOut > 0 ? `<div class="month-fin-row"><span>Apports prévus (non comptés)</span><span class="num" style="color:var(--ink-faint);">${this.fmt(plannedOut)}</span></div>` : ''}
-            <div class="month-fin-row"><span>Capacité d'épargne restante</span><span class="num" style="color:var(--sage-deep); font-weight:700;">${this.fmt(r.capacite)}</span></div>
-            ${r.overflow > 0 ? `<div class="month-fin-row"><span>Dépassement</span><span class="num" style="color:var(--clay);">${this.fmt(r.overflow)}</span></div>` : ''}
-            <div class="month-fin-bar" title="Proportion dépenses / épargné / capacité">
-              ${depPct > 0 ? `<span style="width:${depPct}%; background:var(--clay);"></span>` : ''}
-              ${epPct > 0 ? `<span style="width:${epPct}%; background:var(--gold);"></span>` : ''}
-              ${capPct > 0 ? `<span style="width:${capPct}%; background:var(--sage);"></span>` : ''}
+            <div class="bilan-compose-lbl" style="color:${r.color}; font-weight:600;">${this.esc(r.label)}</div>
+          </div>`;
+       }).join('');
+
+       // 2. Une ligne par indicateur, barres colorées par mois (même logique que comparaison catégories)
+       const oldest = rows[0], newest = rows[rows.length - 1];
+       const metricRows = metrics.map(met => {
+          const vals = rows.map(r => valOf(r, met.key));
+          const maxV = Math.max(...vals, 1);
+          const o = valOf(oldest, met.key), n = valOf(newest, met.key);
+          // Delta coloré selon le sens « souhaitable » de l'indicateur
+          let dHtml;
+          if (met.key === 'depenses' || met.key === '_planned') {
+             dHtml = deltaHtml(o, n); // hausse dépenses = clay (déjà dans deltaHtml)
+          } else if (met.key === 'revenus' || met.key === 'revenusDirects' || met.key === 'apports' || met.key === 'epargne' || met.key === 'capacite') {
+             if (o === 0 && n > 0) dHtml = `<span style="font-weight:700;color:var(--amber);">nouveau</span>`;
+             else if (o === 0 && n === 0) dHtml = `<span style="color:var(--ink-faint);">—</span>`;
+             else {
+                const d = Math.round(((n - o) / o) * 100);
+                // hausse revenus/épargne/capacité = sage (bon)
+                dHtml = `<span style="font-weight:700;color:${d === 0 ? 'var(--ink-faint)' : (d > 0 ? 'var(--sage-deep)' : 'var(--clay)')};">${d > 0 ? '+' : ''}${d}%</span>`;
+             }
+          } else {
+             dHtml = deltaHtml(o, n);
+          }
+
+          const amountsHtml = rows.map(r =>
+             `<span class="num" style="color:${r.color}; font-size:10.5px;${met.faint ? 'opacity:0.7;' : ''}">${this.fmt(valOf(r, met.key))}</span>`
+          ).join('');
+          const barsHtml = rows.map(r => {
+             const v = valOf(r, met.key);
+             const pct = Math.max(v > 0 ? 2 : 0, (v / maxV) * 100);
+             return `<div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pct}%; background:${r.color};${met.faint ? 'opacity:0.55;' : ''}"></div></div>`;
+          }).join('');
+
+          return `<div class="bilan-metric">
+            <div class="bilan-metric-head">
+              <span class="bilan-metric-label" style="${met.emphasize ? 'color:var(--sage-deep);' : ''}${met.faint ? 'color:var(--ink-faint);font-weight:500;' : ''}">${this.esc(met.label)}</span>
+              ${dHtml}
             </div>
+            <div class="bilan-metric-vals">${amountsHtml}</div>
+            <div class="comp-month-bars">${barsHtml}</div>
           </div>`;
        }).join('');
 
        el.innerHTML = `
          <div class="stack-legend">
-           <span><i style="background:var(--clay);"></i>Dépenses</span>
-           <span><i style="background:var(--gold);"></i>Déjà épargné</span>
-           <span><i style="background:var(--sage);"></i>Capacité restante</span>
+           ${rows.map(r => `<span><i style="background:${r.color};"></i>${this.esc(r.label)}</span>`).join('')}
          </div>
-         <div class="month-fin-list">${cards}</div>
+         <div class="stack-legend" style="margin-top:-4px;">
+           <span><i style="background:var(--clay);"></i>Dépenses</span>
+           <span><i style="background:var(--gold);"></i>Épargné</span>
+           <span><i style="background:var(--sage);"></i>Capacité</span>
+         </div>
+         <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu (comparer les mois)</div>
+         <div class="bilan-compose">${composeCols}</div>
+         <div style="font-size:11px; color:var(--ink-soft); margin:12px 0 4px;">Détail par indicateur · Δ ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>
+         ${metricRows}
          <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">${scopeNote}</div>`;
     },
 
