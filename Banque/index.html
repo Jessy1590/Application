@@ -218,12 +218,17 @@
   .stack-legend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11.5px; color:var(--ink-soft); margin-bottom:12px; }
   .stack-legend span{ display:inline-flex; align-items:center; gap:5px; }
   .stack-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
-  .stack-bars{ display:flex; align-items:flex-end; gap:8px; min-height:180px; padding:4px 2px 0; overflow-x:auto; }
-  .stack-col{ flex:1; min-width:36px; max-width:64px; display:flex; flex-direction:column; align-items:center; gap:6px; }
-  .stack-bar{ width:100%; height:160px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:6px 6px 0 0; overflow:hidden; background:var(--line-soft); }
-  .stack-seg{ width:100%; min-height:0; }
-  .stack-col-label{ font-size:10px; color:var(--ink-faint); text-align:center; line-height:1.2; }
-  .stack-col-total{ font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--ink-soft); text-align:center; }
+  .month-fin-list{ display:flex; flex-direction:column; gap:10px; }
+  .month-fin-card{ background:var(--paper); border:1px solid var(--line-soft); border-radius:12px; padding:12px 12px 10px; }
+  .month-fin-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; gap:8px; }
+  .month-fin-title{ font-family:'Space Grotesk'; font-weight:700; font-size:13px; color:var(--sage-deep); text-transform:capitalize; }
+  .month-fin-rev{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--ink); }
+  .month-fin-row{ display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:3px 0; gap:10px; }
+  .month-fin-row span:first-child{ color:var(--ink-soft); }
+  .month-fin-row .num{ font-size:12px; }
+  .month-fin-bar{ display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--line-soft); margin-top:8px; }
+  .month-fin-bar > span{ display:block; height:100%; min-width:0; }
+  .comp-month-bars{ display:flex; flex-direction:column; gap:3px; }
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -356,7 +361,7 @@
 
     <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
     <div class="bh-card">
-      <div class="chart-title">Répartition du revenu par mois</div>
+      <div class="chart-title">Bilan mensuel (revenus → dépenses → épargne)</div>
       <div id="chart-savings-stack"></div>
     </div>
 
@@ -611,12 +616,24 @@
   }
 
   // Wrapper générique pour appels réseau : affiche une erreur claire + bouton Réessayer
-  async function withRetry(fn, label) {
+  // Relance auto une fois après refresh JWT si PGRST303 (horloge iPhone en avance)
+  async function withRetry(fn, label, opts) {
+    opts = opts || {};
     try {
       return await fn();
     } catch (e) {
       console.error(label, e);
       const detail = (e && (e.message || e.error_description)) ? (e.message || e.error_description) : String(e);
+      const codeStr = String((e && (e.code || e.status)) || '');
+      const isJwtSkew = /PGRST303|issued at future/i.test(codeStr + ' ' + detail);
+      if (isJwtSkew && !opts._jwtRetried) {
+        try {
+          await supabaseApp.auth.refreshSession();
+          return await withRetry(fn, label, { _jwtRetried: true });
+        } catch (refreshErr) {
+          console.error('refreshSession après PGRST303', refreshErr);
+        }
+      }
       const code = e && (e.code || e.status) ? ' [' + (e.code || e.status) + ']' : '';
       toast('Erreur (' + (label || 'action') + ')' + code + ' : ' + detail, { retry: () => withRetry(fn, label) });
       return null;
@@ -624,10 +641,21 @@
   }
 
   async function startApp() {
-    const { data, error } = await supabaseApp.auth.getSession();
-    if (error || !data || !data.session) return;
+    // Refresh prioritaire : évite un JWT « issued at future » issu du cache local (fréquent sur iPhone)
+    let session = null;
+    try {
+      const { data, error } = await supabaseApp.auth.refreshSession();
+      if (!error && data?.session) session = data.session;
+    } catch (e) {
+      console.warn('refreshSession initial', e);
+    }
+    if (!session) {
+      const { data, error } = await supabaseApp.auth.getSession();
+      if (error || !data || !data.session) return;
+      session = data.session;
+    }
     document.getElementById('budget-root').style.display = 'flex';
-    BH.user = data.session.user;
+    BH.user = session.user;
     BH.init();
   }
   document.addEventListener('DOMContentLoaded', () => {
@@ -1811,6 +1839,20 @@
        return Object.values(totals).reduce((s, v) => s + Number(v), 0);
     },
 
+    // Apports entrants sur un compte partagé (= financement si pas / peu de revenus directs)
+    inboundContributions(accId) {
+       const acc = this.state.accounts.find(a => a.id === accId);
+       if (!acc) return 0;
+       const mainId = this.state.profile?.main_account_id;
+       if (accId === mainId) return 0;
+       const mems = this.state.members.filter(m => m.account_id === accId);
+       if (!mems.length) return 0;
+       const tExp = this.state.expenses.filter(e => e.account_id === accId).reduce((s,e)=>s+Number(e.amount),0);
+       const tInc = this.state.incomes.filter(i => i.account_id === accId).reduce((s,i)=>s+Number(i.amount),0);
+       const shares = this.computeFairShares(acc, mems, tExp, tInc);
+       return Object.values(shares).reduce((a,b)=>a+Number(b||0),0);
+    },
+
     // Liste des mois [actuel, actuel-1, ... actuel-offset]
     monthKeysBack(offset) {
        const now = new Date();
@@ -1823,40 +1865,50 @@
     },
 
     // Agrégats revenus / dépenses / épargne pour un mois (filtre + mode)
+    // Revenus = revenus directs + apports entrants (comptes sans salaire propre)
     monthIncomeExpenseBreakdown(mKey, { accFilter = '', mode = 'effective' } = {}) {
-       let revenus = 0, depenses = 0, epargne = 0;
-       this.state.incomes.forEach(inc => {
-          if (accFilter && inc.account_id !== accFilter) return;
-          if (Number(inc.amount) <= 0 && mode === 'theorique') return;
-          const amt = mode === 'theorique' ? Number(inc.amount) || 0 : this.effectiveIncomeAmount(inc, mKey);
-          if (amt > 0) revenus += amt;
-       });
-       this.state.expenses.forEach(exp => {
-          if (accFilter && exp.account_id !== accFilter) return;
-          if (!this.isActiveInMonth(exp, mKey)) return;
-          const amt = mode === 'theorique' ? Number(exp.amount) || 0 : this.effectiveExpenseAmount(exp, mKey);
-          if (amt <= 0) return;
-          if (this.isEpargneExpense(exp)) epargne += amt;
-          else depenses += amt;
-       });
-       // Apports sortants du compte principal (cohérent avec la capacité d'épargne)
        const mainId = this.state.profile?.main_account_id;
-       if (mainId && (!accFilter || accFilter === mainId)) {
-          const contribs = this.outboundContributionsBreakdown(mainId);
-          if (mode === 'theorique') {
-             depenses += contribs.nonSavings;
-             epargne += contribs.savings;
-          } else {
-             // En mode effectif : on compte les apports seulement s'il y a eu de l'activité ce mois
-             // (approximation : si au moins une dépense du compte cible a été validée, on inclut l'apport théorique)
-             // Plus simple et stable : toujours inclure les apports configurés (budget d'apport mensuel)
-             depenses += contribs.nonSavings;
-             epargne += contribs.savings;
+       // Sans filtre : vision capacité perso = compte principal
+       const focusIds = accFilter
+          ? [accFilter]
+          : (mainId ? [mainId] : this.state.accounts.map(a => a.id));
+
+       let revenusDirects = 0, apports = 0, depenses = 0, epargne = 0;
+
+       focusIds.forEach(accId => {
+          this.state.incomes.forEach(inc => {
+             if (inc.account_id !== accId) return;
+             const amt = mode === 'theorique' ? Number(inc.amount) || 0 : this.effectiveIncomeAmount(inc, mKey);
+             if (amt > 0) revenusDirects += amt;
+          });
+
+          // Apports reçus = financement du compte (ex. compte joint sans salaire)
+          if (accId !== mainId) {
+             apports += this.inboundContributions(accId);
           }
+
+          this.state.expenses.forEach(exp => {
+             if (exp.account_id !== accId) return;
+             if (!this.isActiveInMonth(exp, mKey)) return;
+             const amt = mode === 'theorique' ? Number(exp.amount) || 0 : this.effectiveExpenseAmount(exp, mKey);
+             if (amt <= 0) return;
+             if (this.isEpargneExpense(exp)) epargne += amt;
+             else depenses += amt;
+          });
+       });
+
+       // Sur le compte principal (filtre vide ou principal) : apports sortants = dépenses / épargne
+       const lookingAtMain = !accFilter || accFilter === mainId;
+       if (mainId && lookingAtMain) {
+          const contribs = this.outboundContributionsBreakdown(mainId);
+          depenses += contribs.nonSavings;
+          epargne += contribs.savings;
        }
-       const reste = Math.max(0, revenus - depenses - epargne);
+
+       const revenus = revenusDirects + apports;
+       const capacite = Math.max(0, revenus - depenses - epargne);
        const overflow = Math.max(0, (depenses + epargne) - revenus);
-       return { revenus, depenses, epargne, reste, overflow };
+       return { revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow };
     },
 
     renderCategoryStats() {
@@ -1880,13 +1932,15 @@
        const accFilter = accSel ? accSel.value : '';
        const opts = { accFilter, mode };
 
-       const months = this.monthKeysBack(offset);
-       const ref = months[months.length - 1]; // mois le plus ancien (m-offset)
+       // Du plus ancien au plus récent, une couleur par mois
+       const months = this.monthKeysBack(offset).slice().reverse().map((m, idx) => ({
+          ...m,
+          label: monthLabel(m.date),
+          color: this.chartPalette[idx % this.chartPalette.length],
+          totals: this.categoryTotalsForMonth(m.key, opts)
+       }));
        const cur = this.categoryTotalsForMonth(curKey, opts);
-       const prev = this.categoryTotalsForMonth(ref.key, opts);
-       const curTotal = this.sumCategoryTotals(cur);
-       const prevTotal = this.sumCategoryTotals(prev);
-       const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])]
+       const allCats = [...new Set(months.flatMap(m => Object.keys(m.totals)))]
           .sort((a, b) => (cur[b] || 0) - (cur[a] || 0));
 
        const modeLabel = mode === 'theorique' ? 'théoriques' : 'effectives';
@@ -1899,108 +1953,120 @@
           ? this.pieChart(catItems, { centerSub })
           : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
-       // 2. Comparaison catégorie : mois actuel vs mois à l'offset (m-1 / m-2 / m-5 / m-11)
+       // 2. Comparaison multi-mois : une barre colorée par mois pour chaque catégorie
        const compEl = document.getElementById('stat-comparison');
        if (allCats.length === 0) {
           compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
        } else {
-          const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
+          const maxCat = Math.max(
+             ...allCats.flatMap(c => months.map(m => m.totals[c] || 0)),
+             1
+          );
+          const oldest = months[0];
+          const newest = months[months.length - 1];
+          const oldestTotal = this.sumCategoryTotals(oldest.totals);
+          const newestTotal = this.sumCategoryTotals(newest.totals);
           let deltaTotalHtml = '';
-          if (prevTotal > 0) {
-             const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
+          if (oldestTotal > 0) {
+             const delta = Math.round(((newestTotal - oldestTotal) / oldestTotal) * 100);
              const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
              deltaTotalHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
-          } else if (curTotal > 0) {
+          } else if (newestTotal > 0) {
              deltaTotalHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
           }
 
           let html = `
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--ink-soft); margin-bottom:10px; gap:8px; flex-wrap:wrap;">
-              <span style="display:flex; align-items:center; gap:10px;">
-                <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(ref.date))} (m-${offset})</span>
-                <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--sage);vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(now))}</span>
-              </span>
-              <span>${this.fmt(curTotal)} · ${deltaTotalHtml || '—'}</span>
+            <div class="stack-legend" style="margin-bottom:8px;">
+              ${months.map(m => `<span><i style="background:${m.color};"></i>${this.esc(m.label)}</span>`).join('')}
+            </div>
+            <div style="display:flex; justify-content:flex-end; font-size:10px; color:var(--ink-soft); margin-bottom:8px;">
+              <span>${this.fmt(newestTotal)} · ${deltaTotalHtml || '—'} vs ${this.esc(oldest.label)}</span>
             </div>`;
 
           allCats.forEach(cat => {
-             const c = cur[cat] || 0, p = prev[cat] || 0;
-             const cPct = Math.max(c > 0 ? 2 : 0, (c / maxCat) * 100);
-             const pPct = Math.max(p > 0 ? 2 : 0, (p / maxCat) * 100);
+             const newestAmt = newest.totals[cat] || 0;
+             const oldestAmt = oldest.totals[cat] || 0;
              let deltaLabel, color;
-             if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
-             else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
+             if (oldestAmt === 0 && newestAmt > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
+             else if (oldestAmt === 0 && newestAmt === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
              else {
-                const delta = Math.round(((c - p) / p) * 100);
+                const delta = Math.round(((newestAmt - oldestAmt) / oldestAmt) * 100);
                 deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
                 color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
              }
+             const amountsHtml = months.map(m =>
+                `<span class="num" style="color:${m.color}; font-size:10.5px;">${this.fmt(m.totals[cat] || 0)}</span>`
+             ).join('');
+             const barsHtml = months.map(m => {
+                const v = m.totals[cat] || 0;
+                const pct = Math.max(v > 0 ? 2 : 0, (v / maxCat) * 100);
+                return `<div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pct}%; background:${m.color};"></div></div>`;
+             }).join('');
+
              html += `<div style="padding:8px 0; border-bottom:1px solid var(--line-soft);">
-                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px;">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
                    <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
-                   <span style="display:flex; gap:8px; align-items:center; flex-shrink:0; font-size:11px;">
-                     <span class="num" style="color:var(--ink-faint);">${this.fmt(p)}</span>
-                     <span class="num" style="font-weight:600;">${this.fmt(c)}</span>
-                     <span style="font-weight:700; color:${color}; min-width:42px; text-align:right;">${deltaLabel}</span>
-                   </span>
+                   <span style="font-weight:700; color:${color}; font-size:11px; flex-shrink:0;">${deltaLabel}</span>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:3px;">
-                  <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pPct}%; background:var(--ink-faint); opacity:0.55;"></div></div>
-                  <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${cPct}%;"></div></div>
-                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:5px;">${amountsHtml}</div>
+                <div class="comp-month-bars">${barsHtml}</div>
              </div>`;
           });
 
-          html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px;">
+          html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px; gap:8px; flex-wrap:wrap;">
              <span>Total</span>
-             <span style="display:flex; gap:8px; align-items:center;">
-               <span class="num" style="color:var(--ink-faint); font-weight:600;">${this.fmt(prevTotal)}</span>
-               <span class="num">${this.fmt(curTotal)}</span>
+             <span style="display:flex; flex-wrap:wrap; gap:8px;">
+               ${months.map(m => `<span class="num" style="color:${m.color}; font-weight:600;">${this.fmt(this.sumCategoryTotals(m.totals))}</span>`).join('')}
              </span>
           </div>`;
           compEl.innerHTML = html;
        }
 
-       // 3. Graphique stacked revenus / dépenses / épargne sur la plage choisie
+       // 3. Bilan revenus / dépenses / épargne (montants lisibles)
        this.renderSavingsStackChart(months, opts);
     },
 
     renderSavingsStackChart(months, opts) {
        const el = document.getElementById('chart-savings-stack');
        if (!el) return;
-       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
-       // Afficher du plus ancien au plus récent
-       const ordered = months.slice().reverse();
-       const rows = ordered.map(({ key, date }) => ({
+       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+       // months déjà du plus ancien au plus récent
+       const rows = months.map(({ key, date }) => ({
           key, date, label: monthLabel(date), ...this.monthIncomeExpenseBreakdown(key, opts)
        }));
-       const maxRev = Math.max(...rows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
        const hasData = rows.some(r => r.revenus > 0 || r.depenses > 0 || r.epargne > 0);
        if (!hasData) {
           el.innerHTML = `<div class="chart-empty">Pas encore de données sur cette période${opts.mode === 'effective' ? " (validez dépenses et revenus dans Aujourd'hui)" : ''}.</div>`;
           return;
        }
 
-       const cols = rows.map(r => {
+       const mainId = this.state.profile?.main_account_id;
+       const mainName = (this.state.accounts.find(a => a.id === mainId) || {}).name || 'compte principal';
+       const scopeNote = !opts.accFilter
+          ? `Vision capacité perso (${this.esc(mainName)}) : revenus du compte principal, apports versés inclus dans dépenses / épargne.`
+          : `Compte filtré : les apports configurés comptent comme revenus s'il n'y a pas (ou peu) de revenus directs.`;
+
+       const cards = rows.map(r => {
           const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
-          const usedH = Math.round((base / maxRev) * 160);
-          const denom = base;
-          const depH = Math.round((r.depenses / denom) * usedH);
-          const epH = Math.round((r.epargne / denom) * usedH);
-          const resteH = Math.max(0, usedH - depH - epH);
-          const overNote = r.overflow > 0
-             ? `<div style="font-size:9px;color:var(--clay);">dépass. ${this.fmt(r.overflow)}</div>`
-             : '';
-          const tip = `${r.label} | Revenus ${this.fmt(r.revenus)} | Dépenses ${this.fmt(r.depenses)} | Épargné ${this.fmt(r.epargne)} | Reste ${this.fmt(r.reste)}`;
-          return `<div class="stack-col" title="${this.esc(tip)}">
-            <div class="stack-col-total">${r.revenus > 0 ? this.fmt(r.revenus).replace(/\s*€$/, '') : '—'}</div>
-            <div class="stack-bar">
-              ${resteH > 0 ? `<div class="stack-seg" style="height:${resteH}px; background:var(--sage);"></div>` : ''}
-              ${epH > 0 ? `<div class="stack-seg" style="height:${epH}px; background:var(--gold);"></div>` : ''}
-              ${depH > 0 ? `<div class="stack-seg" style="height:${depH}px; background:var(--clay);"></div>` : ''}
+          const depPct = (r.depenses / base) * 100;
+          const epPct = (r.epargne / base) * 100;
+          const capPct = (r.capacite / base) * 100;
+          return `<div class="month-fin-card">
+            <div class="month-fin-head">
+              <div class="month-fin-title">${this.esc(r.label)}</div>
+              <div class="month-fin-rev">Revenus ${this.fmt(r.revenus)}</div>
             </div>
-            ${overNote}
-            <div class="stack-col-label">${this.esc(r.label)}</div>
+            <div class="month-fin-row"><span>Revenus directs</span><span class="num">${this.fmt(r.revenusDirects)}</span></div>
+            ${r.apports > 0 ? `<div class="month-fin-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
+            <div class="month-fin-row"><span>Dépenses</span><span class="num" style="color:var(--clay);">${this.fmt(r.depenses)}</span></div>
+            <div class="month-fin-row"><span>Déjà épargné</span><span class="num" style="color:var(--gold);">${this.fmt(r.epargne)}</span></div>
+            <div class="month-fin-row"><span>Capacité d'épargne restante</span><span class="num" style="color:var(--sage-deep); font-weight:700;">${this.fmt(r.capacite)}</span></div>
+            ${r.overflow > 0 ? `<div class="month-fin-row"><span>Dépassement</span><span class="num" style="color:var(--clay);">${this.fmt(r.overflow)}</span></div>` : ''}
+            <div class="month-fin-bar" title="Proportion dépenses / épargné / capacité">
+              ${depPct > 0 ? `<span style="width:${depPct}%; background:var(--clay);"></span>` : ''}
+              ${epPct > 0 ? `<span style="width:${epPct}%; background:var(--gold);"></span>` : ''}
+              ${capPct > 0 ? `<span style="width:${capPct}%; background:var(--sage);"></span>` : ''}
+            </div>
           </div>`;
        }).join('');
 
@@ -2008,13 +2074,10 @@
          <div class="stack-legend">
            <span><i style="background:var(--clay);"></i>Dépenses</span>
            <span><i style="background:var(--gold);"></i>Déjà épargné</span>
-           <span><i style="background:var(--sage);"></i>Reste capacité</span>
-           <span style="color:var(--ink-faint);">Hauteur = revenus</span>
+           <span><i style="background:var(--sage);"></i>Capacité restante</span>
          </div>
-         <div class="stack-bars">${cols}</div>
-         <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">
-           Bas → haut : dépenses, montant déjà épargné (catégorie Épargne + apports vers comptes épargne), reste de capacité. Total = revenus${opts.mode === 'effective' ? ' encaissés' : ' prévus'}.
-         </div>`;
+         <div class="month-fin-list">${cards}</div>
+         <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">${scopeNote}</div>`;
     },
 
     // --- EXPORT ---
