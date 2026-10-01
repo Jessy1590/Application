@@ -215,6 +215,15 @@
   .chart-empty{ font-size:13px; color:var(--ink-faint); padding:8px 2px; }
   .chart-center-label{ font-family:'Space Grotesk'; font-weight:700; fill:var(--sage-deep); }
   .chart-center-sub{ fill:var(--ink-faint); font-family:'Inter'; }
+  .stack-legend{ display:flex; flex-wrap:wrap; gap:10px 14px; font-size:11.5px; color:var(--ink-soft); margin-bottom:12px; }
+  .stack-legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .stack-legend i{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .stack-bars{ display:flex; align-items:flex-end; gap:8px; min-height:180px; padding:4px 2px 0; overflow-x:auto; }
+  .stack-col{ flex:1; min-width:36px; max-width:64px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .stack-bar{ width:100%; height:160px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:6px 6px 0 0; overflow:hidden; background:var(--line-soft); }
+  .stack-seg{ width:100%; min-height:0; }
+  .stack-col-label{ font-size:10px; color:var(--ink-faint); text-align:center; line-height:1.2; }
+  .stack-col-total{ font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--ink-soft); text-align:center; }
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -262,9 +271,14 @@
     </div>
     <div id="bh-wallets-section"></div>
     <div id="bh-due-section"></div>
-    <div class="bh-section-label">Validé ce mois-ci</div>
+    <div id="bh-incomes-due-section"></div>
+    <div class="bh-section-label">Dépenses validées</div>
     <div class="bh-card" id="bh-paid-list-wrap">
       <div id="bh-paid-list"></div>
+    </div>
+    <div class="bh-section-label">Revenus encaissés</div>
+    <div class="bh-card" id="bh-paid-incomes-wrap">
+      <div id="bh-paid-incomes-list"></div>
     </div>
   </div>
 
@@ -316,13 +330,19 @@
     </div>
 
     <div class="bh-section-label">Dépenses par catégorie</div>
-    <div style="display:flex; gap:8px; margin-bottom:8px;">
-      <select id="stat-cat-acc" class="bh-input" style="flex:1; margin-bottom:0;" onchange="BH.renderCategoryStats()">
+    <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+      <select id="stat-cat-acc" class="bh-input" style="flex:1; min-width:120px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
         <option value="">Tous les comptes</option>
       </select>
-      <select id="stat-cat-mode" class="bh-input" style="flex:1; margin-bottom:0;" onchange="BH.renderCategoryStats()">
+      <select id="stat-cat-mode" class="bh-input" style="flex:1; min-width:110px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
         <option value="effective">Effectives</option>
         <option value="theorique">Théoriques</option>
+      </select>
+      <select id="stat-cat-range" class="bh-input" style="flex:1; min-width:130px; margin-bottom:0;" onchange="BH.renderCategoryStats()">
+        <option value="1">vs m-1 (2 mois)</option>
+        <option value="2">jusqu'à m-2 (3 mois)</option>
+        <option value="5">jusqu'à m-5 (6 mois)</option>
+        <option value="11">jusqu'à m-11 (12 mois)</option>
       </select>
     </div>
     <div class="bh-card">
@@ -332,6 +352,12 @@
     <div class="bh-card">
       <div class="chart-title" style="font-size:12px; margin-bottom:8px;">Comparaison par catégorie</div>
       <div id="stat-comparison"></div>
+    </div>
+
+    <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
+    <div class="bh-card">
+      <div class="chart-title">Répartition du revenu par mois</div>
+      <div id="chart-savings-stack"></div>
     </div>
 
     <div class="bh-section-label">Export</div>
@@ -658,6 +684,10 @@
           acc[m.account_id + '_' + m.month_key] = m.paid_expenses || {};
           return acc;
         }, {}),
+        monthsIncomes: (recs.data || []).reduce((acc, m) => {
+          acc[m.account_id + '_' + m.month_key] = m.paid_incomes || {};
+          return acc;
+        }, {}),
         walletTx: (recs.data || []).reduce((acc, m) => {
           acc[m.account_id + '_' + m.month_key] = m.wallet_transactions || {};
           return acc;
@@ -844,6 +874,77 @@
       document.getElementById('bh-stat-paid').textContent = this.fmt(totalPaid);
       document.getElementById('bh-due-section').innerHTML = dueHtml || '<div class="bh-empty">Tout est à jour !</div>';
       document.getElementById('bh-paid-list').innerHTML = paidHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
+
+      this.renderTodayIncomes(mKey, now, dim);
+    },
+
+    renderTodayIncomes(mKey, now, dim) {
+      let paidHtml = '';
+      const late = [], today = [], soon = [];
+
+      this.state.incomes.forEach(inc => {
+        if (Number(inc.amount) <= 0) return;
+        const acc = this.state.accounts.find(a => a.id === inc.account_id);
+        if (!acc) return;
+        const paidRec = this.state.monthsIncomes?.[acc.id + '_' + mKey]?.[inc.id];
+        if (paidRec) {
+          paidHtml += `
+            <div class="bh-due" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <div style="min-width:0;">
+                 <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(inc.description)}</div>
+                 <div class="bh-due-meta">${this.esc(acc.name)}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler l'encaissement" onclick="BH.unmarkIncome('${inc.id}', '${acc.id}')">Annuler</button>
+              </div>
+            </div>`;
+        } else {
+          const diff = Math.min(Number(inc.day) || 1, dim) - now.getDate();
+          const item = { inc, acc, diff };
+          if (diff < 0) late.push(item);
+          else if (diff === 0) today.push(item);
+          else soon.push(item);
+        }
+      });
+
+      late.sort((a,b)=>a.diff-b.diff);
+      soon.sort((a,b)=>a.diff-b.diff);
+
+      const incomeItemHtml = ({inc, acc, diff}) => {
+        const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
+        const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
+        return `
+          <div class="bh-due">
+            <div class="bh-due-top">
+              <div>
+                <div class="bh-due-desc">${this.esc(inc.description)}</div>
+                <div class="bh-due-meta">
+                  <span class="bh-pill ${cls}">${lbl}</span>
+                  <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
+                  ${inc.income_type === 'remboursement' ? `<span class="bh-pill" style="background:var(--gold-pale); color:var(--gold);">Remboursement</span>` : ''}
+                </div>
+              </div>
+              <div class="bh-due-amount num" style="color:var(--sage-deep);">+${this.fmt(inc.amount)}</div>
+            </div>
+            <div class="bh-due-actions">
+              <button class="bh-btn bh-btn-primary" onclick="BH.markIncome('${inc.id}', ${inc.amount}, '${acc.id}')">Encaisser ${this.fmt(inc.amount)}</button>
+              <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${inc.id}', '${acc.id}', 'income')">Montant différent</button>
+            </div>
+          </div>`;
+      };
+
+      const section = (label, items) => {
+        if (!items.length) return '';
+        return `<div class="bh-section-label"><span>${label}</span><span class="bh-section-count">${items.length}</span></div>`
+          + items.map(incomeItemHtml).join('');
+      };
+
+      const dueHtml = section('Revenus en retard', late) + section("Revenus aujourd'hui", today) + section('Revenus à venir', soon);
+      const dueEl = document.getElementById('bh-incomes-due-section');
+      if (dueEl) dueEl.innerHTML = dueHtml;
+      const paidEl = document.getElementById('bh-paid-incomes-list');
+      if (paidEl) paidEl.innerHTML = paidHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
     },
 
     fmtDate(d) {
@@ -1402,10 +1503,7 @@
       const newBucket = { ...bucket, [expId]: list };
 
       await withRetry(async () => {
-        const { error } = await supabaseApp.from('month_records').upsert({
-          account_id: accId, month_key: mKey, wallet_transactions: newBucket
-        }, { onConflict: 'account_id,month_key' });
-        if (error) throw error;
+        await this.upsertMonthRecord(accId, mKey, { wallet_transactions: newBucket });
         toast('Dépense ajoutée au portefeuille');
         this.fetchData();
       }, 'ajout dépense portefeuille');
@@ -1418,13 +1516,24 @@
       const newBucket = { ...bucket, [expId]: list };
 
       await withRetry(async () => {
-        const { error } = await supabaseApp.from('month_records').upsert({
-          account_id: accId, month_key: mKey, wallet_transactions: newBucket
-        }, { onConflict: 'account_id,month_key' });
-        if (error) throw error;
+        await this.upsertMonthRecord(accId, mKey, { wallet_transactions: newBucket });
         toast('Dépense retirée du portefeuille');
         this.fetchData();
       }, 'suppression dépense portefeuille');
+    },
+
+    // Upsert month_records en préservant les colonnes JSONB non touchées
+    async upsertMonthRecord(accId, mKey, patch) {
+      const key = accId + '_' + mKey;
+      const payload = {
+        account_id: accId,
+        month_key: mKey,
+        paid_expenses: patch.paid_expenses !== undefined ? patch.paid_expenses : (this.state.months[key] || {}),
+        paid_incomes: patch.paid_incomes !== undefined ? patch.paid_incomes : (this.state.monthsIncomes?.[key] || {}),
+        wallet_transactions: patch.wallet_transactions !== undefined ? patch.wallet_transactions : (this.state.walletTx?.[key] || {})
+      };
+      const { error } = await supabaseApp.from('month_records').upsert(payload, { onConflict: 'account_id,month_key' });
+      if (error) throw error;
     },
 
     // --- Dépenses expirées (date de fin dépassée) ---
@@ -1437,14 +1546,11 @@
 
     async markPaid(expId, amount, accId) {
       const mKey = this.monthKey(new Date());
-      let recs = this.state.months[accId + '_' + mKey] || {};
+      let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
       recs[expId] = { amount, on: new Date().toISOString() };
 
       await withRetry(async () => {
-        const { error } = await supabaseApp.from('month_records').upsert({
-          account_id: accId, month_key: mKey, paid_expenses: recs
-        }, { onConflict: 'account_id,month_key' });
-        if (error) throw error;
+        await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
         toast("Validé");
         this.fetchData();
       }, 'validation du paiement');
@@ -1452,30 +1558,55 @@
 
     async unmarkPaid(expId, accId) {
       const mKey = this.monthKey(new Date());
-      let recs = this.state.months[accId + '_' + mKey] || {};
+      let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
       if (!recs[expId]) return;
       delete recs[expId];
 
       await withRetry(async () => {
-        const { error } = await supabaseApp.from('month_records').upsert({
-          account_id: accId, month_key: mKey, paid_expenses: recs
-        }, { onConflict: 'account_id,month_key' });
-        if (error) throw error;
+        await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
         toast("Validation annulée");
         this.fetchData();
       }, 'annulation');
     },
 
-    // --- MONTANT DIFFÉRENT (validation avec un montant divergent) ---
-    diffAmount: { expId: null, accId: null, baseAmount: 0, mode: 'temp' },
+    async markIncome(incId, amount, accId) {
+      const mKey = this.monthKey(new Date());
+      let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
+      recs[incId] = { amount, on: new Date().toISOString() };
 
-    openDifferentAmount(expId, accId) {
-      const exp = this.state.expenses.find(e => e.id === expId);
-      if (!exp) return;
+      await withRetry(async () => {
+        await this.upsertMonthRecord(accId, mKey, { paid_incomes: recs });
+        toast("Revenu encaissé");
+        this.fetchData();
+      }, 'encaissement du revenu');
+    },
+
+    async unmarkIncome(incId, accId) {
+      const mKey = this.monthKey(new Date());
+      let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
+      if (!recs[incId]) return;
+      delete recs[incId];
+
+      await withRetry(async () => {
+        await this.upsertMonthRecord(accId, mKey, { paid_incomes: recs });
+        toast("Encaissement annulé");
+        this.fetchData();
+      }, 'annulation encaissement');
+    },
+
+    // --- MONTANT DIFFÉRENT (validation avec un montant divergent) ---
+    diffAmount: { expId: null, accId: null, baseAmount: 0, mode: 'temp', kind: 'expense' },
+
+    openDifferentAmount(expId, accId, kind = 'expense') {
+      const item = kind === 'income'
+        ? this.state.incomes.find(i => i.id === expId)
+        : this.state.expenses.find(e => e.id === expId);
+      if (!item) return;
       const acc = this.state.accounts.find(a => a.id === accId);
-      this.diffAmount = { expId, accId, baseAmount: Number(exp.amount), mode: 'temp' };
-      document.getElementById('da-desc').textContent = `${exp.description} — ${acc ? acc.name : ''} · montant habituel ${this.fmt(exp.amount)}`;
-      document.getElementById('da-amount').value = exp.amount;
+      this.diffAmount = { expId, accId, baseAmount: Number(item.amount), mode: 'temp', kind };
+      const label = kind === 'income' ? 'montant habituel' : 'montant habituel';
+      document.getElementById('da-desc').textContent = `${item.description} — ${acc ? acc.name : ''} · ${label} ${this.fmt(item.amount)}`;
+      document.getElementById('da-amount').value = item.amount;
       this.setDiffAmountMode('temp');
       document.getElementById('bh-diffamount-overlay').classList.add('open');
     },
@@ -1488,33 +1619,39 @@
       this.diffAmount.mode = mode;
       document.getElementById('da-mode-temp').classList.toggle('active', mode === 'temp');
       document.getElementById('da-mode-perm').classList.toggle('active', mode === 'perm');
+      const kind = this.diffAmount.kind || 'expense';
       document.getElementById('da-mode-explain').textContent = mode === 'temp'
-        ? "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci."
-        : "Durable : le montant habituel de cette dépense est mis à jour définitivement (tous les mois suivants).";
+        ? (kind === 'income'
+          ? "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile si le salaire varie ce mois-ci."
+          : "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci.")
+        : (kind === 'income'
+          ? "Durable : le montant habituel de ce revenu est mis à jour définitivement (tous les mois suivants)."
+          : "Durable : le montant habituel de cette dépense est mis à jour définitivement (tous les mois suivants).");
     },
 
     async confirmDifferentAmount() {
-      const { expId, accId, mode } = this.diffAmount;
+      const { expId, accId, mode, kind } = this.diffAmount;
       const newAmount = Number(document.getElementById('da-amount').value);
       if (!newAmount || isNaN(newAmount) || newAmount <= 0) { toast("Le montant doit être un nombre positif."); return; }
 
       await withRetry(async () => {
         if (mode === 'perm') {
-          // Durable : on met à jour le montant de référence de la dépense
-          const { error: e1 } = await supabaseApp.from('expenses').update({ amount: newAmount }).eq('id', expId);
+          const table = kind === 'income' ? 'incomes' : 'expenses';
+          const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
           if (e1) throw e1;
         }
-        // Dans tous les cas, on valide le mois en cours avec le montant réellement prélevé
-        // (pour le mode "ponctuel", la base de la dépense n'est pas touchée, seul l'enregistrement du mois change)
         const mKey = this.monthKey(new Date());
-        let recs = this.state.months[accId + '_' + mKey] || {};
-        recs[expId] = { amount: newAmount, on: new Date().toISOString() };
-        const { error: e2 } = await supabaseApp.from('month_records').upsert({
-          account_id: accId, month_key: mKey, paid_expenses: recs
-        }, { onConflict: 'account_id,month_key' });
-        if (e2) throw e2;
-
-        toast(mode === 'perm' ? "Montant mis à jour durablement et validé" : "Validé avec le montant ponctuel");
+        if (kind === 'income') {
+          let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
+          recs[expId] = { amount: newAmount, on: new Date().toISOString() };
+          await this.upsertMonthRecord(accId, mKey, { paid_incomes: recs });
+          toast(mode === 'perm' ? "Montant mis à jour durablement et encaissé" : "Encaissé avec le montant ponctuel");
+        } else {
+          let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
+          recs[expId] = { amount: newAmount, on: new Date().toISOString() };
+          await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
+          toast(mode === 'perm' ? "Montant mis à jour durablement et validé" : "Validé avec le montant ponctuel");
+        }
         this.closeDifferentAmount();
         this.fetchData();
       }, 'montant différent');
@@ -1644,6 +1781,16 @@
        return paid ? Number(paid.amount || 0) : 0;
     },
 
+    effectiveIncomeAmount(inc, mKey) {
+       if (!inc) return 0;
+       const paid = this.state.monthsIncomes?.[inc.account_id + '_' + mKey]?.[inc.id];
+       return paid ? Number(paid.amount || 0) : 0;
+    },
+
+    isEpargneExpense(exp) {
+       return !!(exp && /(é|e)pargne/i.test(exp.category || ''));
+    },
+
     // Totaux par catégorie pour un mois (mode effective | theorique, filtre compte optionnel)
     categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
        const totals = {};
@@ -1664,27 +1811,79 @@
        return Object.values(totals).reduce((s, v) => s + Number(v), 0);
     },
 
+    // Liste des mois [actuel, actuel-1, ... actuel-offset]
+    monthKeysBack(offset) {
+       const now = new Date();
+       const keys = [];
+       for (let i = 0; i <= offset; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          keys.push({ key: this.monthKey(d), date: d });
+       }
+       return keys; // index 0 = mois courant
+    },
+
+    // Agrégats revenus / dépenses / épargne pour un mois (filtre + mode)
+    monthIncomeExpenseBreakdown(mKey, { accFilter = '', mode = 'effective' } = {}) {
+       let revenus = 0, depenses = 0, epargne = 0;
+       this.state.incomes.forEach(inc => {
+          if (accFilter && inc.account_id !== accFilter) return;
+          if (Number(inc.amount) <= 0 && mode === 'theorique') return;
+          const amt = mode === 'theorique' ? Number(inc.amount) || 0 : this.effectiveIncomeAmount(inc, mKey);
+          if (amt > 0) revenus += amt;
+       });
+       this.state.expenses.forEach(exp => {
+          if (accFilter && exp.account_id !== accFilter) return;
+          if (!this.isActiveInMonth(exp, mKey)) return;
+          const amt = mode === 'theorique' ? Number(exp.amount) || 0 : this.effectiveExpenseAmount(exp, mKey);
+          if (amt <= 0) return;
+          if (this.isEpargneExpense(exp)) epargne += amt;
+          else depenses += amt;
+       });
+       // Apports sortants du compte principal (cohérent avec la capacité d'épargne)
+       const mainId = this.state.profile?.main_account_id;
+       if (mainId && (!accFilter || accFilter === mainId)) {
+          const contribs = this.outboundContributionsBreakdown(mainId);
+          if (mode === 'theorique') {
+             depenses += contribs.nonSavings;
+             epargne += contribs.savings;
+          } else {
+             // En mode effectif : on compte les apports seulement s'il y a eu de l'activité ce mois
+             // (approximation : si au moins une dépense du compte cible a été validée, on inclut l'apport théorique)
+             // Plus simple et stable : toujours inclure les apports configurés (budget d'apport mensuel)
+             depenses += contribs.nonSavings;
+             epargne += contribs.savings;
+          }
+       }
+       const reste = Math.max(0, revenus - depenses - epargne);
+       const overflow = Math.max(0, (depenses + epargne) - revenus);
+       return { revenus, depenses, epargne, reste, overflow };
+    },
+
     renderCategoryStats() {
        const now = new Date();
        const curKey = this.monthKey(now);
-       const prevDate = new Date(now.getFullYear(), now.getMonth()-1, 1);
-       const prevKey = this.monthKey(prevDate);
        const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
 
        const accSel = document.getElementById('stat-cat-acc');
        const modeSel = document.getElementById('stat-cat-mode');
+       const rangeSel = document.getElementById('stat-cat-range');
        const prevAccVal = accSel ? accSel.value : '';
+       const prevRangeVal = rangeSel ? rangeSel.value : '1';
        const mode = modeSel ? modeSel.value : 'effective';
+       const offset = Math.max(1, Number(rangeSel ? rangeSel.value : 1) || 1);
        if (accSel) {
           accSel.innerHTML = '<option value="">Tous les comptes</option>' +
              this.state.accounts.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
           accSel.value = this.state.accounts.some(a => a.id === prevAccVal) ? prevAccVal : '';
        }
+       if (rangeSel) rangeSel.value = ['1','2','5','11'].includes(prevRangeVal) ? prevRangeVal : '1';
        const accFilter = accSel ? accSel.value : '';
        const opts = { accFilter, mode };
 
+       const months = this.monthKeysBack(offset);
+       const ref = months[months.length - 1]; // mois le plus ancien (m-offset)
        const cur = this.categoryTotalsForMonth(curKey, opts);
-       const prev = this.categoryTotalsForMonth(prevKey, opts);
+       const prev = this.categoryTotalsForMonth(ref.key, opts);
        const curTotal = this.sumCategoryTotals(cur);
        const prevTotal = this.sumCategoryTotals(prev);
        const allCats = [...new Set([...Object.keys(cur), ...Object.keys(prev)])]
@@ -1700,68 +1899,122 @@
           ? this.pieChart(catItems, { centerSub })
           : `<div class="chart-empty">Aucune dépense ${modeLabel} ce mois${accFilter ? ' pour ce compte' : ''}.</div>`;
 
-       // 2. Comparaison + détail par catégorie (mois N vs N-1)
+       // 2. Comparaison catégorie : mois actuel vs mois à l'offset (m-1 / m-2 / m-5 / m-11)
        const compEl = document.getElementById('stat-comparison');
        if (allCats.length === 0) {
           compEl.innerHTML = `<div style="font-size:12px;color:var(--ink-faint);">Pas assez de données ${modeLabel} pour comparer.</div>`;
+       } else {
+          const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
+          let deltaTotalHtml = '';
+          if (prevTotal > 0) {
+             const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
+             const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+             deltaTotalHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
+          } else if (curTotal > 0) {
+             deltaTotalHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
+          }
+
+          let html = `
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--ink-soft); margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+              <span style="display:flex; align-items:center; gap:10px;">
+                <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(ref.date))} (m-${offset})</span>
+                <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--sage);vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(now))}</span>
+              </span>
+              <span>${this.fmt(curTotal)} · ${deltaTotalHtml || '—'}</span>
+            </div>`;
+
+          allCats.forEach(cat => {
+             const c = cur[cat] || 0, p = prev[cat] || 0;
+             const cPct = Math.max(c > 0 ? 2 : 0, (c / maxCat) * 100);
+             const pPct = Math.max(p > 0 ? 2 : 0, (p / maxCat) * 100);
+             let deltaLabel, color;
+             if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
+             else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
+             else {
+                const delta = Math.round(((c - p) / p) * 100);
+                deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
+                color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
+             }
+             html += `<div style="padding:8px 0; border-bottom:1px solid var(--line-soft);">
+                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px;">
+                   <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
+                   <span style="display:flex; gap:8px; align-items:center; flex-shrink:0; font-size:11px;">
+                     <span class="num" style="color:var(--ink-faint);">${this.fmt(p)}</span>
+                     <span class="num" style="font-weight:600;">${this.fmt(c)}</span>
+                     <span style="font-weight:700; color:${color}; min-width:42px; text-align:right;">${deltaLabel}</span>
+                   </span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:3px;">
+                  <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pPct}%; background:var(--ink-faint); opacity:0.55;"></div></div>
+                  <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${cPct}%;"></div></div>
+                </div>
+             </div>`;
+          });
+
+          html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px;">
+             <span>Total</span>
+             <span style="display:flex; gap:8px; align-items:center;">
+               <span class="num" style="color:var(--ink-faint); font-weight:600;">${this.fmt(prevTotal)}</span>
+               <span class="num">${this.fmt(curTotal)}</span>
+             </span>
+          </div>`;
+          compEl.innerHTML = html;
+       }
+
+       // 3. Graphique stacked revenus / dépenses / épargne sur la plage choisie
+       this.renderSavingsStackChart(months, opts);
+    },
+
+    renderSavingsStackChart(months, opts) {
+       const el = document.getElementById('chart-savings-stack');
+       if (!el) return;
+       const monthLabel = (d) => d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+       // Afficher du plus ancien au plus récent
+       const ordered = months.slice().reverse();
+       const rows = ordered.map(({ key, date }) => ({
+          key, date, label: monthLabel(date), ...this.monthIncomeExpenseBreakdown(key, opts)
+       }));
+       const maxRev = Math.max(...rows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
+       const hasData = rows.some(r => r.revenus > 0 || r.depenses > 0 || r.epargne > 0);
+       if (!hasData) {
+          el.innerHTML = `<div class="chart-empty">Pas encore de données sur cette période${opts.mode === 'effective' ? " (validez dépenses et revenus dans Aujourd'hui)" : ''}.</div>`;
           return;
        }
 
-       const maxCat = Math.max(...allCats.map(c => Math.max(cur[c] || 0, prev[c] || 0)), 1);
-       let deltaTotalHtml = '';
-       if (prevTotal > 0) {
-          const delta = Math.round(((curTotal - prevTotal) / prevTotal) * 100);
-          const color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
-          deltaTotalHtml = `<span style="font-weight:700; color:${color};">${delta > 0 ? '+' : ''}${delta}%</span>`;
-       } else if (curTotal > 0) {
-          deltaTotalHtml = `<span style="font-weight:700; color:var(--amber);">nouveau</span>`;
-       }
-
-       let html = `
-         <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--ink-soft); margin-bottom:10px; gap:8px; flex-wrap:wrap;">
-           <span style="display:flex; align-items:center; gap:10px;">
-             <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--ink-faint);opacity:0.55;vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(prevDate))}</span>
-             <span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--sage);vertical-align:middle;margin-right:3px;"></span>${this.esc(monthLabel(now))}</span>
-           </span>
-           <span>${this.fmt(curTotal)} · ${deltaTotalHtml || '—'}</span>
-         </div>`;
-
-       allCats.forEach(cat => {
-          const c = cur[cat] || 0, p = prev[cat] || 0;
-          const cPct = Math.max(c > 0 ? 2 : 0, (c / maxCat) * 100);
-          const pPct = Math.max(p > 0 ? 2 : 0, (p / maxCat) * 100);
-          let deltaLabel, color;
-          if (p === 0 && c > 0) { deltaLabel = 'nouveau'; color = 'var(--amber)'; }
-          else if (p === 0 && c === 0) { deltaLabel = '—'; color = 'var(--ink-faint)'; }
-          else {
-             const delta = Math.round(((c - p) / p) * 100);
-             deltaLabel = (delta > 0 ? '+' : '') + delta + '%';
-             color = delta > 0 ? 'var(--clay)' : (delta < 0 ? 'var(--sage-deep)' : 'var(--ink-faint)');
-          }
-          html += `<div style="padding:8px 0; border-bottom:1px solid var(--line-soft);">
-             <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px;">
-                <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
-                <span style="display:flex; gap:8px; align-items:center; flex-shrink:0; font-size:11px;">
-                  <span class="num" style="color:var(--ink-faint);">${this.fmt(p)}</span>
-                  <span class="num" style="font-weight:600;">${this.fmt(c)}</span>
-                  <span style="font-weight:700; color:${color}; min-width:42px; text-align:right;">${deltaLabel}</span>
-                </span>
-             </div>
-             <div style="display:flex; flex-direction:column; gap:3px;">
-               <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${pPct}%; background:var(--ink-faint); opacity:0.55;"></div></div>
-               <div class="stat-bar-bg" style="height:5px;"><div class="stat-bar-fg" style="width:${cPct}%;"></div></div>
-             </div>
+       const cols = rows.map(r => {
+          const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
+          const usedH = Math.round((base / maxRev) * 160);
+          const denom = base;
+          const depH = Math.round((r.depenses / denom) * usedH);
+          const epH = Math.round((r.epargne / denom) * usedH);
+          const resteH = Math.max(0, usedH - depH - epH);
+          const overNote = r.overflow > 0
+             ? `<div style="font-size:9px;color:var(--clay);">dépass. ${this.fmt(r.overflow)}</div>`
+             : '';
+          const tip = `${r.label} | Revenus ${this.fmt(r.revenus)} | Dépenses ${this.fmt(r.depenses)} | Épargné ${this.fmt(r.epargne)} | Reste ${this.fmt(r.reste)}`;
+          return `<div class="stack-col" title="${this.esc(tip)}">
+            <div class="stack-col-total">${r.revenus > 0 ? this.fmt(r.revenus).replace(/\s*€$/, '') : '—'}</div>
+            <div class="stack-bar">
+              ${resteH > 0 ? `<div class="stack-seg" style="height:${resteH}px; background:var(--sage);"></div>` : ''}
+              ${epH > 0 ? `<div class="stack-seg" style="height:${epH}px; background:var(--gold);"></div>` : ''}
+              ${depH > 0 ? `<div class="stack-seg" style="height:${depH}px; background:var(--clay);"></div>` : ''}
+            </div>
+            ${overNote}
+            <div class="stack-col-label">${this.esc(r.label)}</div>
           </div>`;
-       });
+       }).join('');
 
-       html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px;">
-          <span>Total</span>
-          <span style="display:flex; gap:8px; align-items:center;">
-            <span class="num" style="color:var(--ink-faint); font-weight:600;">${this.fmt(prevTotal)}</span>
-            <span class="num">${this.fmt(curTotal)}</span>
-          </span>
-       </div>`;
-       compEl.innerHTML = html;
+       el.innerHTML = `
+         <div class="stack-legend">
+           <span><i style="background:var(--clay);"></i>Dépenses</span>
+           <span><i style="background:var(--gold);"></i>Déjà épargné</span>
+           <span><i style="background:var(--sage);"></i>Reste capacité</span>
+           <span style="color:var(--ink-faint);">Hauteur = revenus</span>
+         </div>
+         <div class="stack-bars">${cols}</div>
+         <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">
+           Bas → haut : dépenses, montant déjà épargné (catégorie Épargne + apports vers comptes épargne), reste de capacité. Total = revenus${opts.mode === 'effective' ? ' encaissés' : ' prévus'}.
+         </div>`;
     },
 
     // --- EXPORT ---
