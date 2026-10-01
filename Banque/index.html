@@ -900,8 +900,13 @@
         ${r.apports > 0 ? `<div class="bh-info-row"><span>Apports reçus</span><span class="num">${this.fmt(r.apports)}</span></div>` : ''}
         <div class="bh-info-row"><span>Dépenses${isEff ? ' validées' : ''}</span><span class="num">${this.fmt(r.depenses)}</span></div>
         <div class="bh-info-row"><span>Déjà épargné</span><span class="num">${this.fmt(r.epargne)}</span></div>
-        ${isEff && planned > 0 ? `<div class="bh-info-row"><span>Apports prévus (non comptés)</span><span class="num">${this.fmt(planned)}</span></div>` : ''}
+        ${isEff && planned > 0 ? `<div class="bh-info-row"><span>Apports restants prévus</span><span class="num">${this.fmt(planned)}</span></div>` : ''}
         <div class="bh-info-row"><span>Capacité d'épargne restante</span><span class="num">${this.fmt(r.capacite)}</span></div>`;
+      if (r.isGlobal) {
+        rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.45;">Vue tous comptes : somme des revenus et dépenses de chaque compte. Les apports entre comptes ne sont pas ajoutés (évite le double comptage).</div>`;
+      } else if (r.lookingAtMain) {
+        rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.45;">Vue capacité perso : compte principal${isEff ? ' + part déjà consommée sur les comptes partagés' : ' + apports versés aux autres comptes'}.</div>`;
+      }
       if (r.overflow > 0) {
         rows += `<div class="bh-info-row"><span>Dépassement</span><span class="num">${this.fmt(r.overflow)}</span></div>`;
       }
@@ -1143,26 +1148,59 @@
     },
 
     // Ventile les apports du user courant vers les autres comptes : total / hors-épargne / épargne uniquement
-    // (montant plein mensuel, respecte le mode fixed/percent/prorata de chaque compte)
-    outboundContributionsBreakdown(mainAccId) {
+    // opts.mode = 'theorique' (défaut) | 'effective'
+    // opts.mKey = mois (défaut = mois courant) — en effective, basé sur dépenses/revenus validés
+    outboundContributionsBreakdown(mainAccId, opts = {}) {
       let nonSavings = 0, savings = 0;
+      if (!mainAccId) return { total: 0, nonSavings: 0, savings: 0 };
+      const mode = opts.mode || 'theorique';
+      const mKey = opts.mKey || this.monthKey(new Date());
+      const curKey = this.monthKey(new Date());
       this.state.accounts.forEach(acc => {
         if (acc.id === mainAccId) return;
         const mems = this.state.members.filter(m => m.account_id === acc.id);
         const myMem = mems.find(m => m.user_id === this.user.id);
         if (!myMem) return;
-        const exps = this.state.expenses.filter(e => e.account_id === acc.id);
-        const tExp = exps.reduce((s,e)=>s+Number(e.amount),0);
-        const accTInc = this.state.incomes.filter(i => i.account_id === acc.id).reduce((s,i)=>s+Number(i.amount),0);
-        const netExp = Math.max(0, tExp - accTInc);
-        const mode = myMem.contribution_mode || 'fixed';
-        let amt = 0;
-        if (mode === 'prorata') {
-          amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
-        } else if (mode === 'percent') {
-          amt = netExp * (Number(myMem.contribution_target)||0) / 100;
+
+        let tExp = 0, accTInc = 0;
+        if (mode === 'theorique' && mKey !== curKey) {
+          const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
+          if (!snap || !Object.keys(snap).length) return; // pas d'historique → ignore
+          tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
+            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        } else if (mode === 'effective') {
+          this.state.expenses.forEach(e => {
+            if (e.account_id !== acc.id) return;
+            if (!this.isActiveInMonth(e, mKey)) return;
+            tExp += this.expenseAmountForStats(e, mKey, 'effective');
+          });
+          this.state.incomes.forEach(i => {
+            if (i.account_id !== acc.id) return;
+            accTInc += this.effectiveIncomeAmount(i, mKey);
+          });
         } else {
-          amt = Number(myMem.contribution_target) || 0;
+          this.state.expenses.forEach(e => {
+            if (e.account_id !== acc.id) return;
+            if (!this.isActiveInMonth(e, mKey)) return;
+            tExp += Number(e.amount) || 0;
+          });
+          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
+            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        }
+
+        const netExp = Math.max(0, tExp - accTInc);
+        const cMode = myMem.contribution_mode || 'fixed';
+        let amt = 0;
+        if (cMode === 'prorata') {
+          amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
+        } else if (cMode === 'percent') {
+          amt = netExp * (Number(myMem.contribution_target) || 0) / 100;
+        } else {
+          // Fixe : en théorique = cible ; en effectif = min(cible, net validé) pour ne pas
+          // compter tout l'apport en début de mois si rien n'est encore passé sur le compte
+          const target = Number(myMem.contribution_target) || 0;
+          amt = mode === 'effective' ? Math.min(target, netExp) : target;
         }
         if (amt <= 0) return;
         if (this.isSavingsAccount(acc)) savings += amt; else nonSavings += amt;
@@ -2164,17 +2202,22 @@
     },
 
     // Agrégats revenus / dépenses / épargne pour un mois (filtre + mode)
-    // Revenus = revenus directs + apports entrants (comptes sans salaire propre)
-    // Mode effectif : uniquement montants validés/encaissés — pas les apports sortants théoriques
+    // - Sans filtre (« Tous les comptes ») : agrégat global de tous les comptes
+    //   (sans apports, pour ne pas double-compter les virements internes)
+    // - Filtre compte principal : vision capacité perso (+ apports sortants)
+    // - Filtre autre compte : dépenses du compte + apports reçus comme financement
     monthIncomeExpenseBreakdown(mKey, { accFilter = '', mode = 'effective' } = {}) {
        const mainId = this.state.profile?.main_account_id;
-       // Sans filtre : vision capacité perso = compte principal
-       const focusIds = accFilter
-          ? [accFilter]
-          : (mainId ? [mainId] : this.state.accounts.map(a => a.id));
+       const isGlobal = !accFilter;
+       const focusIds = isGlobal
+          ? this.state.accounts.map(a => a.id)
+          : [accFilter];
+       const lookingAtMain = !isGlobal && accFilter === mainId;
 
        let revenusDirects = 0, apports = 0, depenses = 0, epargne = 0;
        let apportsSortants = 0, apportsSortantsEpargne = 0;
+
+       const curKey = this.monthKey(new Date());
 
        focusIds.forEach(accId => {
           this.state.incomes.forEach(inc => {
@@ -2183,15 +2226,13 @@
              if (amt > 0) revenusDirects += amt;
           });
 
-          // Apports reçus = financement du compte (ex. compte joint sans salaire)
-          if (accId !== mainId) {
+          // Apports reçus : seulement en vue compte partagé filtré (pas en agrégat global)
+          if (!isGlobal && accId !== mainId) {
              apports += this.inboundContributions(accId);
           }
 
-          const curKey = this.monthKey(new Date());
           const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
           if (mode === 'theorique' && mKey !== curKey) {
-             // Mois passé : uniquement le snapshot (sinon 0 — pas le budget actuel)
              if (snap && Object.keys(snap).length) {
                 Object.values(snap).forEach(row => {
                    const amt = Number(row.amount) || 0;
@@ -2212,16 +2253,23 @@
           }
        });
 
-       // Apports sortants du principal : seulement en mode théorique
-       // (en effectif, le début de mois ne doit pas afficher tout le budget d'apports comme déjà dépensé)
-       const lookingAtMain = !accFilter || accFilter === mainId;
-       if (mainId && lookingAtMain) {
-          const contribs = this.outboundContributionsBreakdown(mainId);
-          apportsSortants = contribs.nonSavings;
-          apportsSortantsEpargne = contribs.savings;
+       // Apports sortants : vision perso (compte principal filtré uniquement)
+       // En agrégat global ils seraient en double avec les dépenses des comptes financés
+       if (lookingAtMain && mainId) {
+          const effOrTheo = this.outboundContributionsBreakdown(mainId, { mKey, mode });
           if (mode === 'theorique') {
-             depenses += contribs.nonSavings;
-             epargne += contribs.savings;
+             apportsSortants = effOrTheo.nonSavings;
+             apportsSortantsEpargne = effOrTheo.savings;
+             depenses += effOrTheo.nonSavings;
+             epargne += effOrTheo.savings;
+          } else {
+             // Effectif : compter la part déjà « consommée » via les validations des autres comptes
+             depenses += effOrTheo.nonSavings;
+             epargne += effOrTheo.savings;
+             // Reste prévu = théorique plein mois − déjà compté
+             const theoFull = this.outboundContributionsBreakdown(mainId, { mode: 'theorique' });
+             apportsSortants = Math.max(0, theoFull.nonSavings - effOrTheo.nonSavings);
+             apportsSortantsEpargne = Math.max(0, theoFull.savings - effOrTheo.savings);
           }
        }
 
@@ -2230,7 +2278,7 @@
        const overflow = Math.max(0, (depenses + epargne) - revenus);
        return {
           revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow,
-          apportsSortants, apportsSortantsEpargne, mode
+          apportsSortants, apportsSortantsEpargne, mode, isGlobal, lookingAtMain
        };
     },
 
@@ -2393,19 +2441,24 @@
        const isEff = opts.mode === 'effective';
        const scopeNote = !opts.accFilter
           ? (isEff
-             ? `Vision capacité perso (${this.esc(mainName)}) — effectif : validés uniquement. Apports prévus indiqués à part.`
-             : `Vision capacité perso (${this.esc(mainName)}) — théorique : budget + apports versés.`)
-          : `Compte filtré : apports configurés = revenus si pas de revenus directs.`;
+             ? `Tous les comptes — effectif : revenus encaissés et dépenses validées (tous comptes). Les apports internes ne sont pas re-comptés.`
+             : `Tous les comptes — théorique : budgets de chaque compte. Les apports internes ne sont pas re-comptés.`)
+          : (opts.accFilter === mainId
+             ? (isEff
+                ? `Capacité perso (${this.esc(mainName)}) — effectif : validés + part des comptes partagés déjà consommée. Reste d’apports prévu indiqué à part.`
+                : `Capacité perso (${this.esc(mainName)}) — théorique : budget du compte + apports versés aux autres.`)
+             : `Compte filtré : apports configurés = revenus si pas de revenus directs.`);
 
        const hasApports = rows.some(r => r.apports > 0);
-       const hasPlanned = isEff && rows.some(r => ((r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0)) > 0);
+       const hasPlanned = isEff && !!opts.accFilter && opts.accFilter === mainId
+          && rows.some(r => ((r.apportsSortants || 0) + (r.apportsSortantsEpargne || 0)) > 0);
        const metrics = [
           { key: 'revenus', label: 'Revenus totaux' },
           { key: 'revenusDirects', label: 'Revenus directs' },
           ...(hasApports ? [{ key: 'apports', label: 'Apports reçus' }] : []),
           { key: 'depenses', label: isEff ? 'Dépenses validées' : 'Dépenses' },
           { key: 'epargne', label: isEff ? 'Déjà épargné (validé)' : 'Déjà épargné' },
-          ...(hasPlanned ? [{ key: '_planned', label: 'Apports prévus (non comptés)', faint: true }] : []),
+          ...(hasPlanned ? [{ key: '_planned', label: 'Apports restants prévus', faint: true }] : []),
           { key: 'capacite', label: "Capacité d'épargne restante", emphasize: true }
        ];
 
