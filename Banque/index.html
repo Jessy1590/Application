@@ -232,6 +232,37 @@
   .bilan-metric-body{ margin-top:6px; }
   .bilan-metric-vals{ display:flex; flex-wrap:wrap; gap:6px 10px; margin-bottom:5px; }
   .cat-compose-wrap{ margin-top:6px; }
+  .cat-compare-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(148px, 1fr));
+    gap:10px;
+    margin-top:4px;
+  }
+  .cat-compare-card{
+    background:var(--paper);
+    border:1px solid var(--line-soft);
+    border-radius:12px;
+    padding:10px 8px 8px;
+    min-width:0;
+  }
+  .cat-compare-card-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:6px; margin-bottom:6px;
+  }
+  .cat-compare-card-head .name{
+    font-size:12px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .bilan-toggle-btn{
+    font-size:11px; font-weight:600; padding:5px 10px; border-radius:20px;
+    border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+    cursor:pointer; white-space:nowrap;
+  }
+  .bilan-toggle-btn.active{
+    background:var(--sage-pale); color:var(--sage-deep); border-color:var(--sage);
+  }
+  .bilan-detail-head{
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;
+    margin:12px 0 4px;
+  }
   .tip-seg[data-tip]::after,
   .tip-lbl[data-tip]::after{
     content:attr(data-tip);
@@ -844,6 +875,11 @@
       const arrow = document.getElementById('bilan-metric-arrow-' + id);
       if (body) body.style.display = open ? 'block' : 'none';
       if (arrow) arrow.textContent = open ? '▾' : '▸';
+    },
+
+    toggleBilanExcludeCurrent() {
+      this.bilanExcludeCurrent = !this.bilanExcludeCurrent;
+      this.renderCategoryStats();
     },
 
     showBilanMonthInfo(mKey) {
@@ -2101,13 +2137,15 @@
           }
 
           const nCols = months.length;
+          // Grille : catégories côte à côte (ex. Épargne | Transport) pour limiter la hauteur
           let html = `
             <div class="stack-legend" style="margin-bottom:8px;">
               ${months.map(m => `<span><i style="background:${m.color};"></i>${this.esc(m.label)}</span>`).join('')}
             </div>
             <div style="display:flex; justify-content:flex-end; font-size:10px; color:var(--ink-soft); margin-bottom:8px;">
               <span>${this.fmt(newestTotal)} · ${deltaTotalHtml || '—'} vs ${this.esc(oldest.label)}</span>
-            </div>`;
+            </div>
+            <div class="cat-compare-grid">`;
 
           allCats.forEach(cat => {
              const newestAmt = newest.totals[cat] || 0;
@@ -2123,27 +2161,25 @@
              const maxV = Math.max(...months.map(m => m.totals[cat] || 0), 1);
              const cols = months.map(m => {
                 const v = m.totals[cat] || 0;
-                const h = Math.round((v / maxV) * 68);
+                const h = Math.round((v / maxV) * 56);
                 return `<div class="bilan-compose-col">
-                  <div class="bilan-compose-bar short">
+                  <div class="bilan-compose-bar short" style="height:56px;">
                     ${v > 0 ? `<span class="tip-seg" tabindex="0" data-tip="${this.esc(m.label)} : ${this.fmt(v)}" style="height:${Math.max(h, 3)}px;background:${m.color};"></span>` : ''}
                   </div>
-                  <div class="bilan-compose-lbl tip-lbl" tabindex="0" data-tip="${this.fmt(v)}" style="color:${m.color};">${this.esc(m.label)}</div>
                 </div>`;
              }).join('');
 
-             html += `<div style="padding:10px 0; border-bottom:1px solid var(--line-soft);">
-                <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:6px;">
-                   <span style="font-size:12.5px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${this.esc(cat)}</span>
+             html += `<div class="cat-compare-card">
+                <div class="cat-compare-card-head">
+                   <span class="name" title="${this.esc(cat)}">${this.esc(cat)}</span>
                    <span style="font-weight:700; color:${color}; font-size:11px; flex-shrink:0;">${deltaLabel}</span>
                 </div>
-                <div class="cat-compose-wrap">
-                  <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(32px, 1fr));">${cols}</div>
-                </div>
+                <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(8px, 1fr)); gap:2px;">${cols}</div>
              </div>`;
           });
 
-          html += `<div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:10px; gap:8px; flex-wrap:wrap;">
+          html += `</div>
+          <div style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; padding-top:12px; gap:8px; flex-wrap:wrap;">
              <span>Total</span>
              <span style="display:flex; flex-wrap:wrap; gap:8px;">
                ${months.map(m => `<span class="num" style="color:${m.color}; font-weight:600;">${this.fmt(this.sumCategoryTotals(m.totals))}</span>`).join('')}
@@ -2202,9 +2238,14 @@
           return Number(r[key]) || 0;
        };
 
-       const maxStack = Math.max(...rows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
-       const nCols = rows.length;
-       const composeCols = rows.map(r => {
+       const excludeCur = !!this.bilanExcludeCurrent && rows.length > 1;
+       // Mois affichés / utilisés pour les % (sans le mois en cours si option active)
+       const viewRows = excludeCur ? rows.slice(0, -1) : rows;
+       const curRow = excludeCur ? rows[rows.length - 1] : null;
+
+       const maxStack = Math.max(...viewRows.map(r => Math.max(r.revenus, r.depenses + r.epargne)), 1);
+       const nCols = viewRows.length;
+       const composeCols = viewRows.map(r => {
           const base = Math.max(r.revenus, r.depenses + r.epargne, 0.01);
           const usedH = Math.round((base / maxStack) * 100);
           const depH = Math.round((r.depenses / base) * usedH);
@@ -2224,12 +2265,12 @@
        }).join('');
 
        if (!this.bilanMetricOpen) this.bilanMetricOpen = {};
-       const oldest = rows[0], newest = rows[rows.length - 1];
+       const oldest = viewRows[0], newest = viewRows[viewRows.length - 1];
 
        const metricRows = metrics.map((met, mi) => {
           const id = 'm' + mi;
           const open = !!this.bilanMetricOpen[id];
-          const vals = rows.map(r => valOf(r, met.key));
+          const vals = viewRows.map(r => valOf(r, met.key));
           const maxV = Math.max(...vals, 1);
           const o = valOf(oldest, met.key), n = valOf(newest, met.key);
 
@@ -2245,10 +2286,10 @@
              dHtml = `<span style="font-weight:700;color:${col};">${d > 0 ? '+' : ''}${d}%</span>`;
           }
 
-          const amountsHtml = rows.map(r =>
+          const amountsHtml = viewRows.map(r =>
              `<span class="num" style="color:${r.color}; font-size:10.5px;${met.faint ? 'opacity:0.7;' : ''}">${this.fmt(valOf(r, met.key))}</span>`
           ).join('');
-          const miniCols = rows.map(r => {
+          const miniCols = viewRows.map(r => {
              const v = valOf(r, met.key);
              const h = Math.round((v / maxV) * 40);
              return `<div class="bilan-compose-col">
@@ -2273,6 +2314,11 @@
           </div>`;
        }).join('');
 
+       const excludeBtnLabel = excludeCur ? 'Afficher mois en cours' : 'Ne pas afficher mois en cours';
+       const excludeHint = excludeCur && curRow
+          ? `<div style="font-size:11px;color:var(--ink-faint);margin-bottom:6px;">Mois en cours masqué (${this.esc(curRow.label)}) — % calculés sur ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>`
+          : '';
+
        el.innerHTML = `
          <div class="stack-legend">
            <span><i style="background:var(--clay);"></i>Dépenses</span>
@@ -2281,7 +2327,11 @@
          </div>
          <div style="font-size:11px; color:var(--ink-soft); margin-bottom:6px;">Composition du revenu — survol = montant · <strong>i</strong> = détail</div>
          <div class="bilan-compose" style="grid-template-columns:repeat(${nCols}, minmax(40px, 1fr));">${composeCols}</div>
-         <div style="font-size:11px; color:var(--ink-soft); margin:12px 0 4px;">Détail par indicateur · Δ ${this.esc(oldest.label)} → ${this.esc(newest.label)}</div>
+         <div class="bilan-detail-head">
+           <span style="font-size:11px; color:var(--ink-soft);">Détail par indicateur · Δ ${this.esc(oldest.label)} → ${this.esc(newest.label)}</span>
+           <button type="button" class="bilan-toggle-btn${excludeCur ? ' active' : ''}" onclick="BH.toggleBilanExcludeCurrent()">${excludeBtnLabel}</button>
+         </div>
+         ${excludeHint}
          ${metricRows}
          <div style="font-size:11px; color:var(--ink-faint); margin-top:10px;">${scopeNote}</div>`;
     },
