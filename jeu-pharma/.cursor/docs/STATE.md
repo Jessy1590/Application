@@ -1,23 +1,26 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — **build applicatif complet** (passe de cohérence).
+Dernière mise à jour : 2026-10-07 — schéma `jeupharma` exposé + SQL init appliqué sur projet `kpjflntnotftpzffjbud`.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV ; **pas** de BDPM ni d’IA en v1.
 
 ## SITE_ID
-- UUID portail : **`REPLACE_WITH_PORTAIL_SITE_UUID`** (valeur actuelle dans `js/supabase.js` — à remplacer).
-- Coller le **même** UUID réel (`portail.sites.id`) dans :
-  1. `js/supabase.js` → `SITE_ID` (placeholder textuel `REPLACE_WITH_PORTAIL_SITE_UUID`)
-  2. ce fichier
-  3. `sql/001_jeupharma_init.sql` → `has_jeupharma_access()` (placeholder UUID `00000000-0000-0000-0000-000000000000`)
-- Les deux placeholders JS/SQL sont volontaires (formats différents) ; après création du site portail, **un seul UUID réel** partout.
+- UUID portail : **`d4fc7fd0-944b-4594-9ba2-e1e2035aeddc`**
+- Aligné dans : `js/supabase.js` → `SITE_ID` ; ce fichier ; `sql/001_jeupharma_init.sql` → `has_jeupharma_access()` (remote + local).
 - URL Pages : `https://jessy1590.github.io/Application/jeu-pharma/`
 - Pas de carte hardcodée dans le `index.html` racine du monorepo — la tuile vient de `portail.sites`.
 
+## Ops remote (projet `kpjflntnotftpzffjbud`)
+- [x] Schéma `jeupharma` créé.
+- [x] Exposition Data API / PostgREST : `jeupharma` ajouté à `authenticator.pgrst.db_schemas` (avec `public, storage, graphql_public, PharmaOs, portail, bdm, autres, valorisation, phieevreux`).
+- [x] SQL init appliqué (helpers, tables, vue, RPC quiz/fusion, RLS) via migrations MCP `jeupharma_*`.
+- [x] `has_jeupharma_access()` remote utilise `d4fc7fd0-944b-4594-9ba2-e1e2035aeddc` (pas le placeholder `00000000-…`).
+- [x] Correctif local `normaliser_valeur` : `WHEN undefined_schema` remplacé (condition PL/pgSQL invalide) par fallback `OTHERS` / `public.unaccent`.
+
 ## Build code (livré)
 - [x] `.cursor/` (rules architecture, security, design, conventions + ce STATE).
-- [x] SQL init fichier `sql/001_jeupharma_init.sql` (apply dashboard = manuel).
+- [x] SQL init fichier `sql/001_jeupharma_init.sql` (**appliqué remote**).
 - [x] Socle : hub, tokens CSS, dual client, FAB Accueil/Bug, toasts, JpLogs/JpBugs.
 - [x] Admin catalogue (médicaments, entités, CSV, fusion, historique).
 - [x] Catalogue lecture (fiches `publie`).
@@ -27,13 +30,11 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Admin logs + bugs.
 - [x] Constantes `CHAMP_CODES` / `ENTITY_TABLES` / niveaux alignées SQL + pages admin.
 - [x] Checklist portail dans `README.md` + `supabase/SETUP.md` §3.
+- [x] Profil apprentissage (`profil.html` + `js/profil.js` upsert `niveau_id`) ; préremplissage admin quiz/trous.
 
 ## Manuel restant (ops — pas code)
-- [ ] Exposer le schéma `jeupharma` (Dashboard → Exposed schemas) — `supabase/SETUP.md` §3.
-- [ ] Appliquer `sql/001_jeupharma_init.sql` (ne pas réappliquer sans vérifier l’état).
-- [ ] Créer le site portail **Jeu Pharma** (URL Pages ci-dessus).
-- [ ] Coller l’UUID dans `js/supabase.js`, ce STATE, et `has_jeupharma_access()` (même UUID).
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
+- [ ] (Optionnel) Aligner aussi « Exposed schemas » dans le Dashboard UI si l’écran n’affiche pas encore `jeupharma` — la source runtime est déjà `authenticator.pgrst.db_schemas`.
 
 ## Ne pas
 - Inventer UI / flux / IA hors demande.
@@ -43,6 +44,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - Alourdir le hub joueur avec Chart.js.
 - Hardcoder une carte Jeu Pharma dans le HTML portail racine.
 - Impression via `window.open` (iframe same-document uniquement).
+- Réappliquer `001_jeupharma_init.sql` sans vérifier l’état remote (déjà appliqué).
 
 ## Règles Cursor
 - `rules/architecture.mdc`, `security.mdc` (alwaysApply)

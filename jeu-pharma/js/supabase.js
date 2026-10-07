@@ -3,17 +3,8 @@
  * Prérequis : shared/supabase-config.js + @supabase/supabase-js.
  */
 (function (global) {
-  /**
-   * Placeholder — coller l’UUID `portail.sites.id` après création du site.
-   * Même UUID obligatoire dans :
-   * 1. ce `SITE_ID`
-   * 2. `.cursor/docs/STATE.md`
-   * 3. `sql/001_jeupharma_init.sql` → `has_jeupharma_access()` (placeholder SQL
-   *    `00000000-0000-0000-0000-000000000000` — à remplacer après apply ou via
-   *    `CREATE OR REPLACE` de la fonction)
-   * Voir README checklist.
-   */
-  const SITE_ID = 'REPLACE_WITH_PORTAIL_SITE_UUID';
+  /** UUID `portail.sites` Jeu Pharma — aligné SQL `has_jeupharma_access` + STATE.md */
+  const SITE_ID = 'd4fc7fd0-944b-4594-9ba2-e1e2035aeddc';
   const SCHEMA = 'jeupharma';
 
   function getCfg() {

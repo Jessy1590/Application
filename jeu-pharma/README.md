@@ -17,9 +17,9 @@ URL Pages : `https://jessy1590.github.io/Application/jeu-pharma/`
 |---|--------|-----|
 | 1 | Exposer le schéma `jeupharma` (PostgREST) | Dashboard Supabase → Settings → API → Exposed schemas — voir aussi `supabase/SETUP.md` §3 |
 | 2 | Appliquer le SQL init | SQL Editor → `sql/001_jeupharma_init.sql` (ne pas réappliquer sans vérifier) |
-| 3 | Créer le site **Jeu Pharma** | Admin portail → Ajouter un site |
+| 3 | ~~Créer le site **Jeu Pharma**~~ | Fait — `portail.sites.id` = `d4fc7fd0-944b-4594-9ba2-e1e2035aeddc` |
 | 4 | URL du site | `https://jessy1590.github.io/Application/jeu-pharma/` |
-| 5 | Coller l’UUID (`portail.sites.id`) | `js/supabase.js` → `SITE_ID` **et** `.cursor/docs/STATE.md` **et** `has_jeupharma_access()` dans le SQL (placeholder `00000000-…`) |
+| 5 | ~~Coller l’UUID (`portail.sites.id`)~~ | Fait — `js/supabase.js`, `.cursor/docs/STATE.md`, `has_jeupharma_access()` |
 | 6 | Accès joueurs | Attribuer `site_access` (admins portail `profiles.role === 'admin'` passent le gate sans ligne) |
 
 Les tuiles portail viennent de `portail.sites` — **ne pas** ajouter une carte en dur dans le HTML racine.

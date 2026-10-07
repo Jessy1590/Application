@@ -264,19 +264,13 @@ textarea:focus-visible {
   color: var(--jp-accent);
 }
 
-.jp-fab-home {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
 .jp-fab-bug {
   color: var(--jp-accent);
 }
 
-/* Remonte le bouton portail protect.js */
+/* Remonte le bouton portail protect.js au-dessus du FAB Bug */
 body > a[title="Retour au portail"] {
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 128px) !important;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 64px) !important;
   right: 14px !important;
 }
 

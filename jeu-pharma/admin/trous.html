@@ -112,6 +112,7 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/profil.js"></script>
   <script src="../js/trous.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
@@ -127,6 +128,10 @@
         o.textContent = n.libelle;
         niveauSel.appendChild(o);
       });
+      try {
+        const niv = await JpProfil.getNiveauCode();
+        if (niv) niveauSel.value = niv;
+      } catch (_) { /* ignore */ }
 
       const colonnesList = document.getElementById('colonnesList');
       const defaults = JpTrous.COLONNES_DEFAUT;

@@ -6,10 +6,8 @@
 -- Appliquer via SQL Editor Dashboard après exposition du schéma API.
 -- Exposer `jeupharma` dans Exposed schemas (voir supabase/SETUP.md §3).
 --
--- SITE_ID : après création portail.sites « Jeu Pharma », remplacer le placeholder
--- UUID dans has_jeupharma_access() par le MÊME UUID collé dans js/supabase.js
--- (SITE_ID) et .cursor/docs/STATE.md.
--- Placeholder SQL = 00000000-… ; JS = REPLACE_WITH_PORTAIL_SITE_UUID.
+-- SITE_ID portail.sites « Jeu Pharma » : d4fc7fd0-944b-4594-9ba2-e1e2035aeddc
+-- (aligné js/supabase.js SITE_ID et .cursor/docs/STATE.md).
 -- =============================================================================
 
 CREATE SCHEMA IF NOT EXISTS jeupharma;
@@ -38,7 +36,6 @@ REVOKE ALL ON FUNCTION jeupharma.is_portail_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION jeupharma.is_portail_admin() TO authenticated;
 
 -- Accès site Jeu Pharma (site_access) ou admin portail
--- SITE_ID placeholder : coller l'UUID portail.sites après création du site
 CREATE OR REPLACE FUNCTION jeupharma.has_jeupharma_access()
 RETURNS boolean
 LANGUAGE sql
@@ -52,8 +49,8 @@ AS $$
       SELECT 1
       FROM portail.site_access sa
       WHERE sa.user_id = auth.uid()
-        -- SITE_ID Jeu Pharma — À REMPLACER (portail.sites.id)
-        AND sa.site_id = '00000000-0000-0000-0000-000000000000'::uuid
+        -- SITE_ID Jeu Pharma (portail.sites.id)
+        AND sa.site_id = 'd4fc7fd0-944b-4594-9ba2-e1e2035aeddc'::uuid
     );
 $$;
 REVOKE ALL ON FUNCTION jeupharma.has_jeupharma_access() FROM PUBLIC;
@@ -76,8 +73,6 @@ BEGIN
     v := lower(extensions.unaccent(v));
   EXCEPTION
     WHEN undefined_function THEN
-      v := lower(v);
-    WHEN undefined_schema THEN
       BEGIN
         v := lower(public.unaccent(v));
       EXCEPTION
@@ -85,7 +80,12 @@ BEGIN
           v := lower(v);
       END;
     WHEN OTHERS THEN
-      v := lower(v);
+      BEGIN
+        v := lower(public.unaccent(v));
+      EXCEPTION
+        WHEN OTHERS THEN
+          v := lower(v);
+      END;
   END;
   RETURN v;
 END;

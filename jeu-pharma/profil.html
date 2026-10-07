@@ -23,12 +23,20 @@
     <a class="jp-back" href="index.html">← Hub</a>
     <p class="jp-kicker">Profil</p>
     <h1 class="jp-title">Mon profil</h1>
-    <p class="jp-sub">Niveau pédagogique pour préremplir quiz et filtres.</p>
-    <!-- TODO: formulaire niveau + JpConstants.NIVEAUX -->
-    <div id="jpEmpty" class="jp-empty">
-      <strong>Profil à venir</strong>
-      <p>TODO: upsert profil_apprentissage (niveau_id).</p>
-    </div>
+    <p class="jp-sub">Choisissez votre niveau pédagogique pour préremplir les quiz et filtres.</p>
+
+    <form id="jpProfilForm" class="jp-form jp-panel" autocomplete="off">
+      <div class="jp-field">
+        <label for="jpNiveau">Niveau d’apprentissage</label>
+        <select id="jpNiveau" name="niveau" required>
+          <option value="">— Choisir —</option>
+        </select>
+      </div>
+      <p id="jpProfilMeta" class="jp-sub" style="margin-bottom:1rem" hidden></p>
+      <div class="jp-field-actions">
+        <button type="submit" class="jp-btn jp-btn-primary" id="jpBtnSave">Enregistrer</button>
+      </div>
+    </form>
   </main>
   <script src="js/constants.js"></script>
   <script src="js/toast.js"></script>
@@ -36,9 +44,57 @@
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/profil.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'profil', homeHref: JpFab.PORTAIL_URL });
+
+      const sel = document.getElementById('jpNiveau');
+      (JpConstants.NIVEAUX || []).forEach(function (n) {
+        const o = document.createElement('option');
+        o.value = n.code;
+        o.textContent = n.libelle;
+        sel.appendChild(o);
+      });
+
+      const meta = document.getElementById('jpProfilMeta');
+      const form = document.getElementById('jpProfilForm');
+      const btn = document.getElementById('jpBtnSave');
+
+      try {
+        const profil = await JpProfil.getProfil();
+        if (profil?.niveau_id) {
+          sel.value = profil.niveau_id;
+          if (profil.updated_at) {
+            meta.hidden = false;
+            meta.textContent = 'Dernière mise à jour : '
+              + new Date(profil.updated_at).toLocaleString('fr-FR');
+          }
+        }
+      } catch (e) {
+        JpToast?.error?.(e.message || 'Chargement du profil impossible');
+      }
+
+      form.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const code = sel.value;
+        if (!code) {
+          JpToast?.error?.('Choisissez un niveau');
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const saved = await JpProfil.upsertNiveau(code);
+          meta.hidden = false;
+          meta.textContent = 'Dernière mise à jour : '
+            + new Date(saved.updated_at || Date.now()).toLocaleString('fr-FR');
+          JpToast?.ok?.('Profil enregistré');
+        } catch (e) {
+          JpToast?.error?.(e.message || 'Enregistrement impossible');
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   </script>
 </body>

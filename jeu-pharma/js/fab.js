@@ -1,5 +1,5 @@
 /**
- * FABs Accueil portail + Bug (local jeu-pharma).
+ * FAB Bug (local jeu-pharma). Accueil portail = bouton protect.js.
  */
 (function (global) {
   const PORTAIL_URL = 'https://jessy1590.github.io/Application';
@@ -7,10 +7,7 @@
   /**
    * @param {{ homeHref?: string | null, showHome?: boolean }} [opts]
    */
-  function mount(opts = {}) {
-    const showHome = opts.showHome !== false;
-    const homeHref = opts.homeHref === undefined ? PORTAIL_URL : opts.homeHref;
-
+  function mount(_opts = {}) {
     let root = document.getElementById('jpSharedFabs');
     if (!root) {
       root = document.createElement('div');
@@ -19,16 +16,6 @@
       document.body.appendChild(root);
     }
     root.innerHTML = '';
-
-    if (showHome && homeHref) {
-      const home = document.createElement('a');
-      home.href = homeHref;
-      home.className = 'jp-fab jp-fab-home';
-      home.title = 'Accueil portail';
-      home.setAttribute('aria-label', 'Accueil portail');
-      home.textContent = 'JP';
-      root.appendChild(home);
-    }
 
     const bug = document.createElement('button');
     bug.type = 'button';

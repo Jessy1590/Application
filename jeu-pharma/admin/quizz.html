@@ -91,6 +91,7 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/profil.js"></script>
   <script src="../js/quizz.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
@@ -103,6 +104,10 @@
         o.textContent = n.libelle;
         niveauSel.appendChild(o);
       });
+      try {
+        const niv = await JpProfil.getNiveauCode();
+        if (niv) niveauSel.value = niv;
+      } catch (_) { /* ignore */ }
 
       const champsList = document.getElementById('champsList');
       const defaultChamps = ['classe_pharmacologique', 'dci', 'classe_therapeutique'];
