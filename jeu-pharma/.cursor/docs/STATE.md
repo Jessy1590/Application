@@ -64,14 +64,15 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Refonte création tableau à trous (voir section ci-dessous) — **pas de migration Supabase**.
 
 ## Création tableau à trous (refonte admin)
-- UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu permanent** auto-refresh ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.
+- UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu** auto-refresh (bouton Masquer / Afficher l’aperçu, UI only) ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.
 - Étape 1 : niveau (filtre hospitalier via `visiblePourNiveau`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
+- Étape 2 : colonnes + **identité de ligne** (`identite_visible` : `dci` | `noms` | `les_deux` | `au_moins_un`, défaut `au_moins_un`) — cases concernées jamais en trou ; `au_moins_un` empêche noms+DCI tous deux trous sur la même ligne (tirage + clic).
 - Étape 3 : densité + « Tirer les trous au hasard » + clic case + « Effacer les trous ».
-- Création = **exactement la grille affichée** (zéro re-tirage) via `buildSnapshot({ lignes, colonnes, trous })`.
-- Snapshot : chaque ligne a `ligne_id` (`matriceId` ou `matriceId:nomCommercialId`) + `label` + `matrice_id` (+ `nom_commercial_id` si applicable).
-- `configuration_json` : `colonnes`, `densite`, `max_lignes`, `par_nom`, `filtres`.
-- Compat parties anciennes : `JpTrous.ligneKey` / jouer / score / `evaluer` / `listerTrous` — repli sur `matrice_id` si pas de `ligne_id`.
-- Fichiers : `admin/jeux.html`, `js/admin-jeux.js`, `js/trous.js`, `trous/jouer.html`, `css/app.css`.
+- Création = **exactement la grille affichée** (zéro re-tirage) via `buildSnapshot({ lignes, colonnes, trous, identite_visible })`.
+- Snapshot : `identite_visible` + chaque ligne `ligne_id` / `label` / `matrice_id` (+ `nom_commercial_id`). **Plus de colonne fixe « Médicament »** (identité = colonnes Noms/DCI selon le mode).
+- `configuration_json` : `colonnes`, `densite`, `max_lignes`, `par_nom`, `identite_visible`, `filtres`.
+- Compat parties anciennes : sans `snapshot.identite_visible` → colonne « Médicament » (= `label`) encore affichée (jouer / imprimer / print). `JpTrous.ligneKey` / score — repli `matrice_id`.
+- Fichiers : `admin/jeux.html`, `js/admin-jeux.js`, `js/trous.js`, `js/print.js`, `trous/jouer.html`, `trous/imprimer.html`, `css/app.css`.
 
 ## Flux score tableau à trous (`trous/jouer.html`)
 - **Imprimer** : grille papier (cases vides) via `JpPrint.trousPrintDocument` + iframe same-document (`JpPrint.printHtml`). Admin création : lien `trous/imprimer.html?code=…` inchangé.

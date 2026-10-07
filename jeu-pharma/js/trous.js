@@ -13,8 +13,98 @@
     'classe_pharmacologique',
   ];
 
+  /** Identité de ligne toujours visible (jamais en trou). */
+  const IDENTITE_VISIBLE_DEFAUT = 'au_moins_un';
+  const IDENTITE_VISIBLE_CODES = ['dci', 'noms', 'les_deux', 'au_moins_un'];
+  const CHAMPS_IDENTITE = ['nom_commercial', 'dci'];
+
   function sb() {
     return global.JpApp.sbJeu();
+  }
+
+  function normaliserIdentiteVisible(mode) {
+    const m = String(mode || '').trim();
+    return IDENTITE_VISIBLE_CODES.indexOf(m) >= 0 ? m : IDENTITE_VISIBLE_DEFAUT;
+  }
+
+  function identiteVisibleLibelle(mode) {
+    const m = normaliserIdentiteVisible(mode);
+    if (m === 'dci') return 'DCI toujours visible';
+    if (m === 'noms') return 'Noms commerciaux toujours visibles';
+    if (m === 'les_deux') return 'Noms et DCI toujours visibles';
+    return 'Au moins noms ou DCI visible';
+  }
+
+  /**
+   * Parties anciennes : colonne fixe « Médicament » (= label hors colonnes[]).
+   * Nouvelles parties : `identite_visible` dans le snapshot → pas de cette colonne.
+   */
+  function afficheColonneMedicament(snapshot) {
+    if (!snapshot) return true;
+    return !snapshot.identite_visible;
+  }
+
+  function trouKey(ligneId, champ) {
+    return String(ligneId || '') + '|' + String(champ || '');
+  }
+
+  /**
+   * Applique les contraintes d’identité sur les cellules d’une ligne (mutates cells).
+   * @param {Array<{champ_code: string, valeur?: *, trou?: boolean}>} cells
+   * @param {string} identiteVisible
+   */
+  function appliquerIdentiteVisible(cells, identiteVisible) {
+    const mode = normaliserIdentiteVisible(identiteVisible);
+    const byChamp = {};
+    (cells || []).forEach(function (c) {
+      if (c && c.champ_code) byChamp[c.champ_code] = c;
+    });
+    const cellNoms = byChamp.nom_commercial;
+    const cellDci = byChamp.dci;
+
+    function forceVisible(cell) {
+      if (cell && cell.valeur) cell.trou = false;
+    }
+
+    if (mode === 'dci') {
+      forceVisible(cellDci);
+    } else if (mode === 'noms') {
+      forceVisible(cellNoms);
+    } else if (mode === 'les_deux') {
+      forceVisible(cellNoms);
+      forceVisible(cellDci);
+    } else if (mode === 'au_moins_un') {
+      if (cellNoms && cellNoms.trou && cellDci && cellDci.trou) {
+        if (cellNoms.valeur) cellNoms.trou = false;
+        else if (cellDci.valeur) cellDci.trou = false;
+      }
+    }
+    return cells;
+  }
+
+  /**
+   * Peut-on poser un trou sur cette case sans violer l’identité visible ?
+   * (retirer un trou est toujours autorisé côté appelant)
+   */
+  function peutPoserTrou(opts) {
+    const mode = normaliserIdentiteVisible(opts?.identite_visible);
+    const champ = opts?.champ;
+    const ligneId = opts?.ligne_id;
+    const trous = opts?.trous;
+    if (!champ || !ligneId) return true;
+    if (CHAMPS_IDENTITE.indexOf(champ) < 0) return true;
+
+    if (mode === 'dci' && champ === 'dci') return false;
+    if (mode === 'noms' && champ === 'nom_commercial') return false;
+    if (mode === 'les_deux') return false;
+
+    if (mode === 'au_moins_un') {
+      const other = champ === 'dci' ? 'nom_commercial' : 'dci';
+      const otherKey = trouKey(ligneId, other);
+      if (trous instanceof Set) return !trous.has(otherKey);
+      if (trous && typeof trous === 'object') return !trous[otherKey];
+    }
+    return true;
   }
 
   function genCode() {
@@ -236,6 +326,7 @@
    *   meds?: object[], // legacy : une ligne par fiche
    *   colonnes: string[],
    *   trous?: Set<string>|Record<string, boolean>|string[], // key `${ligneId}|${champ}`
+   *   identite_visible?: 'dci'|'noms'|'les_deux'|'au_moins_un',
    *   modeTrous?: 'ALEATOIRE'|'MANUEL', // legacy
    *   trousManuels?: Record<string, boolean>, // legacy
    *   densite?: number, // legacy ALEATOIRE
@@ -245,6 +336,7 @@
   function buildSnapshot(opts) {
     const colonnes = (opts.colonnes || []).filter(Boolean);
     if (!colonnes.length) throw new Error('Sélectionnez au moins une colonne');
+    const identiteVisible = normaliserIdentiteVisible(opts.identite_visible);
 
     let rawLignes = opts.lignes;
     if (!rawLignes?.length && opts.meds?.length) {
@@ -319,6 +411,8 @@
         }
       }
 
+      appliquerIdentiteVisible(cells, identiteVisible);
+
       return {
         ligne_id: lid,
         matrice_id: med.id,
@@ -330,6 +424,7 @@
 
     return {
       colonnes,
+      identite_visible: identiteVisible,
       mode_trous: hasExplicitTrous ? 'MIXTE' : modeTrous,
       lignes,
     };
@@ -343,6 +438,7 @@
     const hideCorrect = mode === 'evaluation';
     return {
       colonnes: snapshot.colonnes,
+      identite_visible: snapshot.identite_visible || null,
       mode_trous: snapshot.mode_trous,
       lignes: (snapshot.lignes || []).map((ligne) => {
         const lid = ligneKey(ligne);
@@ -747,12 +843,21 @@
 
   global.JpTrous = {
     COLONNES_DEFAUT,
+    IDENTITE_VISIBLE_DEFAUT,
+    IDENTITE_VISIBLE_CODES,
+    CHAMPS_IDENTITE,
     genCode,
     champLibelle,
     modeLibelle,
     champMeta,
     cellDisplay,
     cellAcceptedValues,
+    normaliserIdentiteVisible,
+    identiteVisibleLibelle,
+    afficheColonneMedicament,
+    appliquerIdentiteVisible,
+    peutPoserTrou,
+    trouKey,
     ligneKey,
     makeLigneId,
     parseLigneId,

@@ -126,6 +126,14 @@
         : (cell.valeur || ''))) || '');
 
     const cols = payload.colonnes || [];
+    const showMedCol = payload.afficheColonneMedicament != null
+      ? !!payload.afficheColonneMedicament
+      : (global.JpTrous?.afficheColonneMedicament
+        ? global.JpTrous.afficheColonneMedicament({
+          identite_visible: payload.identite_visible,
+        })
+        : true);
+    const headMed = showMedCol ? '<th>Médicament</th>' : '';
     const head = cols
       .map((c) => `<th>${esc(libelleFn(c))}</th>`)
       .join('');
@@ -141,7 +149,8 @@
             return `<td>${esc(val || '—')}</td>`;
           })
           .join('');
-        return `<tr><td class="med">${esc(ligne.label || '')}</td>${cells}</tr>`;
+        const med = showMedCol ? `<td class="med">${esc(ligne.label || '')}</td>` : '';
+        return `<tr>${med}${cells}</tr>`;
       })
       .join('');
 
@@ -165,7 +174,7 @@
     <div>Date : ${esc(date)}</div>
   </div>
   <table>
-    <thead><tr><th>Médicament</th>${head}</tr></thead>
+    <thead><tr>${headMed}${head}</tr></thead>
     <tbody>${body}</tbody>
   </table>
 </body></html>`;

@@ -156,8 +156,10 @@
       lignesTirees: null,
       maxLignes: 10,
       colonnes: (global.JpTrous.COLONNES_DEFAUT || []).slice(),
+      identiteVisible: global.JpTrous.IDENTITE_VISIBLE_DEFAUT || 'au_moins_un',
       trous: new Set(),
       densite: 0.4,
+      previewVisible: true,
       allMeds: [],
       lastSnapshot: null,
     };
@@ -289,6 +291,59 @@
     t.colonnes = selectedColonnesFromDom();
   }
 
+  function selectedIdentiteFromDom() {
+    const el = document.querySelector('input[name="trousIdentite"]:checked');
+    return global.JpTrous.normaliserIdentiteVisible(el ? el.value : null);
+  }
+
+  function syncIdentite(t) {
+    t.identiteVisible = selectedIdentiteFromDom();
+  }
+
+  /** Retire les trous incompatibles avec le mode d’identité. */
+  function enforceIdentiteTrous(t) {
+    syncIdentite(t);
+    const mode = t.identiteVisible;
+    const next = new Set();
+    t.trous.forEach(function (k) {
+      const sep = k.indexOf('|');
+      if (sep < 0) return;
+      const lid = k.slice(0, sep);
+      const champ = k.slice(sep + 1);
+      if (!global.JpTrous.peutPoserTrou({
+        identite_visible: mode,
+        ligne_id: lid,
+        champ: champ,
+        trous: next,
+      })) {
+        return;
+      }
+      next.add(k);
+    });
+    t.trous = next;
+  }
+
+  function assertIdentiteColonnes(t) {
+    syncIdentite(t);
+    syncColonnes(t);
+    const mode = t.identiteVisible;
+    const cols = t.colonnes || [];
+    const hasNoms = cols.indexOf('nom_commercial') >= 0;
+    const hasDci = cols.indexOf('dci') >= 0;
+    if (mode === 'dci' && !hasDci) {
+      throw new Error('Ajoutez la colonne DCI (identité toujours visible)');
+    }
+    if (mode === 'noms' && !hasNoms) {
+      throw new Error('Ajoutez la colonne Noms commerciaux (identité toujours visible)');
+    }
+    if (mode === 'les_deux' && (!hasNoms || !hasDci)) {
+      throw new Error('Ajoutez les colonnes Noms commerciaux et DCI (identité toujours visible)');
+    }
+    if (mode === 'au_moins_un' && !hasNoms && !hasDci) {
+      throw new Error('Ajoutez au moins Noms commerciaux ou DCI pour l’identité des lignes');
+    }
+  }
+
   function lignesCocheesList(t) {
     return candidateLignes(t).filter(function (l) { return t.lignesCochees.has(l.ligne_id); });
   }
@@ -325,6 +380,7 @@
       if (valid.has(k)) next.add(k);
     });
     t.trous = next;
+    enforceIdentiteTrous(t);
   }
 
   function countFillable(t) {
@@ -342,6 +398,7 @@
 
   function buildSnapshotFromState(t) {
     syncColonnes(t);
+    syncIdentite(t);
     syncMaxLignes(t);
     const pack = lignesPourGrille(t);
     if (pack.needDraw) {
@@ -349,14 +406,26 @@
     }
     if (!pack.lignes.length) throw new Error('Cochez au moins une ligne');
     if (!t.colonnes.length) throw new Error('Sélectionnez au moins une colonne');
+    assertIdentiteColonnes(t);
     pruneTrous(t);
     const snap = global.JpTrous.buildSnapshot({
       lignes: pack.lignes,
       colonnes: t.colonnes,
       trous: t.trous,
+      identite_visible: t.identiteVisible,
     });
     t.lastSnapshot = snap;
     return snap;
+  }
+
+  function syncPreviewToggleUi(t) {
+    const body = $('trousPreviewBody');
+    const btn = $('trousBtnTogglePreview');
+    if (!body || !btn) return;
+    const visible = t.previewVisible !== false;
+    body.hidden = !visible;
+    btn.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    btn.textContent = visible ? 'Masquer l’aperçu' : 'Afficher l’aperçu';
   }
 
   function renderGrille(t) {
@@ -364,8 +433,10 @@
     const hint = $('trousPreviewHint');
     const countEl = $('trousTrousCount');
     syncColonnes(t);
+    syncIdentite(t);
     syncMaxLignes(t);
     pruneTrous(t);
+    syncPreviewToggleUi(t);
 
     const pack = lignesPourGrille(t);
     const cols = t.colonnes || [];
@@ -393,14 +464,14 @@
       ? pack.lignes.length + ' ligne(s) tirée(s) / ' + nCochees + ' cochée(s) · clic case = trou'
       : pack.lignes.length + ' ligne(s) · clic case = trou';
 
-    let html = '<table class="jp-table jp-trous-table jp-trous-preview-table"><thead><tr><th>Médicament</th>';
+    let html = '<table class="jp-table jp-trous-table jp-trous-preview-table"><thead><tr>';
     cols.forEach(function (c) {
       html += '<th>' + global.JpUi.escapeHtml(global.JpTrous.champLibelle(c)) + '</th>';
     });
     html += '</tr></thead><tbody>';
 
     pack.lignes.forEach(function (ligne) {
-      html += '<tr><td>' + global.JpUi.escapeHtml(ligne.label || '') + '</td>';
+      html += '<tr>';
       cols.forEach(function (champ) {
         const cv = global.JpTrous.cellValeurFromMed(ligne.med, champ, ligne.nom_commercial_id);
         const key = ligne.ligne_id + '|' + champ;
@@ -410,12 +481,21 @@
           ? (Array.isArray(cv.valeurs) && cv.valeurs.length ? cv.valeurs.join('; ') : cv.valeur)
           : '';
         const val = raw ? global.JpUi.escapeHtml(raw) : '—';
+        const locked = hasVal && !isTrou && !global.JpTrous.peutPoserTrou({
+          identite_visible: t.identiteVisible,
+          ligne_id: ligne.ligne_id,
+          champ: champ,
+          trous: t.trous,
+        });
         let cls = 'jp-trous-cell';
         if (!hasVal) cls += ' jp-trous-cell-empty';
         else if (isTrou) cls += ' jp-trou jp-trous-cell-clickable';
+        else if (locked) cls += ' jp-trous-cell-locked';
         else cls += ' jp-trous-cell-clickable';
         html += '<td class="' + cls + '"'
-          + (hasVal ? ' data-key="' + global.JpUi.escapeHtml(key) + '" title="Cliquer pour basculer"' : '')
+          + (hasVal ? ' data-key="' + global.JpUi.escapeHtml(key) + '"'
+            + ' title="' + (locked ? 'Identité toujours visible' : 'Cliquer pour basculer') + '"'
+            : '')
           + '>' + (isTrou ? '<em>trou</em> · ' + val : val) + '</td>';
       });
       html += '</tr>';
@@ -427,8 +507,23 @@
       td.addEventListener('click', function () {
         const key = td.getAttribute('data-key');
         if (!key) return;
-        if (t.trous.has(key)) t.trous.delete(key);
-        else t.trous.add(key);
+        if (t.trous.has(key)) {
+          t.trous.delete(key);
+        } else {
+          const sep = key.indexOf('|');
+          const lid = key.slice(0, sep);
+          const champ = key.slice(sep + 1);
+          if (!global.JpTrous.peutPoserTrou({
+            identite_visible: t.identiteVisible,
+            ligne_id: lid,
+            champ: champ,
+            trous: t.trous,
+          })) {
+            global.JpToast.warn('Case bloquée : ' + global.JpTrous.identiteVisibleLibelle(t.identiteVisible));
+            return;
+          }
+          t.trous.add(key);
+        }
         renderGrille(t);
       });
     });
@@ -444,14 +539,17 @@
   function updateRecap(t) {
     const el = $('trousRecap');
     if (!el) return;
+    syncIdentite(t);
     const pack = lignesPourGrille(t);
     const niv = $('trousNiveau').value || '—';
     const cols = (t.colonnes || []).map(function (c) { return global.JpTrous.champLibelle(c); }).join(', ') || '—';
+    const idLib = global.JpTrous.identiteVisibleLibelle(t.identiteVisible);
     el.innerHTML = '<p><strong>Récapitulatif</strong></p>'
       + '<ul class="jp-trous-recap-list">'
       + '<li>Niveau : ' + global.JpUi.escapeHtml(niv) + '</li>'
       + '<li>Lignes : ' + pack.lignes.length + (pack.needDraw ? ' (tirage requis)' : '') + '</li>'
       + '<li>Colonnes : ' + global.JpUi.escapeHtml(cols) + '</li>'
+      + '<li>Identité : ' + global.JpUi.escapeHtml(idLib) + '</li>'
       + '<li>Trous : ' + t.trous.size + '</li>'
       + '</ul>';
   }
@@ -643,6 +741,7 @@
   function tirerTrous(t) {
     const densite = Number($('trousDensite').value) / 100;
     t.densite = densite;
+    syncIdentite(t);
     const pack = lignesPourGrille(t);
     if (pack.needDraw || !pack.lignes.length) {
       global.JpToast.warn('Aucune ligne dans la grille');
@@ -659,16 +758,30 @@
         const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
         if (!cv.valeur) return;
         fillable += 1;
-        if (Math.random() < densite) next.add(l.ligne_id + '|' + champ);
+        if (Math.random() >= densite) return;
+        if (!global.JpTrous.peutPoserTrou({
+          identite_visible: t.identiteVisible,
+          ligne_id: l.ligne_id,
+          champ: champ,
+          trous: next,
+        })) return;
+        next.add(l.ligne_id + '|' + champ);
       });
     });
     if (fillable && !next.size) {
-      // au moins un trou
+      // au moins un trou (respect identité)
       const keys = [];
       pack.lignes.forEach(function (l) {
         (t.colonnes || []).forEach(function (champ) {
           const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
-          if (cv.valeur) keys.push(l.ligne_id + '|' + champ);
+          if (!cv.valeur) return;
+          if (!global.JpTrous.peutPoserTrou({
+            identite_visible: t.identiteVisible,
+            ligne_id: l.ligne_id,
+            champ: champ,
+            trous: next,
+          })) return;
+          keys.push(l.ligne_id + '|' + champ);
         });
       });
       if (keys.length) next.add(keys[Math.floor(Math.random() * keys.length)]);
@@ -722,6 +835,11 @@
       pruneTrous(t);
       renderGrille(t);
     }
+    function onIdentiteChange() {
+      syncIdentite(t);
+      enforceIdentiteTrous(t);
+      renderGrille(t);
+    }
     $('trousBtnColsAll').addEventListener('click', function () {
       colonnesList.querySelectorAll('input[name="trousCol"]').forEach(function (el) { el.checked = true; });
       onColsChange();
@@ -731,6 +849,19 @@
       onColsChange();
     });
     colonnesList.addEventListener('change', onColsChange);
+    document.querySelectorAll('input[name="trousIdentite"]').forEach(function (el) {
+      el.addEventListener('change', onIdentiteChange);
+    });
+    syncIdentite(t);
+
+    const btnPreview = $('trousBtnTogglePreview');
+    if (btnPreview) {
+      btnPreview.addEventListener('click', function () {
+        t.previewVisible = t.previewVisible === false;
+        syncPreviewToggleUi(t);
+      });
+    }
+    syncPreviewToggleUi(t);
 
     document.querySelectorAll('[data-trous-etape]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -825,6 +956,7 @@
         densite: t.densite,
         max_lignes: t.maxLignes,
         par_nom: t.parNom,
+        identite_visible: t.identiteVisible,
         filtres: {
           secteurs: t.filtres.secteurs.slice(),
           classes_ther: t.filtres.classesTher.slice(),

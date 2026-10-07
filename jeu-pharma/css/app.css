@@ -415,6 +415,11 @@ body > a[title="Retour au portail"] {
   width: 100%;
 }
 
+.jp-field input[type="checkbox"],
+.jp-field input[type="radio"] {
+  width: auto;
+}
+
 .jp-niveaux {
   display: flex;
   flex-wrap: wrap;
@@ -1545,6 +1550,39 @@ body > a[title="Retour au portail"] {
   align-items: baseline;
 }
 
+.jp-trous-preview-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.jp-trous-identite-field {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--jp-border, #ddd);
+}
+
+.jp-trous-identite-field legend {
+  padding: 0;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.jp-trous-identite-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.35rem 0;
+  cursor: pointer;
+}
+
+.jp-trous-preview-table td.jp-trous-cell-locked {
+  cursor: default;
+  opacity: 0.92;
+}
+
 .jp-trous-filtres {
   display: grid;
   grid-template-columns: 1fr;
@@ -1572,16 +1610,29 @@ body > a[title="Retour au portail"] {
 .jp-trous-filtre-item {
   display: flex;
   align-items: flex-start;
-  gap: 0.4rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
   font-size: 0.85rem;
   font-weight: 500;
+  line-height: 1.35;
   cursor: pointer;
   margin: 0;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
 }
 
 .jp-trous-filtre-item input {
-  margin-top: 0.12rem;
-  flex-shrink: 0;
+  margin: 0.15rem 0 0;
+  width: auto;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+
+.jp-trous-filtre-item span {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 .jp-trous-switch {

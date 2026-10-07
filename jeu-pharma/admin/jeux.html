@@ -131,9 +131,12 @@
         <div id="trousPreviewWrap" class="jp-quiz-admin-panel jp-trous-preview">
           <div class="jp-quiz-admin-panel-head">
             <h2 class="jp-quiz-admin-panel-title">Aperçu</h2>
-            <span id="trousTrousCount" class="jp-muted"></span>
+            <div class="jp-trous-preview-head-actions">
+              <span id="trousTrousCount" class="jp-muted"></span>
+              <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnTogglePreview" aria-expanded="true">Masquer l’aperçu</button>
+            </div>
           </div>
-          <div class="jp-quiz-admin-panel-body">
+          <div id="trousPreviewBody" class="jp-quiz-admin-panel-body">
             <p class="jp-muted" id="trousPreviewHint"></p>
             <div id="trousPreviewGrid" class="jp-table-wrap"></div>
           </div>
@@ -201,6 +204,27 @@
           <div class="jp-quiz-admin-panel-body">
             <div id="trousColonnesList" class="jp-quiz-admin-champs-grid" role="group" aria-label="Colonnes"></div>
             <p class="jp-muted jp-quiz-admin-champs-hint">Au moins une colonne requise.</p>
+
+            <fieldset class="jp-trous-identite-field">
+              <legend>Identité de ligne (toujours visible)</legend>
+              <label class="jp-trous-identite-option">
+                <input type="radio" name="trousIdentite" value="dci">
+                <span>DCI toujours visible</span>
+              </label>
+              <label class="jp-trous-identite-option">
+                <input type="radio" name="trousIdentite" value="noms">
+                <span>Noms commerciaux toujours visibles</span>
+              </label>
+              <label class="jp-trous-identite-option">
+                <input type="radio" name="trousIdentite" value="les_deux">
+                <span>Noms et DCI toujours visibles</span>
+              </label>
+              <label class="jp-trous-identite-option">
+                <input type="radio" name="trousIdentite" value="au_moins_un" checked>
+                <span>Au moins l’un des deux visible</span>
+              </label>
+              <p class="jp-muted jp-quiz-admin-champs-hint">Les colonnes concernées ne peuvent pas être des trous (selon le mode). Plus de colonne fixe « Médicament ».</p>
+            </fieldset>
           </div>
         </section>
 

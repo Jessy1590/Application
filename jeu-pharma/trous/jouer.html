@@ -116,7 +116,9 @@
       let scoreSaved = false;
       let corrigeData = null;
 
-      let html = '<div id="playForm"><div class="jp-table-wrap"><table class="jp-table jp-trous-table"><thead><tr><th>Médicament</th>';
+      const showMedCol = JpTrous.afficheColonneMedicament(grille);
+      let html = '<div id="playForm"><div class="jp-table-wrap"><table class="jp-table jp-trous-table"><thead><tr>';
+      if (showMedCol) html += '<th>Médicament</th>';
       cols.forEach(function (c) {
         html += '<th>' + JpUi.escapeHtml(JpTrous.champLibelle(c)) + '</th>';
       });
@@ -124,7 +126,8 @@
 
       (grille.lignes || []).forEach(function (ligne) {
         const lid = JpTrous.ligneKey(ligne);
-        html += '<tr><td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
+        html += '<tr>';
+        if (showMedCol) html += '<td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
         (ligne.cells || []).forEach(function (cell) {
           if (cell.trou) {
             const name = 'cell_' + lid.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + cell.champ_code;
@@ -323,6 +326,8 @@
             nom: displayName,
             colonnes: cols,
             lignes: grille.lignes || [],
+            identite_visible: grille.identite_visible || null,
+            afficheColonneMedicament: showMedCol,
           });
           JpPrint.printHtml(docHtml);
           void JpLogs.action('trous_print', { code: partie.code_unique, from: 'jouer' });

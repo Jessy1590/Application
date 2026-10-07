@@ -83,13 +83,16 @@
         return;
       }
 
-      let table = '<table class="jp-table jp-trous-table"><thead><tr><th>Médicament</th>';
+      const showMedCol = JpTrous.afficheColonneMedicament(snap);
+      let table = '<table class="jp-table jp-trous-table"><thead><tr>';
+      if (showMedCol) table += '<th>Médicament</th>';
       cols.forEach(function (c) {
         table += '<th>' + JpUi.escapeHtml(JpTrous.champLibelle(c)) + '</th>';
       });
       table += '</tr></thead><tbody>';
       lignes.forEach(function (ligne) {
-        table += '<tr><td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
+        table += '<tr>';
+        if (showMedCol) table += '<td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
         (ligne.cells || []).forEach(function (cell) {
           if (cell.trou) {
             table += '<td class="jp-trou">&nbsp;</td>';
@@ -120,6 +123,8 @@
             date: dateStr,
             colonnes: cols,
             lignes: lignes,
+            identite_visible: snap.identite_visible || null,
+            afficheColonneMedicament: showMedCol,
           });
           JpPrint.printHtml(docHtml);
           void JpLogs.action('trous_print', { code: partie.code_unique });
