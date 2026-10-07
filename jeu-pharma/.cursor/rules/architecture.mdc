@@ -1,0 +1,42 @@
+---
+description: Architecture Jeu Pharma (vanilla HTML/CSS/JS, schéma jeupharma)
+alwaysApply: true
+---
+
+# Architecture Jeu Pharma
+
+## Produit
+- App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
+- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Mon suivi | Mon profil | Admin (si admin).
+- Surfaces : `catalogue.html`, `quiz/`, `trous/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps.
+- Partagé local : `js/` (clients, métier, FAB, bugs, logs, toast) + `css/` (tokens, app, print).
+
+## Chemins monorepo
+- Config Supabase : `Application/shared/supabase-config.js` → `../shared/…`.
+- Gate d’accès : `Application/protect.js` → `../protect.js` + `initialiserSite(SITE_ID)`.
+- Site UUID : placeholder dans `js/supabase.js` + `.cursor/docs/STATE.md` (à coller après création du site portail).
+- Clients : `js/supabase.js` — `sbPortail` (schéma `portail`) + `sbJeu` (schéma `jeupharma`).
+
+## Données
+- Schéma métier : **`jeupharma`** (minuscules).
+- Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, posologies, interactions, surveillances, grossesse/allaitement, voies.
+- Matrice : `matrice_medicaments` (`statut` brouillon|publie|archive) + tables de liaison multi.
+- Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
+- Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
+- Transverse : `bugs`, `logs`, `historique_modifications`.
+- Profils / accès site : schéma `portail` (`profiles`, `site_access`).
+- SQL locaux : `jeu-pharma/sql/*.sql` — ne pas réappliquer sans check (voir STATE.md).
+
+## Contenu pédagogique
+- Source : **cours physiques / supports** — saisie admin ou CSV manuel.
+- **Pas de BDPM, OCR, ni IA** en v1 (génération / enrichissement auto hors scope).
+- Quiz = assemblage algorithmique de QCM depuis fiches `publie` + distracteurs même secteur (RPC), zéro IA.
+
+## Droits
+- Admin métier = `portail.profiles.role === 'admin'` uniquement.
+- Joueurs = tout utilisateur avec `site_access` sur le site Jeu Pharma.
+- Lecture logs UI + RLS : admin portail uniquement.
+- Ne pas confondre avec les rôles hub PhieEvreux / Location.
+
+## FABs
+- Accueil portail + Bug via `js/fab.js` + `js/bugs.js` (code isolé dans `jeu-pharma/`, pas d’import `PhieEvreux/shared/*`).

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Import / export — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Import / export CSV</h1>
+    <p class="jp-sub">Modèle téléchargeable, dry-run puis import — sans IA.</p>
+
+    <div class="jp-toolbar">
+      <button type="button" class="jp-btn jp-btn-primary" id="jpTpl">Télécharger le modèle</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpExport">Exporter le catalogue</button>
+    </div>
+
+    <section class="jp-panel">
+      <h2 class="jp-title" style="font-size:1.25rem">Importer</h2>
+      <p class="jp-muted">Multi-valeurs séparées par <code>;</code> — niveaux par <code>|</code> (ex. <code>apprenti|pharmacien</code>).</p>
+      <div class="jp-field" style="margin-top:1rem">
+        <label for="jpFile">Fichier CSV</label>
+        <input type="file" id="jpFile" accept=".csv,text/csv">
+      </div>
+      <div class="jp-field-actions">
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpDry" disabled>Dry-run</button>
+        <button type="button" class="jp-btn jp-btn-primary" id="jpImport" disabled>Importer</button>
+      </div>
+      <div id="jpResult"></div>
+    </section>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/entites.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script src="../js/csv.js"></script>
+  <script>
+    (function () {
+      const esc = JpUi.escapeHtml;
+      let fileText = '';
+      let lastDry = null;
+
+      function showResult(html) {
+        document.getElementById('jpResult').innerHTML = html;
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        JpUi.bootPage({ module: 'admin-csv', homeHref: JpFab.PORTAIL_URL });
+
+        document.getElementById('jpTpl').addEventListener('click', () => {
+          JpCsv.downloadTemplate();
+          JpToast.ok('Modèle téléchargé');
+        });
+
+        document.getElementById('jpExport').addEventListener('click', async () => {
+          try {
+            const n = await JpCsv.exportCatalogue();
+            JpToast.ok('Export : ' + n + ' fiche(s)');
+          } catch (e) {
+            JpToast.fromError(e);
+          }
+        });
+
+        document.getElementById('jpFile').addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          fileText = '';
+          lastDry = null;
+          document.getElementById('jpDry').disabled = !file;
+          document.getElementById('jpImport').disabled = true;
+          showResult('');
+          if (!file) return;
+          fileText = await file.text();
+        });
+
+        document.getElementById('jpDry').addEventListener('click', () => {
+          lastDry = JpCsv.dryRun(fileText);
+          if (!lastDry.ok) {
+            showResult(`
+              <p class="jp-muted"><strong>${lastDry.errors.length}</strong> erreur(s) — import bloqué.</p>
+              <ul class="jp-error-list">
+                ${lastDry.errors.map((err) => `<li>Ligne ${err.line} : ${esc(err.message)}</li>`).join('')}
+              </ul>
+            `);
+            document.getElementById('jpImport').disabled = true;
+            JpToast.warn('Dry-run : erreurs détectées');
+            return;
+          }
+          showResult(`
+            <p class="jp-muted">Dry-run OK — <strong>${lastDry.preview.length}</strong> ligne(s) prêtes.</p>
+            <div class="jp-table-wrap">
+              <table class="jp-table">
+                <thead><tr><th>Ligne</th><th>Statut</th><th>Nom</th><th>DCI</th><th>Secteur</th></tr></thead>
+                <tbody>
+                  ${lastDry.preview.map((p) => `
+                    <tr>
+                      <td>${p.line}</td>
+                      <td>${esc(p.statut)}</td>
+                      <td>${esc(p.nom_commercial || '—')}</td>
+                      <td>${esc(p.dci || '—')}</td>
+                      <td>${esc(p.secteur || '—')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `);
+          document.getElementById('jpImport').disabled = false;
+          JpToast.ok('Dry-run OK');
+        });
+
+        document.getElementById('jpImport').addEventListener('click', async () => {
+          if (!lastDry?.ok) return;
+          const btn = document.getElementById('jpImport');
+          btn.disabled = true;
+          try {
+            const res = await JpCsv.importRecords(lastDry.records);
+            if (res.errors.length) {
+              showResult(`
+                <p class="jp-muted"><strong>${res.created}</strong> créée(s), <strong>${res.errors.length}</strong> erreur(s).</p>
+                <ul class="jp-error-list">
+                  ${res.errors.map((err) => `<li>Ligne ${err.line} : ${esc(err.message)}</li>`).join('')}
+                </ul>
+              `);
+              JpToast.warn('Import partiel');
+            } else {
+              showResult(`<p class="jp-muted"><strong>${res.created}</strong> fiche(s) importée(s).</p>`);
+              JpToast.ok('Import terminé');
+            }
+          } catch (e) {
+            JpToast.fromError(e);
+            void JpLogs.error('csv_import', { message: e?.message });
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Logs — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Logs</h1>
+    <p class="jp-sub">Journal d’activité <code>jeupharma.logs</code>.</p>
+
+    <form class="jp-filters" id="jpLogsFilters" role="search">
+      <label>Module
+        <input type="search" name="module" id="jpLogsModule" placeholder="ex. quiz" autocomplete="off">
+      </label>
+      <label>Action
+        <input type="search" name="action" id="jpLogsAction" placeholder="ex. session" autocomplete="off">
+      </label>
+      <label>Niveau
+        <select name="level" id="jpLogsLevel">
+          <option value="">Tous</option>
+          <option value="info">info</option>
+          <option value="warn">warn</option>
+          <option value="error">error</option>
+        </select>
+      </label>
+      <label>Utilisateur
+        <input type="search" name="user" id="jpLogsUser" placeholder="Nom ou UUID" autocomplete="off">
+      </label>
+      <label>Depuis
+        <input type="date" name="since" id="jpLogsSince">
+      </label>
+      <button type="submit" class="jp-btn jp-btn-primary">Filtrer</button>
+    </form>
+
+    <p class="jp-meta" id="jpLogsMeta" aria-live="polite"></p>
+    <div id="jpLogsEmpty" class="jp-empty" hidden></div>
+    <div class="jp-table-wrap" id="jpLogsTableWrap" hidden>
+      <table class="jp-table" id="jpLogsTable">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Niveau</th>
+            <th scope="col">Module</th>
+            <th scope="col">Action</th>
+            <th scope="col">Utilisateur</th>
+            <th scope="col">Chemin</th>
+          </tr>
+        </thead>
+        <tbody id="jpLogsBody"></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script>
+    (function () {
+      const esc = (s) => JpUi.escapeHtml(s);
+
+      function levelClass(level) {
+        if (level === 'error') return 'jp-level-error';
+        if (level === 'warn') return 'jp-level-warn';
+        return 'jp-level-info';
+      }
+
+      async function load() {
+        const empty = document.getElementById('jpLogsEmpty');
+        const wrap = document.getElementById('jpLogsTableWrap');
+        const body = document.getElementById('jpLogsBody');
+        const meta = document.getElementById('jpLogsMeta');
+        empty.hidden = true;
+        wrap.hidden = true;
+        meta.textContent = 'Chargement…';
+
+        const sinceVal = document.getElementById('jpLogsSince').value;
+        const opts = {
+          module: document.getElementById('jpLogsModule').value.trim() || undefined,
+          action: document.getElementById('jpLogsAction').value.trim() || undefined,
+          level: document.getElementById('jpLogsLevel').value || undefined,
+          user: document.getElementById('jpLogsUser').value.trim() || undefined,
+          since: sinceVal ? new Date(sinceVal + 'T00:00:00').toISOString() : undefined,
+          limit: 200,
+        };
+
+        try {
+          const rows = await JpLogs.list(opts);
+          meta.textContent = rows.length
+            ? `${rows.length} entrée${rows.length > 1 ? 's' : ''} (max 200)`
+            : '';
+          if (!rows.length) {
+            JpUi.emptyState(empty, {
+              title: 'Aucun log',
+              text: 'Aucune entrée pour ces filtres.',
+            });
+            empty.hidden = false;
+            return;
+          }
+          body.innerHTML = rows.map((r) => `
+            <tr title="${esc(JSON.stringify(r.detail || {}))}">
+              <td>${esc(new Date(r.created_at).toLocaleString('fr-FR'))}</td>
+              <td><span class="jp-level ${levelClass(r.level)}">${esc(r.level || 'info')}</span></td>
+              <td>${esc(r.module || '—')}</td>
+              <td>${esc(r.action || '')}</td>
+              <td>${esc(r.user_label || (r.user_id ? r.user_id.slice(0, 8) : '—'))}</td>
+              <td class="jp-cell-path">${esc(r.path || '—')}</td>
+            </tr>
+          `).join('');
+          wrap.hidden = false;
+        } catch (err) {
+          meta.textContent = '';
+          JpUi.emptyState(empty, {
+            title: 'Erreur',
+            text: err.message || String(err),
+          });
+          empty.hidden = false;
+          JpToast?.fromError?.(err);
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        JpUi.bootPage({ module: 'admin-logs', homeHref: JpFab.PORTAIL_URL });
+        document.getElementById('jpLogsFilters').addEventListener('submit', function (e) {
+          e.preventDefault();
+          void load();
+        });
+        void load();
+      });
+    })();
+  </script>
+</body>
+</html>

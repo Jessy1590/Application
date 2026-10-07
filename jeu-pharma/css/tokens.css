@@ -1,0 +1,25 @@
+/* Jeu Pharma — design tokens */
+:root {
+  --jp-accent: #0f6b5c;
+  --jp-accent-soft: #e6f3f0;
+  --jp-accent-hover: #0c574b;
+  --jp-text: #14201c;
+  --jp-text-muted: #4a5c56;
+  --jp-bg: #f4faf8;
+  --jp-bg-elevated: #ffffff;
+  --jp-line: rgba(20, 32, 28, 0.12);
+  --jp-danger: #b42318;
+  --jp-ok: #0f6b5c;
+  --jp-warn: #9a6700;
+
+  --jp-font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --jp-font-ui: "DM Sans", system-ui, sans-serif;
+
+  --jp-radius: 12px;
+  --jp-radius-sm: 8px;
+  --jp-space: 1rem;
+  --jp-max: 52rem;
+  --jp-shadow: 0 8px 24px rgba(15, 107, 92, 0.08);
+
+  --jp-focus: 0 0 0 3px rgba(15, 107, 92, 0.35);
+}

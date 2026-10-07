@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Médicaments — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Médicaments</h1>
+    <p class="jp-sub">Fiches issues des cours — niveaux sur chaque valeur.</p>
+
+    <div class="jp-toolbar">
+      <input type="search" id="jpFilterQ" placeholder="Rechercher…" aria-label="Rechercher">
+      <select id="jpFilterStatut" aria-label="Statut">
+        <option value="">Tous les statuts</option>
+        <option value="brouillon">Brouillon</option>
+        <option value="publie">Publié</option>
+        <option value="archive">Archivé</option>
+      </select>
+      <button type="button" class="jp-btn jp-btn-primary" id="jpBtnNew">Nouvelle fiche</button>
+    </div>
+
+    <div id="jpList" class="jp-table-wrap"></div>
+
+    <section id="jpEditor" class="jp-panel" hidden>
+      <h2 class="jp-title" style="font-size:1.35rem" id="jpEditorTitle">Nouvelle fiche</h2>
+      <form id="jpForm" class="jp-form" novalidate>
+        <div class="jp-field">
+          <label for="jpStatut">Statut</label>
+          <select id="jpStatut" name="statut">
+            <option value="brouillon">Brouillon</option>
+            <option value="publie">Publié</option>
+            <option value="archive">Archivé</option>
+          </select>
+        </div>
+        <div id="jpFields"></div>
+        <div class="jp-field-actions">
+          <button type="submit" class="jp-btn jp-btn-primary" id="jpBtnSave">Enregistrer</button>
+          <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnCancel">Annuler</button>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/entites.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script>
+    (function () {
+      const esc = JpUi.escapeHtml;
+      let editingId = null;
+      let cache = [];
+
+      function allNiveauxCodes() {
+        return (JpConstants.NIVEAUX || []).map((n) => n.code);
+      }
+
+      function niveauxHtml(name, selected) {
+        const sel = new Set(selected || []);
+        const boxes = JpConstants.NIVEAUX.map((n) => `
+          <label>
+            <input type="checkbox" name="${esc(name)}" value="${esc(n.code)}" ${sel.has(n.code) ? 'checked' : ''}>
+            ${esc(n.libelle)}
+          </label>
+        `).join('');
+        return `
+          <div class="jp-niveaux" data-niveaux="${esc(name)}">${boxes}</div>
+          <div class="jp-field-actions">
+            <button type="button" class="jp-link-btn" data-niv-all="${esc(name)}">Tous</button>
+            <button type="button" class="jp-link-btn" data-niv-none="${esc(name)}">Aucun</button>
+          </div>
+          <p class="jp-niveaux-warn" hidden data-warn="${esc(name)}">Aucun profil coché — valeur invisible aux quiz filtrés.</p>
+        `;
+      }
+
+      function buildFields() {
+        const host = document.getElementById('jpFields');
+        const parts = [];
+        for (const c of JpConstants.CHAMP_CODES) {
+          if (c.card === 1) {
+            parts.push(`
+              <div class="jp-field" data-champ="${esc(c.code)}" data-card="1">
+                <label for="val_${esc(c.code)}">${esc(c.libelle)}</label>
+                <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" list="dl_${esc(c.code)}" autocomplete="off" data-entity-id="">
+                <datalist id="dl_${esc(c.code)}"></datalist>
+                <span class="jp-field-label">Niveaux connus</span>
+                ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
+              </div>
+            `);
+          } else {
+            parts.push(`
+              <div class="jp-field" data-champ="${esc(c.code)}" data-card="N">
+                <label for="val_${esc(c.code)}">${esc(c.libelle)} <span class="jp-muted">(une valeur par ligne)</span></label>
+                <textarea id="val_${esc(c.code)}" name="val_${esc(c.code)}" rows="3"></textarea>
+                <span class="jp-field-label">Niveaux (appliqués à chaque ligne)</span>
+                ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
+              </div>
+            `);
+          }
+        }
+        host.innerHTML = parts.join('');
+        host.addEventListener('click', onNivClick);
+        host.addEventListener('change', refreshWarns);
+        host.querySelectorAll('input[data-entity-id]').forEach((inp) => {
+          inp.addEventListener('input', () => { inp.dataset.entityId = ''; });
+        });
+      }
+
+      function onNivClick(e) {
+        const all = e.target.getAttribute('data-niv-all');
+        const none = e.target.getAttribute('data-niv-none');
+        const name = all || none;
+        if (!name) return;
+        e.preventDefault();
+        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
+          cb.checked = !!all;
+        });
+        refreshWarns();
+      }
+
+      function refreshWarns() {
+        document.querySelectorAll('[data-warn]').forEach((el) => {
+          const name = el.getAttribute('data-warn');
+          const any = [...document.querySelectorAll(`input[name="${name}"]:checked`)].length > 0;
+          el.hidden = any;
+        });
+      }
+
+      function readNiveaux(name) {
+        return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((c) => c.value);
+      }
+
+      function setNiveaux(name, codes) {
+        const set = new Set(codes || []);
+        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
+          cb.checked = set.has(cb.value);
+        });
+      }
+
+      async function loadDatalists() {
+        for (const c of JpConstants.CHAMP_CODES.filter((x) => x.card === 1)) {
+          const dl = document.getElementById('dl_' + c.code);
+          if (!dl) continue;
+          try {
+            const rows = await JpEntites.list(c.table, { actif: true, limit: 300 });
+            dl.innerHTML = rows.map((r) => `<option value="${esc(r.valeur)}"></option>`).join('');
+          } catch (_) { /* ignore */ }
+        }
+      }
+
+      function resetForm() {
+        editingId = null;
+        document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
+        document.getElementById('jpStatut').value = 'brouillon';
+        for (const c of JpConstants.CHAMP_CODES) {
+          const input = document.getElementById('val_' + c.code);
+          if (input) {
+            input.value = '';
+            if (c.card === 1) input.dataset.entityId = '';
+          }
+          setNiveaux('niv_' + c.code, allNiveauxCodes());
+        }
+        refreshWarns();
+      }
+
+      function openEditor(row) {
+        document.getElementById('jpEditor').hidden = false;
+        if (!row) {
+          resetForm();
+          document.getElementById('jpEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        editingId = row.id;
+        document.getElementById('jpEditorTitle').textContent = 'Modifier la fiche';
+        document.getElementById('jpStatut').value = row.statut || 'brouillon';
+        for (const c of JpConstants.CHAMP_CODES) {
+          const input = document.getElementById('val_' + c.code);
+          if (c.card === 1) {
+            input.value = row[c.code] || '';
+            input.dataset.entityId = row[c.fk] || '';
+            const nivKey =
+              c.code === 'nom_commercial' ? 'nom_commercial_niveaux'
+              : c.code === 'dci' ? 'dci_niveaux'
+              : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
+              : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
+              : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
+              : null;
+            setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
+          } else {
+            const arr = Array.isArray(row[c.code]) ? row[c.code] : [];
+            input.value = arr.map((x) => x.valeur || x).join('\n');
+            setNiveaux('niv_' + c.code, allNiveauxCodes());
+          }
+        }
+        refreshWarns();
+        document.getElementById('jpEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      function collectPayload() {
+        const singular = {};
+        const multi = {};
+        for (const c of JpConstants.CHAMP_CODES) {
+          const niveaux = readNiveaux('niv_' + c.code);
+          const raw = document.getElementById('val_' + c.code).value;
+          if (c.card === 1) {
+            const v = String(raw || '').trim();
+            const input = document.getElementById('val_' + c.code);
+            if (v) {
+              singular[c.code] = {
+                valeur: v,
+                niveaux_connus: niveaux,
+                id: input.dataset.entityId || undefined,
+              };
+            }
+          } else {
+            const lines = String(raw || '')
+              .split(/\n/)
+              .map((s) => s.trim())
+              .filter(Boolean);
+            multi[c.code] = lines.map((valeur) => ({ valeur, niveaux_connus: niveaux }));
+          }
+        }
+        return {
+          statut: document.getElementById('jpStatut').value,
+          singular,
+          multi,
+        };
+      }
+
+      function renderList(rows) {
+        const host = document.getElementById('jpList');
+        if (!rows.length) {
+          JpUi.emptyState(host, {
+            title: 'Aucune fiche',
+            text: 'Ajoutez les médicaments vus en cours, ou importez un CSV.',
+            actionHref: 'import-export.html',
+            actionLabel: 'Import CSV',
+          });
+          return;
+        }
+        host.innerHTML = `
+          <table class="jp-table">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>DCI</th>
+                <th>Secteur</th>
+                <th>Statut</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r) => `
+                <tr>
+                  <td>${esc(r.nom_commercial || '—')}</td>
+                  <td>${esc(r.dci || '—')}</td>
+                  <td>${esc(r.secteur_therapeutique || '—')}</td>
+                  <td><span class="jp-badge jp-badge-${esc(r.statut)}">${esc(r.statut)}</span></td>
+                  <td><button type="button" class="jp-link-btn" data-edit="${esc(r.id)}">Modifier</button></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+
+      async function refresh() {
+        const statut = document.getElementById('jpFilterStatut').value || null;
+        const q = document.getElementById('jpFilterQ').value;
+        try {
+          cache = await JpMedicaments.list({ statut, q });
+          renderList(cache);
+        } catch (e) {
+          JpToast.fromError(e);
+          void JpLogs.error('medicaments_list', { message: e?.message });
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', async function () {
+        JpUi.bootPage({ module: 'admin-medicaments', homeHref: JpFab.PORTAIL_URL });
+        buildFields();
+        await loadDatalists();
+        await refresh();
+
+        document.getElementById('jpFilterQ').addEventListener('input', () => {
+          clearTimeout(window.__jpMedT);
+          window.__jpMedT = setTimeout(refresh, 220);
+        });
+        document.getElementById('jpFilterStatut').addEventListener('change', refresh);
+        document.getElementById('jpBtnNew').addEventListener('click', () => openEditor(null));
+        document.getElementById('jpBtnCancel').addEventListener('click', () => {
+          document.getElementById('jpEditor').hidden = true;
+          editingId = null;
+        });
+        document.getElementById('jpList').addEventListener('click', (e) => {
+          const id = e.target.getAttribute('data-edit');
+          if (!id) return;
+          const row = cache.find((r) => r.id === id);
+          if (row) openEditor(row);
+        });
+        document.getElementById('jpForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const btn = document.getElementById('jpBtnSave');
+          btn.disabled = true;
+          try {
+            await JpMedicaments.save(collectPayload(), editingId);
+            JpToast.ok('Fiche enregistrée');
+            document.getElementById('jpEditor').hidden = true;
+            editingId = null;
+            await refresh();
+            await loadDatalists();
+          } catch (err) {
+            JpToast.fromError(err);
+            void JpLogs.error('medicament_save', { message: err?.message });
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

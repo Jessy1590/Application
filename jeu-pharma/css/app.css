@@ -1,0 +1,776 @@
+@import url("./tokens.css");
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--jp-font-ui);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--jp-text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(15, 107, 92, 0.08), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(20, 80, 90, 0.06), transparent 50%),
+    var(--jp-bg);
+}
+
+a {
+  color: var(--jp-accent);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--jp-focus);
+}
+
+.jp-page {
+  width: min(100% - 2rem, var(--jp-max));
+  margin: 0 auto;
+  padding: 2rem 0 6rem;
+}
+
+.jp-brand {
+  font-family: var(--jp-font-display);
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.35rem;
+  color: var(--jp-text);
+}
+
+.jp-kicker {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--jp-accent);
+}
+
+.jp-sub {
+  margin: 0 0 2rem;
+  color: var(--jp-text-muted);
+  max-width: 36rem;
+}
+
+.jp-title {
+  font-family: var(--jp-font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.jp-back {
+  display: inline-block;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--jp-text-muted);
+}
+
+.jp-back:hover {
+  color: var(--jp-accent);
+}
+
+/* Hub tiles — interactive links, not decorative cards */
+.jp-hub-grid {
+  display: grid;
+  gap: 0.75rem;
+  animation: jp-fade-in 0.45s ease both;
+}
+
+@keyframes jp-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.jp-tile {
+  display: block;
+  padding: 1.1rem 1.2rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.jp-tile:hover {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-soft);
+}
+
+.jp-tile h2 {
+  margin: 0;
+  font-family: var(--jp-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.jp-tile p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-tile[hidden] {
+  display: none !important;
+}
+
+.jp-empty {
+  padding: 2rem 0;
+  color: var(--jp-text-muted);
+}
+
+.jp-empty strong {
+  display: block;
+  color: var(--jp-text);
+  font-family: var(--jp-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.jp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--jp-radius-sm);
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.jp-btn-primary {
+  background: var(--jp-accent);
+  color: #fff;
+}
+
+.jp-btn-primary:hover {
+  background: var(--jp-accent-hover);
+}
+
+.jp-btn-ghost {
+  background: transparent;
+  border-color: var(--jp-line);
+  color: var(--jp-text);
+}
+
+.jp-btn-ghost:hover {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-soft);
+}
+
+.jp-admin-nav {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.jp-admin-nav a {
+  text-decoration: none;
+  color: var(--jp-text);
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--jp-line);
+  font-weight: 500;
+}
+
+.jp-admin-nav a:hover {
+  color: var(--jp-accent);
+}
+
+/* Toasts */
+.jp-toast-host {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 80;
+  display: grid;
+  gap: 0.5rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.jp-toast {
+  pointer-events: auto;
+  padding: 0.85rem 1rem;
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  box-shadow: var(--jp-shadow);
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: jp-toast-in 0.2s ease both;
+}
+
+.jp-toast-ok { border-left: 3px solid var(--jp-ok); }
+.jp-toast-error { border-left: 3px solid var(--jp-danger); }
+.jp-toast-warn { border-left: 3px solid var(--jp-warn); }
+
+@keyframes jp-toast-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* FABs */
+.jp-fabs {
+  position: fixed;
+  right: 14px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jp-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--jp-line);
+  background: var(--jp-bg-elevated);
+  color: var(--jp-text);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--jp-shadow);
+  cursor: pointer;
+  text-decoration: none;
+  padding: 0;
+  font: inherit;
+}
+
+.jp-fab:hover {
+  border-color: var(--jp-accent);
+  color: var(--jp-accent);
+}
+
+.jp-fab-home {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.jp-fab-bug {
+  color: var(--jp-accent);
+}
+
+/* Remonte le bouton portail protect.js */
+body > a[title="Retour au portail"] {
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 128px) !important;
+  right: 14px !important;
+}
+
+/* Bug sheet */
+.jp-sheet[hidden] {
+  display: none;
+}
+
+.jp-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.jp-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 32, 28, 0.45);
+}
+
+.jp-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 88dvh;
+  background: var(--jp-bg-elevated);
+  border-radius: 20px 20px 0 0;
+  border: 1px solid var(--jp-line);
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  color: var(--jp-text);
+}
+
+.jp-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.jp-sheet-head h2 {
+  margin: 0;
+  font-family: var(--jp-font-display);
+  font-size: 1.25rem;
+}
+
+.jp-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--jp-line);
+  background: var(--jp-bg);
+  color: var(--jp-text-muted);
+  cursor: pointer;
+}
+
+.jp-bugs-form label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-bugs-form input,
+.jp-bugs-form textarea,
+.jp-bugs-form select {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  box-sizing: border-box;
+  background: var(--jp-bg);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--jp-text);
+  transition: border-color 0.15s ease;
+}
+
+.jp-bugs-form input:focus,
+.jp-bugs-form textarea:focus,
+.jp-bugs-form select:focus {
+  border-color: var(--jp-accent);
+}
+
+.jp-bugs-msg {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.jp-bugs-msg.ok { color: var(--jp-ok); }
+.jp-bugs-msg.error { color: var(--jp-danger); }
+
+/* Formulaires / tableaux catalogue */
+.jp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.jp-toolbar input[type="search"],
+.jp-toolbar select,
+.jp-form input,
+.jp-form select,
+.jp-form textarea {
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--jp-text);
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.55rem 0.75rem;
+  transition: border-color 0.15s ease;
+}
+
+.jp-toolbar input[type="search"] {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.jp-form input:focus,
+.jp-form select:focus,
+.jp-form textarea:focus,
+.jp-toolbar input:focus,
+.jp-toolbar select:focus {
+  border-color: var(--jp-accent);
+}
+
+.jp-form {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 42rem;
+}
+
+.jp-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.jp-field > label,
+.jp-field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+}
+
+.jp-field textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.jp-field input,
+.jp-field select {
+  width: 100%;
+}
+
+.jp-niveaux {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+}
+
+.jp-niveaux label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--jp-text);
+  cursor: pointer;
+}
+
+.jp-niveaux-warn {
+  font-size: 0.8rem;
+  color: var(--jp-warn);
+  margin: 0;
+}
+
+.jp-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.jp-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.jp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.jp-table th,
+.jp-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--jp-line);
+  vertical-align: top;
+}
+
+.jp-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+}
+
+.jp-table tr:hover td {
+  background: var(--jp-accent-soft);
+}
+
+.jp-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  background: var(--jp-accent-soft);
+  color: var(--jp-accent);
+}
+
+.jp-badge-brouillon { background: #f0f0f0; color: var(--jp-text-muted); }
+.jp-badge-publie { background: var(--jp-accent-soft); color: var(--jp-accent); }
+.jp-badge-archive { background: #eee; color: #666; }
+
+.jp-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--jp-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.jp-panel {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--jp-line);
+}
+
+.jp-muted {
+  color: var(--jp-text-muted);
+  font-size: 0.9rem;
+}
+
+.jp-error-list {
+  margin: 0.75rem 0 0;
+  padding-left: 1.2rem;
+  color: var(--jp-danger);
+  font-size: 0.9rem;
+}
+
+.jp-split {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Admin suivi / logs / bugs */
+.jp-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.jp-filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+}
+
+.jp-filters input,
+.jp-filters select {
+  min-width: 9rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--jp-text);
+}
+
+.jp-meta {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-cell-path {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-level {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.jp-level-info { color: var(--jp-text-muted); }
+.jp-level-warn { color: var(--jp-warn); }
+.jp-level-error { color: var(--jp-danger); }
+
+.jp-charts {
+  display: grid;
+  gap: 2rem;
+  margin-top: 0.5rem;
+}
+
+.jp-chart-title {
+  margin: 0 0 0.75rem;
+  font-family: var(--jp-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.jp-chart-wrap {
+  position: relative;
+  height: 220px;
+}
+
+.jp-bugs-admin {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.jp-bug-item {
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.jp-bug-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.jp-bug-item-head strong {
+  font-family: var(--jp-font-display);
+  font-size: 1.05rem;
+}
+
+.jp-bug-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--jp-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.jp-bug-meta {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-bug-desc {
+  margin: 0 0 0.75rem;
+  white-space: pre-wrap;
+}
+
+.jp-bug-statut-label {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 14rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+}
+
+.jp-bug-statut-label select {
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  color: var(--jp-text);
+}
+
+@media (min-width: 640px) {
+  .jp-hub-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jp-split-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Quiz QCM */
+.jp-quiz-form {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.jp-q {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--jp-line);
+  padding-bottom: 1.25rem;
+}
+
+.jp-q legend {
+  font-family: var(--jp-font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  padding: 0;
+  margin-bottom: 0.75rem;
+}
+
+.jp-q-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.35rem 0;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.jp-q-opt input {
+  margin-top: 0.3rem;
+}
+
+.jp-q-feedback {
+  margin: 0.6rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.jp-ok { color: var(--jp-ok); }
+.jp-warn { color: var(--jp-warn); }
+
+.jp-q-ok { border-bottom-color: var(--jp-ok); }
+.jp-q-ko { border-bottom-color: var(--jp-danger); }
+
+/* Tableau à trous */
+.jp-trous-table td.jp-trou {
+  background: var(--jp-accent-soft);
+}
+
+.jp-trou-input {
+  width: 100%;
+  min-width: 6rem;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  color: var(--jp-text);
+}
+
+.jp-input-ok {
+  border-color: var(--jp-ok) !important;
+}
+
+.jp-input-ko {
+  border-color: var(--jp-danger) !important;
+}
+
+.jp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.jp-print-preview {
+  margin-top: 1.5rem;
+}
+

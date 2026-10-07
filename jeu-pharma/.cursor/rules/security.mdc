@@ -1,0 +1,27 @@
+---
+description: Sécurité client Jeu Pharma — anon-only, RLS, pas de service_role
+alwaysApply: true
+---
+
+# Sécurité Jeu Pharma
+
+## Supabase
+- Clé **anon** uniquement côté client (`SUPABASE_CONFIG`) — **jamais** `service_role`.
+- Schéma métier : `jeupharma` via `js/supabase.js` (`sbJeu`).
+- Profils / `site_access` : schéma `portail` (`sbPortail`).
+- La RLS reste la source de vérité ; l’UI (`protect.js`, checks admin) ne remplace pas les policies.
+
+## Auth & rôles
+- Lire `portail.profiles.role` — **pas** `user_metadata` pour l’autorisation.
+- Admin métier : `portail.profiles.role === 'admin'` uniquement.
+- Joueurs : `site_access` sur le SITE_ID Jeu Pharma.
+- Correction / scoring quiz : RPC `soumettre_quiz` (security definer) — ne pas recalculer le score côté client comme source de vérité.
+- Ne pas réutiliser les Edge OCR/Gemini du monorepo pour cette app sans demande explicite.
+
+## Secrets & client
+- Ne pas committer `.env` / clés ; respecter `.gitignore` monorepo.
+- Ne pas logger tokens ni mots de passe.
+- Journal `jeupharma.logs` : écriture authentifiée + access OK ; **lecture** réservée à `portail.is_admin()` / admin portail.
+- Bugs : insert soi ; admin lit tout + met à jour le statut.
+- Impression : iframe caché same-document uniquement — pas de pop-up / `window.open`.
+- Snapshot quiz : en mode évaluation, ne pas exposer le flag correct / corrigé avant soumission RPC.

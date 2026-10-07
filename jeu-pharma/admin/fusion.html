@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Fusion — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Fusion d’entités</h1>
+    <p class="jp-sub">Réaffecter les fiches vers la valeur conservée, puis désactiver la source.</p>
+
+    <form id="jpForm" class="jp-form" novalidate>
+      <div class="jp-field">
+        <label for="jpType">Type d’entité</label>
+        <select id="jpType" required></select>
+      </div>
+      <div class="jp-split jp-split-2">
+        <div class="jp-field">
+          <label for="jpKeep">Conserver</label>
+          <select id="jpKeep" required>
+            <option value="">—</option>
+          </select>
+        </div>
+        <div class="jp-field">
+          <label for="jpDrop">Fusionner puis désactiver</label>
+          <select id="jpDrop" required>
+            <option value="">—</option>
+          </select>
+        </div>
+      </div>
+      <p class="jp-muted">Les niveaux connus des deux valeurs sont unis sur la valeur conservée.</p>
+      <div class="jp-field-actions">
+        <button type="submit" class="jp-btn jp-btn-primary">Fusionner</button>
+      </div>
+    </form>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/entites.js"></script>
+  <script>
+    (function () {
+      const esc = JpUi.escapeHtml;
+      let rows = [];
+
+      function fillSelects() {
+        const opts = '<option value="">—</option>' + rows.map((r) =>
+          `<option value="${esc(r.id)}">${esc(r.valeur)}</option>`
+        ).join('');
+        document.getElementById('jpKeep').innerHTML = opts;
+        document.getElementById('jpDrop').innerHTML = opts;
+      }
+
+      async function loadEntities() {
+        const table = document.getElementById('jpType').value;
+        try {
+          rows = await JpEntites.list(table, { actif: true, limit: 500 });
+          fillSelects();
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        JpUi.bootPage({ module: 'admin-fusion', homeHref: JpFab.PORTAIL_URL });
+        const sel = document.getElementById('jpType');
+        sel.innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
+          `<option value="${esc(t.table)}">${esc(t.libelle)}</option>`
+        ).join('');
+        loadEntities();
+        sel.addEventListener('change', loadEntities);
+
+        document.getElementById('jpForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const table = sel.value;
+          const keep = document.getElementById('jpKeep').value;
+          const drop = document.getElementById('jpDrop').value;
+          if (!keep || !drop) {
+            JpToast.warn('Choisissez les deux valeurs');
+            return;
+          }
+          if (keep === drop) {
+            JpToast.warn('Les deux valeurs doivent être distinctes');
+            return;
+          }
+          const keepLabel = rows.find((r) => r.id === keep)?.valeur || keep;
+          const dropLabel = rows.find((r) => r.id === drop)?.valeur || drop;
+          if (!confirm('Fusionner « ' + dropLabel + ' » dans « ' + keepLabel + ' » ?')) return;
+          try {
+            await JpEntites.fusionner(table, keep, drop);
+            void JpLogs.action('fusion_entites', { table, keep, drop });
+            JpToast.ok('Fusion effectuée');
+            await loadEntities();
+          } catch (err) {
+            JpToast.fromError(err);
+            void JpLogs.error('fusion_entites', { message: err?.message });
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

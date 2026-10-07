@@ -36,7 +36,17 @@ Conserver / appliquer séparément si besoin (fichiers historiques, non versionn
 
 ## 3. Schémas exposés (Data API)
 
-Vérifier que **Exposed schemas** inclut : `portail`, `PharmaOs`, `autres`, `valorisation`, `phieevreux`, `public`.
+Vérifier que **Exposed schemas** inclut : `portail`, `PharmaOs`, `autres`, `valorisation`, `phieevreux`, `jeupharma`, `public`.
+
+### Jeu Pharma (`jeupharma`)
+
+1. Ajouter `jeupharma` aux schémas exposés (ci-dessus) si absent.
+2. Appliquer `jeu-pharma/sql/001_jeupharma_init.sql` (contenu cours physiques — pas de BDPM).
+3. Créer le site portail **Jeu Pharma** → URL `https://jessy1590.github.io/Application/jeu-pharma/`.
+4. Coller l’UUID `portail.sites.id` dans `jeu-pharma/js/supabase.js`, `jeu-pharma/.cursor/docs/STATE.md`, et `has_jeupharma_access()` du SQL.
+5. Attribuer `site_access` aux joueurs. Checklist détaillée : `jeu-pharma/README.md`.
+
+Ne pas hardcoder une carte dans le HTML portail racine.
 
 ## 4. Secrets GitHub Actions
 

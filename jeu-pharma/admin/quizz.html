@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Quiz — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Créer un quiz</h1>
+    <p class="jp-sub">QCM générés depuis les fiches publiées (distracteurs même secteur).</p>
+
+    <form id="quizForm" class="jp-form" novalidate>
+      <div class="jp-field">
+        <label for="titre">Titre</label>
+        <input id="titre" name="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — classes">
+      </div>
+      <div class="jp-split jp-split-2">
+        <div class="jp-field">
+          <label for="secteur">Secteur (optionnel)</label>
+          <select id="secteur" name="secteur">
+            <option value="">Tous</option>
+          </select>
+        </div>
+        <div class="jp-field">
+          <label for="niveau">Niveau cible</label>
+          <select id="niveau" name="niveau" required></select>
+        </div>
+      </div>
+      <div class="jp-field">
+        <span class="jp-field-label">Champs interrogés</span>
+        <div id="champsList" class="jp-niveaux" role="group" aria-label="Champs"></div>
+      </div>
+      <div class="jp-split jp-split-2">
+        <div class="jp-field">
+          <label for="nbQ">Nombre de questions</label>
+          <input id="nbQ" name="nbQ" type="number" min="1" max="50" value="10" required>
+        </div>
+        <div class="jp-field">
+          <label for="nbProp">Propositions</label>
+          <input id="nbProp" name="nbProp" type="number" min="2" max="6" value="3" required>
+        </div>
+      </div>
+      <div class="jp-field">
+        <label for="mode">Mode</label>
+        <select id="mode" name="mode">
+          <option value="entrainement">Entraînement</option>
+          <option value="evaluation">Évaluation</option>
+        </select>
+      </div>
+      <div class="jp-field-actions">
+        <button type="submit" class="jp-btn jp-btn-primary" id="btnGen">Générer</button>
+      </div>
+    </form>
+
+    <div id="resultBox" class="jp-panel" hidden>
+      <p class="jp-kicker">Code quiz</p>
+      <p id="resultCode" class="jp-brand" style="font-size:1.75rem"></p>
+      <p id="resultMeta" class="jp-muted"></p>
+      <div class="jp-field-actions">
+        <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
+        <a id="resultPrint" class="jp-btn jp-btn-ghost" href="#">Imprimer</a>
+      </div>
+    </div>
+
+    <section class="jp-panel">
+      <h2 class="jp-title" style="font-size:1.25rem">Quiz récents</h2>
+      <div id="listWrap" class="jp-table-wrap">
+        <p class="jp-muted">Chargement…</p>
+      </div>
+    </section>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/quizz.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'admin-quizz', homeHref: JpFab.PORTAIL_URL });
+
+      const niveauSel = document.getElementById('niveau');
+      (JpConstants.NIVEAUX || []).forEach(function (n) {
+        const o = document.createElement('option');
+        o.value = n.code;
+        o.textContent = n.libelle;
+        niveauSel.appendChild(o);
+      });
+
+      const champsList = document.getElementById('champsList');
+      const defaultChamps = ['classe_pharmacologique', 'dci', 'classe_therapeutique'];
+      (JpConstants.CHAMP_CODES || []).forEach(function (c) {
+        const id = 'ch_' + c.code;
+        const label = document.createElement('label');
+        label.innerHTML = '<input type="checkbox" name="champ" value="' + JpUi.escapeHtml(c.code) + '" id="' + id + '"'
+          + (defaultChamps.indexOf(c.code) >= 0 ? ' checked' : '') + '> ' + JpUi.escapeHtml(c.libelle);
+        champsList.appendChild(label);
+      });
+
+      try {
+        const secteurs = await JpQuizz.listSecteurs();
+        const sel = document.getElementById('secteur');
+        secteurs.forEach(function (s) {
+          const o = document.createElement('option');
+          o.value = s.id;
+          o.textContent = s.valeur;
+          sel.appendChild(o);
+        });
+      } catch (e) {
+        JpToast.fromError(e);
+      }
+
+      async function refreshList() {
+        const wrap = document.getElementById('listWrap');
+        try {
+          const rows = await JpQuizz.listQuiz({ actifsOnly: false });
+          if (!rows.length) {
+            JpUi.emptyState(wrap, { title: 'Aucun quiz', text: 'Générez un quiz ci-dessus.' });
+            return;
+          }
+          wrap.innerHTML = '<table class="jp-table"><thead><tr><th>Code</th><th>Titre</th><th>Mode</th><th>Niveau</th><th></th></tr></thead><tbody>'
+            + rows.map(function (r) {
+              const snapOk = Array.isArray(r.snapshot_questions) && r.snapshot_questions.length;
+              return '<tr><td><code>' + JpUi.escapeHtml(r.code_unique) + '</code></td>'
+                + '<td>' + JpUi.escapeHtml(r.titre) + (r.actif ? '' : ' <span class="jp-badge">inactif</span>') + '</td>'
+                + '<td>' + JpUi.escapeHtml(JpQuizz.modeLibelle(r.mode)) + '</td>'
+                + '<td>' + JpUi.escapeHtml(r.niveau_cible) + '</td>'
+                + '<td><a href="../quiz/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
+                + (snapOk ? ' · <a href="../quiz/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a>' : '')
+                + '</td></tr>';
+            }).join('')
+            + '</tbody></table>';
+        } catch (e) {
+          JpToast.fromError(e);
+          wrap.innerHTML = '<p class="jp-muted">Impossible de charger la liste.</p>';
+        }
+      }
+
+      document.getElementById('quizForm').addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const btn = document.getElementById('btnGen');
+        btn.disabled = true;
+        try {
+          const champs = Array.from(document.querySelectorAll('input[name="champ"]:checked')).map(function (el) { return el.value; });
+          const created = await JpQuizz.createAndGenerate({
+            titre: document.getElementById('titre').value,
+            secteur_therapeutique_id: document.getElementById('secteur').value || null,
+            niveau_cible: document.getElementById('niveau').value,
+            mode: document.getElementById('mode').value,
+            champs_interroges: champs,
+            nb_questions: Number(document.getElementById('nbQ').value),
+            nb_propositions: Number(document.getElementById('nbProp').value),
+          });
+          const box = document.getElementById('resultBox');
+          box.hidden = false;
+          document.getElementById('resultCode').textContent = created.code_unique;
+          document.getElementById('resultMeta').textContent =
+            created.titre + ' · ' + JpQuizz.modeLibelle(created.mode) + ' · ' + created.niveau_cible;
+          document.getElementById('resultPlay').href = '../quiz/jouer.html?code=' + encodeURIComponent(created.code_unique);
+          document.getElementById('resultPrint').href = '../quiz/imprimer.html?code=' + encodeURIComponent(created.code_unique);
+          JpToast.ok('Quiz généré : ' + created.code_unique);
+          await refreshList();
+        } catch (e) {
+          JpToast.fromError(e);
+          void JpLogs.error('quiz_create_fail', { message: e.message || String(e) });
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      await refreshList();
+    });
+  </script>
+</body>
+</html>

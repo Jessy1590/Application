@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Trous — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Tableau à trous</h1>
+    <p class="jp-sub">Configurer une grille (colonnes, médicaments, trous ALEATOIRE / MANUEL).</p>
+
+    <form id="trousForm" class="jp-form" novalidate>
+      <div class="jp-field">
+        <label for="titre">Titre</label>
+        <input id="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — révision">
+      </div>
+      <div class="jp-split jp-split-2">
+        <div class="jp-field">
+          <label for="niveau">Niveau cible</label>
+          <select id="niveau" required></select>
+        </div>
+        <div class="jp-field">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="entrainement">Entraînement</option>
+            <option value="evaluation">Évaluation</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="jp-field">
+        <span class="jp-field-label">Colonnes</span>
+        <div id="colonnesList" class="jp-niveaux" role="group"></div>
+      </div>
+
+      <div class="jp-field">
+        <label for="modeTrous">Placement des trous</label>
+        <select id="modeTrous">
+          <option value="ALEATOIRE">Aléatoire</option>
+          <option value="MANUEL">Manuel (cliquer les cellules)</option>
+        </select>
+      </div>
+
+      <div class="jp-field" id="densiteField">
+        <label for="densite">Densité des trous (aléatoire)</label>
+        <input id="densite" type="range" min="20" max="80" value="40">
+        <span id="densiteLabel" class="jp-muted">40 %</span>
+      </div>
+
+      <div class="jp-field">
+        <label for="sourceMeds">Médicaments</label>
+        <select id="sourceMeds">
+          <option value="secteur">Par secteur</option>
+          <option value="ids">Par identifiants (UUID)</option>
+        </select>
+      </div>
+
+      <div class="jp-field" id="secteurField">
+        <label for="secteur">Secteur</label>
+        <select id="secteur">
+          <option value="">— choisir —</option>
+        </select>
+      </div>
+
+      <div class="jp-field" id="idsField" hidden>
+        <label for="matriceIds">IDs matrice (un par ligne)</label>
+        <textarea id="matriceIds" rows="4" placeholder="uuid…"></textarea>
+      </div>
+
+      <div class="jp-field-actions">
+        <button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Prévisualiser la grille</button>
+        <button type="submit" class="jp-btn jp-btn-primary" id="btnCreate">Créer la partie</button>
+      </div>
+    </form>
+
+    <div id="previewWrap" class="jp-panel" hidden>
+      <p class="jp-kicker">Aperçu</p>
+      <p class="jp-muted" id="previewHint"></p>
+      <div id="previewGrid" class="jp-table-wrap"></div>
+    </div>
+
+    <div id="resultBox" class="jp-panel" hidden>
+      <p class="jp-kicker">Code partie</p>
+      <p id="resultCode" class="jp-brand" style="font-size:1.75rem"></p>
+      <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
+    </div>
+
+    <section class="jp-panel">
+      <h2 class="jp-title" style="font-size:1.25rem">Parties récentes</h2>
+      <div id="listWrap" class="jp-table-wrap"><p class="jp-muted">Chargement…</p></div>
+    </section>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/trous.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'admin-trous', homeHref: JpFab.PORTAIL_URL });
+
+      let lastSnapshot = null;
+      let trousManuels = {};
+
+      const niveauSel = document.getElementById('niveau');
+      (JpConstants.NIVEAUX || []).forEach(function (n) {
+        const o = document.createElement('option');
+        o.value = n.code;
+        o.textContent = n.libelle;
+        niveauSel.appendChild(o);
+      });
+
+      const colonnesList = document.getElementById('colonnesList');
+      const defaults = JpTrous.COLONNES_DEFAUT;
+      (JpConstants.CHAMP_CODES || []).filter(function (c) { return c.card === 1; }).forEach(function (c) {
+        const label = document.createElement('label');
+        label.innerHTML = '<input type="checkbox" name="col" value="' + JpUi.escapeHtml(c.code) + '"'
+          + (defaults.indexOf(c.code) >= 0 ? ' checked' : '') + '> ' + JpUi.escapeHtml(c.libelle);
+        colonnesList.appendChild(label);
+      });
+
+      try {
+        const secteurs = await JpTrous.listSecteurs();
+        const sel = document.getElementById('secteur');
+        secteurs.forEach(function (s) {
+          const o = document.createElement('option');
+          o.value = s.id;
+          o.textContent = s.valeur;
+          sel.appendChild(o);
+        });
+      } catch (e) {
+        JpToast.fromError(e);
+      }
+
+      document.getElementById('densite').addEventListener('input', function () {
+        document.getElementById('densiteLabel').textContent = this.value + ' %';
+      });
+
+      document.getElementById('modeTrous').addEventListener('change', function () {
+        document.getElementById('densiteField').hidden = this.value === 'MANUEL';
+        document.getElementById('previewHint').textContent =
+          this.value === 'MANUEL' ? 'Cliquez une cellule pour basculer trou / visible.' : '';
+      });
+
+      document.getElementById('sourceMeds').addEventListener('change', function () {
+        const byIds = this.value === 'ids';
+        document.getElementById('secteurField').hidden = byIds;
+        document.getElementById('idsField').hidden = !byIds;
+      });
+
+      function selectedColonnes() {
+        return Array.from(document.querySelectorAll('input[name="col"]:checked')).map(function (el) { return el.value; });
+      }
+
+      async function loadMeds() {
+        const source = document.getElementById('sourceMeds').value;
+        if (source === 'ids') {
+          const ids = document.getElementById('matriceIds').value.split(/[\s,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+          if (!ids.length) throw new Error('Indiquez au moins un ID matrice');
+          return JpTrous.fetchMedicaments({ matriceIds: ids });
+        }
+        const secteurId = document.getElementById('secteur').value;
+        if (!secteurId) throw new Error('Choisissez un secteur');
+        return JpTrous.fetchMedicaments({ secteurId: secteurId });
+      }
+
+      function renderPreview(snap) {
+        const wrap = document.getElementById('previewGrid');
+        const cols = snap.colonnes || [];
+        let html = '<table class="jp-table jp-trous-table"><thead><tr><th>Médicament</th>';
+        cols.forEach(function (c) {
+          html += '<th>' + JpUi.escapeHtml(JpTrous.champLibelle(c)) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        (snap.lignes || []).forEach(function (ligne) {
+          html += '<tr><td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
+          (ligne.cells || []).forEach(function (cell) {
+            const key = ligne.matrice_id + '|' + cell.champ_code;
+            const cls = cell.trou ? 'jp-trou' : '';
+            const val = cell.valeur ? JpUi.escapeHtml(cell.valeur) : '—';
+            html += '<td class="' + cls + '" data-key="' + JpUi.escapeHtml(key) + '" title="Cliquer pour basculer">'
+              + (cell.trou ? '<em>trou</em> · ' + val : val) + '</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+        document.getElementById('previewWrap').hidden = false;
+
+        if (document.getElementById('modeTrous').value === 'MANUEL') {
+          wrap.querySelectorAll('td[data-key]').forEach(function (td) {
+            td.style.cursor = 'pointer';
+            td.addEventListener('click', function () {
+              const key = td.getAttribute('data-key');
+              trousManuels[key] = !trousManuels[key];
+              // rebuild from current meds snapshot structure
+              (snap.lignes || []).forEach(function (ligne) {
+                (ligne.cells || []).forEach(function (cell) {
+                  const k = ligne.matrice_id + '|' + cell.champ_code;
+                  if (k === key && cell.valeur) cell.trou = !!trousManuels[key];
+                });
+              });
+              lastSnapshot = snap;
+              renderPreview(snap);
+            });
+          });
+        }
+      }
+
+      async function buildCurrentSnapshot() {
+        const meds = await loadMeds();
+        const modeTrous = document.getElementById('modeTrous').value;
+        if (modeTrous === 'ALEATOIRE') trousManuels = {};
+        const snap = JpTrous.buildSnapshot({
+          meds: meds,
+          colonnes: selectedColonnes(),
+          modeTrous: modeTrous,
+          trousManuels: trousManuels,
+          densite: Number(document.getElementById('densite').value) / 100,
+        });
+        // sync manuels from snap after ALEATOIRE or first build
+        if (modeTrous === 'MANUEL' && !Object.keys(trousManuels).length) {
+          (snap.lignes || []).forEach(function (ligne) {
+            (ligne.cells || []).forEach(function (cell) {
+              if (cell.trou) trousManuels[ligne.matrice_id + '|' + cell.champ_code] = true;
+            });
+          });
+        }
+        lastSnapshot = snap;
+        return snap;
+      }
+
+      document.getElementById('btnPreview').addEventListener('click', async function () {
+        try {
+          const snap = await buildCurrentSnapshot();
+          document.getElementById('previewHint').textContent =
+            document.getElementById('modeTrous').value === 'MANUEL'
+              ? 'Cliquez une cellule pour basculer trou / visible.'
+              : (snap.lignes.length + ' ligne(s) · trous aléatoires');
+          renderPreview(snap);
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      });
+
+      document.getElementById('trousForm').addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const btn = document.getElementById('btnCreate');
+        btn.disabled = true;
+        try {
+          if (!lastSnapshot) await buildCurrentSnapshot();
+          else if (document.getElementById('modeTrous').value === 'MANUEL') {
+            // re-apply manuels
+            lastSnapshot = JpTrous.buildSnapshot({
+              meds: await loadMeds(),
+              colonnes: selectedColonnes(),
+              modeTrous: 'MANUEL',
+              trousManuels: trousManuels,
+            });
+          }
+          const created = await JpTrous.createPartie({
+            titre: document.getElementById('titre').value,
+            niveau_cible: document.getElementById('niveau').value,
+            mode: document.getElementById('mode').value,
+            secteur_therapeutique_id: document.getElementById('sourceMeds').value === 'secteur'
+              ? (document.getElementById('secteur').value || null)
+              : null,
+            configuration_json: {
+              colonnes: selectedColonnes(),
+              mode_trous: document.getElementById('modeTrous').value,
+              densite: Number(document.getElementById('densite').value) / 100,
+            },
+            snapshot_grille: lastSnapshot,
+          });
+          document.getElementById('resultBox').hidden = false;
+          document.getElementById('resultCode').textContent = created.code_unique;
+          document.getElementById('resultPlay').href = '../trous/jouer.html?code=' + encodeURIComponent(created.code_unique);
+          JpToast.ok('Partie créée : ' + created.code_unique);
+          await refreshList();
+        } catch (e) {
+          JpToast.fromError(e);
+          void JpLogs.error('trous_create_fail', { message: e.message || String(e) });
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      async function refreshList() {
+        const wrap = document.getElementById('listWrap');
+        try {
+          const rows = await JpTrous.listParties({ actifsOnly: false });
+          if (!rows.length) {
+            JpUi.emptyState(wrap, { title: 'Aucune partie', text: 'Créez une grille ci-dessus.' });
+            return;
+          }
+          wrap.innerHTML = '<table class="jp-table"><thead><tr><th>Code</th><th>Titre</th><th>Mode</th><th></th></tr></thead><tbody>'
+            + rows.map(function (r) {
+              return '<tr><td><code>' + JpUi.escapeHtml(r.code_unique) + '</code></td>'
+                + '<td>' + JpUi.escapeHtml(r.titre) + '</td>'
+                + '<td>' + JpUi.escapeHtml(r.mode) + '</td>'
+                + '<td><a href="../trous/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a></td></tr>';
+            }).join('') + '</tbody></table>';
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      }
+
+      await refreshList();
+    });
+  </script>
+</body>
+</html>

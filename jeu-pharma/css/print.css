@@ -1,0 +1,44 @@
+/* Impression quiz — iframe same-document uniquement */
+@media print {
+  .jp-fabs,
+  .jp-toast-host,
+  .jp-sheet,
+  .jp-back,
+  .no-print,
+  body > a[title="Retour au portail"] {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  .jp-page {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .jp-print-header {
+    display: block !important;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #ccc;
+  }
+
+  .jp-print-header h1 {
+    font-size: 1.25rem;
+    margin: 0 0 0.25rem;
+  }
+
+  .jp-print-meta {
+    font-size: 0.85rem;
+    color: #333;
+  }
+}
+
+.jp-print-header {
+  display: none;
+}

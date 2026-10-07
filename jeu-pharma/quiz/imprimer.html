@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Imprimer — Quiz</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID);</script>
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/print.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back no-print" href="index.html">← Quiz</a>
+    <p class="jp-kicker no-print">Quiz</p>
+    <h1 class="jp-title no-print">Imprimer</h1>
+    <p class="jp-sub no-print">Version papier du snapshot (sans corrigé).</p>
+
+    <div class="jp-field-actions no-print" id="actions" hidden>
+      <button type="button" class="jp-btn jp-btn-primary" id="btnPrint">Imprimer</button>
+    </div>
+
+    <div id="preview" class="jp-print-preview">
+      <p class="jp-muted">Chargement…</p>
+    </div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/quizz.js"></script>
+  <script src="../js/print.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'quiz-print', homeHref: JpFab.PORTAIL_URL });
+
+      const params = new URLSearchParams(location.search);
+      const code = (params.get('code') || '').trim().toUpperCase();
+      const preview = document.getElementById('preview');
+
+      if (!code) {
+        JpUi.emptyState(preview, {
+          title: 'Code manquant',
+          text: 'Ajoutez ?code=PH-XXXXX à l’URL.',
+          actionHref: 'index.html',
+          actionLabel: 'Retour',
+        });
+        return;
+      }
+
+      let quiz = null;
+      let displayName = '';
+      try {
+        quiz = await JpQuizz.ouvrir(code);
+        const user = await JpApp.getUser();
+        if (user) displayName = (await JpApp.getDisplayName(user.id)) || '';
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(preview, { title: 'Impossible de charger', text: e.message || String(e) });
+        return;
+      }
+
+      const questions = quiz.questions || [];
+      const dateStr = new Date().toLocaleString('fr-FR');
+
+      preview.innerHTML =
+        '<div class="jp-print-header" style="display:block">'
+        + '<h1>' + JpUi.escapeHtml(quiz.titre || 'Quiz') + '</h1>'
+        + '<div class="jp-print-meta">Code : <strong>' + JpUi.escapeHtml(quiz.code_unique) + '</strong>'
+        + (displayName ? ' · Nom : ' + JpUi.escapeHtml(displayName) : '')
+        + ' · ' + JpUi.escapeHtml(dateStr) + '</div></div>'
+        + questions.map(function (q, i) {
+          const n = q.ordre != null ? q.ordre : i + 1;
+          const props = (q.propositions || []).map(function (p, j) {
+            return '<li>' + JpUi.escapeHtml(p.valeur || '') + '</li>';
+          }).join('');
+          return '<section class="jp-q" style="margin:1rem 0">'
+            + '<h2 style="font-size:1.05rem;margin:0 0 .35rem">' + JpUi.escapeHtml(n) + '. ' + JpUi.escapeHtml(q.enonce || '') + '</h2>'
+            + '<ol type="A">' + props + '</ol>'
+            + '<p class="jp-muted">Réponse : _______________</p></section>';
+        }).join('');
+
+      document.getElementById('actions').hidden = false;
+      document.getElementById('btnPrint').addEventListener('click', function () {
+        try {
+          const docHtml = JpPrint.quizPrintDocument({
+            code: quiz.code_unique,
+            titre: quiz.titre,
+            nom: displayName,
+            date: dateStr,
+            questions: questions,
+          });
+          JpPrint.printHtml(docHtml);
+          void JpLogs.action('quiz_print', { code: quiz.code_unique });
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

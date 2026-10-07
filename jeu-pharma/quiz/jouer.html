@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Jouer — Quiz</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID);</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Quiz</a>
+    <p class="jp-kicker">Quiz</p>
+    <h1 class="jp-title" id="quizTitle">Jouer</h1>
+    <p class="jp-sub" id="quizMeta"></p>
+
+    <div id="root">
+      <p class="jp-muted">Chargement…</p>
+    </div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/quizz.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'quiz-jouer', homeHref: JpFab.PORTAIL_URL });
+
+      const params = new URLSearchParams(location.search);
+      const code = (params.get('code') || '').trim().toUpperCase();
+      const root = document.getElementById('root');
+
+      if (!code) {
+        JpUi.emptyState(root, {
+          title: 'Code manquant',
+          text: 'Ouvrez un quiz depuis la liste ou saisissez un code.',
+          actionHref: 'index.html',
+          actionLabel: 'Retour aux quiz',
+        });
+        return;
+      }
+
+      let quiz = null;
+      try {
+        quiz = await JpQuizz.ouvrir(code);
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(root, {
+          title: 'Quiz introuvable',
+          text: e.message || String(e),
+          actionHref: 'index.html',
+          actionLabel: 'Retour',
+        });
+        return;
+      }
+
+      document.getElementById('quizTitle').textContent = quiz.titre || 'Quiz';
+      document.getElementById('quizMeta').textContent =
+        quiz.code_unique + ' · ' + JpQuizz.modeLibelle(quiz.mode) + ' · ' + (quiz.niveau_cible || '');
+
+      const questions = quiz.questions || [];
+      if (!questions.length) {
+        JpUi.emptyState(root, { title: 'Aucune question', text: 'Snapshot vide.' });
+        return;
+      }
+
+      const isTrain = quiz.mode === 'entrainement';
+      let html = '<form id="playForm" class="jp-quiz-form">';
+      questions.forEach(function (q, idx) {
+        const ordre = q.ordre != null ? q.ordre : idx + 1;
+        html += '<fieldset class="jp-q" data-ordre="' + ordre + '">';
+        html += '<legend>' + JpUi.escapeHtml(ordre) + '. ' + JpUi.escapeHtml(q.enonce || '') + '</legend>';
+        (q.propositions || []).forEach(function (p) {
+          const pid = String(p.id);
+          const id = 'q' + ordre + '_' + pid;
+          html += '<label class="jp-q-opt"><input type="radio" name="q_' + ordre + '" value="' + JpUi.escapeHtml(pid) + '" id="' + id + '" required> '
+            + '<span>' + JpUi.escapeHtml(p.valeur || '') + '</span></label>';
+        });
+        if (isTrain) html += '<p class="jp-q-feedback jp-muted" hidden></p>';
+        html += '</fieldset>';
+      });
+      html += '<div class="jp-field-actions"><button type="submit" class="jp-btn jp-btn-primary">Soumettre</button>';
+      html += ' <a class="jp-btn jp-btn-ghost" href="imprimer.html?code=' + encodeURIComponent(quiz.code_unique) + '">Imprimer</a></div>';
+      html += '</form><div id="scoreBox" class="jp-panel" hidden></div>';
+      root.innerHTML = html;
+
+      if (isTrain) {
+        root.querySelectorAll('input[type="radio"]').forEach(function (inp) {
+          inp.addEventListener('change', function () {
+            const fs = inp.closest('fieldset');
+            const ordre = Number(fs.dataset.ordre);
+            const q = questions.find(function (x) { return Number(x.ordre) === ordre; });
+            const fb = fs.querySelector('.jp-q-feedback');
+            if (!q || !fb) return;
+            const chosen = (q.propositions || []).find(function (p) { return String(p.id) === inp.value; });
+            const correct = chosen && chosen.correct === true;
+            fb.hidden = false;
+            fb.textContent = correct ? 'Correct' : 'Incorrect — continuez, le score final sera calculé à la soumission.';
+            fb.className = 'jp-q-feedback ' + (correct ? 'jp-ok' : 'jp-warn');
+          });
+        });
+      }
+
+      document.getElementById('playForm').addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const reponses = [];
+        questions.forEach(function (q, idx) {
+          const ordre = q.ordre != null ? q.ordre : idx + 1;
+          const checked = document.querySelector('input[name="q_' + ordre + '"]:checked');
+          if (checked) {
+            reponses.push({
+              ordre: ordre,
+              matrice_id: q.matrice_id,
+              proposition_id: checked.value,
+            });
+          }
+        });
+        const btn = ev.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+          const result = await JpQuizz.soumettre(quiz.id, reponses);
+          const box = document.getElementById('scoreBox');
+          box.hidden = false;
+          box.innerHTML = '<p class="jp-kicker">Résultat</p>'
+            + '<p class="jp-brand" style="font-size:1.5rem">' + result.score_obtenu + ' / ' + result.score_max + '</p>'
+            + '<p class="jp-muted"><a href="suivi.html">Voir mon suivi</a></p>';
+          JpToast.ok('Score enregistré : ' + result.score_obtenu + '/' + result.score_max);
+
+          if (isTrain && Array.isArray(result.details)) {
+            result.details.forEach(function (d) {
+              const fs = document.querySelector('fieldset[data-ordre="' + d.ordre + '"]');
+              if (!fs) return;
+              fs.classList.add(d.correct ? 'jp-q-ok' : 'jp-q-ko');
+            });
+          }
+          btn.textContent = 'Déjà soumis';
+        } catch (e) {
+          JpToast.fromError(e);
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

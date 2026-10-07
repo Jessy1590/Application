@@ -1,0 +1,32 @@
+---
+description: Design UI Jeu Pharma — moderne, très simple, tokens, print, FAB
+globs: "**/*.{html,css,js}"
+alwaysApply: false
+---
+
+# Design Jeu Pharma
+
+## Direction
+- App métier pédagogique, **moderne et très simple** : peu d’éléments, une accent couleur, typo lisible, empty states clairs.
+- **Une composition par page** : titre court, une action principale, contenu. Pas de dashboard surchargé sur le hub.
+- Hub : marque « Jeu Pharma » en signal fort, 4–5 tuiles max, zéro stats sur la première vue.
+
+## Tokens
+- Fichiers : `css/tokens.css`, `css/app.css`, `css/print.css`.
+- Accent unique `--jp-accent` (teal foncé `#0F6B5C`) ; texte `#14201C` ; fond clair légèrement texturé (dégradé discret vert-bleu très pâle).
+- Typo : paire sobre (ex. Source Serif 4 titres + DM Sans UI via Google Fonts) — éviter Inter/Roboto/Arial seuls ; éviter cream+terracotta et violet néon.
+
+## Composants
+- **Pas de cards décoratives** : tuiles hub = liens cliquables (interaction). Formulaires à plat, tableaux aérés.
+- Motion : 2–3 transitions légères (fade hub, focus champs, toast) — pas de glow.
+- FABs bas-droite : Accueil + Bug (CSS local).
+- A11y : focus visible, labels, contraste.
+- Toasts sur erreurs PostgREST/RLS ; empty states catalogue / quiz orientés « après le cours ».
+
+## Admin suivi
+- Page dédiée : 2–3 graphiques Chart.js **maximum** (pas une muraille de KPI).
+- Chart.js CDN **uniquement** sur pages admin — ne pas alourdir le hub joueur.
+
+## Impression
+- En-tête : code quiz + nom affiché + date.
+- Iframe same-document uniquement (`js/print.js`) — pas de `window.open`.

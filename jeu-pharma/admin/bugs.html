@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bugs — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Bugs</h1>
+    <p class="jp-sub">Signalements et statuts. Les joueurs signalent via le FAB Bug.</p>
+
+    <form class="jp-filters" id="jpBugsFilters" role="search">
+      <label>Statut
+        <select id="jpBugsStatut">
+          <option value="">Tous</option>
+        </select>
+      </label>
+      <label>Type
+        <select id="jpBugsType">
+          <option value="">Tous</option>
+          <option value="bug">Bug</option>
+          <option value="amelioration">Amélioration</option>
+        </select>
+      </label>
+      <button type="submit" class="jp-btn jp-btn-primary">Filtrer</button>
+    </form>
+
+    <p class="jp-meta" id="jpBugsMeta" aria-live="polite"></p>
+    <div id="jpBugsEmpty" class="jp-empty" hidden></div>
+    <div id="jpBugsList" class="jp-bugs-admin" hidden></div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script>
+    (function () {
+      const esc = (s) => JpUi.escapeHtml(s);
+
+      function fillStatutFilter() {
+        const sel = document.getElementById('jpBugsStatut');
+        JpBugs.STATUTS.forEach((s) => {
+          const opt = document.createElement('option');
+          opt.value = s;
+          opt.textContent = JpBugs.STATUT_LABELS[s] || s;
+          sel.appendChild(opt);
+        });
+      }
+
+      function statutOptions(current) {
+        return JpBugs.STATUTS.map((s) =>
+          `<option value="${s}" ${s === current ? 'selected' : ''}>${esc(JpBugs.STATUT_LABELS[s] || s)}</option>`
+        ).join('');
+      }
+
+      async function load() {
+        const empty = document.getElementById('jpBugsEmpty');
+        const list = document.getElementById('jpBugsList');
+        const meta = document.getElementById('jpBugsMeta');
+        empty.hidden = true;
+        list.hidden = true;
+        meta.textContent = 'Chargement…';
+
+        try {
+          const rows = await JpBugs.list({
+            statut: document.getElementById('jpBugsStatut').value || undefined,
+            type: document.getElementById('jpBugsType').value || undefined,
+            limit: 200,
+          });
+          meta.textContent = rows.length
+            ? `${rows.length} signalement${rows.length > 1 ? 's' : ''}`
+            : '';
+          if (!rows.length) {
+            JpUi.emptyState(empty, {
+              title: 'Aucun signalement',
+              text: 'Rien pour ces filtres.',
+            });
+            empty.hidden = false;
+            return;
+          }
+
+          list.innerHTML = rows.map((b) => `
+            <article class="jp-bug-item" data-id="${esc(b.id)}">
+              <div class="jp-bug-item-head">
+                <strong>${esc(b.titre)}</strong>
+                <span class="jp-bug-tag">${esc(JpBugs.TYPE_LABELS[b.type] || b.type)}</span>
+              </div>
+              <p class="jp-bug-meta">${esc(new Date(b.created_at).toLocaleString('fr-FR'))}${b.page_path ? ' · ' + esc(b.page_path) : ''}</p>
+              <p class="jp-bug-desc">${esc(b.description || '')}</p>
+              <label class="jp-bug-statut-label">Statut
+                <select data-bug-statut>${statutOptions(b.statut)}</select>
+              </label>
+              <button type="button" class="jp-btn jp-btn-ghost" data-bug-save>Enregistrer</button>
+            </article>
+          `).join('');
+
+          list.querySelectorAll('[data-bug-save]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const card = btn.closest('.jp-bug-item');
+              const id = card.dataset.id;
+              const statut = card.querySelector('[data-bug-statut]').value;
+              btn.disabled = true;
+              try {
+                await JpBugs.updateStatut(id, statut);
+                JpToast?.ok?.('Statut mis à jour');
+                void JpLogs?.action?.('bug_statut', { id, statut });
+                btn.textContent = 'Enregistré';
+                setTimeout(() => { btn.textContent = 'Enregistrer'; }, 1500);
+              } catch (err) {
+                JpToast?.fromError?.(err);
+              } finally {
+                btn.disabled = false;
+              }
+            });
+          });
+
+          list.hidden = false;
+        } catch (err) {
+          meta.textContent = '';
+          JpUi.emptyState(empty, {
+            title: 'Erreur',
+            text: err.message || String(err),
+          });
+          empty.hidden = false;
+          JpToast?.fromError?.(err);
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        JpUi.bootPage({ module: 'admin-bugs', homeHref: JpFab.PORTAIL_URL });
+        fillStatutFilter();
+        document.getElementById('jpBugsFilters').addEventListener('submit', function (e) {
+          e.preventDefault();
+          void load();
+        });
+        void load();
+      });
+    })();
+  </script>
+</body>
+</html>

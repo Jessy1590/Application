@@ -1,0 +1,44 @@
+---
+description: Conventions Jeu Pharma — vanilla, naming Jp*, ne rien inventer
+globs: "**/*.{html,js,css}"
+alwaysApply: false
+---
+
+# Conventions Jeu Pharma
+
+## Ne rien inventer
+- Ne faire **que** ce qui a été explicitement demandé.
+- N’ajouter ni UI, ni couleurs, ni boutons, ni options, ni libellés, ni flux « pour améliorer ».
+- Si une idée ou amélioration semble utile : **demander l’accord avant** de créer ou modifier quoi que ce soit.
+- En cas d’ambiguïté : poser une question courte, ne pas choisir à la place de l’utilisateur.
+
+## Stack
+- HTML / CSS / JS **vanilla** (pas de React/Vite/npm pour ce site).
+- Supabase JS v2 via CDN ; Chart.js CDN **admin seulement**.
+- Config monorepo `SUPABASE_CONFIG` (clé anon seule).
+- Libellés UI en **français**.
+
+## Structure
+- Tout le code app sous `jeu-pharma/` — **isolation** : ne pas importer `PhieEvreux/shared/*`.
+- Pages : hub `index.html` ; `catalogue.html` ; `quiz/` ; `trous/` ; `admin/`.
+- JS : `supabase.js`, `constants.js`, métier (`medicaments`, `entites`, `quizz`, `trous`, `profil`), `logs.js`, `bugs.js`, `fab.js`, `csv.js`, `charts-admin.js`, `print.js`, `toast.js`, `ui.js`.
+- CSS : `tokens.css`, `app.css`, `print.css`.
+- SQL : `sql/001_jeupharma_init.sql`.
+
+## Globals (préfixe `Jp`)
+- Clients / accès : dual client dans `js/supabase.js`.
+- Métier : `JpMedicaments`, `JpEntites`, `JpQuizz`, `JpTrous`, `JpProfil`.
+- Transverse : `JpLogs`, `JpBugs`, `JpFab`, `JpCsv`, `JpPrint`, `JpToast`, `JpUi`.
+- Admin charts : `JpChartsAdmin` (ou équivalent local admin uniquement).
+
+## Nommage données
+- Schéma `jeupharma` ; tables entités au pluriel ; liaisons `matrice_*`.
+- Fiche : `statut` `brouillon` | `publie` | `archive` ; entités : `actif` soft-delete.
+- Quiz : `mode` `entrainement` | `evaluation` ; code `PH-XXXXX`.
+- Niveaux (codes) : `apprenti` | `pharmacien` | `preparatrice` | `etu_3a` | `etu_4a` | `etu_6a`.
+- Bugs : `type` `bug`|`amelioration` ; `statut` `nouveau`|`en_cours`|`modifie`|`impossible`|`annule`.
+- Logs : `level` `info`|`warn`|`error`.
+
+## Contenu / IA
+- Catalogue = cours physiques (saisie / CSV) — **pas** BDPM / OCR / LLM en v1.
+- Aucun bouton « générer avec l’IA » ni enrichissement automatique.
