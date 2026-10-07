@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Modification du catalogue — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page jp-page-wide jp-catalogue jp-admin-catalogue">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <p class="jp-kicker">Admin</p>
+    <h1 class="jp-title">Modification du catalogue</h1>
+    <p class="jp-sub">Table filtrable, édition des fiches, import CSV et fusion d’entités.</p>
+
+    <div class="jp-admin-cat-actions">
+      <button type="button" class="jp-btn jp-btn-primary" id="jpBtnNew">Nouvelle fiche</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnImport" aria-expanded="false" aria-controls="jpPanelImport">Import CSV</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnFusion" aria-expanded="false" aria-controls="jpPanelFusion">Fusion</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnNiveaux" aria-expanded="false" aria-controls="jpPanelNiveaux">Niveaux d’entités</button>
+    </div>
+
+    <section class="jp-admin-cat-panel" id="jpPanelImport" hidden>
+      <h2 class="jp-admin-cat-panel-title">Import / export CSV</h2>
+      <p class="jp-muted">Multi-valeurs séparées par <code>;</code> — niveaux par <code>|</code> (ex. <code>apprenti|pharmacien</code>).</p>
+      <div class="jp-toolbar" style="margin-top:0.75rem">
+        <button type="button" class="jp-btn jp-btn-primary" id="jpTpl">Télécharger le modèle</button>
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpExport">Exporter le catalogue</button>
+      </div>
+      <div class="jp-field" style="margin-top:1rem">
+        <label for="jpFile">Fichier CSV</label>
+        <input type="file" id="jpFile" accept=".csv,text/csv">
+      </div>
+      <div class="jp-field-actions">
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpDry" disabled>Dry-run</button>
+        <button type="button" class="jp-btn jp-btn-primary" id="jpImport" disabled>Importer</button>
+      </div>
+      <div id="jpCsvResult"></div>
+    </section>
+
+    <section class="jp-admin-cat-panel" id="jpPanelFusion" hidden>
+      <h2 class="jp-admin-cat-panel-title">Fusion d’entités</h2>
+      <p class="jp-muted">Réaffecter les fiches vers la valeur conservée, puis désactiver la source. Tous les types d’entités.</p>
+      <form id="jpFusionForm" class="jp-form" novalidate>
+        <div class="jp-field">
+          <label for="jpFusionType">Type d’entité</label>
+          <select id="jpFusionType" required></select>
+        </div>
+        <div class="jp-split jp-split-2">
+          <div class="jp-field">
+            <label for="jpFusionKeep">Conserver</label>
+            <select id="jpFusionKeep" required><option value="">—</option></select>
+          </div>
+          <div class="jp-field">
+            <label for="jpFusionDrop">Fusionner puis désactiver</label>
+            <select id="jpFusionDrop" required><option value="">—</option></select>
+          </div>
+        </div>
+        <p class="jp-muted">Les niveaux connus des deux valeurs sont unis sur la valeur conservée.</p>
+        <div class="jp-field-actions">
+          <button type="submit" class="jp-btn jp-btn-primary">Fusionner</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="jp-admin-cat-panel" id="jpPanelNiveaux" hidden>
+      <h2 class="jp-admin-cat-panel-title">Gérer les niveaux d’entités</h2>
+      <p class="jp-muted">Ajuster les niveaux connus en masse pour un type d’entité.</p>
+      <div class="jp-toolbar">
+        <select id="jpEntType" aria-label="Type d’entité"></select>
+        <input type="search" id="jpEntQ" placeholder="Filtrer…" aria-label="Filtrer les entités">
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpEntRefresh">Actualiser</button>
+      </div>
+      <div class="jp-panel" style="margin-top:0;padding-top:0;border:0">
+        <p class="jp-field-label">Niveaux à appliquer à la sélection</p>
+        <div class="jp-niveaux" id="jpBulkNiv"></div>
+        <div class="jp-field-actions">
+          <button type="button" class="jp-link-btn" id="jpNivAll">Tous</button>
+          <button type="button" class="jp-link-btn" id="jpNivNone">Aucun</button>
+          <button type="button" class="jp-btn jp-btn-primary" id="jpBtnApplyNiv">Appliquer aux cases cochées</button>
+        </div>
+        <p class="jp-niveaux-warn" id="jpWarnEmpty" hidden>Aucun profil coché — les valeurs sélectionnées seront invisibles aux quiz filtrés.</p>
+      </div>
+      <div id="jpEntList" class="jp-table-wrap"></div>
+    </section>
+
+    <div class="jp-catalogue-toolbar" id="jpToolbar" hidden>
+      <input type="search" id="jpQ" class="jp-catalogue-search" placeholder="Rechercher (nom, DCI…)" aria-label="Rechercher" autocomplete="off">
+      <div class="jp-catalogue-actions">
+        <span class="jp-catalogue-count" id="jpCount" aria-live="polite"></span>
+        <label class="jp-admin-cat-statut">
+          <span class="jp-sr-only">Statut</span>
+          <select id="jpStatutFilter" aria-label="Filtrer par statut">
+            <option value="">Tous les statuts</option>
+            <option value="brouillon">Brouillon</option>
+            <option value="publie">Publié</option>
+            <option value="archive">Archivé</option>
+          </select>
+        </label>
+        <label class="jp-admin-cat-check">
+          <input type="checkbox" id="jpIncomplet"> Incomplètes
+        </label>
+        <div class="jp-catalogue-prefs-wrap">
+          <button type="button" class="jp-btn jp-btn-ghost jp-catalogue-icon-btn" id="jpPrefsBtn" aria-expanded="false" aria-controls="jpPrefsPanel" title="Paramètres">
+            <svg class="jp-catalogue-gear" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <span class="jp-catalogue-btn-label">Paramètres</span>
+          </button>
+          <div class="jp-catalogue-prefs" id="jpPrefsPanel" hidden role="dialog" aria-label="Paramètres du catalogue">
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Tri</h2>
+              <label class="jp-catalogue-field">
+                <span class="jp-sr-only">Trier par</span>
+                <select id="jpSort" aria-label="Trier par">
+                  <option value="dci">DCI</option>
+                  <option value="nom">Premier nom commercial</option>
+                  <option value="secteur">Secteur thérapeutique</option>
+                  <option value="updated_at">Date de mise à jour</option>
+                </select>
+              </label>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Filtres</h2>
+              <label class="jp-catalogue-field">Secteur
+                <select id="jpSecteur" aria-label="Secteur thérapeutique">
+                  <option value="">Tous les secteurs</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Classe thérapeutique
+                <select id="jpClasseTh" aria-label="Classe thérapeutique">
+                  <option value="">Toutes</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Classe pharmacologique
+                <select id="jpClassePh" aria-label="Classe pharmacologique">
+                  <option value="">Toutes</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Niveau (DCI)
+                <select id="jpNiveau" aria-label="Niveau">
+                  <option value="">Tous les niveaux</option>
+                </select>
+              </label>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Colonnes</h2>
+              <div class="jp-catalogue-cols" id="jpCols" role="group" aria-label="Colonnes visibles"></div>
+            </div>
+            <div class="jp-catalogue-prefs-foot">
+              <button type="button" class="jp-btn jp-btn-ghost" id="jpPrefsReset">Réinitialiser</button>
+              <button type="button" class="jp-btn jp-btn-primary" id="jpPrefsClose">Fermer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="jp-med-workspace" id="jpWorkspace">
+      <aside class="jp-med-listpane" aria-label="Catalogue admin">
+        <div class="jp-med-listmeta">
+          <span id="jpListMeta">—</span>
+        </div>
+        <div id="jpList" class="jp-table-wrap"></div>
+      </aside>
+
+      <section id="jpEditor" class="jp-med-editor" hidden aria-label="Édition fiche">
+        <div class="jp-med-editor-head">
+          <h2 class="jp-title" id="jpEditorTitle">Nouvelle fiche</h2>
+          <div class="jp-field" style="margin:0;min-width:9rem">
+            <label class="jp-sr-only" for="jpStatut">Statut</label>
+            <select id="jpStatut" name="statut" aria-label="Statut de la fiche">
+              <option value="brouillon">Brouillon</option>
+              <option value="publie">Publié</option>
+              <option value="archive">Archivé</option>
+            </select>
+          </div>
+        </div>
+        <div class="jp-med-editor-body">
+          <div class="jp-bdm-panel" id="jpBdmPanel" aria-label="Recherche BDPM">
+            <p class="jp-bdm-title">Ajouter depuis la BDPM</p>
+            <label class="jp-bdm-search-label" for="jpBdmQ">Recherche
+              <input type="search" id="jpBdmQ" placeholder="Nom, DCI, CIP…" autocomplete="off">
+            </label>
+            <div id="jpBdmResults" class="jp-bdm-results" hidden role="listbox" aria-label="Résultats BDPM"></div>
+            <p class="jp-bdm-licence">Source BDPM ANSM — Licence Ouverte</p>
+          </div>
+          <form id="jpForm" class="jp-form" novalidate>
+            <div id="jpFields"></div>
+          </form>
+        </div>
+        <div class="jp-med-editor-foot">
+          <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnCancel">Fermer</button>
+          <button type="submit" form="jpForm" class="jp-btn jp-btn-primary" id="jpBtnSave">Enregistrer</button>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="jpScopeModal" class="jp-scope-modal" hidden role="dialog" aria-modal="true" aria-labelledby="jpScopeTitle">
+    <div class="jp-scope-modal-card">
+      <h2 class="jp-scope-modal-title" id="jpScopeTitle">Portée de la modification</h2>
+      <p class="jp-muted" id="jpScopeDesc">Des valeurs d’entités déjà liées ont changé.</p>
+      <ul class="jp-scope-list" id="jpScopeList"></ul>
+      <fieldset class="jp-scope-radios">
+        <legend class="jp-sr-only">Portée</legend>
+        <label class="jp-scope-option">
+          <input type="radio" name="jpScope" value="all" checked>
+          <span>
+            <strong>Toutes les fiches</strong>
+            <span class="jp-muted">Met à jour l’entité partagée — toutes les matrices liées voient la nouvelle valeur.</span>
+          </span>
+        </label>
+        <label class="jp-scope-option">
+          <input type="radio" name="jpScope" value="molecule">
+          <span>
+            <strong>Cette molécule uniquement</strong>
+            <span class="jp-muted">Détache : crée ou réutilise une autre valeur pour cette fiche, sans modifier l’ancienne entité.</span>
+          </span>
+        </label>
+      </fieldset>
+      <div class="jp-scope-modal-foot">
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpScopeCancel">Annuler</button>
+        <button type="button" class="jp-btn jp-btn-primary" id="jpScopeConfirm">Continuer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/bdm.js"></script>
+  <script src="../js/entites.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script src="../js/csv.js"></script>
+  <script>
+    (function () {
+      const PREFS_KEY = 'jp-admin-catalogue-prefs';
+      const DEFAULT_COLS = [
+        'nom_commercial',
+        'dci',
+        'secteur_therapeutique',
+        'classe_pharmacologique',
+        'indications',
+      ];
+      const esc = JpUi.escapeHtml;
+      const CHAMPS = JpConstants.CHAMP_CODES || [];
+
+      const NIVEAU_SHORT = {
+        apprenti: 'App',
+        pharmacien: 'Ph',
+        preparatrice: 'Prép',
+        etu_3a: '3A',
+        etu_4a: '4A',
+        etu_6a: '6A',
+      };
+
+      const SECTIONS = [
+        {
+          id: 'identite',
+          title: 'Identité',
+          codes: ['nom_commercial', 'dci', 'secteur_therapeutique', 'voies_administration'],
+        },
+        {
+          id: 'classes',
+          title: 'Classes & pharmacologie',
+          codes: ['classe_therapeutique', 'classe_pharmacologique', 'detail_pharmacologie', 'posologie_generale'],
+        },
+        {
+          id: 'indications',
+          title: 'Indications & sécurité',
+          codes: ['indications', 'contre_indications', 'effets_indesirables', 'precautions_emploi'],
+        },
+        {
+          id: 'autres',
+          title: 'Interactions, surveillance, grossesse',
+          codes: ['interactions', 'surveillances', 'grossesse_allaitement'],
+        },
+      ];
+
+      let all = [];
+      let prefs = loadPrefs();
+      let editingId = null;
+      let baseline = null;
+      let fusionRows = [];
+      let entRows = [];
+      let bdmRows = [];
+      let bdmReq = 0;
+      let csvText = '';
+      let lastDry = null;
+      let pendingSave = null;
+
+      function defaultPrefs() {
+        return {
+          q: '',
+          sort: 'dci',
+          secteur: '',
+          classeTh: '',
+          classePh: '',
+          niveau: '',
+          statut: '',
+          incomplet: false,
+          columns: DEFAULT_COLS.slice(),
+        };
+      }
+
+      function loadPrefs() {
+        const base = defaultPrefs();
+        try {
+          const raw = localStorage.getItem(PREFS_KEY);
+          if (!raw) return base;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') return base;
+          const cols = Array.isArray(parsed.columns)
+            ? parsed.columns.filter((c) => CHAMPS.some((x) => x.code === c))
+            : base.columns;
+          return {
+            q: typeof parsed.q === 'string' ? parsed.q : '',
+            sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(parsed.sort) ? parsed.sort : 'dci',
+            secteur: typeof parsed.secteur === 'string' ? parsed.secteur : '',
+            classeTh: typeof parsed.classeTh === 'string' ? parsed.classeTh : '',
+            classePh: typeof parsed.classePh === 'string' ? parsed.classePh : '',
+            niveau: typeof parsed.niveau === 'string' ? parsed.niveau : '',
+            statut: typeof parsed.statut === 'string' ? parsed.statut : '',
+            incomplet: !!parsed.incomplet,
+            columns: cols.length ? cols : base.columns,
+          };
+        } catch (_) {
+          return base;
+        }
+      }
+
+      function savePrefs() {
+        try {
+          localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+        } catch (_) { /* ignore */ }
+      }
+
+      function allNiveauxCodes() {
+        return (JpConstants.NIVEAUX || []).map((n) => n.code);
+      }
+
+      function champByCode(code) {
+        return CHAMPS.find((c) => c.code === code);
+      }
+
+      function nomsOf(r) {
+        return JpMedicaments.formatNoms(r);
+      }
+
+      function isIncomplet(r) {
+        return !nomsOf(r) || !r.dci || !r.secteur_therapeutique;
+      }
+
+      function uniqueSorted(values) {
+        return [...new Set(values.filter(Boolean))].sort((a, b) =>
+          String(a).localeCompare(String(b), 'fr', { sensitivity: 'base' })
+        );
+      }
+
+      function formatMulti(arr) {
+        if (!Array.isArray(arr) || !arr.length) return '—';
+        return arr.map((x) => x.valeur || x).filter(Boolean).join(', ') || '—';
+      }
+
+      function cellValue(row, code) {
+        const champ = champByCode(code);
+        if (!champ) return '—';
+        if (code === 'nom_commercial') return nomsOf(row) || '—';
+        if (champ.card === 'N') return formatMulti(row[code]);
+        const v = row[code];
+        return v ? String(v) : '—';
+      }
+
+      function fillSelect(sel, values, allLabel, current) {
+        sel.innerHTML = `<option value="">${esc(allLabel)}</option>` +
+          values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+        if (current && values.includes(current)) sel.value = current;
+        else sel.value = '';
+      }
+
+      function syncFilterOptions() {
+        fillSelect(
+          document.getElementById('jpSecteur'),
+          uniqueSorted(all.map((r) => r.secteur_therapeutique)),
+          'Tous les secteurs',
+          prefs.secteur
+        );
+        prefs.secteur = document.getElementById('jpSecteur').value;
+        fillSelect(
+          document.getElementById('jpClasseTh'),
+          uniqueSorted(all.map((r) => r.classe_therapeutique)),
+          'Toutes',
+          prefs.classeTh
+        );
+        prefs.classeTh = document.getElementById('jpClasseTh').value;
+        fillSelect(
+          document.getElementById('jpClassePh'),
+          uniqueSorted(all.map((r) => r.classe_pharmacologique)),
+          'Toutes',
+          prefs.classePh
+        );
+        prefs.classePh = document.getElementById('jpClassePh').value;
+        const nivSel = document.getElementById('jpNiveau');
+        const niveaux = JpConstants.NIVEAUX || [];
+        nivSel.innerHTML = '<option value="">Tous les niveaux</option>' +
+          niveaux.map((n) =>
+            `<option value="${esc(n.code)}">${esc(n.libelle)}</option>`
+          ).join('');
+        if (prefs.niveau && niveaux.some((n) => n.code === prefs.niveau)) {
+          nivSel.value = prefs.niveau;
+        } else {
+          nivSel.value = '';
+          prefs.niveau = '';
+        }
+      }
+
+      function renderColToggles() {
+        document.getElementById('jpCols').innerHTML = CHAMPS.map((c) => {
+          const checked = prefs.columns.includes(c.code) ? ' checked' : '';
+          return `
+            <label class="jp-catalogue-col">
+              <input type="checkbox" data-col="${esc(c.code)}"${checked}>
+              <span>${esc(c.libelle)}</span>
+            </label>`;
+        }).join('');
+      }
+
+      function visibleColumns() {
+        const set = new Set(prefs.columns);
+        return CHAMPS.filter((c) => set.has(c.code));
+      }
+
+      function sortRows(rows) {
+        const key = prefs.sort;
+        const sorted = rows.slice();
+        sorted.sort((a, b) => {
+          if (key === 'updated_at') {
+            const ta = a.updated_at ? Date.parse(a.updated_at) : 0;
+            const tb = b.updated_at ? Date.parse(b.updated_at) : 0;
+            return tb - ta;
+          }
+          let va = '';
+          let vb = '';
+          if (key === 'nom') {
+            va = nomsOf(a) || '';
+            vb = nomsOf(b) || '';
+          } else if (key === 'secteur') {
+            va = a.secteur_therapeutique || '';
+            vb = b.secteur_therapeutique || '';
+          } else {
+            va = a.dci || '';
+            vb = b.dci || '';
+          }
+          return String(va).localeCompare(String(vb), 'fr', { sensitivity: 'base' });
+        });
+        return sorted;
+      }
+
+      function filtered() {
+        const q = String(prefs.q || '').trim().toLowerCase();
+        return sortRows(all.filter((r) => {
+          if (prefs.statut && r.statut !== prefs.statut) return false;
+          if (prefs.incomplet && !isIncomplet(r)) return false;
+          if (prefs.secteur && r.secteur_therapeutique !== prefs.secteur) return false;
+          if (prefs.classeTh && r.classe_therapeutique !== prefs.classeTh) return false;
+          if (prefs.classePh && r.classe_pharmacologique !== prefs.classePh) return false;
+          if (prefs.niveau) {
+            const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
+            if (!nivs.includes(prefs.niveau)) return false;
+          }
+          if (!q) return true;
+          const blob = [
+            nomsOf(r),
+            r.dci,
+            r.secteur_therapeutique,
+            r.classe_therapeutique,
+            r.classe_pharmacologique,
+            r.detail_pharmacologie,
+          ].filter(Boolean).join(' ').toLowerCase();
+          return blob.includes(q);
+        }));
+      }
+
+      function readPrefsFromUi() {
+        prefs.q = document.getElementById('jpQ').value || '';
+        prefs.sort = document.getElementById('jpSort').value || 'dci';
+        prefs.secteur = document.getElementById('jpSecteur').value || '';
+        prefs.classeTh = document.getElementById('jpClasseTh').value || '';
+        prefs.classePh = document.getElementById('jpClassePh').value || '';
+        prefs.niveau = document.getElementById('jpNiveau').value || '';
+        prefs.statut = document.getElementById('jpStatutFilter').value || '';
+        prefs.incomplet = document.getElementById('jpIncomplet').checked;
+        prefs.columns = [...document.querySelectorAll('#jpCols input[data-col]:checked')]
+          .map((el) => el.getAttribute('data-col'))
+          .filter(Boolean);
+        if (!prefs.columns.length) {
+          prefs.columns = DEFAULT_COLS.slice();
+          renderColToggles();
+        }
+        savePrefs();
+      }
+
+      function applyPrefsToUi() {
+        document.getElementById('jpQ').value = prefs.q || '';
+        document.getElementById('jpSort').value = prefs.sort || 'dci';
+        document.getElementById('jpStatutFilter').value = prefs.statut || '';
+        document.getElementById('jpIncomplet').checked = !!prefs.incomplet;
+        renderColToggles();
+      }
+
+      function setPrefsOpen(open) {
+        const panel = document.getElementById('jpPrefsPanel');
+        const btn = document.getElementById('jpPrefsBtn');
+        panel.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      function setPanel(id, open) {
+        const panel = document.getElementById(id);
+        const map = {
+          jpPanelImport: 'jpBtnImport',
+          jpPanelFusion: 'jpBtnFusion',
+          jpPanelNiveaux: 'jpBtnNiveaux',
+        };
+        panel.hidden = !open;
+        const btn = document.getElementById(map[id]);
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      function togglePanel(id) {
+        const panel = document.getElementById(id);
+        const willOpen = panel.hidden;
+        ['jpPanelImport', 'jpPanelFusion', 'jpPanelNiveaux'].forEach((pid) => {
+          setPanel(pid, willOpen && pid === id);
+        });
+        if (willOpen && id === 'jpPanelFusion') loadFusionEntities();
+        if (willOpen && id === 'jpPanelNiveaux') loadEntites();
+      }
+
+      function pencilSvg() {
+        return `<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+      }
+
+      function render() {
+        const host = document.getElementById('jpList');
+        const rows = filtered();
+        const cols = visibleColumns();
+        const countEl = document.getElementById('jpCount');
+        const meta = document.getElementById('jpListMeta');
+
+        if (!all.length) {
+          document.getElementById('jpToolbar').hidden = true;
+          setPrefsOpen(false);
+          meta.textContent = '0 fiche';
+          JpUi.emptyState(host, {
+            title: 'Aucune fiche',
+            text: 'Ajoutez une fiche ou importez un CSV.',
+          });
+          return;
+        }
+
+        document.getElementById('jpToolbar').hidden = false;
+        countEl.textContent = rows.length === all.length
+          ? `${rows.length} fiche${rows.length > 1 ? 's' : ''}`
+          : `${rows.length} / ${all.length}`;
+        meta.textContent = countEl.textContent;
+
+        if (!rows.length) {
+          JpUi.emptyState(host, {
+            title: 'Aucun résultat',
+            text: 'Modifiez la recherche ou les filtres (Paramètres).',
+          });
+          return;
+        }
+
+        if (!cols.length) {
+          JpUi.emptyState(host, {
+            title: 'Aucune colonne visible',
+            text: 'Activez au moins une colonne dans Paramètres.',
+          });
+          return;
+        }
+
+        host.innerHTML = `
+          <table class="jp-table jp-catalogue-table">
+            <thead>
+              <tr>
+                <th class="jp-admin-cat-actions-col" scope="col"><span class="jp-sr-only">Actions</span></th>
+                ${cols.map((c) => `<th>${esc(c.libelle)}</th>`).join('')}
+                <th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((r) => `
+                <tr data-id="${esc(r.id)}" class="${r.id === editingId ? 'is-selected' : ''}">
+                  <td class="jp-admin-cat-actions-col">
+                    <button type="button" class="jp-icon-btn" data-edit="${esc(r.id)}" title="Modifier la fiche" aria-label="Modifier ${esc(nomsOf(r) || r.dci || 'la fiche')}">
+                      ${pencilSvg()}
+                    </button>
+                  </td>
+                  ${cols.map((c) => `<td class="jp-med-cell-wrap">${esc(cellValue(r, c.code))}</td>`).join('')}
+                  <td><span class="jp-badge jp-badge-${esc(r.statut)}">${esc(r.statut)}</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      }
+
+      function onPrefsChange() {
+        readPrefsFromUi();
+        render();
+      }
+
+      /* —— Éditeur fiche —— */
+      function niveauxHtml(name, selected) {
+        const sel = new Set(selected || []);
+        const boxes = JpConstants.NIVEAUX.map((n) => {
+          const short = NIVEAU_SHORT[n.code] || n.code;
+          return `
+            <label title="${esc(n.libelle)}">
+              <input type="checkbox" name="${esc(name)}" value="${esc(n.code)}" ${sel.has(n.code) ? 'checked' : ''}>
+              ${esc(short)}
+            </label>
+          `;
+        }).join('');
+        return `
+          <div class="jp-med-niveaux-compact" data-niveaux="${esc(name)}">${boxes}</div>
+          <div class="jp-field-actions">
+            <button type="button" class="jp-link-btn" data-niv-all="${esc(name)}">Tous</button>
+            <button type="button" class="jp-link-btn" data-niv-none="${esc(name)}">Aucun</button>
+          </div>
+          <p class="jp-niveaux-warn" hidden data-warn="${esc(name)}">Aucun profil — invisible aux quiz filtrés.</p>
+        `;
+      }
+
+      function fieldCardHtml(c) {
+        const span = c.card === 'N' || c.code === 'detail_pharmacologie' || c.code === 'posologie_generale' || c.code === 'grossesse_allaitement'
+          ? ' jp-field-span-2'
+          : '';
+        if (c.card === 1) {
+          return `
+            <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="1">
+              <label for="val_${esc(c.code)}">${esc(c.libelle)}</label>
+              <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" list="dl_${esc(c.code)}" autocomplete="off" data-entity-id="">
+              <datalist id="dl_${esc(c.code)}"></datalist>
+              <span class="jp-field-label">Niveaux</span>
+              ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
+            </div>
+          `;
+        }
+        return `
+          <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="N">
+            <label for="val_${esc(c.code)}">${esc(c.libelle)} <span class="jp-muted">(une valeur / ligne)</span></label>
+            <textarea id="val_${esc(c.code)}" name="val_${esc(c.code)}" rows="3"></textarea>
+            <span class="jp-field-label">Niveaux (toutes les lignes)</span>
+            ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
+          </div>
+        `;
+      }
+
+      function buildFields() {
+        const host = document.getElementById('jpFields');
+        const used = new Set();
+        const parts = [];
+        for (const sec of SECTIONS) {
+          const cards = [];
+          for (const code of sec.codes) {
+            const c = champByCode(code);
+            if (!c || used.has(code)) continue;
+            used.add(code);
+            cards.push(fieldCardHtml(c));
+          }
+          if (!cards.length) continue;
+          parts.push(`
+            <section class="jp-med-section" data-section="${esc(sec.id)}">
+              <h3 class="jp-med-section-title">${esc(sec.title)}</h3>
+              <div class="jp-med-grid">${cards.join('')}</div>
+            </section>
+          `);
+        }
+        for (const c of CHAMPS) {
+          if (used.has(c.code)) continue;
+          parts.push(`
+            <section class="jp-med-section">
+              <h3 class="jp-med-section-title">${esc(c.libelle)}</h3>
+              <div class="jp-med-grid">${fieldCardHtml(c)}</div>
+            </section>
+          `);
+        }
+        host.innerHTML = parts.join('');
+        host.addEventListener('click', onNivClick);
+        host.addEventListener('change', refreshWarns);
+        // Conserver data-entity-id (baseline) pour proposer le choix de portée à l’enregistrement.
+      }
+
+      function onNivClick(e) {
+        const allBtn = e.target.getAttribute('data-niv-all');
+        const none = e.target.getAttribute('data-niv-none');
+        const name = allBtn || none;
+        if (!name) return;
+        e.preventDefault();
+        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
+          cb.checked = !!allBtn;
+        });
+        refreshWarns();
+      }
+
+      function refreshWarns() {
+        document.querySelectorAll('[data-warn]').forEach((el) => {
+          const name = el.getAttribute('data-warn');
+          const any = [...document.querySelectorAll(`input[name="${name}"]:checked`)].length > 0;
+          el.hidden = any;
+        });
+      }
+
+      function readNiveaux(name) {
+        return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((c) => c.value);
+      }
+
+      function setNiveaux(name, codes) {
+        const set = new Set(codes || []);
+        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
+          cb.checked = set.has(cb.value);
+        });
+      }
+
+      function multiFieldArr(row, code) {
+        if (code === 'nom_commercial') {
+          return Array.isArray(row.noms_commerciaux) ? row.noms_commerciaux : [];
+        }
+        return Array.isArray(row[code]) ? row[code] : [];
+      }
+
+      function setEditingMode(on) {
+        document.getElementById('jpWorkspace').classList.toggle('is-editing', !!on);
+        document.getElementById('jpEditor').hidden = !on;
+      }
+
+      function captureBaseline(row) {
+        if (!row) {
+          baseline = { singular: {}, multi: {} };
+          return;
+        }
+        const singular = {};
+        const multi = {};
+        for (const c of CHAMPS) {
+          if (c.card === 1) {
+            singular[c.code] = {
+              id: row[c.fk] || null,
+              valeur: row[c.code] || '',
+            };
+          } else {
+            multi[c.code] = multiFieldArr(row, c.code).map((x) => ({
+              id: x.id || null,
+              valeur: x.valeur || x || '',
+            }));
+          }
+        }
+        baseline = { singular, multi };
+      }
+
+      function resetForm() {
+        editingId = null;
+        baseline = { singular: {}, multi: {} };
+        document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
+        document.getElementById('jpStatut').value = 'brouillon';
+        for (const c of CHAMPS) {
+          const input = document.getElementById('val_' + c.code);
+          if (input) {
+            input.value = '';
+            if (c.card === 1) input.dataset.entityId = '';
+          }
+          setNiveaux('niv_' + c.code, allNiveauxCodes());
+        }
+        refreshWarns();
+      }
+
+      function openEditor(row) {
+        setEditingMode(true);
+        if (!row) {
+          resetForm();
+          highlightRow(null);
+          document.getElementById('val_dci')?.focus();
+          return;
+        }
+        editingId = row.id;
+        captureBaseline(row);
+        document.getElementById('jpEditorTitle').textContent =
+          nomsOf(row) || row.dci || 'Modifier la fiche';
+        document.getElementById('jpStatut').value = row.statut || 'brouillon';
+        for (const c of CHAMPS) {
+          const input = document.getElementById('val_' + c.code);
+          if (!input) continue;
+          if (c.card === 1) {
+            input.value = row[c.code] || '';
+            input.dataset.entityId = row[c.fk] || '';
+            const nivKey =
+              c.code === 'dci' ? 'dci_niveaux'
+              : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
+              : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
+              : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
+              : null;
+            setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
+          } else {
+            const arr = multiFieldArr(row, c.code);
+            input.value = arr.map((x) => x.valeur || x).join('\n');
+            if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
+              setNiveaux('niv_' + c.code, row.nom_commercial_niveaux || allNiveauxCodes());
+            } else {
+              setNiveaux('niv_' + c.code, allNiveauxCodes());
+            }
+          }
+        }
+        refreshWarns();
+        highlightRow(row.id);
+      }
+
+      function closeEditor() {
+        setEditingMode(false);
+        editingId = null;
+        baseline = null;
+        highlightRow(null);
+      }
+
+      function highlightRow(id) {
+        document.querySelectorAll('#jpList tbody tr').forEach((tr) => {
+          tr.classList.toggle('is-selected', tr.getAttribute('data-id') === id);
+        });
+      }
+
+      function collectMultiItems(code, niveaux) {
+        const raw = document.getElementById('val_' + code)?.value;
+        const lines = String(raw || '')
+          .split(/\n/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const base = (baseline?.multi?.[code] || []).slice();
+        const used = new Set();
+        const items = [];
+        const unmatched = [];
+
+        for (const line of lines) {
+          const match = base.find(
+            (b) =>
+              b.id &&
+              !used.has(b.id) &&
+              JpEntites.normaliser(b.valeur) === JpEntites.normaliser(line)
+          );
+          if (match) {
+            used.add(match.id);
+            items.push({ id: match.id, valeur: line, niveaux_connus: niveaux });
+          } else {
+            unmatched.push(line);
+          }
+        }
+
+        const orphans = base.filter((b) => b.id && !used.has(b.id));
+        const renamed = [];
+        unmatched.forEach((line, i) => {
+          if (orphans[i]) {
+            renamed.push({
+              code,
+              libelle: champByCode(code)?.libelle || code,
+              from: orphans[i].valeur,
+              to: line,
+            });
+            items.push({
+              id: orphans[i].id,
+              valeur: line,
+              niveaux_connus: niveaux,
+              _renamed: true,
+            });
+          } else {
+            items.push({ valeur: line, niveaux_connus: niveaux });
+          }
+        });
+
+        return { items, renamed };
+      }
+
+      function collectPayload(scope) {
+        const singular = {};
+        const multi = {};
+        const changes = [];
+
+        for (const c of CHAMPS) {
+          const niveaux = readNiveaux('niv_' + c.code);
+          const raw = document.getElementById('val_' + c.code)?.value;
+          if (raw == null) continue;
+
+          if (c.card === 1) {
+            const v = String(raw || '').trim();
+            const input = document.getElementById('val_' + c.code);
+            const base = baseline?.singular?.[c.code];
+            const id = input?.dataset?.entityId || base?.id || undefined;
+            if (
+              v &&
+              id &&
+              base?.valeur != null &&
+              JpEntites.normaliser(base.valeur) !== JpEntites.normaliser(v)
+            ) {
+              changes.push({
+                code: c.code,
+                libelle: c.libelle,
+                from: base.valeur,
+                to: v,
+              });
+            }
+            if (v) {
+              singular[c.code] = {
+                valeur: v,
+                niveaux_connus: niveaux,
+                id: id || undefined,
+                scope: scope || 'all',
+              };
+            }
+          } else {
+            const { items, renamed } = collectMultiItems(c.code, niveaux);
+            for (const r of renamed) changes.push(r);
+            multi[c.code] = items.map((it) => ({
+              valeur: it.valeur,
+              id: it.id,
+              niveaux_connus: it.niveaux_connus,
+              scope: scope || 'all',
+            }));
+          }
+        }
+
+        return {
+          payload: {
+            statut: document.getElementById('jpStatut').value,
+            singular,
+            multi,
+          },
+          changes,
+        };
+      }
+
+      function showScopeModal(changes) {
+        return new Promise((resolve) => {
+          const modal = document.getElementById('jpScopeModal');
+          const list = document.getElementById('jpScopeList');
+          list.innerHTML = changes.map((ch) =>
+            `<li><strong>${esc(ch.libelle)}</strong> : « ${esc(ch.from)} » → « ${esc(ch.to)} »</li>`
+          ).join('');
+          document.querySelector('input[name="jpScope"][value="all"]').checked = true;
+          modal.hidden = false;
+          pendingSave = resolve;
+          document.getElementById('jpScopeConfirm').focus();
+        });
+      }
+
+      function hideScopeModal(result) {
+        document.getElementById('jpScopeModal').hidden = true;
+        const fn = pendingSave;
+        pendingSave = null;
+        if (fn) fn(result);
+      }
+
+      async function doSave(scope) {
+        const btn = document.getElementById('jpBtnSave');
+        btn.disabled = true;
+        try {
+          const { payload } = collectPayload(scope);
+          const saved = await JpMedicaments.save(payload, editingId);
+          JpToast.ok('Fiche enregistrée');
+          await refreshAll();
+          await loadDatalists();
+          const row = all.find((r) => r.id === (saved?.id || editingId));
+          if (row) openEditor(row);
+          else closeEditor();
+        } catch (err) {
+          JpToast.fromError(err);
+          void JpLogs.error('medicament_save', { message: err?.message });
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      async function loadDatalists() {
+        for (const c of CHAMPS.filter((x) => x.card === 1)) {
+          const dl = document.getElementById('dl_' + c.code);
+          if (!dl) continue;
+          try {
+            const rows = await JpEntites.list(c.table, { actif: true, limit: 500 });
+            dl.innerHTML = rows.map((r) => `<option value="${esc(r.valeur)}"></option>`).join('');
+          } catch (_) { /* ignore */ }
+        }
+      }
+
+      async function refreshAll() {
+        try {
+          all = await JpMedicaments.list({});
+          syncFilterOptions();
+          applyPrefsToUi();
+          savePrefs();
+          render();
+        } catch (e) {
+          JpToast.fromError(e);
+          void JpLogs.error('catalogue_admin_list', { message: e?.message });
+        }
+      }
+
+      /* —— BDPM —— */
+      function clearBdmResults() {
+        bdmRows = [];
+        const host = document.getElementById('jpBdmResults');
+        host.innerHTML = '';
+        host.hidden = true;
+      }
+
+      function renderBdmResults(rows) {
+        const host = document.getElementById('jpBdmResults');
+        bdmRows = rows || [];
+        if (!bdmRows.length) {
+          host.innerHTML = '<p class="jp-bdm-empty">Aucun résultat</p>';
+          host.hidden = false;
+          return;
+        }
+        host.innerHTML = bdmRows.map((r, i) => `
+          <button type="button" class="jp-bdm-result" role="option" data-bdm-idx="${i}">
+            <span class="jp-bdm-result-name">${esc(r.denomination || '—')}</span>
+            <span class="jp-bdm-result-meta">${esc(r.substances || '—')}</span>
+            <span class="jp-bdm-result-forme">${esc(r.forme_pharmaceutique || '')}</span>
+          </button>
+        `).join('');
+        host.hidden = false;
+      }
+
+      async function applyBdmPrefill(row) {
+        const pre = JpBdm.pickToPrefill(row);
+        clearBdmResults();
+        document.getElementById('jpBdmQ').value = '';
+        if (pre.dci) {
+          try {
+            const ent = await JpEntites.findOrCreate('dcis', pre.dci, allNiveauxCodes(), {
+              mergeNiveaux: true,
+            });
+            if (ent?.id) {
+              const existing = await JpMedicaments.findByDciId(ent.id, null);
+              if (existing) {
+                openEditor(existing);
+                const nomTa = document.getElementById('val_nom_commercial');
+                if (nomTa && pre.nom_commercial) {
+                  const lines = String(nomTa.value || '')
+                    .split(/\n/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const lower = new Set(lines.map((s) => s.toLowerCase()));
+                  if (!lower.has(pre.nom_commercial.toLowerCase())) {
+                    lines.push(pre.nom_commercial);
+                    nomTa.value = lines.join('\n');
+                  }
+                }
+                const dciInp = document.getElementById('val_dci');
+                if (dciInp) {
+                  dciInp.value = pre.dci;
+                  dciInp.dataset.entityId = ent.id;
+                }
+                JpToast.ok('DCI existante — nom ajouté à la fiche');
+                return;
+              }
+            }
+          } catch (e) {
+            JpToast.fromError(e);
+            return;
+          }
+        }
+        if (!editingId) openEditor(null);
+        const nom = document.getElementById('val_nom_commercial');
+        const dci = document.getElementById('val_dci');
+        if (nom && pre.nom_commercial) {
+          const lines = String(nom.value || '')
+            .split(/\n/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const lower = new Set(lines.map((s) => s.toLowerCase()));
+          if (!lower.has(pre.nom_commercial.toLowerCase())) {
+            lines.push(pre.nom_commercial);
+            nom.value = lines.join('\n');
+          }
+        }
+        if (dci && pre.dci) {
+          dci.value = pre.dci;
+          dci.dataset.entityId = '';
+        }
+        JpToast.ok('Prérempli — compléter le reste depuis le cours');
+      }
+
+      function bindBdmSearch() {
+        const input = document.getElementById('jpBdmQ');
+        const results = document.getElementById('jpBdmResults');
+        input.addEventListener('input', () => {
+          clearTimeout(window.__jpBdmT);
+          const q = input.value.trim();
+          if (q.length < 2) {
+            clearBdmResults();
+            return;
+          }
+          window.__jpBdmT = setTimeout(async () => {
+            const req = ++bdmReq;
+            try {
+              const rows = await JpBdm.searchProducts(q, 20);
+              if (req !== bdmReq) return;
+              renderBdmResults(rows);
+            } catch (e) {
+              if (req !== bdmReq) return;
+              clearBdmResults();
+              JpToast.fromError(e);
+              void JpLogs.error('bdm_search', { message: e?.message });
+            }
+          }, 280);
+        });
+        results.addEventListener('click', async (e) => {
+          const btn = e.target.closest('[data-bdm-idx]');
+          if (!btn) return;
+          const idx = Number(btn.getAttribute('data-bdm-idx'));
+          const row = bdmRows[idx];
+          if (row) await applyBdmPrefill(row);
+        });
+      }
+
+      /* —— Import CSV —— */
+      function showCsvResult(html) {
+        document.getElementById('jpCsvResult').innerHTML = html;
+      }
+
+      function bindCsv() {
+        document.getElementById('jpTpl').addEventListener('click', () => {
+          JpCsv.downloadTemplate();
+          JpToast.ok('Modèle téléchargé');
+        });
+        document.getElementById('jpExport').addEventListener('click', async () => {
+          try {
+            const n = await JpCsv.exportCatalogue();
+            JpToast.ok('Export : ' + n + ' fiche(s)');
+          } catch (e) {
+            JpToast.fromError(e);
+          }
+        });
+        document.getElementById('jpFile').addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          csvText = '';
+          lastDry = null;
+          document.getElementById('jpDry').disabled = !file;
+          document.getElementById('jpImport').disabled = true;
+          showCsvResult('');
+          if (!file) return;
+          csvText = await file.text();
+        });
+        document.getElementById('jpDry').addEventListener('click', () => {
+          lastDry = JpCsv.dryRun(csvText);
+          if (!lastDry.ok) {
+            showCsvResult(`
+              <p class="jp-muted"><strong>${lastDry.errors.length}</strong> erreur(s) — import bloqué.</p>
+              <ul class="jp-error-list">
+                ${lastDry.errors.map((err) => `<li>Ligne ${err.line} : ${esc(err.message)}</li>`).join('')}
+              </ul>
+            `);
+            document.getElementById('jpImport').disabled = true;
+            JpToast.warn('Dry-run : erreurs détectées');
+            return;
+          }
+          showCsvResult(`
+            <p class="jp-muted">Dry-run OK — <strong>${lastDry.preview.length}</strong> ligne(s) prêtes.</p>
+            <div class="jp-table-wrap">
+              <table class="jp-table">
+                <thead><tr><th>Ligne</th><th>Statut</th><th>Nom</th><th>DCI</th><th>Secteur</th></tr></thead>
+                <tbody>
+                  ${lastDry.preview.map((p) => `
+                    <tr>
+                      <td>${p.line}</td>
+                      <td>${esc(p.statut)}</td>
+                      <td>${esc(p.nom_commercial || '—')}</td>
+                      <td>${esc(p.dci || '—')}</td>
+                      <td>${esc(p.secteur || '—')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `);
+          document.getElementById('jpImport').disabled = false;
+          JpToast.ok('Dry-run OK');
+        });
+        document.getElementById('jpImport').addEventListener('click', async () => {
+          if (!lastDry?.ok) return;
+          const btn = document.getElementById('jpImport');
+          btn.disabled = true;
+          try {
+            const res = await JpCsv.importRecords(lastDry.records);
+            if (res.errors.length) {
+              showCsvResult(`
+                <p class="jp-muted"><strong>${res.created}</strong> créée(s), <strong>${res.errors.length}</strong> erreur(s).</p>
+                <ul class="jp-error-list">
+                  ${res.errors.map((err) => `<li>Ligne ${err.line} : ${esc(err.message)}</li>`).join('')}
+                </ul>
+              `);
+              JpToast.warn('Import partiel');
+            } else {
+              showCsvResult(`<p class="jp-muted"><strong>${res.created}</strong> fiche(s) importée(s).</p>`);
+              JpToast.ok('Import terminé');
+            }
+            await refreshAll();
+          } catch (e) {
+            JpToast.fromError(e);
+            void JpLogs.error('csv_import', { message: e?.message });
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      }
+
+      /* —— Fusion —— */
+      function fillFusionSelects() {
+        const opts = '<option value="">—</option>' + fusionRows.map((r) =>
+          `<option value="${esc(r.id)}">${esc(r.valeur)}</option>`
+        ).join('');
+        document.getElementById('jpFusionKeep').innerHTML = opts;
+        document.getElementById('jpFusionDrop').innerHTML = opts;
+      }
+
+      async function loadFusionEntities() {
+        const table = document.getElementById('jpFusionType').value;
+        if (!table) return;
+        try {
+          fusionRows = await JpEntites.list(table, { actif: true, limit: 500 });
+          fillFusionSelects();
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      }
+
+      function bindFusion() {
+        const sel = document.getElementById('jpFusionType');
+        sel.innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
+          `<option value="${esc(t.table)}">${esc(t.libelle)}</option>`
+        ).join('');
+        sel.addEventListener('change', loadFusionEntities);
+        document.getElementById('jpFusionForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const table = sel.value;
+          const keep = document.getElementById('jpFusionKeep').value;
+          const drop = document.getElementById('jpFusionDrop').value;
+          if (!keep || !drop) {
+            JpToast.warn('Choisissez les deux valeurs');
+            return;
+          }
+          if (keep === drop) {
+            JpToast.warn('Les deux valeurs doivent être distinctes');
+            return;
+          }
+          const keepLabel = fusionRows.find((r) => r.id === keep)?.valeur || keep;
+          const dropLabel = fusionRows.find((r) => r.id === drop)?.valeur || drop;
+          if (!confirm('Fusionner « ' + dropLabel + ' » dans « ' + keepLabel + ' » ?')) return;
+          try {
+            await JpEntites.fusionner(table, keep, drop);
+            void JpLogs.action('fusion_entites', { table, keep, drop });
+            JpToast.ok('Fusion effectuée');
+            await loadFusionEntities();
+            await refreshAll();
+          } catch (err) {
+            JpToast.fromError(err);
+            void JpLogs.error('fusion_entites', { message: err?.message });
+          }
+        });
+      }
+
+      /* —— Niveaux bulk —— */
+      function currentEntTable() {
+        return document.getElementById('jpEntType').value;
+      }
+
+      function readBulkNiveaux() {
+        return [...document.querySelectorAll('#jpBulkNiv input:checked')].map((c) => c.value);
+      }
+
+      function refreshEntWarn() {
+        document.getElementById('jpWarnEmpty').hidden = readBulkNiveaux().length > 0;
+      }
+
+      function renderEntList() {
+        const host = document.getElementById('jpEntList');
+        const q = String(document.getElementById('jpEntQ').value || '').trim().toLowerCase();
+        const filteredEnt = q
+          ? entRows.filter((r) => String(r.valeur || '').toLowerCase().includes(q))
+          : entRows;
+        if (!filteredEnt.length) {
+          JpUi.emptyState(host, {
+            title: 'Aucune entité',
+            text: 'Créez des valeurs via les fiches ou l’import CSV.',
+          });
+          return;
+        }
+        const nivLib = Object.fromEntries(JpConstants.NIVEAUX.map((n) => [n.code, n.libelle]));
+        host.innerHTML = `
+          <table class="jp-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="jpCheckAll" aria-label="Tout sélectionner"></th>
+                <th>Valeur</th>
+                <th>Niveaux</th>
+                <th>Actif</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredEnt.map((r) => `
+                <tr>
+                  <td><input type="checkbox" class="jp-row-check" value="${esc(r.id)}"></td>
+                  <td>${esc(r.valeur)}</td>
+                  <td>${esc((r.niveaux_connus || []).map((c) => nivLib[c] || c).join(', ') || '—')}</td>
+                  <td>${r.actif ? 'oui' : 'non'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        document.getElementById('jpCheckAll')?.addEventListener('change', (e) => {
+          document.querySelectorAll('.jp-row-check').forEach((cb) => {
+            cb.checked = e.target.checked;
+          });
+        });
+      }
+
+      async function loadEntites() {
+        try {
+          entRows = await JpEntites.list(currentEntTable(), { actif: null, limit: 500 });
+          renderEntList();
+        } catch (e) {
+          JpToast.fromError(e);
+          void JpLogs.error('entites_list', { message: e?.message });
+        }
+      }
+
+      function bindNiveaux() {
+        document.getElementById('jpEntType').innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
+          `<option value="${esc(t.table)}">${esc(t.libelle)}</option>`
+        ).join('');
+        document.getElementById('jpBulkNiv').innerHTML = JpConstants.NIVEAUX.map((n) => `
+          <label>
+            <input type="checkbox" value="${esc(n.code)}" checked>
+            ${esc(n.libelle)}
+          </label>
+        `).join('');
+        refreshEntWarn();
+        document.getElementById('jpEntType').addEventListener('change', loadEntites);
+        document.getElementById('jpEntRefresh').addEventListener('click', loadEntites);
+        document.getElementById('jpEntQ').addEventListener('input', () => {
+          clearTimeout(window.__jpEntT);
+          window.__jpEntT = setTimeout(renderEntList, 180);
+        });
+        document.getElementById('jpBulkNiv').addEventListener('change', refreshEntWarn);
+        document.getElementById('jpNivAll').addEventListener('click', () => {
+          document.querySelectorAll('#jpBulkNiv input').forEach((c) => { c.checked = true; });
+          refreshEntWarn();
+        });
+        document.getElementById('jpNivNone').addEventListener('click', () => {
+          document.querySelectorAll('#jpBulkNiv input').forEach((c) => { c.checked = false; });
+          refreshEntWarn();
+        });
+        document.getElementById('jpBtnApplyNiv').addEventListener('click', async () => {
+          const ids = [...document.querySelectorAll('.jp-row-check:checked')].map((c) => c.value);
+          if (!ids.length) {
+            JpToast.warn('Cochez au moins une ligne');
+            return;
+          }
+          const niveaux = readBulkNiveaux();
+          try {
+            await JpEntites.updateNiveauxBulk(currentEntTable(), ids, niveaux);
+            void JpLogs.action('entites_niveaux_bulk', {
+              table: currentEntTable(),
+              count: ids.length,
+            });
+            JpToast.ok('Niveaux mis à jour (' + ids.length + ')');
+            await loadEntites();
+          } catch (e) {
+            JpToast.fromError(e);
+            void JpLogs.error('entites_niveaux_bulk', { message: e?.message });
+          }
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', async function () {
+        JpUi.bootPage({ module: 'admin-catalogue', homeHref: JpFab.PORTAIL_URL });
+        buildFields();
+        bindBdmSearch();
+        bindCsv();
+        bindFusion();
+        bindNiveaux();
+        await loadDatalists();
+        await refreshAll();
+
+        document.getElementById('jpBtnNew').addEventListener('click', () => openEditor(null));
+        document.getElementById('jpBtnCancel').addEventListener('click', closeEditor);
+        document.getElementById('jpBtnImport').addEventListener('click', () => togglePanel('jpPanelImport'));
+        document.getElementById('jpBtnFusion').addEventListener('click', () => togglePanel('jpPanelFusion'));
+        document.getElementById('jpBtnNiveaux').addEventListener('click', () => togglePanel('jpPanelNiveaux'));
+
+        document.getElementById('jpPrefsBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const panel = document.getElementById('jpPrefsPanel');
+          setPrefsOpen(panel.hidden);
+        });
+        document.getElementById('jpPrefsClose').addEventListener('click', () => setPrefsOpen(false));
+        document.getElementById('jpPrefsReset').addEventListener('click', () => {
+          prefs = defaultPrefs();
+          savePrefs();
+          syncFilterOptions();
+          applyPrefsToUi();
+          render();
+        });
+
+        document.getElementById('jpQ').addEventListener('input', () => {
+          clearTimeout(window.__jpAdminCatT);
+          window.__jpAdminCatT = setTimeout(onPrefsChange, 180);
+        });
+        ['jpSort', 'jpSecteur', 'jpClasseTh', 'jpClassePh', 'jpNiveau', 'jpStatutFilter'].forEach((id) => {
+          document.getElementById(id).addEventListener('change', onPrefsChange);
+        });
+        document.getElementById('jpIncomplet').addEventListener('change', onPrefsChange);
+        document.getElementById('jpCols').addEventListener('change', onPrefsChange);
+
+        document.getElementById('jpList').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-edit]');
+          if (!btn) return;
+          const row = all.find((r) => r.id === btn.getAttribute('data-edit'));
+          if (row) openEditor(row);
+        });
+
+        document.getElementById('jpForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const { changes } = collectPayload('all');
+          if (changes.length) {
+            const scope = await showScopeModal(changes);
+            if (!scope) return;
+            await doSave(scope);
+          } else {
+            await doSave('all');
+          }
+        });
+
+        document.getElementById('jpScopeCancel').addEventListener('click', () => hideScopeModal(null));
+        document.getElementById('jpScopeConfirm').addEventListener('click', () => {
+          const scope = document.querySelector('input[name="jpScope"]:checked')?.value || 'all';
+          hideScopeModal(scope);
+        });
+
+        document.addEventListener('click', (e) => {
+          const wrap = document.querySelector('.jp-catalogue-prefs-wrap');
+          const panel = document.getElementById('jpPrefsPanel');
+          if (!panel || panel.hidden || !wrap) return;
+          if (!wrap.contains(e.target)) setPrefsOpen(false);
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (!document.getElementById('jpScopeModal').hidden) {
+              hideScopeModal(null);
+              return;
+            }
+            setPrefsOpen(false);
+            if (!document.getElementById('jpEditor').hidden) closeEditor();
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -36,7 +36,8 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] SQL `sql/001_jeupharma_init.sql` + `sql/002_dci_centrique.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
-- [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/medicaments`, `catalogue`, `admin/trous`, architecture.
+- [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
+- [x] Admin contenu unifié : `admin/catalogue.html` (table + édition + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites.
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).

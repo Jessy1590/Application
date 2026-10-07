@@ -100,36 +100,60 @@
 
   /**
    * Résout une valeur singulière → id entité (création si besoin).
-   * @param {{ valeur?: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean }} field
+   * scope:
+   *  - `all` (défaut) : met à jour la ligne d’entité partagée (id) → toutes les fiches liées
+   *  - `molecule` : détache — ne touche pas l’ancienne entité ; find/create pour cette fiche
+   * @param {{ valeur?: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean, scope?: 'all'|'molecule' }} field
    * @param {string} table
    */
   async function resolveSingular(field, table) {
     if (!field) return null;
-    if (field.id) {
-      if (Array.isArray(field.niveaux_connus)) {
-        await global.JpEntites.update(table, field.id, {
-          niveaux_connus: field.niveaux_connus,
-          ...(field.valeur ? { valeur: field.valeur } : {}),
-        });
-      } else if (field.valeur) {
-        await global.JpEntites.update(table, field.id, { valeur: field.valeur });
+    const scope = field.scope === 'molecule' ? 'molecule' : 'all';
+    const v = field.valeur != null ? String(field.valeur).trim() : '';
+    const niveaux = Array.isArray(field.niveaux_connus) ? field.niveaux_connus : null;
+
+    if (field.id && scope === 'all') {
+      const patch = {};
+      if (niveaux) patch.niveaux_connus = niveaux;
+      if (v) patch.valeur = v;
+      if (Object.keys(patch).length) {
+        await global.JpEntites.update(table, field.id, patch);
       }
       return field.id;
     }
-    if (field.valeur && String(field.valeur).trim()) {
-      const ent = await global.JpEntites.findOrCreate(
-        table,
-        field.valeur,
-        Array.isArray(field.niveaux_connus) ? field.niveaux_connus : [],
-        { mergeNiveaux: !!field.mergeNiveaux }
-      );
-      return ent?.id || null;
+
+    if (!v) return null;
+
+    if (field.id && scope === 'molecule') {
+      const existing = await global.JpEntites.getById(table, field.id);
+      const same =
+        existing &&
+        global.JpEntites.normaliser(existing.valeur) === global.JpEntites.normaliser(v);
+      if (same) {
+        // Même libellé : conserver le lien sans modifier l’entité partagée
+        return field.id;
+      }
+      // Nouveau libellé pour cette fiche uniquement
+      const found = await global.JpEntites.findActiveByValeur(table, v);
+      if (found) return found.id;
+      const created = await global.JpEntites.create(table, {
+        valeur: v,
+        niveaux_connus: niveaux || [],
+      });
+      return created?.id || null;
     }
-    return null;
+
+    const ent = await global.JpEntites.findOrCreate(
+      table,
+      v,
+      niveaux || [],
+      { mergeNiveaux: !!field.mergeNiveaux }
+    );
+    return ent?.id || null;
   }
 
   /**
-   * @param {{ valeur: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean }[]} items
+   * @param {{ valeur: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean, scope?: 'all'|'molecule' }[]} items
    * @param {string} table
    */
   async function resolveMulti(items, table) {
@@ -137,26 +161,81 @@
     const seenNorm = new Set();
     for (const item of items || []) {
       if (!item) continue;
-      if (item.id) {
-        if (Array.isArray(item.niveaux_connus)) {
-          await global.JpEntites.update(table, item.id, {
-            niveaux_connus: item.niveaux_connus,
-            ...(item.valeur ? { valeur: item.valeur } : {}),
-          });
+      const scope = item.scope === 'molecule' ? 'molecule' : 'all';
+      const v = item.valeur != null ? String(item.valeur).trim() : '';
+      const niveaux = Array.isArray(item.niveaux_connus) ? item.niveaux_connus : null;
+
+      if (item.id && scope === 'all') {
+        const patch = {};
+        if (niveaux) patch.niveaux_connus = niveaux;
+        if (v) patch.valeur = v;
+        if (Object.keys(patch).length) {
+          await global.JpEntites.update(table, item.id, patch);
         }
         ids.push(item.id);
-        if (item.valeur) {
-          for (const n of global.JpEntites.normCandidates(item.valeur)) seenNorm.add(n);
+        if (v) {
+          for (const n of global.JpEntites.normCandidates(v)) seenNorm.add(n);
         }
         continue;
       }
-      if (item.valeur && String(item.valeur).trim()) {
-        const norms = global.JpEntites.normCandidates(item.valeur);
+
+      if (item.id && scope === 'molecule' && v) {
+        const existing = await global.JpEntites.getById(table, item.id);
+        const same =
+          existing &&
+          global.JpEntites.normaliser(existing.valeur) === global.JpEntites.normaliser(v);
+        if (same) {
+          ids.push(item.id);
+          for (const n of global.JpEntites.normCandidates(v)) seenNorm.add(n);
+          continue;
+        }
+        const norms = global.JpEntites.normCandidates(v);
         if (norms.some((n) => seenNorm.has(n))) continue;
+        const found = await global.JpEntites.findActiveByValeur(table, v);
+        if (found) {
+          ids.push(found.id);
+          for (const n of norms) seenNorm.add(n);
+          if (found.valeur_norm) seenNorm.add(found.valeur_norm);
+          continue;
+        }
+        const created = await global.JpEntites.create(table, {
+          valeur: v,
+          niveaux_connus: niveaux || [],
+        });
+        if (created?.id) {
+          ids.push(created.id);
+          for (const n of norms) seenNorm.add(n);
+          if (created.valeur_norm) seenNorm.add(created.valeur_norm);
+        }
+        continue;
+      }
+
+      if (v) {
+        const norms = global.JpEntites.normCandidates(v);
+        if (norms.some((n) => seenNorm.has(n))) continue;
+        if (scope === 'molecule') {
+          const found = await global.JpEntites.findActiveByValeur(table, v);
+          if (found) {
+            ids.push(found.id);
+            for (const n of norms) seenNorm.add(n);
+            if (found.valeur_norm) seenNorm.add(found.valeur_norm);
+            continue;
+          }
+          const created = await global.JpEntites.create(table, {
+            valeur: v,
+            niveaux_connus: niveaux || [],
+          });
+          if (created?.id) {
+            ids.push(created.id);
+            for (const n of norms) seenNorm.add(n);
+            if (created.valeur_norm) seenNorm.add(created.valeur_norm);
+          }
+          continue;
+        }
         const ent = await global.JpEntites.findOrCreate(
           table,
-          item.valeur,
-          Array.isArray(item.niveaux_connus) ? item.niveaux_connus : [],
+          v,
+          niveaux || [],
           { mergeNiveaux: !!item.mergeNiveaux }
         );
         if (ent?.id) {
@@ -219,9 +298,10 @@
    * Payload admin :
    * {
    *   statut,
-   *   singular: { [code]: { valeur?, id?, niveaux_connus?, mergeNiveaux? } },
-   *   multi: { [code]: [{ valeur?, id?, niveaux_connus?, mergeNiveaux? }] }
+   *   singular: { [code]: { valeur?, id?, niveaux_connus?, mergeNiveaux?, scope? } },
+   *   multi: { [code]: [{ valeur?, id?, niveaux_connus?, mergeNiveaux?, scope? }] }
    * }
+   * scope `all` | `molecule` — voir resolveSingular / resolveMulti.
    * Si DCI déjà associée à une autre fiche active → fusionne vers cette fiche.
    */
   async function save(payload, existingId) {

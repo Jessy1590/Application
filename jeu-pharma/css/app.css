@@ -1544,6 +1544,156 @@ body > a[title="Retour au portail"] {
   word-wrap: break-word;
 }
 
+/* —— Admin catalogue unifié —— */
+.jp-admin-cat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.jp-admin-cat-panel {
+  margin-bottom: 1rem;
+  padding: 1rem 1.1rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+}
+
+.jp-admin-cat-panel-title {
+  font-family: var(--jp-font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem;
+}
+
+.jp-admin-cat-statut select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--jp-text);
+  background: var(--jp-bg);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.4rem 0.55rem;
+}
+
+.jp-admin-cat-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--jp-text);
+  white-space: nowrap;
+}
+
+.jp-admin-cat-actions-col {
+  width: 2.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.jp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg);
+  color: var(--jp-text);
+  cursor: pointer;
+}
+
+.jp-icon-btn:hover,
+.jp-icon-btn:focus-visible {
+  border-color: var(--jp-accent);
+  color: var(--jp-accent);
+  outline: none;
+  box-shadow: var(--jp-focus);
+}
+
+.jp-scope-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--jp-text) 35%, transparent);
+}
+
+.jp-scope-modal[hidden] {
+  display: none;
+}
+
+.jp-scope-modal-card {
+  width: min(100%, 28rem);
+  max-height: min(90vh, 36rem);
+  overflow: auto;
+  padding: 1.25rem 1.35rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--jp-text) 18%, transparent);
+}
+
+.jp-scope-modal-title {
+  font-family: var(--jp-font-display);
+  font-size: 1.25rem;
+  margin: 0 0 0.4rem;
+}
+
+.jp-scope-list {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.15rem;
+  font-size: 0.9rem;
+}
+
+.jp-scope-radios {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.jp-scope-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg);
+  cursor: pointer;
+}
+
+.jp-scope-option:has(input:checked) {
+  border-color: var(--jp-accent);
+  background: var(--jp-accent-soft);
+}
+
+.jp-scope-option strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.jp-scope-option .jp-muted {
+  display: block;
+  font-size: 0.82rem;
+}
+
+.jp-scope-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+}
+
 @media (max-width: 640px) {
   .jp-catalogue-btn-label {
     position: absolute;
