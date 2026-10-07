@@ -62,9 +62,39 @@
     return [v];
   }
 
-  function cellValeurFromMed(med, champ) {
+  /** Clé stable d’une ligne snapshot : `ligne_id` ou repli `matrice_id` (parties anciennes). */
+  function ligneKey(ligne) {
+    if (!ligne) return '';
+    return ligne.ligne_id || ligne.matrice_id || '';
+  }
+
+  /**
+   * `matriceId` ou `matriceId:nomCommercialId`.
+   * @param {string} matriceId
+   * @param {string|null|undefined} nomCommercialId
+   */
+  function makeLigneId(matriceId, nomCommercialId) {
+    if (!matriceId) return '';
+    return nomCommercialId ? String(matriceId) + ':' + String(nomCommercialId) : String(matriceId);
+  }
+
+  function parseLigneId(ligneId) {
+    const s = String(ligneId || '');
+    const i = s.indexOf(':');
+    if (i < 0) return { matriceId: s, nomCommercialId: null };
+    return { matriceId: s.slice(0, i), nomCommercialId: s.slice(i + 1) || null };
+  }
+
+  function cellValeurFromMed(med, champ, nomCommercialId) {
     const meta = champMeta(champ);
     if (!meta) return { valeur: null, entite_id: null, valeurs: null };
+    if (champ === 'nom_commercial' && nomCommercialId) {
+      const noms = Array.isArray(med?.noms_commerciaux) ? med.noms_commerciaux : [];
+      const nom = noms.find((x) => x && String(x.id) === String(nomCommercialId));
+      if (nom?.valeur) {
+        return { valeur: nom.valeur, entite_id: nom.id || nomCommercialId, valeurs: [nom.valeur] };
+      }
+    }
     if (meta.card === 'N') {
       const arr =
         champ === 'nom_commercial'
@@ -145,7 +175,16 @@
 
   /**
    * Charge fiches publiées pour construire la grille.
-   * @param {{ secteurId?: string|null, matriceIds?: string[], niveau?: string, admin?: boolean }} opts
+   * Filtres multi : OR intra-liste (via `.in`), AND entre listes.
+   * @param {{
+   *   secteurId?: string|null,
+   *   secteurIds?: string[],
+   *   classeTherIds?: string[],
+   *   classePharmaIds?: string[],
+   *   matriceIds?: string[],
+   *   niveau?: string,
+   *   admin?: boolean,
+   * }} opts
    */
   async function fetchMedicaments(opts = {}) {
     let q = sb()
@@ -154,8 +193,15 @@
       .eq('statut', 'publie');
     if (opts.matriceIds?.length) {
       q = q.in('id', opts.matriceIds);
-    } else if (opts.secteurId) {
-      q = q.eq('secteur_therapeutique_id', opts.secteurId);
+    } else {
+      const secteurIds = opts.secteurIds?.length
+        ? opts.secteurIds
+        : (opts.secteurId ? [opts.secteurId] : null);
+      if (secteurIds?.length) q = q.in('secteur_therapeutique_id', secteurIds);
+      if (opts.classeTherIds?.length) q = q.in('classe_therapeutique_id', opts.classeTherIds);
+      if (opts.classePharmaIds?.length) {
+        q = q.in('classe_pharmacologique_id', opts.classePharmaIds);
+      }
     }
     const { data, error } = await q.order('dci');
     if (error) throw error;
@@ -184,34 +230,74 @@
   }
 
   /**
-   * Construit snapshot_grille.
+   * Construit snapshot_grille depuis des lignes déjà choisies (pas de tirage interne).
    * @param {{
-   *   meds: object[],
+   *   lignes?: { med: object, nom_commercial_id?: string|null, label?: string, ligne_id?: string }[],
+   *   meds?: object[], // legacy : une ligne par fiche
    *   colonnes: string[],
-   *   modeTrous: 'ALEATOIRE'|'MANUEL',
-   *   trousManuels?: Record<string, boolean>, // key `${matriceId}|${champ}`
-   *   densite?: number, // 0–1 pour ALEATOIRE (défaut 0.4)
-   *   maxLignes?: number, // plafond de lignes médicaments (défaut : pas de limite)
+   *   trous?: Set<string>|Record<string, boolean>|string[], // key `${ligneId}|${champ}`
+   *   modeTrous?: 'ALEATOIRE'|'MANUEL', // legacy
+   *   trousManuels?: Record<string, boolean>, // legacy
+   *   densite?: number, // legacy ALEATOIRE
+   *   maxLignes?: number, // legacy
    * }} opts
    */
   function buildSnapshot(opts) {
     const colonnes = (opts.colonnes || []).filter(Boolean);
     if (!colonnes.length) throw new Error('Sélectionnez au moins une colonne');
-    const meds = limiterMeds(opts.meds || [], opts.maxLignes);
-    if (!meds.length) throw new Error('Aucun médicament sélectionné');
 
-    const modeTrous = opts.modeTrous === 'MANUEL' ? 'MANUEL' : 'ALEATOIRE';
+    let rawLignes = opts.lignes;
+    if (!rawLignes?.length && opts.meds?.length) {
+      const meds = limiterMeds(opts.meds || [], opts.maxLignes);
+      rawLignes = meds.map((med) => ({
+        med,
+        nom_commercial_id: null,
+        label: global.JpMedicaments?.formatNoms?.(med) || med.nom_commercial || med.dci || med.id,
+        ligne_id: makeLigneId(med.id, null),
+      }));
+    }
+    if (!rawLignes?.length) throw new Error('Aucun médicament sélectionné');
+
+    const trousSet = new Set();
+    if (opts.trous instanceof Set) {
+      opts.trous.forEach((k) => trousSet.add(k));
+    } else if (Array.isArray(opts.trous)) {
+      opts.trous.forEach((k) => trousSet.add(k));
+    } else if (opts.trous && typeof opts.trous === 'object') {
+      Object.keys(opts.trous).forEach((k) => {
+        if (opts.trous[k]) trousSet.add(k);
+      });
+    }
+
+    const hasExplicitTrous = opts.trous != null;
+    const modeTrous = hasExplicitTrous
+      ? 'MANUEL'
+      : (opts.modeTrous === 'MANUEL' ? 'MANUEL' : 'ALEATOIRE');
     const densite = opts.densite != null ? opts.densite : 0.4;
     const manuels = opts.trousManuels || {};
 
-    const lignes = meds.map((med) => {
+    const lignes = rawLignes.map((entry) => {
+      const med = entry.med || entry;
+      const nomId = entry.nom_commercial_id || null;
+      const lid = entry.ligne_id || makeLigneId(med.id, nomId);
+      const label = entry.label
+        || (nomId
+          ? ((med.noms_commerciaux || []).find((n) => String(n.id) === String(nomId))?.valeur)
+          : null)
+        || global.JpMedicaments?.formatNoms?.(med)
+        || med.nom_commercial
+        || med.dci
+        || med.id;
+
       const cells = colonnes.map((champ) => {
-        const cv = cellValeurFromMed(med, champ);
-        const key = `${med.id}|${champ}`;
+        const cv = cellValeurFromMed(med, champ, nomId);
+        const key = `${lid}|${champ}`;
         let trou = false;
         if (cv.valeur) {
-          if (modeTrous === 'MANUEL') {
-            trou = !!manuels[key];
+          if (hasExplicitTrous) {
+            trou = trousSet.has(key);
+          } else if (modeTrous === 'MANUEL') {
+            trou = !!(manuels[key] || manuels[`${med.id}|${champ}`]);
           } else {
             trou = Math.random() < densite;
           }
@@ -224,25 +310,27 @@
           trou,
         };
       });
-      // Garantir au moins un trou si ALEATOIRE et des valeurs
-      if (modeTrous === 'ALEATOIRE') {
+
+      if (!hasExplicitTrous && modeTrous === 'ALEATOIRE') {
         const fillables = cells.filter((c) => c.valeur);
         if (fillables.length && !cells.some((c) => c.trou)) {
           const pick = fillables[Math.floor(Math.random() * fillables.length)];
           pick.trou = true;
         }
       }
-      const nomsLabel = global.JpMedicaments?.formatNoms?.(med) || med.nom_commercial || '';
+
       return {
+        ligne_id: lid,
         matrice_id: med.id,
-        label: nomsLabel || med.dci || med.id,
+        nom_commercial_id: nomId,
+        label,
         cells,
       };
     });
 
     return {
       colonnes,
-      mode_trous: modeTrous,
+      mode_trous: hasExplicitTrous ? 'MIXTE' : modeTrous,
       lignes,
     };
   }
@@ -256,25 +344,30 @@
     return {
       colonnes: snapshot.colonnes,
       mode_trous: snapshot.mode_trous,
-      lignes: (snapshot.lignes || []).map((ligne) => ({
-        matrice_id: ligne.matrice_id,
-        label: ligne.label,
-        cells: (ligne.cells || []).map((c) => {
-          if (!c.trou) {
+      lignes: (snapshot.lignes || []).map((ligne) => {
+        const lid = ligneKey(ligne);
+        return {
+          ligne_id: lid,
+          matrice_id: ligne.matrice_id,
+          nom_commercial_id: ligne.nom_commercial_id || null,
+          label: ligne.label,
+          cells: (ligne.cells || []).map((c) => {
+            if (!c.trou) {
+              return {
+                champ_code: c.champ_code,
+                trou: false,
+                valeur: c.valeur,
+              };
+            }
             return {
               champ_code: c.champ_code,
-              trou: false,
-              valeur: c.valeur,
+              trou: true,
+              valeur: hideCorrect ? null : null,
+              // jamais exposer la bonne réponse au joueur avant soumission
             };
-          }
-          return {
-            champ_code: c.champ_code,
-            trou: true,
-            valeur: hideCorrect ? null : null,
-            // jamais exposer la bonne réponse au joueur avant soumission
-          };
-        }),
-      })),
+          }),
+        };
+      }),
     };
   }
 
@@ -387,10 +480,12 @@
     const lignes = [];
 
     (snap.lignes || []).forEach((ligne) => {
+      const lid = ligneKey(ligne);
       const cases = [];
       (ligne.cells || []).forEach((cell) => {
         if (!cell.trou) return;
         const item = {
+          ligne_id: lid,
           matrice_id: ligne.matrice_id,
           label: ligne.label || '',
           champ_code: cell.champ_code,
@@ -401,6 +496,7 @@
       });
       if (cases.length) {
         lignes.push({
+          ligne_id: lid,
           matrice_id: ligne.matrice_id,
           label: ligne.label || '',
           cases,
@@ -420,7 +516,7 @@
   /**
    * Compare réponses aux valeurs du snapshot (rechargé depuis la DB), sans écrire.
    * @param {string} partieId
-   * @param {{ matrice_id: string, champ_code: string, reponse: string }[]} reponses
+   * @param {{ ligne_id?: string, matrice_id?: string, champ_code: string, reponse: string }[]} reponses
    */
   async function evaluer(partieId, reponses) {
     const partie = await getById(partieId);
@@ -431,7 +527,9 @@
 
     const byKey = {};
     (reponses || []).forEach((r) => {
-      byKey[`${r.matrice_id}|${r.champ_code}`] = r.reponse;
+      const id = r.ligne_id || r.matrice_id;
+      if (!id) return;
+      byKey[`${id}|${r.champ_code}`] = r.reponse;
     });
 
     let score = 0;
@@ -439,16 +537,18 @@
     const details = [];
 
     (snap.lignes || []).forEach((ligne) => {
+      const lid = ligneKey(ligne);
       (ligne.cells || []).forEach((cell) => {
         if (!cell.trou) return;
         total += 1;
-        const key = `${ligne.matrice_id}|${cell.champ_code}`;
-        const given = byKey[key] || '';
+        const key = `${lid}|${cell.champ_code}`;
+        const given = byKey[key] || byKey[`${ligne.matrice_id}|${cell.champ_code}`] || '';
         const alts = cellAcceptedValues(cell);
         const expected = cellDisplay(cell);
         const ok = alts.some((a) => normalizeAnswer(a) === normalizeAnswer(given));
         if (ok) score += 1;
         details.push({
+          ligne_id: lid,
           matrice_id: ligne.matrice_id,
           champ_code: cell.champ_code,
           reponse: given,
@@ -482,7 +582,7 @@
   /**
    * Évalue puis enregistre le score dans parties_reponses_utilisateur.
    * @param {string} partieId
-   * @param {{ matrice_id: string, champ_code: string, reponse: string }[]} reponses
+   * @param {{ ligne_id?: string, matrice_id?: string, champ_code: string, reponse: string }[]} reponses
    */
   async function soumettre(partieId, reponses) {
     const user = await global.JpApp.getUser();
@@ -653,6 +753,10 @@
     champMeta,
     cellDisplay,
     cellAcceptedValues,
+    ligneKey,
+    makeLigneId,
+    parseLigneId,
+    cellValeurFromMed,
     listSecteurs,
     listParties,
     fetchMedicaments,

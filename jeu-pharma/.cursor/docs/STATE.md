@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — hospitalier (`005`) + nettoyage catalogue RCP (`004`) + trous score manuel ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-07 — refonte création tableau à trous (4 étapes + aperçu fidèle + `ligne_id`) ; hospitalier (`005`) + catalogue RCP (`004`) + score manuel ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -61,6 +61,17 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** dans Paramètres → Filtres (global = noms/DCI/secteur ; ou champ ciblé via `jpIncompletChamp`).
 - [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — onglets **Historique** | Quiz | Tableau à trous ; Historique = liste filtrée (en cours / terminés / archivés) ; Quiz/Trous = création seule (même structure CSS `.jp-quiz-admin-*`) ; redirects `quizz.html` / `trous.html` → `?type=`.
 - [x] Trous jouer — flux score manuel (voir section ci-dessous).
+- [x] Refonte création tableau à trous (voir section ci-dessous) — **pas de migration Supabase**.
+
+## Création tableau à trous (refonte admin)
+- UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu permanent** auto-refresh ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.
+- Étape 1 : niveau (filtre hospitalier via `visiblePourNiveau`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
+- Étape 3 : densité + « Tirer les trous au hasard » + clic case + « Effacer les trous ».
+- Création = **exactement la grille affichée** (zéro re-tirage) via `buildSnapshot({ lignes, colonnes, trous })`.
+- Snapshot : chaque ligne a `ligne_id` (`matriceId` ou `matriceId:nomCommercialId`) + `label` + `matrice_id` (+ `nom_commercial_id` si applicable).
+- `configuration_json` : `colonnes`, `densite`, `max_lignes`, `par_nom`, `filtres`.
+- Compat parties anciennes : `JpTrous.ligneKey` / jouer / score / `evaluer` / `listerTrous` — repli sur `matrice_id` si pas de `ligne_id`.
+- Fichiers : `admin/jeux.html`, `js/admin-jeux.js`, `js/trous.js`, `trous/jouer.html`, `css/app.css`.
 
 ## Flux score tableau à trous (`trous/jouer.html`)
 - **Imprimer** : grille papier (cases vides) via `JpPrint.trousPrintDocument` + iframe same-document (`JpPrint.printHtml`). Admin création : lien `trous/imprimer.html?code=…` inchangé.

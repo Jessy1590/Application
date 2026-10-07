@@ -123,14 +123,16 @@
       html += '</tr></thead><tbody>';
 
       (grille.lignes || []).forEach(function (ligne) {
+        const lid = JpTrous.ligneKey(ligne);
         html += '<tr><td>' + JpUi.escapeHtml(ligne.label || '') + '</td>';
         (ligne.cells || []).forEach(function (cell) {
           if (cell.trou) {
-            const name = 'cell_' + ligne.matrice_id + '_' + cell.champ_code;
+            const name = 'cell_' + lid.replace(/[^a-zA-Z0-9_-]/g, '_') + '_' + cell.champ_code;
             html += '<td class="jp-trou"><label class="jp-sr-only" for="' + name + '">'
               + JpUi.escapeHtml(JpTrous.champLibelle(cell.champ_code)) + '</label>'
               + '<input class="jp-trou-input" id="' + name + '" name="' + name + '" type="text" autocomplete="off"'
-              + ' data-matrice="' + JpUi.escapeHtml(ligne.matrice_id) + '"'
+              + ' data-ligne="' + JpUi.escapeHtml(lid) + '"'
+              + ' data-matrice="' + JpUi.escapeHtml(ligne.matrice_id || '') + '"'
               + ' data-champ="' + JpUi.escapeHtml(cell.champ_code) + '"></td>';
           } else {
             const shown = JpTrous.cellDisplay(cell);
@@ -168,9 +170,17 @@
           inp.readOnly = true;
         });
         (trous || []).forEach(function (d) {
-          const inp = root.querySelector(
-            '.jp-trou-input[data-matrice="' + d.matrice_id + '"][data-champ="' + d.champ_code + '"]'
-          );
+          const lid = d.ligne_id || d.matrice_id;
+          let inp = lid
+            ? root.querySelector(
+              '.jp-trou-input[data-ligne="' + lid + '"][data-champ="' + d.champ_code + '"]'
+            )
+            : null;
+          if (!inp && d.matrice_id) {
+            inp = root.querySelector(
+              '.jp-trou-input[data-matrice="' + d.matrice_id + '"][data-champ="' + d.champ_code + '"]'
+            );
+          }
           if (!inp) return;
           const td = inp.closest('td');
           if (!td) return;
@@ -207,9 +217,11 @@
         } else if (mode === 'ligne') {
           panel = '<div class="jp-trous-score-panel" data-panel="ligne"><p class="jp-muted">Cochez les lignes réussies.</p><ul class="jp-trous-score-list">';
           (data.lignes || []).forEach(function (ligne, i) {
+            const lid = ligne.ligne_id || ligne.matrice_id || '';
             panel += '<li><label>'
-              + '<input type="checkbox" class="jp-trous-score-ligne" data-index="' + i + '" data-matrice="'
-              + JpUi.escapeHtml(ligne.matrice_id) + '">'
+              + '<input type="checkbox" class="jp-trous-score-ligne" data-index="' + i + '" data-ligne="'
+              + JpUi.escapeHtml(lid) + '" data-matrice="'
+              + JpUi.escapeHtml(ligne.matrice_id || '') + '">'
               + ' ' + JpUi.escapeHtml(ligne.label || ('Ligne ' + (i + 1)))
               + '</label></li>';
           });
@@ -217,9 +229,11 @@
         } else {
           panel = '<div class="jp-trous-score-panel" data-panel="case"><p class="jp-muted">Cochez les cases correctes.</p><ul class="jp-trous-score-list">';
           (data.trous || []).forEach(function (trou, i) {
+            const lid = trou.ligne_id || trou.matrice_id || '';
             panel += '<li><label>'
               + '<input type="checkbox" class="jp-trous-score-case" data-index="' + i + '"'
-              + ' data-matrice="' + JpUi.escapeHtml(trou.matrice_id) + '"'
+              + ' data-ligne="' + JpUi.escapeHtml(lid) + '"'
+              + ' data-matrice="' + JpUi.escapeHtml(trou.matrice_id || '') + '"'
               + ' data-champ="' + JpUi.escapeHtml(trou.champ_code) + '">'
               + ' ' + JpUi.escapeHtml(trou.label || '')
               + ' — ' + JpUi.escapeHtml(JpTrous.champLibelle(trou.champ_code))
@@ -262,6 +276,7 @@
               '.jp-trous-score-ligne[data-index="' + i + '"]'
             );
             return {
+              ligne_id: ligne.ligne_id || ligne.matrice_id,
               matrice_id: ligne.matrice_id,
               label: ligne.label,
               correct: !!(cb && cb.checked),
@@ -282,6 +297,7 @@
             '.jp-trous-score-case[data-index="' + i + '"]'
           );
           return {
+            ligne_id: trou.ligne_id || trou.matrice_id,
             matrice_id: trou.matrice_id,
             champ_code: trou.champ_code,
             correct: !!(cb && cb.checked),

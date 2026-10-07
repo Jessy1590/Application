@@ -144,7 +144,567 @@
   }
 
   /* —— Trous form —— */
+  function createTrousState() {
+    return {
+      etape: 1,
+      niveau: '',
+      filtres: { secteurs: [], classesTher: [], classesPharma: [], texte: '' },
+      parNom: false,
+      /** @type {Record<string, Set<string>>} noms cochés par fiche (retouche) */
+      nomsRetenus: {},
+      lignesCochees: new Set(),
+      lignesTirees: null,
+      maxLignes: 10,
+      colonnes: (global.JpTrous.COLONNES_DEFAUT || []).slice(),
+      trous: new Set(),
+      densite: 0.4,
+      allMeds: [],
+      lastSnapshot: null,
+    };
+  }
+
+  function medNoms(med) {
+    return Array.isArray(med?.noms_commerciaux) ? med.noms_commerciaux.filter(function (n) { return n && n.id; }) : [];
+  }
+
+  function getNomsRetenus(t, matriceId) {
+    return t.nomsRetenus[matriceId] || null;
+  }
+
+  function ensureNomsRetenus(t, med) {
+    const noms = medNoms(med);
+    if (!t.nomsRetenus[med.id]) {
+      t.nomsRetenus[med.id] = new Set(noms.map(function (n) { return String(n.id); }));
+    }
+    return t.nomsRetenus[med.id];
+  }
+
+  /**
+   * Lignes candidates pour une fiche (interrupteur + retouche noms).
+   */
+  function lignesFromMed(t, med) {
+    const noms = medNoms(med);
+    const retenus = getNomsRetenus(t, med.id);
+    const dci = med.dci || '';
+
+    function lineForNom(nom) {
+      return {
+        ligne_id: global.JpTrous.makeLigneId(med.id, nom.id),
+        matrice_id: med.id,
+        nom_commercial_id: nom.id,
+        label: nom.valeur || dci || med.id,
+        med: med,
+      };
+    }
+
+    if (t.parNom) {
+      if (!noms.length) {
+        return [{
+          ligne_id: global.JpTrous.makeLigneId(med.id, null),
+          matrice_id: med.id,
+          nom_commercial_id: null,
+          label: global.JpMedicaments.formatNoms(med) || dci || med.id,
+          med: med,
+        }];
+      }
+      const set = retenus || new Set(noms.map(function (n) { return String(n.id); }));
+      return noms.filter(function (n) { return set.has(String(n.id)); }).map(lineForNom);
+    }
+
+    // Une ligne par fiche, sauf retouche partielle → lignes par nom retenus
+    if (noms.length > 1 && retenus) {
+      const allIds = noms.map(function (n) { return String(n.id); });
+      const allChecked = allIds.every(function (id) { return retenus.has(id); });
+      const noneChecked = allIds.every(function (id) { return !retenus.has(id); });
+      if (!allChecked && !noneChecked) {
+        return noms.filter(function (n) { return retenus.has(String(n.id)); }).map(lineForNom);
+      }
+      if (noneChecked) return [];
+    }
+
+    return [{
+      ligne_id: global.JpTrous.makeLigneId(med.id, null),
+      matrice_id: med.id,
+      nom_commercial_id: null,
+      label: global.JpMedicaments.formatNoms(med) || dci || med.id,
+      med: med,
+    }];
+  }
+
+  function medMatchesFiltres(med, filtres) {
+    if (filtres.secteurs.length) {
+      if (!med.secteur_therapeutique_id || filtres.secteurs.indexOf(med.secteur_therapeutique_id) < 0) {
+        return false;
+      }
+    }
+    if (filtres.classesTher.length) {
+      if (!med.classe_therapeutique_id || filtres.classesTher.indexOf(med.classe_therapeutique_id) < 0) {
+        return false;
+      }
+    }
+    if (filtres.classesPharma.length) {
+      if (!med.classe_pharmacologique_id || filtres.classesPharma.indexOf(med.classe_pharmacologique_id) < 0) {
+        return false;
+      }
+    }
+    const q = (filtres.texte || '').trim().toLowerCase();
+    if (q) {
+      const nom = String(global.JpMedicaments.formatNoms(med) || '').toLowerCase();
+      const dci = String(med.dci || '').toLowerCase();
+      if (nom.indexOf(q) < 0 && dci.indexOf(q) < 0) return false;
+    }
+    return true;
+  }
+
+  function candidateLignes(t) {
+    const out = [];
+    (t.allMeds || []).forEach(function (med) {
+      if (!medMatchesFiltres(med, t.filtres)) return;
+      lignesFromMed(t, med).forEach(function (l) { out.push(l); });
+    });
+    return out;
+  }
+
+  function readMaxLignes() {
+    const n = Number($('trousMaxLignes').value);
+    if (!Number.isFinite(n) || n < 1) throw new Error('Nombre max de lignes invalide (min. 1)');
+    return Math.min(Math.floor(n), 100);
+  }
+
+  function syncMaxLignes(t) {
+    try {
+      t.maxLignes = readMaxLignes();
+    } catch (_) {
+      t.maxLignes = 10;
+    }
+  }
+
+  function selectedColonnesFromDom() {
+    return Array.from(document.querySelectorAll('input[name="trousCol"]:checked')).map(function (el) {
+      return el.value;
+    });
+  }
+
+  function syncColonnes(t) {
+    t.colonnes = selectedColonnesFromDom();
+  }
+
+  function lignesCocheesList(t) {
+    return candidateLignes(t).filter(function (l) { return t.lignesCochees.has(l.ligne_id); });
+  }
+
+  /** Lignes réellement affichées dans la grille (après plafond / tirage figé). */
+  function lignesPourGrille(t) {
+    const cochees = lignesCocheesList(t);
+    syncMaxLignes(t);
+    if (cochees.length <= t.maxLignes) {
+      return { lignes: cochees, needDraw: false, overMax: false };
+    }
+    if (t.lignesTirees && t.lignesTirees.length) {
+      const set = new Set(t.lignesTirees);
+      const frozen = cochees.filter(function (l) { return set.has(l.ligne_id); });
+      if (frozen.length) {
+        return { lignes: frozen, needDraw: false, overMax: true };
+      }
+    }
+    return { lignes: [], needDraw: true, overMax: true };
+  }
+
+  function pruneTrous(t) {
+    const { lignes } = lignesPourGrille(t);
+    const cols = t.colonnes || [];
+    const valid = new Set();
+    lignes.forEach(function (l) {
+      cols.forEach(function (champ) {
+        const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
+        if (cv.valeur) valid.add(l.ligne_id + '|' + champ);
+      });
+    });
+    const next = new Set();
+    t.trous.forEach(function (k) {
+      if (valid.has(k)) next.add(k);
+    });
+    t.trous = next;
+  }
+
+  function countFillable(t) {
+    const { lignes } = lignesPourGrille(t);
+    const cols = t.colonnes || [];
+    let n = 0;
+    lignes.forEach(function (l) {
+      cols.forEach(function (champ) {
+        const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
+        if (cv.valeur) n += 1;
+      });
+    });
+    return n;
+  }
+
+  function buildSnapshotFromState(t) {
+    syncColonnes(t);
+    syncMaxLignes(t);
+    const pack = lignesPourGrille(t);
+    if (pack.needDraw) {
+      throw new Error('Trop de lignes cochées : tirez les lignes au hasard (plafond ' + t.maxLignes + ')');
+    }
+    if (!pack.lignes.length) throw new Error('Cochez au moins une ligne');
+    if (!t.colonnes.length) throw new Error('Sélectionnez au moins une colonne');
+    pruneTrous(t);
+    const snap = global.JpTrous.buildSnapshot({
+      lignes: pack.lignes,
+      colonnes: t.colonnes,
+      trous: t.trous,
+    });
+    t.lastSnapshot = snap;
+    return snap;
+  }
+
+  function renderGrille(t) {
+    const wrap = $('trousPreviewGrid');
+    const hint = $('trousPreviewHint');
+    const countEl = $('trousTrousCount');
+    syncColonnes(t);
+    syncMaxLignes(t);
+    pruneTrous(t);
+
+    const pack = lignesPourGrille(t);
+    const cols = t.colonnes || [];
+    const fillable = countFillable(t);
+    const nTrous = t.trous.size;
+    if (countEl) countEl.textContent = nTrous + ' trou' + (nTrous > 1 ? 's' : '') + ' sur ' + fillable + ' case' + (fillable > 1 ? 's' : '');
+
+    if (!cols.length) {
+      hint.textContent = 'Choisissez au moins une colonne (étape 2).';
+      wrap.innerHTML = '';
+      updateRecap(t);
+      return;
+    }
+    if (!pack.lignes.length) {
+      hint.textContent = pack.needDraw
+        ? 'Plus de ' + t.maxLignes + ' lignes cochées — cliquez « Tirer les lignes au hasard ».'
+        : 'Cochez des lignes (étape 1) pour remplir l’aperçu.';
+      wrap.innerHTML = '';
+      updateRecap(t);
+      return;
+    }
+
+    const nCochees = lignesCocheesList(t).length;
+    hint.textContent = pack.overMax
+      ? pack.lignes.length + ' ligne(s) tirée(s) / ' + nCochees + ' cochée(s) · clic case = trou'
+      : pack.lignes.length + ' ligne(s) · clic case = trou';
+
+    let html = '<table class="jp-table jp-trous-table jp-trous-preview-table"><thead><tr><th>Médicament</th>';
+    cols.forEach(function (c) {
+      html += '<th>' + global.JpUi.escapeHtml(global.JpTrous.champLibelle(c)) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    pack.lignes.forEach(function (ligne) {
+      html += '<tr><td>' + global.JpUi.escapeHtml(ligne.label || '') + '</td>';
+      cols.forEach(function (champ) {
+        const cv = global.JpTrous.cellValeurFromMed(ligne.med, champ, ligne.nom_commercial_id);
+        const key = ligne.ligne_id + '|' + champ;
+        const hasVal = !!cv.valeur;
+        const isTrou = hasVal && t.trous.has(key);
+        const raw = hasVal
+          ? (Array.isArray(cv.valeurs) && cv.valeurs.length ? cv.valeurs.join('; ') : cv.valeur)
+          : '';
+        const val = raw ? global.JpUi.escapeHtml(raw) : '—';
+        let cls = 'jp-trous-cell';
+        if (!hasVal) cls += ' jp-trous-cell-empty';
+        else if (isTrou) cls += ' jp-trou jp-trous-cell-clickable';
+        else cls += ' jp-trous-cell-clickable';
+        html += '<td class="' + cls + '"'
+          + (hasVal ? ' data-key="' + global.JpUi.escapeHtml(key) + '" title="Cliquer pour basculer"' : '')
+          + '>' + (isTrou ? '<em>trou</em> · ' + val : val) + '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    wrap.querySelectorAll('td[data-key]').forEach(function (td) {
+      td.addEventListener('click', function () {
+        const key = td.getAttribute('data-key');
+        if (!key) return;
+        if (t.trous.has(key)) t.trous.delete(key);
+        else t.trous.add(key);
+        renderGrille(t);
+      });
+    });
+
+    try {
+      t.lastSnapshot = buildSnapshotFromState(t);
+    } catch (_) {
+      t.lastSnapshot = null;
+    }
+    updateRecap(t);
+  }
+
+  function updateRecap(t) {
+    const el = $('trousRecap');
+    if (!el) return;
+    const pack = lignesPourGrille(t);
+    const niv = $('trousNiveau').value || '—';
+    const cols = (t.colonnes || []).map(function (c) { return global.JpTrous.champLibelle(c); }).join(', ') || '—';
+    el.innerHTML = '<p><strong>Récapitulatif</strong></p>'
+      + '<ul class="jp-trous-recap-list">'
+      + '<li>Niveau : ' + global.JpUi.escapeHtml(niv) + '</li>'
+      + '<li>Lignes : ' + pack.lignes.length + (pack.needDraw ? ' (tirage requis)' : '') + '</li>'
+      + '<li>Colonnes : ' + global.JpUi.escapeHtml(cols) + '</li>'
+      + '<li>Trous : ' + t.trous.size + '</li>'
+      + '</ul>';
+  }
+
+  function updateMedsCount(t) {
+    const n = lignesCocheesList(t).length;
+    $('trousMedsCount').textContent = n ? n + ' ligne' + (n > 1 ? 's' : '') + ' sélectionnée' + (n > 1 ? 's' : '') : '';
+  }
+
+  function invalidateLignesTirees(t) {
+    if (!t.lignesTirees) return;
+    const cochees = new Set(lignesCocheesList(t).map(function (l) { return l.ligne_id; }));
+    t.lignesTirees = t.lignesTirees.filter(function (id) { return cochees.has(id); });
+    if (!t.lignesTirees.length) t.lignesTirees = null;
+  }
+
+  function renderMedsList(t) {
+    const wrap = $('trousMedsList');
+    const meds = (t.allMeds || []).filter(function (m) { return medMatchesFiltres(m, t.filtres); });
+    if (!meds.length) {
+      wrap.innerHTML = '<p class="jp-muted">Aucune fiche publiée correspondante.</p>';
+      updateMedsCount(t);
+      return;
+    }
+
+    wrap.innerHTML = meds.map(function (med) {
+      const noms = medNoms(med);
+      const ficheLabel = (global.JpMedicaments.formatNoms(med) || med.dci || med.id)
+        + (med.dci && global.JpMedicaments.formatNoms(med) ? ' · ' + med.dci : '');
+      const lines = lignesFromMed(t, med);
+      const allLineIds = lines.map(function (l) { return l.ligne_id; });
+      const allChecked = allLineIds.length && allLineIds.every(function (id) { return t.lignesCochees.has(id); });
+      const someChecked = allLineIds.some(function (id) { return t.lignesCochees.has(id); });
+
+      let html = '<div class="jp-trous-admin-fiche" data-matrice="' + global.JpUi.escapeHtml(med.id) + '">';
+      html += '<label class="jp-trous-admin-med">'
+        + '<input type="checkbox" name="trousFiche" value="' + global.JpUi.escapeHtml(med.id) + '"'
+        + (allChecked ? ' checked' : '')
+        + (someChecked && !allChecked ? ' data-indeterminate="1"' : '')
+        + '>'
+        + '<span>' + global.JpUi.escapeHtml(ficheLabel) + '</span></label>';
+
+      if (noms.length > 1 || t.parNom) {
+        const retenus = ensureNomsRetenus(t, med);
+        html += '<div class="jp-trous-admin-noms">';
+        noms.forEach(function (nom) {
+          const lid = global.JpTrous.makeLigneId(med.id, nom.id);
+          const nomOn = retenus.has(String(nom.id));
+          const lineOn = t.parNom ? t.lignesCochees.has(lid) : nomOn;
+          html += '<label class="jp-trous-admin-nom">'
+            + '<input type="checkbox" name="trousNom" data-matrice="' + global.JpUi.escapeHtml(med.id) + '"'
+            + ' data-nom="' + global.JpUi.escapeHtml(nom.id) + '"'
+            + ' value="' + global.JpUi.escapeHtml(lid) + '"'
+            + (lineOn ? ' checked' : '') + '>'
+            + '<span>' + global.JpUi.escapeHtml(nom.valeur || '') + '</span></label>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+
+    wrap.querySelectorAll('input[data-indeterminate="1"]').forEach(function (el) {
+      el.indeterminate = true;
+    });
+
+    wrap.querySelectorAll('input[name="trousFiche"]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        const med = t.allMeds.find(function (m) { return m.id === el.value; });
+        if (!med) return;
+        if (el.checked) {
+          if (t.parNom || medNoms(med).length > 1) ensureNomsRetenus(t, med);
+          lignesFromMed(t, med).forEach(function (l) { t.lignesCochees.add(l.ligne_id); });
+        } else {
+          // retirer toutes les lignes possibles de cette fiche
+          const noms = medNoms(med);
+          t.lignesCochees.delete(global.JpTrous.makeLigneId(med.id, null));
+          noms.forEach(function (n) {
+            t.lignesCochees.delete(global.JpTrous.makeLigneId(med.id, n.id));
+          });
+        }
+        invalidateLignesTirees(t);
+        renderMedsList(t);
+        renderGrille(t);
+      });
+    });
+
+    wrap.querySelectorAll('input[name="trousNom"]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        const matriceId = el.getAttribute('data-matrice');
+        const nomId = el.getAttribute('data-nom');
+        const med = t.allMeds.find(function (m) { return m.id === matriceId; });
+        if (!med || !nomId) return;
+        const retenus = ensureNomsRetenus(t, med);
+        const noms = medNoms(med);
+        const wasSelected = t.lignesCochees.has(global.JpTrous.makeLigneId(matriceId, null))
+          || noms.some(function (n) {
+            return t.lignesCochees.has(global.JpTrous.makeLigneId(matriceId, n.id));
+          });
+
+        if (el.checked) retenus.add(String(nomId));
+        else retenus.delete(String(nomId));
+
+        t.lignesCochees.delete(global.JpTrous.makeLigneId(matriceId, null));
+        noms.forEach(function (n) {
+          t.lignesCochees.delete(global.JpTrous.makeLigneId(matriceId, n.id));
+        });
+
+        if (t.parNom || wasSelected) {
+          lignesFromMed(t, med).forEach(function (l) { t.lignesCochees.add(l.ligne_id); });
+        }
+
+        invalidateLignesTirees(t);
+        renderMedsList(t);
+        renderGrille(t);
+      });
+    });
+
+    updateMedsCount(t);
+  }
+
+  function setTrousEtape(t, n) {
+    const step = Number(n) || 1;
+    t.etape = step;
+    document.querySelectorAll('[data-trous-etape]').forEach(function (btn) {
+      const active = Number(btn.getAttribute('data-trous-etape')) === step;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-trous-panel]').forEach(function (panel) {
+      panel.hidden = Number(panel.getAttribute('data-trous-panel')) !== step;
+    });
+    if (step === 4) updateRecap(t);
+  }
+
+  function fillFiltreCheckboxes(containerId, items, name, selectedIds) {
+    const wrap = $(containerId);
+    if (!wrap) return;
+    if (!items.length) {
+      wrap.innerHTML = '<p class="jp-muted">Aucune valeur.</p>';
+      return;
+    }
+    wrap.innerHTML = items.map(function (it) {
+      return '<label class="jp-trous-filtre-item">'
+        + '<input type="checkbox" name="' + name + '" value="' + global.JpUi.escapeHtml(it.id) + '"'
+        + (selectedIds.indexOf(it.id) >= 0 ? ' checked' : '') + '>'
+        + '<span>' + global.JpUi.escapeHtml(it.valeur) + '</span></label>';
+    }).join('');
+  }
+
+  function readFiltreIds(name) {
+    return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map(function (el) {
+      return el.value;
+    });
+  }
+
+  function syncFiltresFromDom(t) {
+    t.filtres.secteurs = readFiltreIds('trousFiltreSecteur');
+    t.filtres.classesTher = readFiltreIds('trousFiltreClasseTher');
+    t.filtres.classesPharma = readFiltreIds('trousFiltreClassePharma');
+    t.filtres.texte = ($('trousFiltreTexte').value || '');
+  }
+
+  function onFiltresChange(t) {
+    syncFiltresFromDom(t);
+    invalidateLignesTirees(t);
+    renderMedsList(t);
+    renderGrille(t);
+  }
+
+  function tirerLignes(t) {
+    syncMaxLignes(t);
+    const cochees = lignesCocheesList(t);
+    if (!cochees.length) {
+      global.JpToast.warn('Cochez au moins une ligne');
+      return;
+    }
+    if (cochees.length <= t.maxLignes) {
+      t.lignesTirees = null;
+      global.JpToast.ok(cochees.length + ' ligne(s) — toutes retenues (sous le plafond)');
+    } else {
+      const picked = global.JpTrous.shuffle(cochees).slice(0, t.maxLignes);
+      t.lignesTirees = picked.map(function (l) { return l.ligne_id; });
+      global.JpToast.ok(t.maxLignes + ' ligne(s) tirée(s) parmi ' + cochees.length);
+    }
+    renderGrille(t);
+  }
+
+  function tirerTrous(t) {
+    const densite = Number($('trousDensite').value) / 100;
+    t.densite = densite;
+    const pack = lignesPourGrille(t);
+    if (pack.needDraw || !pack.lignes.length) {
+      global.JpToast.warn('Aucune ligne dans la grille');
+      return;
+    }
+    if (!(t.colonnes || []).length) {
+      global.JpToast.warn('Choisissez des colonnes');
+      return;
+    }
+    const next = new Set();
+    let fillable = 0;
+    pack.lignes.forEach(function (l) {
+      (t.colonnes || []).forEach(function (champ) {
+        const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
+        if (!cv.valeur) return;
+        fillable += 1;
+        if (Math.random() < densite) next.add(l.ligne_id + '|' + champ);
+      });
+    });
+    if (fillable && !next.size) {
+      // au moins un trou
+      const keys = [];
+      pack.lignes.forEach(function (l) {
+        (t.colonnes || []).forEach(function (champ) {
+          const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
+          if (cv.valeur) keys.push(l.ligne_id + '|' + champ);
+        });
+      });
+      if (keys.length) next.add(keys[Math.floor(Math.random() * keys.length)]);
+    }
+    t.trous = next;
+    renderGrille(t);
+  }
+
+  function effacerTrous(t) {
+    t.trous = new Set();
+    renderGrille(t);
+  }
+
+  async function refreshTrousMeds(t) {
+    const niveau = $('trousNiveau').value || null;
+    t.niveau = niveau;
+    syncFiltresFromDom(t);
+    // Toutes les fiches du niveau ; filtres multi appliqués côté client (OR intra / AND inter).
+    t.allMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
+    const allowedMeds = new Set(t.allMeds.map(function (m) { return m.id; }));
+    const nextCochees = new Set();
+    t.lignesCochees.forEach(function (lid) {
+      const parsed = global.JpTrous.parseLigneId(lid);
+      if (allowedMeds.has(parsed.matriceId)) nextCochees.add(lid);
+    });
+    t.lignesCochees = nextCochees;
+    Object.keys(t.nomsRetenus).forEach(function (mid) {
+      if (!allowedMeds.has(mid)) delete t.nomsRetenus[mid];
+    });
+    invalidateLignesTirees(t);
+    renderMedsList(t);
+    renderGrille(t);
+  }
+
   function initTrousForm(state) {
+    const t = state.trous;
     const colonnesList = $('trousColonnesList');
     const defaults = global.JpTrous.COLONNES_DEFAUT;
     (global.JpConstants.CHAMP_CODES || []).forEach(function (c) {
@@ -155,215 +715,124 @@
         + '<span>' + global.JpUi.escapeHtml(c.libelle) + '</span>';
       colonnesList.appendChild(label);
     });
+    t.colonnes = defaults.slice();
+
+    function onColsChange() {
+      syncColonnes(t);
+      pruneTrous(t);
+      renderGrille(t);
+    }
     $('trousBtnColsAll').addEventListener('click', function () {
       colonnesList.querySelectorAll('input[name="trousCol"]').forEach(function (el) { el.checked = true; });
+      onColsChange();
     });
     $('trousBtnColsNone').addEventListener('click', function () {
       colonnesList.querySelectorAll('input[name="trousCol"]').forEach(function (el) { el.checked = false; });
+      onColsChange();
     });
+    colonnesList.addEventListener('change', onColsChange);
 
-    function updateMedsCount() {
-      const n = state.selectedMedIds.size;
-      $('trousMedsCount').textContent = n ? n + ' sélectionné(s)' : '';
-    }
-
-    function renderMedsList() {
-      const q = ($('trousMedsFilter').value || '').trim().toLowerCase();
-      const wrap = $('trousMedsList');
-      const filtered = state.allPublieMeds.filter(function (m) {
-        if (!q) return true;
-        const nom = String(global.JpMedicaments.formatNoms(m) || '').toLowerCase();
-        const dci = String(m.dci || '').toLowerCase();
-        return nom.indexOf(q) >= 0 || dci.indexOf(q) >= 0;
+    document.querySelectorAll('[data-trous-etape]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setTrousEtape(t, btn.getAttribute('data-trous-etape'));
       });
-      if (!filtered.length) {
-        wrap.innerHTML = '<p class="jp-muted">Aucune fiche publiée correspondante.</p>';
-        updateMedsCount();
-        return;
-      }
-      wrap.innerHTML = filtered.map(function (m) {
-        const id = m.id;
-        const noms = global.JpMedicaments.formatNoms(m);
-        const label = (noms || m.dci || id) + (m.dci && noms ? ' · ' + m.dci : '');
-        return '<label class="jp-trous-admin-med">'
-          + '<input type="checkbox" name="trousMed" value="' + global.JpUi.escapeHtml(id) + '"'
-          + (state.selectedMedIds.has(id) ? ' checked' : '') + '>'
-          + '<span>' + global.JpUi.escapeHtml(label) + '</span></label>';
-      }).join('');
-      wrap.querySelectorAll('input[name="trousMed"]').forEach(function (el) {
-        el.addEventListener('change', function () {
-          if (el.checked) state.selectedMedIds.add(el.value);
-          else state.selectedMedIds.delete(el.value);
-          updateMedsCount();
-        });
-      });
-      updateMedsCount();
-    }
-
-    state.renderMedsList = renderMedsList;
-
-    $('trousMedsFilter').addEventListener('input', renderMedsList);
-    $('trousBtnMedsAllVisible').addEventListener('click', function () {
-      document.querySelectorAll('#trousMedsList input[name="trousMed"]').forEach(function (el) {
-        el.checked = true;
-        state.selectedMedIds.add(el.value);
-      });
-      updateMedsCount();
     });
-    $('trousBtnMedsNone').addEventListener('click', function () {
-      state.selectedMedIds.clear();
-      document.querySelectorAll('#trousMedsList input[name="trousMed"]').forEach(function (el) {
-        el.checked = false;
-      });
-      updateMedsCount();
-    });
+    setTrousEtape(t, 1);
 
     $('trousDensite').addEventListener('input', function () {
       $('trousDensiteLabel').textContent = this.value + ' %';
+      t.densite = Number(this.value) / 100;
     });
 
-    $('trousModeTrous').addEventListener('change', function () {
-      $('trousDensiteField').hidden = this.value === 'MANUEL';
-      $('trousPreviewHint').textContent =
-        this.value === 'MANUEL' ? 'Cliquez une cellule pour basculer trou / visible.' : '';
+    $('trousParNom').addEventListener('change', function () {
+      t.parNom = !!this.checked;
+      // reconstruire les coches : fiches déjà sélectionnées → nouvelles lignes
+      const prevMedIds = new Set();
+      t.lignesCochees.forEach(function (lid) {
+        prevMedIds.add(global.JpTrous.parseLigneId(lid).matriceId);
+      });
+      t.lignesCochees = new Set();
+      t.allMeds.forEach(function (med) {
+        if (!prevMedIds.has(med.id)) return;
+        if (t.parNom) ensureNomsRetenus(t, med);
+        lignesFromMed(t, med).forEach(function (l) { t.lignesCochees.add(l.ligne_id); });
+      });
+      t.lignesTirees = null;
+      renderMedsList(t);
+      renderGrille(t);
     });
 
-    $('trousSourceMeds').addEventListener('change', function () {
-      const byIds = this.value === 'ids';
-      $('trousSecteurField').hidden = byIds;
-      $('trousIdsField').hidden = !byIds;
+    $('trousFiltreTexte').addEventListener('input', function () { onFiltresChange(t); });
+    $('trousFiltreSecteurs').addEventListener('change', function () { onFiltresChange(t); });
+    $('trousFiltreClassesTher').addEventListener('change', function () { onFiltresChange(t); });
+    $('trousFiltreClassesPharma').addEventListener('change', function () { onFiltresChange(t); });
+
+    $('trousBtnMedsAllVisible').addEventListener('click', function () {
+      const meds = (t.allMeds || []).filter(function (m) { return medMatchesFiltres(m, t.filtres); });
+      meds.forEach(function (med) {
+        if (t.parNom || medNoms(med).length > 1) ensureNomsRetenus(t, med);
+        lignesFromMed(t, med).forEach(function (l) { t.lignesCochees.add(l.ligne_id); });
+      });
+      invalidateLignesTirees(t);
+      renderMedsList(t);
+      renderGrille(t);
     });
+    $('trousBtnMedsNone').addEventListener('click', function () {
+      t.lignesCochees.clear();
+      t.lignesTirees = null;
+      renderMedsList(t);
+      renderGrille(t);
+    });
+
+    $('trousMaxLignes').addEventListener('change', function () {
+      syncMaxLignes(t);
+      const cochees = lignesCocheesList(t);
+      if (cochees.length <= t.maxLignes) t.lignesTirees = null;
+      else if (t.lignesTirees && t.lignesTirees.length > t.maxLignes) {
+        t.lignesTirees = t.lignesTirees.slice(0, t.maxLignes);
+      }
+      renderGrille(t);
+    });
+
+    $('trousBtnTirerLignes').addEventListener('click', function () { tirerLignes(t); });
+    $('trousBtnTirerTrous').addEventListener('click', function () { tirerTrous(t); });
+    $('trousBtnEffacerTrous').addEventListener('click', function () { effacerTrous(t); });
 
     $('trousNiveau').addEventListener('change', async function () {
       try {
-        await refreshTrousMeds(state);
+        await refreshTrousMeds(t);
       } catch (e) {
         global.JpToast.fromError(e);
       }
     });
-  }
 
-  async function refreshTrousMeds(state) {
-    const niveau = $('trousNiveau').value || null;
-    state.allPublieMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
-    const allowed = new Set(state.allPublieMeds.map(function (m) { return m.id; }));
-    state.selectedMedIds.forEach(function (id) {
-      if (!allowed.has(id)) state.selectedMedIds.delete(id);
-    });
-    if (typeof state.renderMedsList === 'function') state.renderMedsList();
-  }
-
-  function selectedColonnes() {
-    return Array.from(document.querySelectorAll('input[name="trousCol"]:checked')).map(function (el) {
-      return el.value;
-    });
-  }
-
-  function readMaxLignes() {
-    const n = Number($('trousMaxLignes').value);
-    if (!Number.isFinite(n) || n < 1) throw new Error('Nombre max de lignes invalide (min. 1)');
-    return Math.min(Math.floor(n), 100);
-  }
-
-  async function loadMeds(state) {
-    const niveau = $('trousNiveau').value || null;
-    const source = $('trousSourceMeds').value;
-    if (source === 'ids') {
-      const ids = Array.from(state.selectedMedIds);
-      if (!ids.length) throw new Error('Cochez au moins un médicament');
-      return global.JpTrous.fetchMedicaments({ matriceIds: ids, niveau: niveau });
-    }
-    const secteurId = $('trousSecteur').value;
-    if (!secteurId) throw new Error('Choisissez un secteur');
-    return global.JpTrous.fetchMedicaments({ secteurId: secteurId, niveau: niveau });
-  }
-
-  function renderPreview(state, snap) {
-    const wrap = $('trousPreviewGrid');
-    const cols = snap.colonnes || [];
-    let html = '<table class="jp-table jp-trous-table"><thead><tr><th>Médicament</th>';
-    cols.forEach(function (c) {
-      html += '<th>' + global.JpUi.escapeHtml(global.JpTrous.champLibelle(c)) + '</th>';
-    });
-    html += '</tr></thead><tbody>';
-    (snap.lignes || []).forEach(function (ligne) {
-      html += '<tr><td>' + global.JpUi.escapeHtml(ligne.label || '') + '</td>';
-      (ligne.cells || []).forEach(function (cell) {
-        const key = ligne.matrice_id + '|' + cell.champ_code;
-        const cls = cell.trou ? 'jp-trou' : '';
-        const raw = global.JpTrous.cellDisplay(cell);
-        const val = raw ? global.JpUi.escapeHtml(raw) : '—';
-        html += '<td class="' + cls + '" data-key="' + global.JpUi.escapeHtml(key) + '" title="Cliquer pour basculer">'
-          + (cell.trou ? '<em>trou</em> · ' + val : val) + '</td>';
-      });
-      html += '</tr>';
-    });
-    html += '</tbody></table>';
-    wrap.innerHTML = html;
-    $('trousPreviewWrap').hidden = false;
-
-    if ($('trousModeTrous').value === 'MANUEL') {
-      wrap.querySelectorAll('td[data-key]').forEach(function (td) {
-        td.style.cursor = 'pointer';
-        td.addEventListener('click', function () {
-          const key = td.getAttribute('data-key');
-          state.trousManuels[key] = !state.trousManuels[key];
-          (snap.lignes || []).forEach(function (ligne) {
-            (ligne.cells || []).forEach(function (cell) {
-              const k = ligne.matrice_id + '|' + cell.champ_code;
-              if (k === key && cell.valeur) cell.trou = !!state.trousManuels[key];
-            });
-          });
-          state.lastSnapshot = snap;
-          renderPreview(state, snap);
-        });
-      });
-    }
-  }
-
-  async function buildCurrentSnapshot(state) {
-    const meds = await loadMeds(state);
-    const modeTrous = $('trousModeTrous').value;
-    if (modeTrous === 'ALEATOIRE') state.trousManuels = {};
-    const cols = selectedColonnes();
-    if (!cols.length) throw new Error('Sélectionnez au moins une colonne');
-    const maxLignes = readMaxLignes();
-    const snap = global.JpTrous.buildSnapshot({
-      meds: meds,
-      colonnes: cols,
-      modeTrous: modeTrous,
-      trousManuels: state.trousManuels,
-      densite: Number($('trousDensite').value) / 100,
-      maxLignes: maxLignes,
-    });
-    if (modeTrous === 'MANUEL' && !Object.keys(state.trousManuels).length) {
-      (snap.lignes || []).forEach(function (ligne) {
-        (ligne.cells || []).forEach(function (cell) {
-          if (cell.trou) state.trousManuels[ligne.matrice_id + '|' + cell.champ_code] = true;
-        });
-      });
-    }
-    state.lastSnapshot = snap;
-    return snap;
+    $('trousMode').addEventListener('change', function () { updateRecap(t); });
   }
 
   async function submitTrous(state) {
-    const maxLignes = readMaxLignes();
-    await buildCurrentSnapshot(state);
+    const t = state.trous;
+    syncColonnes(t);
+    syncMaxLignes(t);
+    syncFiltresFromDom(t);
+    const snap = buildSnapshotFromState(t);
     const created = await global.JpTrous.createPartie({
       titre: $('trousTitre').value,
       niveau_cible: $('trousNiveau').value,
       mode: $('trousMode').value,
-      secteur_therapeutique_id: $('trousSourceMeds').value === 'secteur'
-        ? ($('trousSecteur').value || null)
-        : null,
+      secteur_therapeutique_id: t.filtres.secteurs.length === 1 ? t.filtres.secteurs[0] : null,
       configuration_json: {
-        colonnes: selectedColonnes(),
-        mode_trous: $('trousModeTrous').value,
-        densite: Number($('trousDensite').value) / 100,
-        max_lignes: maxLignes,
+        colonnes: t.colonnes,
+        densite: t.densite,
+        max_lignes: t.maxLignes,
+        par_nom: t.parNom,
+        filtres: {
+          secteurs: t.filtres.secteurs.slice(),
+          classes_ther: t.filtres.classesTher.slice(),
+          classes_pharma: t.filtres.classesPharma.slice(),
+          texte: t.filtres.texte || '',
+        },
       },
-      snapshot_grille: state.lastSnapshot,
+      snapshot_grille: snap,
     });
     const box = $('resultBox');
     box.hidden = false;
@@ -633,10 +1102,7 @@
     global.JpUi.bootPage({ module: 'admin-jeux', homeHref: global.JpFab.PORTAIL_URL });
 
     const state = {
-      lastSnapshot: null,
-      trousManuels: {},
-      allPublieMeds: [],
-      selectedMedIds: new Set(),
+      trous: createTrousState(),
       histoFilter: 'tous',
       histoKind: 'tous',
     };
@@ -644,9 +1110,9 @@
     setType(parseTypeFromUrl());
     document.querySelectorAll('[data-jeu-type]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        const t = btn.getAttribute('data-jeu-type');
-        setType(t);
-        if (t === 'historique') void refreshList(state);
+        const tab = btn.getAttribute('data-jeu-type');
+        setType(tab);
+        if (tab === 'historique') void refreshList(state);
       });
     });
 
@@ -679,48 +1145,48 @@
 
     try {
       await fillSecteurs($('quizSecteur'));
-      await fillSecteurs($('trousSecteur'));
     } catch (e) {
       global.JpToast.fromError(e);
     }
 
     try {
-      await refreshTrousMeds(state);
+      const [secteurs, classesTher, classesPharma] = await Promise.all([
+        global.JpTrous.listSecteurs(),
+        global.JpEntites.list('classes_therapeutiques', { actif: true }),
+        global.JpEntites.list('classes_pharmacologiques', { actif: true }),
+      ]);
+      fillFiltreCheckboxes('trousFiltreSecteurs', secteurs, 'trousFiltreSecteur', []);
+      fillFiltreCheckboxes('trousFiltreClassesTher', classesTher, 'trousFiltreClasseTher', []);
+      fillFiltreCheckboxes('trousFiltreClassesPharma', classesPharma, 'trousFiltreClassePharma', []);
+    } catch (e) {
+      global.JpToast.fromError(e);
+    }
+
+    try {
+      await refreshTrousMeds(state.trous);
     } catch (e) {
       global.JpToast.fromError(e);
       $('trousMedsList').innerHTML = '<p class="jp-muted">Impossible de charger les médicaments.</p>';
     }
 
-    $('trousBtnPreview').addEventListener('click', async function () {
-      try {
-        const snap = await buildCurrentSnapshot(state);
-        $('trousPreviewHint').textContent =
-          $('trousModeTrous').value === 'MANUEL'
-            ? 'Cliquez une cellule pour basculer trou / visible.'
-            : (snap.lignes.length + ' ligne(s) · trous aléatoires');
-        renderPreview(state, snap);
-      } catch (e) {
-        global.JpToast.fromError(e);
-      }
-    });
-
     $('btnCreateJeu').addEventListener('click', async function () {
       const btn = $('btnCreateJeu');
-      const t = currentType();
-      if (t === 'historique') return;
-      if (t === 'quiz') {
+      const tab = currentType();
+      if (tab === 'historique') return;
+      if (tab === 'quiz') {
         if (!$('quizForm').reportValidity()) return;
-      } else if (!$('trousForm').reportValidity()) {
-        return;
+      } else {
+        setTrousEtape(state.trous, 4);
+        if (!$('trousForm').reportValidity()) return;
       }
       btn.disabled = true;
       try {
-        if (t === 'quiz') await submitQuiz();
+        if (tab === 'quiz') await submitQuiz();
         else await submitTrous(state);
       } catch (e) {
         global.JpToast.fromError(e);
         void global.JpLogs.error(
-          t === 'quiz' ? 'quiz_create_fail' : 'trous_create_fail',
+          tab === 'quiz' ? 'quiz_create_fail' : 'trous_create_fail',
           { message: e.message || String(e) }
         );
       } finally {
