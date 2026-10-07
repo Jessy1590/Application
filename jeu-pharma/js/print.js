@@ -96,8 +96,84 @@
 </body></html>`;
   }
 
+  /**
+   * HTML imprimable pour un tableau à trous (cellules masquées = blanc à remplir).
+   * @param {{
+   *   code: string,
+   *   titre: string,
+   *   nom?: string,
+   *   date?: string,
+   *   colonnes: string[],
+   *   lignes: Array<{
+   *     label?: string,
+   *     cells?: Array<{ champ_code: string, trou?: boolean, valeur?: string|null, valeurs?: string[]|null }>
+   *   }>,
+   *   champLibelle?: (code: string) => string
+   * }} payload
+   */
+  function trousPrintDocument(payload) {
+    const esc = global.JpUi?.escapeHtml || ((s) => String(s ?? ''));
+    const date = payload.date || new Date().toLocaleString('fr-FR');
+    const nom = payload.nom || '';
+    const libelleFn =
+      payload.champLibelle ||
+      global.JpTrous?.champLibelle ||
+      ((c) => c);
+    const displayFn =
+      global.JpTrous?.cellDisplay ||
+      ((cell) => (cell && (Array.isArray(cell.valeurs) && cell.valeurs.length
+        ? cell.valeurs.join('; ')
+        : (cell.valeur || ''))) || '');
+
+    const cols = payload.colonnes || [];
+    const head = cols
+      .map((c) => `<th>${esc(libelleFn(c))}</th>`)
+      .join('');
+
+    const body = (payload.lignes || [])
+      .map((ligne) => {
+        const cells = (ligne.cells || [])
+          .map((cell) => {
+            if (cell.trou) {
+              return '<td class="blank">&nbsp;</td>';
+            }
+            const val = displayFn(cell);
+            return `<td>${esc(val || '—')}</td>`;
+          })
+          .join('');
+        return `<tr><td class="med">${esc(ligne.label || '')}</td>${cells}</tr>`;
+      })
+      .join('');
+
+    return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>${esc(payload.code)} — ${esc(payload.titre)}</title>
+<style>
+  body{font-family:Georgia,serif;color:#000;margin:1.2cm;font-size:10pt;line-height:1.35}
+  h1{font-size:15pt;margin:0 0 .25rem}
+  .meta{font-size:9.5pt;color:#333;margin-bottom:1rem;padding-bottom:.6rem;border-bottom:1px solid #ccc}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{border:1px solid #333;padding:.35rem .4rem;vertical-align:top;word-wrap:break-word}
+  th{background:#eee;font-size:9pt;text-align:left}
+  td.med{font-weight:600;width:12%}
+  td.blank{min-height:1.4em;background:#fafafa}
+  @media print{body{margin:1cm}}
+</style></head><body>
+  <h1>${esc(payload.titre || 'Tableau à trous')}</h1>
+  <div class="meta">
+    <div>Code : <strong>${esc(payload.code || '')}</strong></div>
+    ${nom ? `<div>Nom : ${esc(nom)}</div>` : ''}
+    <div>Date : ${esc(date)}</div>
+  </div>
+  <table>
+    <thead><tr><th>Médicament</th>${head}</tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+</body></html>`;
+  }
+
   global.JpPrint = {
     printHtml,
     quizPrintDocument,
+    trousPrintDocument,
   };
 })(window);

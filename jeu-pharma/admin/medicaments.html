@@ -83,6 +83,14 @@
           </div>
         </div>
         <div class="jp-med-editor-body">
+          <div class="jp-bdm-panel" id="jpBdmPanel" aria-label="Recherche BDPM">
+            <p class="jp-bdm-title">Ajouter depuis la BDPM</p>
+            <label class="jp-bdm-search-label" for="jpBdmQ">Recherche
+              <input type="search" id="jpBdmQ" placeholder="Nom, DCI, CIP…" autocomplete="off">
+            </label>
+            <div id="jpBdmResults" class="jp-bdm-results" hidden role="listbox" aria-label="Résultats BDPM"></div>
+            <p class="jp-bdm-licence">Source BDPM ANSM — Licence Ouverte</p>
+          </div>
           <form id="jpForm" class="jp-form" novalidate>
             <div id="jpFields"></div>
           </form>
@@ -100,6 +108,7 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/bdm.js"></script>
   <script src="../js/entites.js"></script>
   <script src="../js/medicaments.js"></script>
   <script>
@@ -527,10 +536,89 @@
         });
       }
 
+      let bdmRows = [];
+      let bdmReq = 0;
+
+      function clearBdmResults() {
+        bdmRows = [];
+        const host = document.getElementById('jpBdmResults');
+        host.innerHTML = '';
+        host.hidden = true;
+      }
+
+      function renderBdmResults(rows) {
+        const host = document.getElementById('jpBdmResults');
+        bdmRows = rows || [];
+        if (!bdmRows.length) {
+          host.innerHTML = '<p class="jp-bdm-empty">Aucun résultat</p>';
+          host.hidden = false;
+          return;
+        }
+        host.innerHTML = bdmRows.map((r, i) => `
+          <button type="button" class="jp-bdm-result" role="option" data-bdm-idx="${i}">
+            <span class="jp-bdm-result-name">${esc(r.denomination || '—')}</span>
+            <span class="jp-bdm-result-meta">${esc(r.substances || '—')}</span>
+            <span class="jp-bdm-result-forme">${esc(r.forme_pharmaceutique || '')}</span>
+          </button>
+        `).join('');
+        host.hidden = false;
+      }
+
+      function applyBdmPrefill(row) {
+        const pre = JpBdm.pickToPrefill(row);
+        const nom = document.getElementById('val_nom_commercial');
+        const dci = document.getElementById('val_dci');
+        if (nom) {
+          nom.value = pre.nom_commercial;
+          nom.dataset.entityId = '';
+        }
+        if (dci) {
+          dci.value = pre.dci;
+          dci.dataset.entityId = '';
+        }
+        clearBdmResults();
+        document.getElementById('jpBdmQ').value = '';
+        JpToast.ok('Prérempli — compléter le reste depuis le cours');
+      }
+
+      function bindBdmSearch() {
+        const input = document.getElementById('jpBdmQ');
+        const results = document.getElementById('jpBdmResults');
+        input.addEventListener('input', () => {
+          clearTimeout(window.__jpBdmT);
+          const q = input.value.trim();
+          if (q.length < 2) {
+            clearBdmResults();
+            return;
+          }
+          window.__jpBdmT = setTimeout(async () => {
+            const req = ++bdmReq;
+            try {
+              const rows = await JpBdm.searchProducts(q, 20);
+              if (req !== bdmReq) return;
+              renderBdmResults(rows);
+            } catch (e) {
+              if (req !== bdmReq) return;
+              clearBdmResults();
+              JpToast.fromError(e);
+              void JpLogs.error('bdm_search', { message: e?.message });
+            }
+          }, 280);
+        });
+        results.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-bdm-idx]');
+          if (!btn) return;
+          const idx = Number(btn.getAttribute('data-bdm-idx'));
+          const row = bdmRows[idx];
+          if (row) applyBdmPrefill(row);
+        });
+      }
+
       document.addEventListener('DOMContentLoaded', async function () {
         JpUi.bootPage({ module: 'admin-medicaments', homeHref: JpFab.PORTAIL_URL });
         buildFields();
         bindFilters();
+        bindBdmSearch();
         await loadDatalists();
         await refreshAll();
 

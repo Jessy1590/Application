@@ -19,68 +19,86 @@
 <link rel="stylesheet" href="../css/app.css">
 </head>
 <body>
-  <main class="jp-page">
+  <main class="jp-page jp-page-wide">
     <a class="jp-back" href="index.html">← Admin</a>
     <p class="jp-kicker">Admin</p>
     <h1 class="jp-title">Tableau à trous</h1>
     <p class="jp-sub">Configurer une grille (colonnes, médicaments, trous ALEATOIRE / MANUEL).</p>
 
-    <form id="trousForm" class="jp-form" novalidate>
-      <div class="jp-field">
-        <label for="titre">Titre</label>
-        <input id="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — révision">
-      </div>
-      <div class="jp-split jp-split-2">
+    <form id="trousForm" class="jp-form jp-trous-admin-form" novalidate>
+      <div class="jp-trous-admin-panel">
+        <p class="jp-kicker">Identité</p>
         <div class="jp-field">
-          <label for="niveau">Niveau cible</label>
-          <select id="niveau" required></select>
+          <label for="titre">Titre</label>
+          <input id="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — révision">
         </div>
+        <div class="jp-split jp-split-2">
+          <div class="jp-field">
+            <label for="niveau">Niveau cible</label>
+            <select id="niveau" required></select>
+          </div>
+          <div class="jp-field">
+            <label for="mode">Mode</label>
+            <select id="mode">
+              <option value="entrainement">Entraînement</option>
+              <option value="evaluation">Évaluation</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="jp-trous-admin-panel">
+        <div class="jp-trous-admin-panel-head">
+          <p class="jp-kicker">Colonnes</p>
+          <div class="jp-trous-admin-col-actions">
+            <button type="button" class="jp-link-btn" id="btnColsAll">Tous</button>
+            <button type="button" class="jp-link-btn" id="btnColsNone">Aucun</button>
+          </div>
+        </div>
+        <div id="colonnesList" class="jp-trous-admin-cols" role="group" aria-label="Colonnes"></div>
+      </div>
+
+      <div class="jp-trous-admin-panel">
+        <p class="jp-kicker">Trous</p>
         <div class="jp-field">
-          <label for="mode">Mode</label>
-          <select id="mode">
-            <option value="entrainement">Entraînement</option>
-            <option value="evaluation">Évaluation</option>
+          <label for="modeTrous">Placement des trous</label>
+          <select id="modeTrous">
+            <option value="ALEATOIRE">Aléatoire</option>
+            <option value="MANUEL">Manuel (cliquer les cellules)</option>
           </select>
         </div>
+        <div class="jp-field" id="densiteField">
+          <label for="densite">Densité des trous (aléatoire)</label>
+          <input id="densite" type="range" min="20" max="80" value="40">
+          <span id="densiteLabel" class="jp-muted">40 %</span>
+        </div>
       </div>
 
-      <div class="jp-field">
-        <span class="jp-field-label">Colonnes</span>
-        <div id="colonnesList" class="jp-niveaux" role="group"></div>
-      </div>
-
-      <div class="jp-field">
-        <label for="modeTrous">Placement des trous</label>
-        <select id="modeTrous">
-          <option value="ALEATOIRE">Aléatoire</option>
-          <option value="MANUEL">Manuel (cliquer les cellules)</option>
-        </select>
-      </div>
-
-      <div class="jp-field" id="densiteField">
-        <label for="densite">Densité des trous (aléatoire)</label>
-        <input id="densite" type="range" min="20" max="80" value="40">
-        <span id="densiteLabel" class="jp-muted">40 %</span>
-      </div>
-
-      <div class="jp-field">
-        <label for="sourceMeds">Médicaments</label>
-        <select id="sourceMeds">
-          <option value="secteur">Par secteur</option>
-          <option value="ids">Par identifiants (UUID)</option>
-        </select>
-      </div>
-
-      <div class="jp-field" id="secteurField">
-        <label for="secteur">Secteur</label>
-        <select id="secteur">
-          <option value="">— choisir —</option>
-        </select>
-      </div>
-
-      <div class="jp-field" id="idsField" hidden>
-        <label for="matriceIds">IDs matrice (un par ligne)</label>
-        <textarea id="matriceIds" rows="4" placeholder="uuid…"></textarea>
+      <div class="jp-trous-admin-panel">
+        <p class="jp-kicker">Médicaments</p>
+        <div class="jp-field">
+          <label for="sourceMeds">Source</label>
+          <select id="sourceMeds">
+            <option value="secteur">Par secteur</option>
+            <option value="ids">Sélection manuelle</option>
+          </select>
+        </div>
+        <div class="jp-field" id="secteurField">
+          <label for="secteur">Secteur</label>
+          <select id="secteur">
+            <option value="">— choisir —</option>
+          </select>
+        </div>
+        <div class="jp-field" id="idsField" hidden>
+          <label for="medsFilter">Filtrer les fiches publiées</label>
+          <input id="medsFilter" type="search" placeholder="Nom commercial ou DCI…" autocomplete="off">
+          <div class="jp-trous-admin-meds-toolbar">
+            <button type="button" class="jp-link-btn" id="btnMedsAllVisible">Tout cocher (visibles)</button>
+            <button type="button" class="jp-link-btn" id="btnMedsNone">Aucun</button>
+            <span id="medsCount" class="jp-muted"></span>
+          </div>
+          <div id="medsList" class="jp-trous-admin-meds-list" role="group" aria-label="Médicaments publiés"></div>
+        </div>
       </div>
 
       <div class="jp-field-actions">
@@ -98,7 +116,10 @@
     <div id="resultBox" class="jp-panel" hidden>
       <p class="jp-kicker">Code partie</p>
       <p id="resultCode" class="jp-brand" style="font-size:1.75rem"></p>
-      <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
+      <div class="jp-field-actions">
+        <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
+        <a id="resultPrint" class="jp-btn jp-btn-ghost" href="#">Imprimer</a>
+      </div>
     </div>
 
     <section class="jp-panel">
@@ -120,6 +141,8 @@
 
       let lastSnapshot = null;
       let trousManuels = {};
+      let allPublieMeds = [];
+      const selectedMedIds = new Set();
 
       const niveauSel = document.getElementById('niveau');
       (JpConstants.NIVEAUX || []).forEach(function (n) {
@@ -135,11 +158,20 @@
 
       const colonnesList = document.getElementById('colonnesList');
       const defaults = JpTrous.COLONNES_DEFAUT;
-      (JpConstants.CHAMP_CODES || []).filter(function (c) { return c.card === 1; }).forEach(function (c) {
+      (JpConstants.CHAMP_CODES || []).forEach(function (c) {
         const label = document.createElement('label');
+        label.className = 'jp-trous-admin-col';
         label.innerHTML = '<input type="checkbox" name="col" value="' + JpUi.escapeHtml(c.code) + '"'
-          + (defaults.indexOf(c.code) >= 0 ? ' checked' : '') + '> ' + JpUi.escapeHtml(c.libelle);
+          + (defaults.indexOf(c.code) >= 0 ? ' checked' : '') + '> '
+          + '<span>' + JpUi.escapeHtml(c.libelle) + '</span>';
         colonnesList.appendChild(label);
+      });
+
+      document.getElementById('btnColsAll').addEventListener('click', function () {
+        colonnesList.querySelectorAll('input[name="col"]').forEach(function (el) { el.checked = true; });
+      });
+      document.getElementById('btnColsNone').addEventListener('click', function () {
+        colonnesList.querySelectorAll('input[name="col"]').forEach(function (el) { el.checked = false; });
       });
 
       try {
@@ -154,6 +186,69 @@
       } catch (e) {
         JpToast.fromError(e);
       }
+
+      function updateMedsCount() {
+        const n = selectedMedIds.size;
+        document.getElementById('medsCount').textContent = n ? n + ' sélectionné(s)' : '';
+      }
+
+      function renderMedsList() {
+        const q = (document.getElementById('medsFilter').value || '').trim().toLowerCase();
+        const wrap = document.getElementById('medsList');
+        const filtered = allPublieMeds.filter(function (m) {
+          if (!q) return true;
+          const nom = String(m.nom_commercial || '').toLowerCase();
+          const dci = String(m.dci || '').toLowerCase();
+          return nom.indexOf(q) >= 0 || dci.indexOf(q) >= 0;
+        });
+        if (!filtered.length) {
+          wrap.innerHTML = '<p class="jp-muted">Aucune fiche publiée correspondante.</p>';
+          updateMedsCount();
+          return;
+        }
+        wrap.innerHTML = filtered.map(function (m) {
+          const id = m.id;
+          const label = (m.nom_commercial || m.dci || id)
+            + (m.dci && m.nom_commercial ? ' · ' + m.dci : '');
+          return '<label class="jp-trous-admin-med">'
+            + '<input type="checkbox" name="med" value="' + JpUi.escapeHtml(id) + '"'
+            + (selectedMedIds.has(id) ? ' checked' : '') + '>'
+            + '<span>' + JpUi.escapeHtml(label) + '</span></label>';
+        }).join('');
+        wrap.querySelectorAll('input[name="med"]').forEach(function (el) {
+          el.addEventListener('change', function () {
+            if (el.checked) selectedMedIds.add(el.value);
+            else selectedMedIds.delete(el.value);
+            updateMedsCount();
+          });
+        });
+        updateMedsCount();
+      }
+
+      try {
+        allPublieMeds = await JpTrous.fetchMedicaments({});
+        renderMedsList();
+      } catch (e) {
+        JpToast.fromError(e);
+        document.getElementById('medsList').innerHTML =
+          '<p class="jp-muted">Impossible de charger les médicaments.</p>';
+      }
+
+      document.getElementById('medsFilter').addEventListener('input', renderMedsList);
+      document.getElementById('btnMedsAllVisible').addEventListener('click', function () {
+        document.querySelectorAll('#medsList input[name="med"]').forEach(function (el) {
+          el.checked = true;
+          selectedMedIds.add(el.value);
+        });
+        updateMedsCount();
+      });
+      document.getElementById('btnMedsNone').addEventListener('click', function () {
+        selectedMedIds.clear();
+        document.querySelectorAll('#medsList input[name="med"]').forEach(function (el) {
+          el.checked = false;
+        });
+        updateMedsCount();
+      });
 
       document.getElementById('densite').addEventListener('input', function () {
         document.getElementById('densiteLabel').textContent = this.value + ' %';
@@ -172,14 +267,16 @@
       });
 
       function selectedColonnes() {
-        return Array.from(document.querySelectorAll('input[name="col"]:checked')).map(function (el) { return el.value; });
+        return Array.from(document.querySelectorAll('input[name="col"]:checked')).map(function (el) {
+          return el.value;
+        });
       }
 
       async function loadMeds() {
         const source = document.getElementById('sourceMeds').value;
         if (source === 'ids') {
-          const ids = document.getElementById('matriceIds').value.split(/[\s,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
-          if (!ids.length) throw new Error('Indiquez au moins un ID matrice');
+          const ids = Array.from(selectedMedIds);
+          if (!ids.length) throw new Error('Cochez au moins un médicament');
           return JpTrous.fetchMedicaments({ matriceIds: ids });
         }
         const secteurId = document.getElementById('secteur').value;
@@ -200,7 +297,8 @@
           (ligne.cells || []).forEach(function (cell) {
             const key = ligne.matrice_id + '|' + cell.champ_code;
             const cls = cell.trou ? 'jp-trou' : '';
-            const val = cell.valeur ? JpUi.escapeHtml(cell.valeur) : '—';
+            const raw = JpTrous.cellDisplay(cell);
+            const val = raw ? JpUi.escapeHtml(raw) : '—';
             html += '<td class="' + cls + '" data-key="' + JpUi.escapeHtml(key) + '" title="Cliquer pour basculer">'
               + (cell.trou ? '<em>trou</em> · ' + val : val) + '</td>';
           });
@@ -216,7 +314,6 @@
             td.addEventListener('click', function () {
               const key = td.getAttribute('data-key');
               trousManuels[key] = !trousManuels[key];
-              // rebuild from current meds snapshot structure
               (snap.lignes || []).forEach(function (ligne) {
                 (ligne.cells || []).forEach(function (cell) {
                   const k = ligne.matrice_id + '|' + cell.champ_code;
@@ -234,14 +331,15 @@
         const meds = await loadMeds();
         const modeTrous = document.getElementById('modeTrous').value;
         if (modeTrous === 'ALEATOIRE') trousManuels = {};
+        const cols = selectedColonnes();
+        if (!cols.length) throw new Error('Sélectionnez au moins une colonne');
         const snap = JpTrous.buildSnapshot({
           meds: meds,
-          colonnes: selectedColonnes(),
+          colonnes: cols,
           modeTrous: modeTrous,
           trousManuels: trousManuels,
           densite: Number(document.getElementById('densite').value) / 100,
         });
-        // sync manuels from snap after ALEATOIRE or first build
         if (modeTrous === 'MANUEL' && !Object.keys(trousManuels).length) {
           (snap.lignes || []).forEach(function (ligne) {
             (ligne.cells || []).forEach(function (cell) {
@@ -273,7 +371,6 @@
         try {
           if (!lastSnapshot) await buildCurrentSnapshot();
           else if (document.getElementById('modeTrous').value === 'MANUEL') {
-            // re-apply manuels
             lastSnapshot = JpTrous.buildSnapshot({
               meds: await loadMeds(),
               colonnes: selectedColonnes(),
@@ -297,7 +394,10 @@
           });
           document.getElementById('resultBox').hidden = false;
           document.getElementById('resultCode').textContent = created.code_unique;
-          document.getElementById('resultPlay').href = '../trous/jouer.html?code=' + encodeURIComponent(created.code_unique);
+          document.getElementById('resultPlay').href =
+            '../trous/jouer.html?code=' + encodeURIComponent(created.code_unique);
+          document.getElementById('resultPrint').href =
+            '../trous/imprimer.html?code=' + encodeURIComponent(created.code_unique);
           JpToast.ok('Partie créée : ' + created.code_unique);
           await refreshList();
         } catch (e) {
@@ -321,7 +421,9 @@
               return '<tr><td><code>' + JpUi.escapeHtml(r.code_unique) + '</code></td>'
                 + '<td>' + JpUi.escapeHtml(r.titre) + '</td>'
                 + '<td>' + JpUi.escapeHtml(r.mode) + '</td>'
-                + '<td><a href="../trous/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a></td></tr>';
+                + '<td><a href="../trous/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
+                + ' · <a href="../trous/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a>'
+                + '</td></tr>';
             }).join('') + '</tbody></table>';
         } catch (e) {
           JpToast.fromError(e);

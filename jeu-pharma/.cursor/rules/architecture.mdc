@@ -15,7 +15,7 @@ alwaysApply: true
 - Config Supabase : `Application/shared/supabase-config.js` → `../shared/…`.
 - Gate d’accès : `Application/protect.js` → `../protect.js` + `initialiserSite(SITE_ID)`.
 - Site UUID : placeholder dans `js/supabase.js` + `.cursor/docs/STATE.md` (à coller après création du site portail).
-- Clients : `js/supabase.js` — `sbPortail` (schéma `portail`) + `sbJeu` (schéma `jeupharma`).
+- Clients : `js/supabase.js` — `sbPortail` (schéma `portail`) + `sbJeu` (schéma `jeupharma`) ; `js/bdm.js` — client lecture seule schéma `bdm` (`JpBdm`).
 
 ## Données
 - Schéma métier : **`jeupharma`** (minuscules).
@@ -25,11 +25,12 @@ alwaysApply: true
 - Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
+- BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom/DCI à la création de fiche uniquement ; pas de sync destructive depuis Jeu Pharma.
 - SQL locaux : `jeu-pharma/sql/*.sql` — ne pas réappliquer sans check (voir STATE.md).
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
-- **Pas de BDPM, OCR, ni IA** en v1 (génération / enrichissement auto hors scope).
+- BDPM **lecture seule** autorisée pour **préremplir nom commercial + DCI** à l’édition de fiche (`admin/medicaments.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
 - Quiz = assemblage algorithmique de QCM depuis fiches `publie` + distracteurs même secteur (RPC), zéro IA.
 
 ## Droits

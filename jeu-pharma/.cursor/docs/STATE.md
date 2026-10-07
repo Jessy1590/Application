@@ -3,7 +3,7 @@
 Dernière mise à jour : 2026-10-07 — schéma `jeupharma` exposé + SQL init appliqué sur projet `kpjflntnotftpzffjbud`.
 
 ## Périmètre
-App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV ; **pas** de BDPM ni d’IA en v1.
+App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom/DCI à la création de fiche uniquement (`js/bdm.js`) — pas de sync destructive ni d’IA en v1.
 
 ## SITE_ID
 - UUID portail : **`d4fc7fd0-944b-4594-9ba2-e1e2035aeddc`**
@@ -31,6 +31,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Constantes `CHAMP_CODES` / `ENTITY_TABLES` / niveaux alignées SQL + pages admin.
 - [x] Checklist portail dans `README.md` + `supabase/SETUP.md` §3.
 - [x] Profil apprentissage (`profil.html` + `js/profil.js` upsert `niveau_id`) ; préremplissage admin quiz/trous.
+- [x] Préremplissage BDPM lecture seule (`js/bdm.js` + panneau admin médicaments) — nom/DCI uniquement.
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).

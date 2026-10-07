@@ -34,17 +34,42 @@
     return (global.JpConstants?.CHAMP_CODES || []).find((x) => x.code === code) || null;
   }
 
+  /** Affichage cellule : multi → jointure « ; ». */
+  function cellDisplay(cell) {
+    if (!cell) return '';
+    if (Array.isArray(cell.valeurs) && cell.valeurs.length) {
+      return cell.valeurs.join('; ');
+    }
+    return cell.valeur || '';
+  }
+
+  /** Liste des valeurs acceptées pour scoring (multi ou mono). */
+  function cellAcceptedValues(cell) {
+    if (!cell) return [];
+    if (Array.isArray(cell.valeurs) && cell.valeurs.length) {
+      return cell.valeurs.filter(Boolean);
+    }
+    const v = cell.valeur;
+    if (v == null || v === '') return [];
+    if (String(v).includes(';')) {
+      return String(v).split(/\s*;\s*/).map((s) => s.trim()).filter(Boolean);
+    }
+    return [v];
+  }
+
   function cellValeurFromMed(med, champ) {
     const meta = champMeta(champ);
-    if (!meta) return { valeur: null, entite_id: null };
+    if (!meta) return { valeur: null, entite_id: null, valeurs: null };
     if (meta.card === 'N') {
       const arr = med[champ];
-      if (!Array.isArray(arr) || !arr.length) return { valeur: null, entite_id: null };
-      const first = arr[0];
+      if (!Array.isArray(arr) || !arr.length) {
+        return { valeur: null, entite_id: null, valeurs: null };
+      }
+      const valeurs = arr.map((x) => x.valeur).filter(Boolean);
       return {
-        valeur: first?.valeur || null,
-        entite_id: first?.id || null,
-        valeurs: arr.map((x) => x.valeur).filter(Boolean),
+        valeur: valeurs.length ? valeurs.join('; ') : null,
+        entite_id: arr[0]?.id || null,
+        valeurs: valeurs.length ? valeurs : null,
       };
     }
     const idKey = `${champ}_id`;
@@ -62,6 +87,7 @@
     return {
       valeur: med[champ] || null,
       entite_id: med[idMap[champ] || idKey] || null,
+      valeurs: null,
     };
   }
 
@@ -351,8 +377,8 @@
         total += 1;
         const key = `${ligne.matrice_id}|${cell.champ_code}`;
         const given = byKey[key] || '';
-        const expected = cell.valeur || '';
-        const alts = Array.isArray(cell.valeurs) ? cell.valeurs : [expected];
+        const alts = cellAcceptedValues(cell);
+        const expected = cellDisplay(cell);
         const ok = alts.some((a) => normalizeAnswer(a) === normalizeAnswer(given));
         if (ok) score += 1;
         details.push({
@@ -399,6 +425,8 @@
     genCode,
     champLibelle,
     champMeta,
+    cellDisplay,
+    cellAcceptedValues,
     listSecteurs,
     listParties,
     fetchMedicaments,

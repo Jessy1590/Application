@@ -96,14 +96,17 @@
               + ' data-matrice="' + JpUi.escapeHtml(ligne.matrice_id) + '"'
               + ' data-champ="' + JpUi.escapeHtml(cell.champ_code) + '"></td>';
           } else {
-            html += '<td>' + JpUi.escapeHtml(cell.valeur || '—') + '</td>';
+            const shown = JpTrous.cellDisplay(cell);
+            html += '<td>' + JpUi.escapeHtml(shown || '—') + '</td>';
           }
         });
         html += '</tr>';
       });
       html += '</tbody></table></div>';
       html += '<div class="jp-field-actions" style="margin-top:1.25rem">'
-        + '<button type="submit" class="jp-btn jp-btn-primary">Enregistrer</button></div></form>';
+        + '<button type="submit" class="jp-btn jp-btn-primary">Enregistrer</button>'
+        + ' <a class="jp-btn jp-btn-ghost" href="imprimer.html?code='
+        + encodeURIComponent(partie.code_unique) + '">Imprimer</a></div></form>';
       html += '<div id="scoreBox" class="jp-panel" hidden></div>';
       root.innerHTML = html;
 
