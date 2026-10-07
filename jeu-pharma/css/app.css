@@ -1381,3 +1381,185 @@ body > a[title="Retour au portail"] {
   }
 }
 
+/* —— Catalogue joueur —— */
+.jp-catalogue-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.jp-catalogue-search {
+  flex: 1 1 14rem;
+  min-width: 10rem;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--jp-text);
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.55rem 0.75rem;
+  transition: border-color 0.15s ease;
+}
+
+.jp-catalogue-search:focus {
+  border-color: var(--jp-accent);
+}
+
+.jp-catalogue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.jp-catalogue-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+  margin-right: 0.25rem;
+}
+
+.jp-catalogue-prefs-wrap {
+  position: relative;
+}
+
+.jp-catalogue-icon-btn {
+  padding: 0.55rem 0.85rem;
+}
+
+.jp-catalogue-gear {
+  flex-shrink: 0;
+}
+
+.jp-catalogue-prefs {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  z-index: 40;
+  width: min(22rem, calc(100vw - 2rem));
+  max-height: min(70vh, 32rem);
+  overflow: auto;
+  padding: 1rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  box-shadow: var(--jp-shadow);
+}
+
+.jp-catalogue-prefs-section {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.jp-catalogue-prefs-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.jp-catalogue-prefs-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+}
+
+.jp-catalogue-field {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+}
+
+.jp-catalogue-field select {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--jp-text);
+  background: var(--jp-bg);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+
+.jp-catalogue-field select:focus {
+  border-color: var(--jp-accent);
+}
+
+.jp-catalogue-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.65rem;
+}
+
+.jp-catalogue-col {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--jp-text);
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.jp-catalogue-col input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.jp-catalogue-prefs-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--jp-line);
+}
+
+.jp-catalogue-table-wrap {
+  margin-top: 0;
+}
+
+.jp-catalogue-table td {
+  max-width: 18rem;
+  word-wrap: break-word;
+}
+
+@media (max-width: 640px) {
+  .jp-catalogue-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .jp-catalogue-prefs {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    top: auto;
+    bottom: 1rem;
+    width: auto;
+    max-height: min(75vh, 28rem);
+  }
+
+  .jp-catalogue-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+

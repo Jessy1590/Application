@@ -19,17 +19,72 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <main class="jp-page">
+  <main class="jp-page jp-page-wide jp-catalogue">
     <a class="jp-back" href="index.html">← Hub</a>
     <p class="jp-kicker">Catalogue</p>
     <h1 class="jp-title">Catalogue</h1>
     <p class="jp-sub">Fiches publiées issues des cours.</p>
 
-    <div class="jp-toolbar" id="jpToolbar" hidden>
-      <input type="search" id="jpQ" placeholder="Rechercher (nom, DCI…)" aria-label="Rechercher">
-      <select id="jpSecteur" aria-label="Secteur">
-        <option value="">Tous les secteurs</option>
-      </select>
+    <div class="jp-catalogue-toolbar" id="jpToolbar" hidden>
+      <input type="search" id="jpQ" class="jp-catalogue-search" placeholder="Rechercher (nom, DCI…)" aria-label="Rechercher" autocomplete="off">
+      <div class="jp-catalogue-actions">
+        <span class="jp-catalogue-count" id="jpCount" aria-live="polite"></span>
+        <div class="jp-catalogue-prefs-wrap">
+          <button type="button" class="jp-btn jp-btn-ghost jp-catalogue-icon-btn" id="jpPrefsBtn" aria-expanded="false" aria-controls="jpPrefsPanel" title="Paramètres">
+            <svg class="jp-catalogue-gear" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <span class="jp-catalogue-btn-label">Paramètres</span>
+          </button>
+          <div class="jp-catalogue-prefs" id="jpPrefsPanel" hidden role="dialog" aria-label="Paramètres du catalogue">
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Tri</h2>
+              <label class="jp-catalogue-field">
+                <span class="jp-sr-only">Trier par</span>
+                <select id="jpSort" aria-label="Trier par">
+                  <option value="dci">DCI</option>
+                  <option value="nom">Premier nom commercial</option>
+                  <option value="secteur">Secteur thérapeutique</option>
+                  <option value="updated_at">Date de mise à jour</option>
+                </select>
+              </label>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Filtres</h2>
+              <label class="jp-catalogue-field">Secteur
+                <select id="jpSecteur" aria-label="Secteur thérapeutique">
+                  <option value="">Tous les secteurs</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Classe thérapeutique
+                <select id="jpClasseTh" aria-label="Classe thérapeutique">
+                  <option value="">Toutes</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Classe pharmacologique
+                <select id="jpClassePh" aria-label="Classe pharmacologique">
+                  <option value="">Toutes</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Niveau (DCI)
+                <select id="jpNiveau" aria-label="Niveau">
+                  <option value="">Tous les niveaux</option>
+                </select>
+              </label>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Colonnes</h2>
+              <div class="jp-catalogue-cols" id="jpCols" role="group" aria-label="Colonnes visibles"></div>
+            </div>
+            <div class="jp-catalogue-prefs-foot">
+              <button type="button" class="jp-btn jp-btn-ghost" id="jpPrefsReset">Réinitialiser</button>
+              <button type="button" class="jp-btn jp-btn-primary" id="jpPrefsClose">Fermer</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpPrintBtn" title="Imprimer le tableau filtré">Imprimer</button>
+      </div>
     </div>
 
     <div id="jpList"></div>
@@ -40,32 +95,189 @@
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/print.js"></script>
   <script src="js/medicaments.js"></script>
   <script>
     (function () {
+      const PREFS_KEY = 'jp-catalogue-prefs';
+      const DEFAULT_COLS = [
+        'nom_commercial',
+        'dci',
+        'secteur_therapeutique',
+        'classe_pharmacologique',
+        'indications',
+      ];
       const esc = JpUi.escapeHtml;
-      let all = [];
+      const CHAMPS = JpConstants.CHAMP_CODES || [];
 
-      function uniqueSecteurs(rows) {
-        const map = new Map();
-        rows.forEach((r) => {
-          if (r.secteur_therapeutique_id && r.secteur_therapeutique) {
-            map.set(r.secteur_therapeutique_id, r.secteur_therapeutique);
-          }
-        });
-        return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1], 'fr'));
+      let all = [];
+      let prefs = loadPrefs();
+
+      function defaultPrefs() {
+        return {
+          q: '',
+          sort: 'dci',
+          secteur: '',
+          classeTh: '',
+          classePh: '',
+          niveau: '',
+          columns: DEFAULT_COLS.slice(),
+        };
+      }
+
+      function loadPrefs() {
+        const base = defaultPrefs();
+        try {
+          const raw = localStorage.getItem(PREFS_KEY);
+          if (!raw) return base;
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') return base;
+          const cols = Array.isArray(parsed.columns)
+            ? parsed.columns.filter((c) => CHAMPS.some((x) => x.code === c))
+            : base.columns;
+          return {
+            q: typeof parsed.q === 'string' ? parsed.q : '',
+            sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(parsed.sort) ? parsed.sort : 'dci',
+            secteur: typeof parsed.secteur === 'string' ? parsed.secteur : '',
+            classeTh: typeof parsed.classeTh === 'string' ? parsed.classeTh : '',
+            classePh: typeof parsed.classePh === 'string' ? parsed.classePh : '',
+            niveau: typeof parsed.niveau === 'string' ? parsed.niveau : '',
+            columns: cols.length ? cols : base.columns,
+          };
+        } catch (_) {
+          return base;
+        }
+      }
+
+      function savePrefs() {
+        try {
+          localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+        } catch (_) { /* ignore quota */ }
+      }
+
+      function uniqueSorted(values) {
+        return [...new Set(values.filter(Boolean))].sort((a, b) =>
+          String(a).localeCompare(String(b), 'fr')
+        );
       }
 
       function formatMulti(arr) {
         if (!Array.isArray(arr) || !arr.length) return '—';
-        return arr.map((x) => x.valeur || x).join(', ');
+        return arr.map((x) => x.valeur || x).filter(Boolean).join(', ') || '—';
+      }
+
+      function cellValue(row, code) {
+        const champ = CHAMPS.find((c) => c.code === code);
+        if (!champ) return '—';
+        if (code === 'nom_commercial') {
+          return JpMedicaments.formatNoms(row) || '—';
+        }
+        if (champ.card === 'N') {
+          return formatMulti(row[code]);
+        }
+        const v = row[code];
+        return v ? String(v) : '—';
+      }
+
+      function fillSelect(sel, values, allLabel, current) {
+        sel.innerHTML = `<option value="">${esc(allLabel)}</option>` +
+          values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+        if (current && values.includes(current)) sel.value = current;
+        else sel.value = '';
+      }
+
+      function syncFilterOptions() {
+        fillSelect(
+          document.getElementById('jpSecteur'),
+          uniqueSorted(all.map((r) => r.secteur_therapeutique)),
+          'Tous les secteurs',
+          prefs.secteur
+        );
+        prefs.secteur = document.getElementById('jpSecteur').value;
+
+        fillSelect(
+          document.getElementById('jpClasseTh'),
+          uniqueSorted(all.map((r) => r.classe_therapeutique)),
+          'Toutes',
+          prefs.classeTh
+        );
+        prefs.classeTh = document.getElementById('jpClasseTh').value;
+
+        fillSelect(
+          document.getElementById('jpClassePh'),
+          uniqueSorted(all.map((r) => r.classe_pharmacologique)),
+          'Toutes',
+          prefs.classePh
+        );
+        prefs.classePh = document.getElementById('jpClassePh').value;
+
+        const nivSel = document.getElementById('jpNiveau');
+        const niveaux = JpConstants.NIVEAUX || [];
+        nivSel.innerHTML = '<option value="">Tous les niveaux</option>' +
+          niveaux.map((n) =>
+            `<option value="${esc(n.code)}">${esc(n.libelle)}</option>`
+          ).join('');
+        if (prefs.niveau && niveaux.some((n) => n.code === prefs.niveau)) {
+          nivSel.value = prefs.niveau;
+        } else {
+          nivSel.value = '';
+          prefs.niveau = '';
+        }
+      }
+
+      function renderColToggles() {
+        const host = document.getElementById('jpCols');
+        host.innerHTML = CHAMPS.map((c) => {
+          const checked = prefs.columns.includes(c.code) ? ' checked' : '';
+          return `
+            <label class="jp-catalogue-col">
+              <input type="checkbox" data-col="${esc(c.code)}"${checked}>
+              <span>${esc(c.libelle)}</span>
+            </label>`;
+        }).join('');
+      }
+
+      function visibleColumns() {
+        const set = new Set(prefs.columns);
+        return CHAMPS.filter((c) => set.has(c.code));
+      }
+
+      function sortRows(rows) {
+        const key = prefs.sort;
+        const sorted = rows.slice();
+        sorted.sort((a, b) => {
+          if (key === 'updated_at') {
+            const ta = a.updated_at ? Date.parse(a.updated_at) : 0;
+            const tb = b.updated_at ? Date.parse(b.updated_at) : 0;
+            return tb - ta;
+          }
+          let va = '';
+          let vb = '';
+          if (key === 'nom') {
+            va = JpMedicaments.formatNoms(a) || '';
+            vb = JpMedicaments.formatNoms(b) || '';
+          } else if (key === 'secteur') {
+            va = a.secteur_therapeutique || '';
+            vb = b.secteur_therapeutique || '';
+          } else {
+            va = a.dci || '';
+            vb = b.dci || '';
+          }
+          return String(va).localeCompare(String(vb), 'fr', { sensitivity: 'base' });
+        });
+        return sorted;
       }
 
       function filtered() {
-        const q = String(document.getElementById('jpQ').value || '').trim().toLowerCase();
-        const sid = document.getElementById('jpSecteur').value;
-        return all.filter((r) => {
-          if (sid && r.secteur_therapeutique_id !== sid) return false;
+        const q = String(prefs.q || '').trim().toLowerCase();
+        return sortRows(all.filter((r) => {
+          if (prefs.secteur && r.secteur_therapeutique !== prefs.secteur) return false;
+          if (prefs.classeTh && r.classe_therapeutique !== prefs.classeTh) return false;
+          if (prefs.classePh && r.classe_pharmacologique !== prefs.classePh) return false;
+          if (prefs.niveau) {
+            const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
+            if (!nivs.includes(prefs.niveau)) return false;
+          }
           if (!q) return true;
           const blob = [
             JpMedicaments.formatNoms(r),
@@ -73,50 +285,93 @@
             r.secteur_therapeutique,
             r.classe_therapeutique,
             r.classe_pharmacologique,
+            r.detail_pharmacologie,
           ].filter(Boolean).join(' ').toLowerCase();
           return blob.includes(q);
-        });
+        }));
+      }
+
+      function readPrefsFromUi() {
+        prefs.q = document.getElementById('jpQ').value || '';
+        prefs.sort = document.getElementById('jpSort').value || 'dci';
+        prefs.secteur = document.getElementById('jpSecteur').value || '';
+        prefs.classeTh = document.getElementById('jpClasseTh').value || '';
+        prefs.classePh = document.getElementById('jpClassePh').value || '';
+        prefs.niveau = document.getElementById('jpNiveau').value || '';
+        prefs.columns = [...document.querySelectorAll('#jpCols input[data-col]:checked')]
+          .map((el) => el.getAttribute('data-col'))
+          .filter(Boolean);
+        if (!prefs.columns.length) {
+          prefs.columns = DEFAULT_COLS.slice();
+          renderColToggles();
+        }
+        savePrefs();
+      }
+
+      function applyPrefsToUi() {
+        document.getElementById('jpQ').value = prefs.q || '';
+        document.getElementById('jpSort').value = prefs.sort || 'dci';
+        renderColToggles();
+      }
+
+      function setPrefsOpen(open) {
+        const panel = document.getElementById('jpPrefsPanel');
+        const btn = document.getElementById('jpPrefsBtn');
+        panel.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       }
 
       function render() {
         const host = document.getElementById('jpList');
         const rows = filtered();
+        const cols = visibleColumns();
+        const countEl = document.getElementById('jpCount');
+
         if (!all.length) {
           document.getElementById('jpToolbar').hidden = true;
+          setPrefsOpen(false);
           JpUi.emptyState(host, {
             title: 'Aucun médicament pour l’instant',
             text: 'Ajoutez les médicaments vus en cours depuis l’admin (saisie ou CSV).',
           });
           return;
         }
+
         document.getElementById('jpToolbar').hidden = false;
+        countEl.textContent = rows.length === all.length
+          ? `${rows.length} fiche${rows.length > 1 ? 's' : ''}`
+          : `${rows.length} / ${all.length}`;
+
         if (!rows.length) {
           JpUi.emptyState(host, {
             title: 'Aucun résultat',
-            text: 'Modifiez la recherche ou le filtre secteur.',
+            text: 'Modifiez la recherche ou les filtres (Paramètres).',
           });
           return;
         }
+
+        if (!cols.length) {
+          JpUi.emptyState(host, {
+            title: 'Aucune colonne visible',
+            text: 'Activez au moins une colonne dans Paramètres.',
+          });
+          return;
+        }
+
         host.innerHTML = `
-          <div class="jp-table-wrap">
-            <table class="jp-table">
+          <div class="jp-table-wrap jp-catalogue-table-wrap">
+            <table class="jp-table jp-catalogue-table">
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>DCI</th>
-                  <th>Secteur</th>
-                  <th>Classe pharma.</th>
-                  <th>Indications</th>
+                  ${cols.map((c) => `<th>${esc(c.libelle)}</th>`).join('')}
                 </tr>
               </thead>
               <tbody>
                 ${rows.map((r) => `
                   <tr>
-                    <td>${esc(JpMedicaments.formatNoms(r) || '—')}</td>
-                    <td>${esc(r.dci || '—')}</td>
-                    <td>${esc(r.secteur_therapeutique || '—')}</td>
-                    <td>${esc(r.classe_pharmacologique || '—')}</td>
-                    <td>${esc(formatMulti(r.indications))}</td>
+                    ${cols.map((c) =>
+                      `<td>${esc(cellValue(r, c.code))}</td>`
+                    ).join('')}
                   </tr>
                 `).join('')}
               </tbody>
@@ -125,15 +380,35 @@
         `;
       }
 
+      function onPrefsChange() {
+        readPrefsFromUi();
+        render();
+      }
+
+      function printCatalogue() {
+        const rows = filtered();
+        const cols = visibleColumns();
+        if (!rows.length || !cols.length) {
+          JpToast.warn('Rien à imprimer');
+          return;
+        }
+        const html = JpPrint.cataloguePrintDocument({
+          titre: 'Catalogue — Jeu Pharma',
+          date: new Date().toLocaleString('fr-FR'),
+          colonnes: cols.map((c) => ({ code: c.code, libelle: c.libelle })),
+          lignes: rows.map((r) =>
+            cols.map((c) => cellValue(r, c.code))
+          ),
+        });
+        JpPrint.printHtml(html);
+      }
+
       async function load() {
         try {
           all = await JpMedicaments.list({ publieOnly: true });
-          const sel = document.getElementById('jpSecteur');
-          const secteurs = uniqueSecteurs(all);
-          sel.innerHTML = '<option value="">Tous les secteurs</option>' +
-            secteurs.map(([id, lab]) =>
-              `<option value="${esc(id)}">${esc(lab)}</option>`
-            ).join('');
+          syncFilterOptions();
+          applyPrefsToUi();
+          savePrefs();
           render();
         } catch (e) {
           JpToast.fromError(e);
@@ -147,12 +422,42 @@
 
       document.addEventListener('DOMContentLoaded', function () {
         JpUi.bootPage({ module: 'catalogue', homeHref: JpFab.PORTAIL_URL });
-        load();
+
+        document.getElementById('jpPrefsBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const panel = document.getElementById('jpPrefsPanel');
+          setPrefsOpen(panel.hidden);
+        });
+        document.getElementById('jpPrefsClose').addEventListener('click', () => setPrefsOpen(false));
+        document.getElementById('jpPrefsReset').addEventListener('click', () => {
+          prefs = defaultPrefs();
+          savePrefs();
+          syncFilterOptions();
+          applyPrefsToUi();
+          render();
+        });
+        document.getElementById('jpPrintBtn').addEventListener('click', printCatalogue);
+
         document.getElementById('jpQ').addEventListener('input', () => {
           clearTimeout(window.__jpCatT);
-          window.__jpCatT = setTimeout(render, 180);
+          window.__jpCatT = setTimeout(onPrefsChange, 180);
         });
-        document.getElementById('jpSecteur').addEventListener('change', render);
+        ['jpSort', 'jpSecteur', 'jpClasseTh', 'jpClassePh', 'jpNiveau'].forEach((id) => {
+          document.getElementById(id).addEventListener('change', onPrefsChange);
+        });
+        document.getElementById('jpCols').addEventListener('change', onPrefsChange);
+
+        document.addEventListener('click', (e) => {
+          const wrap = document.querySelector('.jp-catalogue-prefs-wrap');
+          const panel = document.getElementById('jpPrefsPanel');
+          if (!panel || panel.hidden || !wrap) return;
+          if (!wrap.contains(e.target)) setPrefsOpen(false);
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') setPrefsOpen(false);
+        });
+
+        load();
       });
     })();
   </script>

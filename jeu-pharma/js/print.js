@@ -171,9 +171,59 @@
 </body></html>`;
   }
 
+  /**
+   * HTML imprimable pour le catalogue (colonnes visibles + lignes filtrées).
+   * @param {{
+   *   titre?: string,
+   *   date?: string,
+   *   colonnes: Array<{ code?: string, libelle: string }|string>,
+   *   lignes: Array<string[]>
+   * }} payload
+   */
+  function cataloguePrintDocument(payload) {
+    const esc = global.JpUi?.escapeHtml || ((s) => String(s ?? ''));
+    const date = payload.date || new Date().toLocaleString('fr-FR');
+    const titre = payload.titre || 'Catalogue';
+    const cols = (payload.colonnes || []).map((c) =>
+      typeof c === 'string' ? { libelle: c } : c
+    );
+    const head = cols.map((c) => `<th>${esc(c.libelle || '')}</th>`).join('');
+    const body = (payload.lignes || [])
+      .map((cells) => {
+        const tds = (cells || [])
+          .map((v) => `<td>${esc(v == null || v === '' ? '—' : v)}</td>`)
+          .join('');
+        return `<tr>${tds}</tr>`;
+      })
+      .join('');
+
+    return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>${esc(titre)}</title>
+<style>
+  body{font-family:Georgia,serif;color:#000;margin:1.2cm;font-size:9.5pt;line-height:1.35}
+  h1{font-size:15pt;margin:0 0 .25rem}
+  .meta{font-size:9pt;color:#333;margin-bottom:.85rem;padding-bottom:.5rem;border-bottom:1px solid #ccc}
+  table{width:100%;border-collapse:collapse;table-layout:auto}
+  th,td{border:1px solid #333;padding:.3rem .35rem;vertical-align:top;word-wrap:break-word}
+  th{background:#eee;font-size:8.5pt;text-align:left}
+  @media print{body{margin:.8cm} thead{display:table-header-group}}
+</style></head><body>
+  <h1>${esc(titre)}</h1>
+  <div class="meta">
+    <div>Date : ${esc(date)}</div>
+    <div>${esc(String((payload.lignes || []).length))} fiche(s) — colonnes visibles uniquement</div>
+  </div>
+  <table>
+    <thead><tr>${head}</tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+</body></html>`;
+  }
+
   global.JpPrint = {
     printHtml,
     quizPrintDocument,
     trousPrintDocument,
+    cataloguePrintDocument,
   };
 })(window);
