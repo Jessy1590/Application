@@ -29,6 +29,37 @@
       <p class="jp-muted">Chargement…</p>
     </div>
   </main>
+
+  <div id="scoreModal" class="jp-trous-score-modal" hidden>
+    <div class="jp-trous-score-modal-backdrop" data-close-score-modal></div>
+    <div class="jp-trous-score-modal-panel" role="dialog" aria-modal="true" aria-labelledby="scoreModalTitle">
+      <div class="jp-trous-score-modal-head">
+        <h2 id="scoreModalTitle">Indiquer un score</h2>
+        <button type="button" class="jp-icon-btn" data-close-score-modal aria-label="Fermer">×</button>
+      </div>
+      <fieldset class="jp-trous-score-modes">
+        <legend class="jp-sr-only">Mode de saisie</legend>
+        <label class="jp-trous-score-mode">
+          <input type="radio" name="scoreMode" value="general" checked>
+          Résultat général
+        </label>
+        <label class="jp-trous-score-mode">
+          <input type="radio" name="scoreMode" value="ligne">
+          Par ligne
+        </label>
+        <label class="jp-trous-score-mode">
+          <input type="radio" name="scoreMode" value="case">
+          Par case
+        </label>
+      </fieldset>
+      <div id="scoreModePanels"></div>
+      <div class="jp-field-actions jp-trous-score-modal-actions">
+        <button type="button" class="jp-btn jp-btn-ghost" data-close-score-modal>Annuler</button>
+        <button type="button" class="jp-btn jp-btn-primary" id="btnScoreValidate">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
   <script src="../js/logs.js"></script>
@@ -44,6 +75,8 @@
       const params = new URLSearchParams(location.search);
       const code = (params.get('code') || params.get('id') || '').trim();
       const root = document.getElementById('root');
+      const scoreModal = document.getElementById('scoreModal');
+      const scoreModePanels = document.getElementById('scoreModePanels');
 
       if (!code) {
         JpUi.emptyState(root, {
@@ -80,8 +113,8 @@
         return;
       }
 
-      let lastEval = null;
       let scoreSaved = false;
+      let corrigeData = null;
 
       let html = '<div id="playForm"><div class="jp-table-wrap"><table class="jp-table jp-trous-table"><thead><tr><th>Médicament</th>';
       cols.forEach(function (c) {
@@ -115,38 +148,6 @@
       html += '<div id="scoreBox" class="jp-panel jp-trous-score" hidden></div>';
       root.innerHTML = html;
 
-      function collectReponses() {
-        const inputs = root.querySelectorAll('.jp-trou-input');
-        return Array.from(inputs).map(function (inp) {
-          return {
-            matrice_id: inp.getAttribute('data-matrice'),
-            champ_code: inp.getAttribute('data-champ'),
-            reponse: inp.value,
-          };
-        });
-      }
-
-      function applyReveal(details) {
-        root.querySelectorAll('.jp-trous-attendu').forEach(function (el) { el.remove(); });
-        (details || []).forEach(function (d) {
-          const inp = root.querySelector(
-            '.jp-trou-input[data-matrice="' + d.matrice_id + '"][data-champ="' + d.champ_code + '"]'
-          );
-          if (!inp) return;
-          inp.classList.remove('jp-input-ok', 'jp-input-ko');
-          inp.classList.add(d.correct ? 'jp-input-ok' : 'jp-input-ko');
-          inp.readOnly = true;
-          const td = inp.closest('td');
-          if (!td) return;
-          const hint = document.createElement('div');
-          hint.className = 'jp-trous-attendu' + (d.correct ? ' jp-trous-attendu-ok' : ' jp-trous-attendu-ko');
-          hint.textContent = d.correct
-            ? 'Correct'
-            : ('Attendu : ' + (d.bonne_valeur || '—'));
-          td.appendChild(hint);
-        });
-      }
-
       function showScoreBox(result, saved) {
         const box = document.getElementById('scoreBox');
         box.hidden = false;
@@ -154,11 +155,145 @@
           + '<p class="jp-brand jp-trous-score-value">' + result.score_obtenu + ' / ' + result.score_max + '</p>';
       }
 
-      async function ensureEval() {
-        if (lastEval) return lastEval;
-        lastEval = await JpTrous.evaluer(partie.id, collectReponses());
-        applyReveal(lastEval.details);
-        return lastEval;
+      async function ensureCorrige() {
+        if (corrigeData) return corrigeData;
+        corrigeData = await JpTrous.listerTrous(partie.id);
+        return corrigeData;
+      }
+
+      function applyCorrige(trous) {
+        root.querySelectorAll('.jp-trous-attendu').forEach(function (el) { el.remove(); });
+        root.querySelectorAll('.jp-trou-input').forEach(function (inp) {
+          inp.classList.remove('jp-input-ok', 'jp-input-ko');
+          inp.readOnly = true;
+        });
+        (trous || []).forEach(function (d) {
+          const inp = root.querySelector(
+            '.jp-trou-input[data-matrice="' + d.matrice_id + '"][data-champ="' + d.champ_code + '"]'
+          );
+          if (!inp) return;
+          const td = inp.closest('td');
+          if (!td) return;
+          const hint = document.createElement('div');
+          hint.className = 'jp-trous-attendu';
+          hint.textContent = 'Attendu : ' + (d.bonne_valeur || '—');
+          td.appendChild(hint);
+        });
+      }
+
+      function closeScoreModal() {
+        scoreModal.hidden = true;
+      }
+
+      function selectedScoreMode() {
+        const checked = scoreModal.querySelector('input[name="scoreMode"]:checked');
+        return checked ? checked.value : 'general';
+      }
+
+      function renderScoreModePanels(data) {
+        const mode = selectedScoreMode();
+        const maxCases = data.score_max || (data.trous || []).length || 1;
+        let panel = '';
+
+        if (mode === 'general') {
+          panel = '<div class="jp-trous-score-panel" data-panel="general">'
+            + '<label class="jp-trous-score-field">Score obtenu'
+            + '<input type="number" id="scoreGeneralObtenu" min="0" max="' + maxCases + '" step="1" value="0">'
+            + '</label>'
+            + '<label class="jp-trous-score-field">Score max'
+            + '<input type="number" id="scoreGeneralMax" min="1" step="1" value="' + maxCases + '">'
+            + '</label>'
+            + '</div>';
+        } else if (mode === 'ligne') {
+          panel = '<div class="jp-trous-score-panel" data-panel="ligne"><p class="jp-muted">Cochez les lignes réussies.</p><ul class="jp-trous-score-list">';
+          (data.lignes || []).forEach(function (ligne, i) {
+            panel += '<li><label>'
+              + '<input type="checkbox" class="jp-trous-score-ligne" data-index="' + i + '" data-matrice="'
+              + JpUi.escapeHtml(ligne.matrice_id) + '">'
+              + ' ' + JpUi.escapeHtml(ligne.label || ('Ligne ' + (i + 1)))
+              + '</label></li>';
+          });
+          panel += '</ul></div>';
+        } else {
+          panel = '<div class="jp-trous-score-panel" data-panel="case"><p class="jp-muted">Cochez les cases correctes.</p><ul class="jp-trous-score-list">';
+          (data.trous || []).forEach(function (trou, i) {
+            panel += '<li><label>'
+              + '<input type="checkbox" class="jp-trous-score-case" data-index="' + i + '"'
+              + ' data-matrice="' + JpUi.escapeHtml(trou.matrice_id) + '"'
+              + ' data-champ="' + JpUi.escapeHtml(trou.champ_code) + '">'
+              + ' ' + JpUi.escapeHtml(trou.label || '')
+              + ' — ' + JpUi.escapeHtml(JpTrous.champLibelle(trou.champ_code))
+              + '</label></li>';
+          });
+          panel += '</ul></div>';
+        }
+
+        scoreModePanels.innerHTML = panel;
+      }
+
+      async function openScoreModal() {
+        const data = await ensureCorrige();
+        if (!data.score_max) {
+          JpToast.warn('Aucun trou à scorer');
+          return;
+        }
+        renderScoreModePanels(data);
+        scoreModal.hidden = false;
+      }
+
+      function collectManuelPayload(data) {
+        const mode = selectedScoreMode();
+
+        if (mode === 'general') {
+          const obtenu = Number(document.getElementById('scoreGeneralObtenu').value);
+          const max = Number(document.getElementById('scoreGeneralMax').value);
+          return {
+            mode_saisie: 'general',
+            score_obtenu: obtenu,
+            score_max: max,
+            details: { type: 'general' },
+          };
+        }
+
+        if (mode === 'ligne') {
+          const lignes = data.lignes || [];
+          const detailsLignes = lignes.map(function (ligne, i) {
+            const cb = scoreModePanels.querySelector(
+              '.jp-trous-score-ligne[data-index="' + i + '"]'
+            );
+            return {
+              matrice_id: ligne.matrice_id,
+              label: ligne.label,
+              correct: !!(cb && cb.checked),
+            };
+          });
+          const score_obtenu = detailsLignes.filter(function (l) { return l.correct; }).length;
+          return {
+            mode_saisie: 'ligne',
+            score_obtenu: score_obtenu,
+            score_max: lignes.length,
+            details: { type: 'ligne', lignes: detailsLignes },
+          };
+        }
+
+        const trous = data.trous || [];
+        const detailsCases = trous.map(function (trou, i) {
+          const cb = scoreModePanels.querySelector(
+            '.jp-trous-score-case[data-index="' + i + '"]'
+          );
+          return {
+            matrice_id: trou.matrice_id,
+            champ_code: trou.champ_code,
+            correct: !!(cb && cb.checked),
+          };
+        });
+        const score_obtenu = detailsCases.filter(function (c) { return c.correct; }).length;
+        return {
+          mode_saisie: 'case',
+          score_obtenu: score_obtenu,
+          score_max: trous.length,
+          details: { type: 'case', cases: detailsCases },
+        };
       }
 
       document.getElementById('btnPrint').addEventListener('click', async function () {
@@ -184,9 +319,8 @@
         const btn = document.getElementById('btnReveal');
         btn.disabled = true;
         try {
-          lastEval = null;
-          const result = await ensureEval();
-          showScoreBox(result, false);
+          const data = await ensureCorrige();
+          applyCorrige(data.trous);
           btn.textContent = 'Réponses affichées';
           JpToast.ok('Corrigé affiché');
         } catch (e) {
@@ -197,29 +331,55 @@
 
       document.getElementById('btnScore').addEventListener('click', async function () {
         const btn = document.getElementById('btnScore');
+        if (scoreSaved) {
+          JpToast.warn('Score déjà enregistré pour cette session');
+          return;
+        }
         btn.disabled = true;
         try {
-          const result = await ensureEval();
-          showScoreBox(result, scoreSaved);
+          await openScoreModal();
+        } catch (e) {
+          JpToast.fromError(e);
+        } finally {
+          btn.disabled = false;
+        }
+      });
 
-          if (scoreSaved) {
-            JpToast.warn('Score déjà enregistré pour cette session');
-            btn.disabled = false;
-            return;
+      scoreModal.querySelectorAll('[data-close-score-modal]').forEach(function (el) {
+        el.addEventListener('click', closeScoreModal);
+      });
+
+      scoreModal.querySelectorAll('input[name="scoreMode"]').forEach(function (radio) {
+        radio.addEventListener('change', async function () {
+          try {
+            const data = await ensureCorrige();
+            renderScoreModePanels(data);
+          } catch (e) {
+            JpToast.fromError(e);
           }
+        });
+      });
 
-          const msg = 'Enregistrer le score '
-            + result.score_obtenu + '/' + result.score_max
-            + ' dans votre suivi ?';
-          if (!confirm(msg)) {
-            btn.disabled = false;
-            return;
-          }
-
-          const saved = await JpTrous.soumettre(partie.id, collectReponses());
+      document.getElementById('btnScoreValidate').addEventListener('click', async function () {
+        const btn = document.getElementById('btnScoreValidate');
+        if (scoreSaved) {
+          JpToast.warn('Score déjà enregistré pour cette session');
+          closeScoreModal();
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const data = await ensureCorrige();
+          const payload = collectManuelPayload(data);
+          const saved = await JpTrous.soumettreManuel(partie.id, payload);
           scoreSaved = true;
+          closeScoreModal();
           showScoreBox(saved, true);
-          btn.textContent = 'Score enregistré';
+          const scoreBtn = document.getElementById('btnScore');
+          if (scoreBtn) {
+            scoreBtn.textContent = 'Score enregistré';
+            scoreBtn.disabled = true;
+          }
           JpToast.ok('Score : ' + saved.score_obtenu + '/' + saved.score_max);
         } catch (e) {
           JpToast.fromError(e);

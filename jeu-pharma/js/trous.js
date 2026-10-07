@@ -365,6 +365,50 @@
   }
 
   /**
+   * Liste les trous + valeurs attendues (corrigé), sans score ni comparaison aux saisies.
+   * @param {string} partieId
+   */
+  async function listerTrous(partieId) {
+    const partie = await getById(partieId);
+    if (!partie) throw new Error('Partie introuvable');
+    const snap = partie.snapshot_grille;
+    if (!snap) throw new Error('Grille manquante');
+
+    const trous = [];
+    const lignes = [];
+
+    (snap.lignes || []).forEach((ligne) => {
+      const cases = [];
+      (ligne.cells || []).forEach((cell) => {
+        if (!cell.trou) return;
+        const item = {
+          matrice_id: ligne.matrice_id,
+          label: ligne.label || '',
+          champ_code: cell.champ_code,
+          bonne_valeur: cellDisplay(cell),
+        };
+        trous.push(item);
+        cases.push(item);
+      });
+      if (cases.length) {
+        lignes.push({
+          matrice_id: ligne.matrice_id,
+          label: ligne.label || '',
+          cases,
+        });
+      }
+    });
+
+    return {
+      mode: partie.mode || 'entrainement',
+      trous,
+      lignes,
+      score_max: trous.length,
+      snapshot: snap,
+    };
+  }
+
+  /**
    * Compare réponses aux valeurs du snapshot (rechargé depuis la DB), sans écrire.
    * @param {string} partieId
    * @param {{ matrice_id: string, champ_code: string, reponse: string }[]} reponses
@@ -414,6 +458,18 @@
     };
   }
 
+  async function assertPasDeDoubleEvaluation(partieId, userId, mode) {
+    if (mode !== 'evaluation') return;
+    const { data: existing } = await sb()
+      .from('parties_reponses_utilisateur')
+      .select('id')
+      .eq('partie_id', partieId)
+      .eq('utilisateur_id', userId)
+      .eq('mode', 'evaluation')
+      .maybeSingle();
+    if (existing) throw new Error('Tentative évaluation déjà enregistrée');
+  }
+
   /**
    * Évalue puis enregistre le score dans parties_reponses_utilisateur.
    * @param {string} partieId
@@ -425,17 +481,7 @@
 
     const result = await evaluer(partieId, reponses);
     const mode = result.mode || 'entrainement';
-
-    if (mode === 'evaluation') {
-      const { data: existing } = await sb()
-        .from('parties_reponses_utilisateur')
-        .select('id')
-        .eq('partie_id', partieId)
-        .eq('utilisateur_id', user.id)
-        .eq('mode', 'evaluation')
-        .maybeSingle();
-      if (existing) throw new Error('Tentative évaluation déjà enregistrée');
-    }
+    await assertPasDeDoubleEvaluation(partieId, user.id, mode);
 
     const { data, error } = await sb()
       .from('parties_reponses_utilisateur')
@@ -463,6 +509,82 @@
       score_obtenu: result.score_obtenu,
       score_max: result.score_max,
       details: result.details,
+    };
+  }
+
+  /**
+   * Enregistre un score saisi manuellement (popup Indiquer un score).
+   * Aucune évaluation des champs écran.
+   * @param {string} partieId
+   * @param {{
+   *   mode_saisie: 'general'|'ligne'|'case',
+   *   score_obtenu: number,
+   *   score_max: number,
+   *   details?: object,
+   * }} payload
+   */
+  async function soumettreManuel(partieId, payload) {
+    const user = await global.JpApp.getUser();
+    if (!user) throw new Error('Non authentifié');
+
+    const partie = await getById(partieId);
+    if (!partie) throw new Error('Partie introuvable');
+    const mode = partie.mode || 'entrainement';
+
+    const modeSaisie = payload?.mode_saisie;
+    if (!['general', 'ligne', 'case'].includes(modeSaisie)) {
+      throw new Error('Mode de saisie invalide');
+    }
+
+    const score_obtenu = Number(payload.score_obtenu);
+    const score_max = Number(payload.score_max);
+    if (!Number.isFinite(score_obtenu) || !Number.isFinite(score_max)) {
+      throw new Error('Score invalide');
+    }
+    if (score_max < 1 || score_obtenu < 0 || score_obtenu > score_max) {
+      throw new Error('Score incohérent');
+    }
+
+    await assertPasDeDoubleEvaluation(partieId, user.id, mode);
+
+    const extra =
+      payload.details && typeof payload.details === 'object' && !Array.isArray(payload.details)
+        ? payload.details
+        : {};
+    const details = {
+      ...extra,
+      mode_saisie: modeSaisie,
+      manuel: true,
+    };
+
+    const { data, error } = await sb()
+      .from('parties_reponses_utilisateur')
+      .insert({
+        partie_id: partieId,
+        utilisateur_id: user.id,
+        mode,
+        score_obtenu: Math.floor(score_obtenu),
+        score_max: Math.floor(score_max),
+        details_reponses: details,
+      })
+      .select('id, score_obtenu, score_max, mode')
+      .single();
+    if (error) throw error;
+
+    void global.JpLogs?.action?.('trous_soumettre_manuel', {
+      partie_id: partieId,
+      mode_saisie: modeSaisie,
+      score: data.score_obtenu,
+      max: data.score_max,
+    });
+
+    return {
+      reponse_id: data.id,
+      mode: data.mode,
+      score_obtenu: data.score_obtenu,
+      score_max: data.score_max,
+      mode_saisie: modeSaisie,
+      details,
     };
   }
 
@@ -532,8 +654,10 @@
     getByCode,
     getById,
     ouvrir,
+    listerTrous,
     evaluer,
     soumettre,
+    soumettreManuel,
     mesScores,
     listScores,
     shuffle,

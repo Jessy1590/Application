@@ -762,6 +762,123 @@ body > a[title="Retour au portail"] {
   font-size: 1.5rem;
 }
 
+/* Modal score manuel (tableau à trous) */
+.jp-trous-score-modal[hidden] {
+  display: none;
+}
+
+.jp-trous-score-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.jp-trous-score-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 32, 28, 0.45);
+}
+
+.jp-trous-score-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(28rem, 100%);
+  max-height: min(88dvh, 36rem);
+  overflow: auto;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  padding: 1rem 1rem 1.1rem;
+  color: var(--jp-text);
+  box-shadow: 0 12px 40px rgba(20, 32, 28, 0.18);
+}
+
+.jp-trous-score-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.jp-trous-score-modal-head h2 {
+  margin: 0;
+  font-family: var(--jp-font-display);
+  font-size: 1.2rem;
+}
+
+.jp-trous-score-modes {
+  border: 0;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+}
+
+.jp-trous-score-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.jp-trous-score-field {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-trous-score-field input {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg);
+  color: var(--jp-text);
+}
+
+.jp-trous-score-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.jp-trous-score-list li {
+  margin: 0;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.jp-trous-score-list li:last-child {
+  border-bottom: 0;
+}
+
+.jp-trous-score-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.jp-trous-score-modal-actions {
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
 .jp-sr-only {
   position: absolute;
   width: 1px;

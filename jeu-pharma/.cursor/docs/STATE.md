@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — admin **Création jeu** : onglet Historique + formulaires Quiz/Trous alignés ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-07 — nettoyage catalogue RCP (`004`) + tableau à trous score manuel ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -18,6 +18,14 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié).
 - Save / CSV / BDPM : fusion par DCI (append noms, soft-archive doublons).
 
+### Règles DCI / noms (catalogue RCP)
+- DCI = INN / RCP (pas classe, pas labo). Exception pédagogique : fers mono sous `Sels ferreux`.
+- Plusieurs spécialités / génériques = plusieurs noms sur la **même** fiche.
+- `… Biogaran` = nom commercial, jamais une DCI ni une fiche séparée.
+- Fusion sel → INN courte (`Clopidogrel`, `Bisoprolol`).
+- Associations (`Clopidogrel + aspirine`, `Sels ferreux + acide folique`, etc.) = fiche distincte.
+- Pas d’invention clinique : structure + libellés seulement.
+
 ## Ops remote (projet `kpjflntnotftpzffjbud`)
 - [x] Schéma `jeupharma` créé.
 - [x] Exposition Data API / PostgREST : `jeupharma` dans `authenticator.pgrst.db_schemas`.
@@ -29,27 +37,45 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - drop `nom_commercial_id`
   - index `matrice_medicaments_dci_unique_actif`
   - vue + `_valeur_champ_matrice` / `generer_et_geler_quiz` / `fusionner_entites`
-- [x] Vérif post-migrate : **179** non-archive (**160** avec DCI uniques + **19** sans DCI), **0** groupe DCI dupliqué actif.
+- [x] Vérif post-`002` : **179** non-archive (**160** avec DCI uniques + **19** sans DCI), **0** groupe DCI dupliqué actif.
+- [x] Migration **`004_catalogue_cleanup_rcp`** (MCP `catalogue_cleanup_rcp`, fichier `sql/004_catalogue_cleanup_rcp.sql`) :
+  - ASA : DCI `Acide acétylsalicylique` + merge Aspegic / Kardegic / Aspirine Protect
+  - Fers : 7 mono → `Sels ferreux` ; Tardyféron B9 → `Sels ferreux + acide folique`
+  - Fusion `Bésilate de clopidogrel` → `Clopidogrel` ; `Fumarate de bisoprolol` → `Bisoprolol` (DCI sels soft-désactivées)
+  - Biogaran = noms sur DCI (Clopidogrel / Ramipril / Rivaroxaban)
+  - Soft-archive : Calcarea fluor, Hamamelis composé, Vipera redi, Aetoxisclérol, Sclérémo, Trombovar, Resitune
+  - Eau oxygénée → DCI `Peroxyde d'hydrogène` ; Digoxine : nom redondant retiré, Hémigoxine conservé
+- [x] Vérif post-`004` : **162** `publie` / **59** `archive` ; **0** sans `dci_id` actif ; **0** DCI multi-matrices actives.
 
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
-- [x] SQL `sql/001_jeupharma_init.sql` + `sql/002_dci_centrique.sql`.
+- [x] SQL `sql/001_jeupharma_init.sql` + `sql/002_dci_centrique.sql` + `sql/003_fix_normaliser_valeur.sql` + `sql/004_catalogue_cleanup_rcp.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
 - [x] Admin contenu unifié : `admin/catalogue.html` (table + édition + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites.
 - [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — onglets **Historique** | Quiz | Tableau à trous ; Historique = liste filtrée (en cours / terminés / archivés) ; Quiz/Trous = création seule (même structure CSS `.jp-quiz-admin-*`) ; redirects `quizz.html` / `trous.html` → `?type=`.
+- [x] Trous jouer — flux score manuel (voir section ci-dessous).
+
+## Flux score tableau à trous (`trous/jouer.html`)
+- **Imprimer** : grille papier (cases vides) via `JpPrint.trousPrintDocument` + iframe same-document (`JpPrint.printHtml`). Admin création : lien `trous/imprimer.html?code=…` inchangé.
+- **Voir la réponse** : affiche le corrigé (`JpTrous.listerTrous` → attendus sous chaque trou). **Aucun score** calculé ni affiché ni enregistré.
+- **Indiquer un score** : seul chemin vers un score. Ouvre le modal `.jp-trous-score-modal` (3 modes) ; insert DB **uniquement** après validation.
+  1. **Résultat général** — saisie manuelle `score_obtenu` / `score_max`.
+  2. **Par ligne** — OK/KO par médicament ayant des trous → total = lignes OK / lignes scorables.
+  3. **Par case** — case cochée = bonne réponse → total = cases OK / trous.
+- API : `JpTrous.soumettreManuel(partieId, { mode_saisie, score_obtenu, score_max, details })` — pas d’`evaluer()` sur les champs écran. Log `trous_soumettre_manuel`. `soumettre()` (auto-éval saisies) reste exposé mais n’est plus utilisé par jouer.
+- Fichiers : `js/trous.js`, `trous/jouer.html`, `css/app.css` (`.jp-trous-score-modal*`).
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
-- [ ] (Optionnel) Regénérer les snapshots quiz / grilles trous créés **avant** le merge (matrice_id archivés éventuels dans JSON).
-- [ ] (Optionnel) Traiter les **19** fiches actives sans `dci_id` (rattacher une DCI ou archiver).
+- [ ] (Optionnel) Regénérer les snapshots quiz / grilles trous créés **avant** les merges (matrice_id archivés éventuels dans JSON).
 
 ## Ne pas
 - Inventer UI / flux / IA hors demande.
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
-- Réappliquer `001` / `002` sans vérifier l’état remote.
+- Réappliquer `001` / `002` / `004` sans vérifier l’état remote.
 - Impression via `window.open`.
 
 ## Règles Cursor
