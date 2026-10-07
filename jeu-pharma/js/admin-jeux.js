@@ -233,6 +233,24 @@
       $('trousSecteurField').hidden = byIds;
       $('trousIdsField').hidden = !byIds;
     });
+
+    $('trousNiveau').addEventListener('change', async function () {
+      try {
+        await refreshTrousMeds(state);
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    });
+  }
+
+  async function refreshTrousMeds(state) {
+    const niveau = $('trousNiveau').value || null;
+    state.allPublieMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
+    const allowed = new Set(state.allPublieMeds.map(function (m) { return m.id; }));
+    state.selectedMedIds.forEach(function (id) {
+      if (!allowed.has(id)) state.selectedMedIds.delete(id);
+    });
+    if (typeof state.renderMedsList === 'function') state.renderMedsList();
   }
 
   function selectedColonnes() {
@@ -248,15 +266,16 @@
   }
 
   async function loadMeds(state) {
+    const niveau = $('trousNiveau').value || null;
     const source = $('trousSourceMeds').value;
     if (source === 'ids') {
       const ids = Array.from(state.selectedMedIds);
       if (!ids.length) throw new Error('Cochez au moins un médicament');
-      return global.JpTrous.fetchMedicaments({ matriceIds: ids });
+      return global.JpTrous.fetchMedicaments({ matriceIds: ids, niveau: niveau });
     }
     const secteurId = $('trousSecteur').value;
     if (!secteurId) throw new Error('Choisissez un secteur');
-    return global.JpTrous.fetchMedicaments({ secteurId: secteurId });
+    return global.JpTrous.fetchMedicaments({ secteurId: secteurId, niveau: niveau });
   }
 
   function renderPreview(state, snap) {
@@ -666,8 +685,7 @@
     }
 
     try {
-      state.allPublieMeds = await global.JpTrous.fetchMedicaments({});
-      state.renderMedsList();
+      await refreshTrousMeds(state);
     } catch (e) {
       global.JpToast.fromError(e);
       $('trousMedsList').innerHTML = '<p class="jp-muted">Impossible de charger les médicaments.</p>';

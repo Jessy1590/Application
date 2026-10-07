@@ -34,6 +34,19 @@
   }
 
   /**
+   * Fiche hospitalière : visible seulement au niveau pédagogique `pharmacien`.
+   * Admin : toujours visible. Niveau vide côté joueur → masqué.
+   * @param {object} row
+   * @param {string|null|undefined} niveauCode
+   * @param {{ admin?: boolean }} [opts]
+   */
+  function visiblePourNiveau(row, niveauCode, opts = {}) {
+    if (opts.admin) return true;
+    if (!row?.hospitalier) return true;
+    return niveauCode === 'pharmacien';
+  }
+
+  /**
    * @param {{ statut?: string|null, q?: string, secteurId?: string|null, publieOnly?: boolean }} [opts]
    */
   async function list(opts = {}) {
@@ -308,6 +321,7 @@
     const user = await global.JpApp.getUser();
     const row = {
       statut: payload.statut || 'brouillon',
+      hospitalier: !!payload.hospitalier,
       updated_by: user?.id || null,
     };
 
@@ -434,5 +448,6 @@
     multiChamps,
     nomsList,
     formatNoms,
+    visiblePourNiveau,
   };
 })(window);

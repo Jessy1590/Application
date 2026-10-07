@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — nettoyage catalogue RCP (`004`) + tableau à trous score manuel ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-07 — hospitalier (`005`) + nettoyage catalogue RCP (`004`) + trous score manuel ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -46,14 +46,19 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - Soft-archive : Calcarea fluor, Hamamelis composé, Vipera redi, Aetoxisclérol, Sclérémo, Trombovar, Resitune
   - Eau oxygénée → DCI `Peroxyde d'hydrogène` ; Digoxine : nom redondant retiré, Hémigoxine conservé
 - [x] Vérif post-`004` : **162** `publie` / **59** `archive` ; **0** sans `dci_id` actif ; **0** DCI multi-matrices actives.
+- [x] Migration **`005_hospitalier`** (MCP `jeupharma_005_hospitalier`, fichier `sql/005_hospitalier.sql`) :
+  - `matrice_medicaments.hospitalier boolean NOT NULL DEFAULT false` (pas de seed — admin coche)
+  - vue `v_medicaments_complet.hospitalier`
+  - `generer_et_geler_quiz` : exclut hospitalier si `niveau_cible <> 'pharmacien'`
+  - Filtre client : catalogue joueur + trous (`JpMedicaments.visiblePourNiveau`) ; admin catalogue voit tout + case à cocher
 
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
-- [x] SQL `sql/001_jeupharma_init.sql` + `sql/002_dci_centrique.sql` + `sql/003_fix_normaliser_valeur.sql` + `sql/004_catalogue_cleanup_rcp.sql`.
+- [x] SQL `sql/001` … `005_hospitalier.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
-- [x] Admin contenu unifié : `admin/catalogue.html` (table + édition + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites.
+- [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** dans Paramètres → Filtres (global = noms/DCI/secteur ; ou champ ciblé via `jpIncompletChamp`).
 - [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — onglets **Historique** | Quiz | Tableau à trous ; Historique = liste filtrée (en cours / terminés / archivés) ; Quiz/Trous = création seule (même structure CSS `.jp-quiz-admin-*`) ; redirects `quizz.html` / `trous.html` → `?type=`.
 - [x] Trous jouer — flux score manuel (voir section ci-dessous).
 
@@ -75,7 +80,8 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - Inventer UI / flux / IA hors demande.
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
-- Réappliquer `001` / `002` / `004` sans vérifier l’état remote.
+- Réappliquer `001` / `002` / `004` / `005` sans vérifier l’état remote.
+- Confondre `hospitalier` / niveau pédagogique `pharmacien` avec `portail.profiles.role`.
 - Impression via `window.open`.
 
 ## Règles Cursor

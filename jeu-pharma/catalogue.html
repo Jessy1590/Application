@@ -96,6 +96,7 @@
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/print.js"></script>
+  <script src="js/profil.js"></script>
   <script src="js/medicaments.js"></script>
   <script>
     (function () {
@@ -278,6 +279,7 @@
             const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
             if (!nivs.includes(prefs.niveau)) return false;
           }
+          if (!JpMedicaments.visiblePourNiveau(r, prefs.niveau || null)) return false;
           if (!q) return true;
           const blob = [
             JpMedicaments.formatNoms(r),
@@ -406,6 +408,14 @@
       async function load() {
         try {
           all = await JpMedicaments.list({ publieOnly: true });
+          if (!prefs.niveau) {
+            try {
+              const niv = await JpProfil.getNiveauCode();
+              if (niv && (JpConstants.NIVEAUX || []).some((n) => n.code === niv)) {
+                prefs.niveau = niv;
+              }
+            } catch (_) { /* ignore */ }
+          }
           syncFilterOptions();
           applyPrefsToUi();
           savePrefs();

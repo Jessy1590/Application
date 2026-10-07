@@ -145,7 +145,7 @@
 
   /**
    * Charge fiches publiées pour construire la grille.
-   * @param {{ secteurId?: string|null, matriceIds?: string[], niveau?: string }} opts
+   * @param {{ secteurId?: string|null, matriceIds?: string[], niveau?: string, admin?: boolean }} opts
    */
   async function fetchMedicaments(opts = {}) {
     let q = sb()
@@ -159,7 +159,16 @@
     }
     const { data, error } = await q.order('dci');
     if (error) throw error;
-    return data || [];
+    let rows = data || [];
+    if (!opts.admin) {
+      const visible = global.JpMedicaments?.visiblePourNiveau;
+      if (typeof visible === 'function') {
+        rows = rows.filter((r) => visible(r, opts.niveau, opts));
+      } else if (opts.niveau !== 'pharmacien') {
+        rows = rows.filter((r) => !r.hospitalier);
+      }
+    }
+    return rows;
   }
 
   /**

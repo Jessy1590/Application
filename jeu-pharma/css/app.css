@@ -958,10 +958,6 @@ body > a[title="Retour au portail"] {
   min-height: 60vh;
 }
 
-.jp-med-workspace.is-editing {
-  grid-template-columns: minmax(18rem, 0.95fr) minmax(0, 1.55fr);
-}
-
 .jp-med-listpane {
   background: var(--jp-bg-elevated);
   border: 1px solid var(--jp-line);
@@ -1013,16 +1009,43 @@ body > a[title="Retour au portail"] {
   background: rgba(15, 107, 92, 0.14);
 }
 
+/* Modal création / édition fiche catalogue admin */
+.jp-catalogue-fiche-modal[hidden] {
+  display: none;
+}
+
+.jp-catalogue-fiche-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.jp-catalogue-fiche-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 32, 28, 0.45);
+}
+
+.jp-catalogue-fiche-modal-panel,
 .jp-med-editor {
+  position: relative;
+  z-index: 1;
   margin: 0;
   padding: 0;
   border: 1px solid var(--jp-line);
   border-radius: var(--jp-radius);
   background: var(--jp-bg-elevated);
-  max-height: calc(100dvh - 11rem);
+  width: min(56rem, 100%);
+  max-height: min(92dvh, 52rem);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  color: var(--jp-text);
+  box-shadow: 0 12px 40px rgba(20, 32, 28, 0.18);
 }
 
 .jp-med-editor-head {
@@ -1042,6 +1065,33 @@ body > a[title="Retour au portail"] {
 .jp-med-editor-head h2 {
   margin: 0;
   font-size: 1.15rem;
+}
+
+.jp-med-editor-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.jp-med-hospitalier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  color: var(--jp-text);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.jp-med-hospitalier input {
+  margin: 0;
+}
+
+.jp-badge-hospitalier {
+  background: #e8eef5;
+  color: #3a5a7a;
 }
 
 .jp-med-editor-body {
@@ -1152,13 +1202,19 @@ body > a[title="Retour au portail"] {
     flex: 1;
   }
 
-  .jp-med-workspace.is-editing {
-    grid-template-columns: 1fr;
+  .jp-med-listpane {
+    max-height: none;
   }
 
-  .jp-med-listpane,
+  .jp-catalogue-fiche-modal {
+    padding: 0.5rem;
+    align-items: stretch;
+  }
+
+  .jp-catalogue-fiche-modal-panel,
   .jp-med-editor {
-    max-height: none;
+    width: 100%;
+    max-height: min(96dvh, 100%);
   }
 }
 
@@ -1756,13 +1812,13 @@ body > a[title="Retour au portail"] {
   padding: 0.4rem 0.55rem;
 }
 
-.jp-admin-cat-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: var(--jp-text);
-  white-space: nowrap;
+.jp-catalogue-incomplet-check {
+  margin-bottom: 0.55rem;
+}
+
+.jp-catalogue-field select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .jp-admin-cat-actions-col {
