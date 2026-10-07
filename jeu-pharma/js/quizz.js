@@ -165,6 +165,18 @@
     return data || [];
   }
 
+  /** Admin : réponses / scores pour un quiz donné. */
+  async function listScores(quizzId) {
+    if (!quizzId) return [];
+    const { data, error } = await sb()
+      .from('quizz_reponses_utilisateur')
+      .select('id, utilisateur_id, mode, score_obtenu, score_max, created_at')
+      .eq('quizz_id', quizzId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
   /** Charge snapshot admin (avec corrigé) pour impression — lecture table si admin. */
   async function getByCode(code) {
     const c = String(code || '').trim().toUpperCase();
@@ -213,6 +225,7 @@
     ouvrir,
     soumettre,
     mesScores,
+    listScores,
     getByCode,
     setActif,
     archive,

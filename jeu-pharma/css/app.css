@@ -1391,6 +1391,40 @@ body > a[title="Retour au portail"] {
   }
 }
 
+/* —— Admin création jeu —— */
+.jp-jeu-type {
+  display: inline-flex;
+  gap: 0.25rem;
+  margin: 0 0 1.5rem;
+  padding: 0.25rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+}
+
+.jp-jeu-type-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: calc(var(--jp-radius-sm) - 2px);
+  background: transparent;
+  color: var(--jp-text-muted);
+  cursor: pointer;
+}
+
+.jp-jeu-type-btn.is-active,
+.jp-jeu-type-btn[aria-selected="true"] {
+  background: var(--jp-accent);
+  color: #fff;
+}
+
+.jp-scores-modal-card {
+  width: min(100%, 40rem);
+  max-height: min(90vh, 32rem);
+}
+
 /* —— Catalogue joueur —— */
 .jp-catalogue-toolbar {
   display: flex;

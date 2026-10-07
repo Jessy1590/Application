@@ -34,6 +34,7 @@ alwaysApply: true
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
 - BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
 - Admin contenu : une page `admin/catalogue.html` (« Modification du catalogue ») — table type catalogue joueur, édition fiche, import CSV, fusion (`fusionner_entites`), niveaux bulk. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
+- Admin jeux : une page `admin/jeux.html` (« Création jeu ») — création / liste unifiée Quiz + Tableau à trous (onglets `?type=quiz|trous`), scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
 - Quiz = assemblage algorithmique de QCM depuis fiches `publie` + distracteurs même secteur (RPC), zéro IA.
 
 ## Droits

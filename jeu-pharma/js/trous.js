@@ -494,6 +494,18 @@
     return data || [];
   }
 
+  /** Admin : réponses / scores pour une partie donnée. */
+  async function listScores(partieId) {
+    if (!partieId) return [];
+    const { data, error } = await sb()
+      .from('parties_reponses_utilisateur')
+      .select('id, utilisateur_id, mode, score_obtenu, score_max, created_at')
+      .eq('partie_id', partieId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
   function archive(id) {
     return setActif(id, false);
   }
@@ -523,6 +535,7 @@
     evaluer,
     soumettre,
     mesScores,
+    listScores,
     shuffle,
     normalizeAnswer,
     setActif,

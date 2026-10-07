@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — **modèle DCI-centrique** (`002_dci_centrique`) appliqué sur projet `kpjflntnotftpzffjbud`.
+Dernière mise à jour : 2026-10-07 — admin **Création jeu** unifié (`jeux.html`) ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -38,6 +38,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
 - [x] Admin contenu unifié : `admin/catalogue.html` (table + édition + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites.
+- [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — quiz + trous, liste Parties actuelles (jouer / imprimer / archiver / scores) ; redirects `quizz.html` / `trous.html` → `?type=`.
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
