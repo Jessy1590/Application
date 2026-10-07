@@ -64,7 +64,7 @@
         if (!etat || typeof etat !== 'object') return '—';
         if (etat.valeur) return String(etat.valeur).slice(0, 80);
         if (etat.statut) return 'statut=' + etat.statut;
-        if (etat.nom_commercial_id || etat.dci_id) {
+        if (etat.dci_id || etat.nom_commercial_id) {
           return 'fiche ' + String(etat.id || '').slice(0, 8);
         }
         return JSON.stringify(etat).slice(0, 80);

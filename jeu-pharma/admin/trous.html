@@ -134,6 +134,8 @@
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
   <script src="../js/profil.js"></script>
+  <script src="../js/entites.js"></script>
+  <script src="../js/medicaments.js"></script>
   <script src="../js/trous.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
@@ -197,7 +199,7 @@
         const wrap = document.getElementById('medsList');
         const filtered = allPublieMeds.filter(function (m) {
           if (!q) return true;
-          const nom = String(m.nom_commercial || '').toLowerCase();
+          const nom = String(JpMedicaments.formatNoms(m) || '').toLowerCase();
           const dci = String(m.dci || '').toLowerCase();
           return nom.indexOf(q) >= 0 || dci.indexOf(q) >= 0;
         });
@@ -208,8 +210,9 @@
         }
         wrap.innerHTML = filtered.map(function (m) {
           const id = m.id;
-          const label = (m.nom_commercial || m.dci || id)
-            + (m.dci && m.nom_commercial ? ' · ' + m.dci : '');
+          const noms = JpMedicaments.formatNoms(m);
+          const label = (noms || m.dci || id)
+            + (m.dci && noms ? ' · ' + m.dci : '');
           return '<label class="jp-trous-admin-med">'
             + '<input type="checkbox" name="med" value="' + JpUi.escapeHtml(id) + '"'
             + (selectedMedIds.has(id) ? ' checked' : '') + '>'

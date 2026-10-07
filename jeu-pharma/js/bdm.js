@@ -1,6 +1,7 @@
 /**
  * Client BDPM lecture seule (schéma Supabase `bdm`).
- * Amorçage nom commercial + DCI uniquement — pas d’écriture métier.
+ * Amorçage noms commerciaux + DCI uniquement — pas d’écriture métier.
+ * Une fiche = une DCI ; le nom BDPM s’ajoute à la liste des noms.
  */
 (function (global) {
   const SCHEMA = 'bdm';

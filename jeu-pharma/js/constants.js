@@ -13,7 +13,7 @@
 
   /** Codes champ pour configuration quiz / affichage fiches */
   const CHAMP_CODES = [
-    { code: 'nom_commercial', libelle: 'Nom commercial', table: 'noms_commerciaux', card: 1, fk: 'nom_commercial_id' },
+    { code: 'nom_commercial', libelle: 'Noms commerciaux', table: 'noms_commerciaux', card: 'N', liaison: 'matrice_noms_commerciaux', liaisonFk: 'nom_commercial_id' },
     { code: 'dci', libelle: 'DCI', table: 'dcis', card: 1, fk: 'dci_id' },
     { code: 'secteur_therapeutique', libelle: 'Secteur thérapeutique', table: 'secteurs_therapeutiques', card: 1, fk: 'secteur_therapeutique_id' },
     { code: 'classe_therapeutique', libelle: 'Classe thérapeutique', table: 'classes_therapeutiques', card: 1, fk: 'classe_therapeutique_id' },

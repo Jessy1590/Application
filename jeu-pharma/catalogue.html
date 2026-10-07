@@ -68,7 +68,7 @@
           if (sid && r.secteur_therapeutique_id !== sid) return false;
           if (!q) return true;
           const blob = [
-            r.nom_commercial,
+            JpMedicaments.formatNoms(r),
             r.dci,
             r.secteur_therapeutique,
             r.classe_therapeutique,
@@ -112,7 +112,7 @@
               <tbody>
                 ${rows.map((r) => `
                   <tr>
-                    <td>${esc(r.nom_commercial || '—')}</td>
+                    <td>${esc(JpMedicaments.formatNoms(r) || '—')}</td>
                     <td>${esc(r.dci || '—')}</td>
                     <td>${esc(r.secteur_therapeutique || '—')}</td>
                     <td>${esc(r.classe_pharmacologique || '—')}</td>

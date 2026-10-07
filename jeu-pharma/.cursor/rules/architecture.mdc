@@ -20,17 +20,19 @@ alwaysApply: true
 ## Données
 - Schéma métier : **`jeupharma`** (minuscules).
 - Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, posologies, interactions, surveillances, grossesse/allaitement, voies.
-- Matrice : `matrice_medicaments` (`statut` brouillon|publie|archive) + tables de liaison multi.
+- Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
+- Noms commerciaux : liaison multi `matrice_noms_commerciaux` (plus de FK singulière `nom_commercial_id`).
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié).
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
 - Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
-- BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom/DCI à la création de fiche uniquement ; pas de sync destructive depuis Jeu Pharma.
-- SQL locaux : `jeu-pharma/sql/*.sql` — ne pas réappliquer sans check (voir STATE.md).
+- BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` init, `002_dci_centrique` ; ne pas réappliquer sans check (voir STATE.md).
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
-- BDPM **lecture seule** autorisée pour **préremplir nom commercial + DCI** à l’édition de fiche (`admin/medicaments.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
+- BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/medicaments.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
 - Quiz = assemblage algorithmique de QCM depuis fiches `publie` + distracteurs même secteur (RPC), zéro IA.
 
 ## Droits

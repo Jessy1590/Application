@@ -1,5 +1,6 @@
 /**
- * CRUD fiches médicaments (matrice + liaisons + vue v_medicaments_complet).
+ * CRUD fiches médicaments (matrice DCI-centrique + liaisons + vue v_medicaments_complet).
+ * 1 fiche = 1 DCI ; N noms commerciaux via matrice_noms_commerciaux.
  */
 (function (global) {
   function sb() {
@@ -16,6 +17,20 @@
 
   function multiChamps() {
     return champs().filter((c) => c.card === 'N');
+  }
+
+  /** Liste des libellés noms commerciaux (vue array ou fallback déprécié). */
+  function nomsList(row) {
+    if (!row) return [];
+    if (Array.isArray(row.noms_commerciaux) && row.noms_commerciaux.length) {
+      return row.noms_commerciaux.map((x) => x?.valeur || x).filter(Boolean);
+    }
+    if (row.nom_commercial) return [row.nom_commercial];
+    return [];
+  }
+
+  function formatNoms(row, sep) {
+    return nomsList(row).join(sep != null ? sep : ', ');
   }
 
   /**
@@ -42,7 +57,7 @@
     if (q) {
       rows = rows.filter((r) => {
         const blob = [
-          r.nom_commercial,
+          formatNoms(r, ' '),
           r.dci,
           r.secteur_therapeutique,
           r.classe_therapeutique,
@@ -65,6 +80,22 @@
       .maybeSingle();
     if (error) throw error;
     return data;
+  }
+
+  /** Fiche active (non archive) pour une DCI, sinon null. */
+  async function findByDciId(dciId, excludeId) {
+    if (!dciId) return null;
+    let query = sb()
+      .from('matrice_medicaments')
+      .select('id, dci_id, statut')
+      .eq('dci_id', dciId)
+      .neq('statut', 'archive')
+      .limit(1);
+    if (excludeId) query = query.neq('id', excludeId);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return getById(data.id);
   }
 
   /**
@@ -125,7 +156,7 @@
         if (ent?.id) ids.push(ent.id);
       }
     }
-    return ids;
+    return [...new Set(ids)];
   }
 
   async function replaceLiaisons(matriceId, champ, entityIds) {
@@ -143,12 +174,44 @@
   }
 
   /**
+   * Union des multi-valeurs payload + existantes (dédup par id / valeur_norm côté resolve).
+   */
+  function mergeMultiPayload(existingArr, incomingItems) {
+    const byId = new Map();
+    const byVal = new Map();
+    for (const x of existingArr || []) {
+      if (!x) continue;
+      if (x.id) byId.set(x.id, x);
+      const v = String(x.valeur || '').trim().toLowerCase();
+      if (v) byVal.set(v, x);
+    }
+    for (const item of incomingItems || []) {
+      if (!item) continue;
+      if (item.id && byId.has(item.id)) {
+        byId.set(item.id, { ...byId.get(item.id), ...item });
+        continue;
+      }
+      const v = String(item.valeur || '').trim().toLowerCase();
+      if (v && byVal.has(v)) {
+        const prev = byVal.get(v);
+        byId.set(prev.id || v, { ...prev, ...item, id: prev.id || item.id });
+        continue;
+      }
+      const key = item.id || v || Math.random();
+      byId.set(key, item);
+      if (v) byVal.set(v, item);
+    }
+    return [...byId.values()];
+  }
+
+  /**
    * Payload admin :
    * {
    *   statut,
    *   singular: { [code]: { valeur?, id?, niveaux_connus?, mergeNiveaux? } },
    *   multi: { [code]: [{ valeur?, id?, niveaux_connus?, mergeNiveaux? }] }
    * }
+   * Si DCI déjà associée à une autre fiche active → fusionne vers cette fiche.
    */
   async function save(payload, existingId) {
     const user = await global.JpApp.getUser();
@@ -161,7 +224,28 @@
       row[c.fk] = await resolveSingular(payload.singular?.[c.code], c.table);
     }
 
-    let id = existingId;
+    let id = existingId || null;
+    let mergedOntoExisting = false;
+    let abandonedId = null;
+
+    if (row.dci_id) {
+      const other = await findByDciId(row.dci_id, id);
+      if (other?.id) {
+        if (!id || id !== other.id) {
+          if (id && id !== other.id) abandonedId = id;
+          id = other.id;
+          mergedOntoExisting = true;
+        }
+      }
+    }
+
+    // En fusion DCI : ne pas écraser les FK singulières du keeper avec null
+    if (mergedOntoExisting) {
+      for (const c of singularChamps()) {
+        if (row[c.fk] == null) delete row[c.fk];
+      }
+    }
+
     if (id) {
       const { data, error } = await sb()
         .from('matrice_medicaments')
@@ -181,15 +265,36 @@
       id = data.id;
     }
 
+    // Si on a basculé vers une autre fiche DCI, archiver l’ancienne
+    if (abandonedId && abandonedId !== id) {
+      await sb()
+        .from('matrice_medicaments')
+        .update({ statut: 'archive', updated_by: user?.id || null })
+        .eq('id', abandonedId);
+    }
+
+    const current = mergedOntoExisting || existingId ? await getById(id) : null;
+
     for (const c of multiChamps()) {
-      const ids = await resolveMulti(payload.multi?.[c.code] || [], c.table);
+      let items = payload.multi?.[c.code] || [];
+      if (mergedOntoExisting && current) {
+        const existingArr =
+          c.code === 'nom_commercial'
+            ? current.noms_commerciaux || []
+            : Array.isArray(current[c.code])
+              ? current[c.code]
+              : [];
+        items = mergeMultiPayload(existingArr, items);
+      }
+      const ids = await resolveMulti(items, c.table);
       await replaceLiaisons(id, c, ids);
     }
 
     void global.JpLogs?.action?.('medicament_save', {
       id,
       statut: row.statut,
-      create: !existingId,
+      create: !existingId && !mergedOntoExisting,
+      merge_dci: mergedOntoExisting,
     });
 
     return getById(id);
@@ -229,11 +334,14 @@
   global.JpMedicaments = {
     list,
     getById,
+    findByDciId,
     save,
     setStatut,
     archive,
     listHistorique,
     singularChamps,
     multiChamps,
+    nomsList,
+    formatNoms,
   };
 })(window);

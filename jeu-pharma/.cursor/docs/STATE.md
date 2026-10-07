@@ -1,9 +1,9 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — schéma `jeupharma` exposé + SQL init appliqué sur projet `kpjflntnotftpzffjbud`.
+Dernière mise à jour : 2026-10-07 — **modèle DCI-centrique** (`002_dci_centrique`) appliqué sur projet `kpjflntnotftpzffjbud`.
 
 ## Périmètre
-App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom/DCI à la création de fiche uniquement (`js/bdm.js`) — pas de sync destructive ni d’IA en v1.
+App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
 
 ## SITE_ID
 - UUID portail : **`d4fc7fd0-944b-4594-9ba2-e1e2035aeddc`**
@@ -11,41 +11,44 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - URL Pages : `https://jessy1590.github.io/Application/jeu-pharma/`
 - Pas de carte hardcodée dans le `index.html` racine du monorepo — la tuile vient de `portail.sites`.
 
+## Modèle médicament (depuis 002)
+- **1 `matrice_medicaments` = 1 DCI** (`dci_id` ; index unique partiel hors `archive`).
+- **N noms commerciaux** via `jeupharma.matrice_noms_commerciaux` (plus de colonne `nom_commercial_id`).
+- Champs pédagogiques (secteur, classes, indications, CI, EI…) partagés sur la fiche DCI.
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié).
+- Save / CSV / BDPM : fusion par DCI (append noms, soft-archive doublons).
+
 ## Ops remote (projet `kpjflntnotftpzffjbud`)
 - [x] Schéma `jeupharma` créé.
-- [x] Exposition Data API / PostgREST : `jeupharma` ajouté à `authenticator.pgrst.db_schemas` (avec `public, storage, graphql_public, PharmaOs, portail, bdm, autres, valorisation, phieevreux`).
-- [x] SQL init appliqué (helpers, tables, vue, RPC quiz/fusion, RLS) via migrations MCP `jeupharma_*`.
-- [x] `has_jeupharma_access()` remote utilise `d4fc7fd0-944b-4594-9ba2-e1e2035aeddc` (pas le placeholder `00000000-…`).
-- [x] Correctif local `normaliser_valeur` : `WHEN undefined_schema` remplacé (condition PL/pgSQL invalide) par fallback `OTHERS` / `public.unaccent`.
+- [x] Exposition Data API / PostgREST : `jeupharma` dans `authenticator.pgrst.db_schemas`.
+- [x] SQL init `001` appliqué (helpers, tables, vue, RPC quiz/fusion, RLS).
+- [x] `has_jeupharma_access()` = `d4fc7fd0-944b-4594-9ba2-e1e2035aeddc`.
+- [x] Migration **`002_dci_centrique`** (MCP `jeupharma_002*` + update RPC) :
+  - liaison `matrice_noms_commerciaux` + RLS
+  - merge 34 groupes DCI doublons → **42** fiches soft-archivées
+  - drop `nom_commercial_id`
+  - index `matrice_medicaments_dci_unique_actif`
+  - vue + `_valeur_champ_matrice` / `generer_et_geler_quiz` / `fusionner_entites`
+- [x] Vérif post-migrate : **179** non-archive (**160** avec DCI uniques + **19** sans DCI), **0** groupe DCI dupliqué actif.
 
 ## Build code (livré)
-- [x] `.cursor/` (rules architecture, security, design, conventions + ce STATE).
-- [x] SQL init fichier `sql/001_jeupharma_init.sql` (**appliqué remote**).
-- [x] Socle : hub, tokens CSS, dual client, FAB Accueil/Bug, toasts, JpLogs/JpBugs.
-- [x] Admin catalogue (médicaments, entités, CSV, fusion, historique).
-- [x] Catalogue lecture (fiches `publie`).
-- [x] Quiz (RPC snapshot, entraînement/évaluation, print iframe, suivi joueur).
-- [x] Tableaux à trous (admin + jouer).
-- [x] Admin suivi Chart.js (`admin/suivi.html` + `charts-admin.js`).
-- [x] Admin logs + bugs.
-- [x] Constantes `CHAMP_CODES` / `ENTITY_TABLES` / niveaux alignées SQL + pages admin.
-- [x] Checklist portail dans `README.md` + `supabase/SETUP.md` §3.
-- [x] Profil apprentissage (`profil.html` + `js/profil.js` upsert `niveau_id`) ; préremplissage admin quiz/trous.
-- [x] Préremplissage BDPM lecture seule (`js/bdm.js` + panneau admin médicaments) — nom/DCI uniquement.
+- [x] `.cursor/` (rules + STATE).
+- [x] SQL `sql/001_jeupharma_init.sql` + `sql/002_dci_centrique.sql`.
+- [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
+- [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
+- [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/medicaments`, `catalogue`, `admin/trous`, architecture.
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
-- [ ] (Optionnel) Aligner aussi « Exposed schemas » dans le Dashboard UI si l’écran n’affiche pas encore `jeupharma` — la source runtime est déjà `authenticator.pgrst.db_schemas`.
+- [ ] (Optionnel) Regénérer les snapshots quiz / grilles trous créés **avant** le merge (matrice_id archivés éventuels dans JSON).
+- [ ] (Optionnel) Traiter les **19** fiches actives sans `dci_id` (rattacher une DCI ou archiver).
 
 ## Ne pas
 - Inventer UI / flux / IA hors demande.
 - Utiliser `service_role` côté client.
-- Importer `PhieEvreux/shared/*` (bugs/logs isolés dans `jeupharma`).
-- Réutiliser Edge OCR/Gemini du monorepo sans demande explicite.
-- Alourdir le hub joueur avec Chart.js.
-- Hardcoder une carte Jeu Pharma dans le HTML portail racine.
-- Impression via `window.open` (iframe same-document uniquement).
-- Réappliquer `001_jeupharma_init.sql` sans vérifier l’état remote (déjà appliqué).
+- Importer `PhieEvreux/shared/*`.
+- Réappliquer `001` / `002` sans vérifier l’état remote.
+- Impression via `window.open`.
 
 ## Règles Cursor
 - `rules/architecture.mdc`, `security.mdc` (alwaysApply)

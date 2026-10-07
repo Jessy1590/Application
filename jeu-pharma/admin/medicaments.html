@@ -304,8 +304,12 @@
         );
       }
 
+      function nomsOf(r) {
+        return JpMedicaments.formatNoms(r);
+      }
+
       function isIncomplet(r) {
-        return !r.nom_commercial || !r.dci || !r.secteur_therapeutique;
+        return !nomsOf(r) || !r.dci || !r.secteur_therapeutique;
       }
 
       function applyFilters() {
@@ -324,7 +328,7 @@
           if (incompletes && !isIncomplet(r)) return false;
           if (q) {
             const blob = [
-              r.nom_commercial,
+              nomsOf(r),
               r.dci,
               r.secteur_therapeutique,
               r.classe_therapeutique,
@@ -352,6 +356,13 @@
         }
       }
 
+      function multiFieldArr(row, code) {
+        if (code === 'nom_commercial') {
+          return Array.isArray(row.noms_commerciaux) ? row.noms_commerciaux : [];
+        }
+        return Array.isArray(row[code]) ? row[code] : [];
+      }
+
       function setEditingMode(on) {
         document.getElementById('jpWorkspace').classList.toggle('is-editing', !!on);
         document.getElementById('jpEditor').hidden = !on;
@@ -377,12 +388,12 @@
         if (!row) {
           resetForm();
           highlightRow(null);
-          document.getElementById('val_nom_commercial')?.focus();
+          document.getElementById('val_dci')?.focus();
           return;
         }
         editingId = row.id;
         document.getElementById('jpEditorTitle').textContent =
-          row.nom_commercial || row.dci || 'Modifier la fiche';
+          nomsOf(row) || row.dci || 'Modifier la fiche';
         document.getElementById('jpStatut').value = row.statut || 'brouillon';
         for (const c of JpConstants.CHAMP_CODES) {
           const input = document.getElementById('val_' + c.code);
@@ -391,17 +402,20 @@
             input.value = row[c.code] || '';
             input.dataset.entityId = row[c.fk] || '';
             const nivKey =
-              c.code === 'nom_commercial' ? 'nom_commercial_niveaux'
-              : c.code === 'dci' ? 'dci_niveaux'
+              c.code === 'dci' ? 'dci_niveaux'
               : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
               : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
               : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
               : null;
             setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
           } else {
-            const arr = Array.isArray(row[c.code]) ? row[c.code] : [];
+            const arr = multiFieldArr(row, c.code);
             input.value = arr.map((x) => x.valeur || x).join('\n');
-            setNiveaux('niv_' + c.code, allNiveauxCodes());
+            if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
+              setNiveaux('niv_' + c.code, row.nom_commercial_niveaux || allNiveauxCodes());
+            } else {
+              setNiveaux('niv_' + c.code, allNiveauxCodes());
+            }
           }
         }
         refreshWarns();
@@ -484,7 +498,7 @@
             <tbody>
               ${rows.map((r) => `
                 <tr data-id="${esc(r.id)}" class="${r.id === editingId ? 'is-selected' : ''}" tabindex="0">
-                  <td class="jp-med-cell-wrap">${esc(r.nom_commercial || '—')}</td>
+                  <td class="jp-med-cell-wrap">${esc(nomsOf(r) || '—')}</td>
                   <td class="jp-med-cell-wrap">${esc(r.dci || '—')}</td>
                   <td class="jp-med-cell-wrap">${esc(r.secteur_therapeutique || '—')}</td>
                   <td class="jp-med-cell-wrap">${esc(r.classe_therapeutique || '—')}</td>
@@ -564,20 +578,66 @@
         host.hidden = false;
       }
 
-      function applyBdmPrefill(row) {
+      async function applyBdmPrefill(row) {
         const pre = JpBdm.pickToPrefill(row);
+        clearBdmResults();
+        document.getElementById('jpBdmQ').value = '';
+
+        // Si DCI déjà en fiche active → ouvrir / mettre à jour et ajouter le nom
+        if (pre.dci) {
+          try {
+            const ent = await JpEntites.findOrCreate('dcis', pre.dci, allNiveauxCodes(), {
+              mergeNiveaux: true,
+            });
+            if (ent?.id) {
+              const existing = await JpMedicaments.findByDciId(ent.id, null);
+              if (existing) {
+                openEditor(existing);
+                const nomTa = document.getElementById('val_nom_commercial');
+                if (nomTa && pre.nom_commercial) {
+                  const lines = String(nomTa.value || '')
+                    .split(/\n/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  const lower = new Set(lines.map((s) => s.toLowerCase()));
+                  if (!lower.has(pre.nom_commercial.toLowerCase())) {
+                    lines.push(pre.nom_commercial);
+                    nomTa.value = lines.join('\n');
+                  }
+                }
+                const dciInp = document.getElementById('val_dci');
+                if (dciInp) {
+                  dciInp.value = pre.dci;
+                  dciInp.dataset.entityId = ent.id;
+                }
+                JpToast.ok('DCI existante — nom ajouté à la fiche');
+                return;
+              }
+            }
+          } catch (e) {
+            JpToast.fromError(e);
+            return;
+          }
+        }
+
+        if (!editingId) openEditor(null);
         const nom = document.getElementById('val_nom_commercial');
         const dci = document.getElementById('val_dci');
-        if (nom) {
-          nom.value = pre.nom_commercial;
-          nom.dataset.entityId = '';
+        if (nom && pre.nom_commercial) {
+          const lines = String(nom.value || '')
+            .split(/\n/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const lower = new Set(lines.map((s) => s.toLowerCase()));
+          if (!lower.has(pre.nom_commercial.toLowerCase())) {
+            lines.push(pre.nom_commercial);
+            nom.value = lines.join('\n');
+          }
         }
-        if (dci) {
+        if (dci && pre.dci) {
           dci.value = pre.dci;
           dci.dataset.entityId = '';
         }
-        clearBdmResults();
-        document.getElementById('jpBdmQ').value = '';
         JpToast.ok('Prérempli — compléter le reste depuis le cours');
       }
 
@@ -605,12 +665,12 @@
             }
           }, 280);
         });
-        results.addEventListener('click', (e) => {
+        results.addEventListener('click', async (e) => {
           const btn = e.target.closest('[data-bdm-idx]');
           if (!btn) return;
           const idx = Number(btn.getAttribute('data-bdm-idx'));
           const row = bdmRows[idx];
-          if (row) applyBdmPrefill(row);
+          if (row) await applyBdmPrefill(row);
         });
       }
 

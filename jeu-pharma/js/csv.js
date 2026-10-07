@@ -53,11 +53,14 @@
     const example = { statut: 'brouillon' };
     for (const c of champs()) {
       if (c.card === 1) {
-        example[c.code] = c.code === 'nom_commercial' ? 'ExempleMed' : '';
+        example[c.code] = c.code === 'dci' ? 'ExempleDCI' : '';
         example[c.code + '_niveaux'] = 'apprenti|pharmacien|preparatrice|etu_3a|etu_4a|etu_6a';
       } else {
-        example[c.code] = '';
-        example[c.code + '_niveaux'] = 'apprenti|pharmacien';
+        example[c.code] = c.code === 'nom_commercial' ? 'ExempleMed;AutreNom' : '';
+        example[c.code + '_niveaux'] =
+          c.code === 'nom_commercial'
+            ? 'apprenti|pharmacien|preparatrice|etu_3a|etu_4a|etu_6a'
+            : 'apprenti|pharmacien';
       }
     }
     const csv = toCsv([example], headers);
@@ -170,9 +173,9 @@
       if (!allowedStatuts.has(statut)) {
         errors.push({ line, message: 'Statut invalide: ' + statut });
       }
-      const nom = rec.nom_commercial || '';
+      const noms = parseMultiValues(rec.nom_commercial || '');
       const dci = rec.dci || '';
-      if (!nom && !dci) {
+      if (!noms.length && !dci) {
         errors.push({ line, message: 'Au moins nom_commercial ou dci requis' });
       }
       for (const c of champs()) {
@@ -194,7 +197,7 @@
       preview.push({
         line,
         statut,
-        nom_commercial: nom,
+        nom_commercial: noms.join(VALUE_SEP),
         dci,
         secteur: rec.secteur_therapeutique || '',
       });
@@ -231,6 +234,7 @@
             }));
           }
         }
+        // save() fusionne par DCI si une fiche active existe déjà
         await global.JpMedicaments.save({
           statut: rec.statut || 'brouillon',
           singular,
@@ -276,18 +280,19 @@
         if (c.card === 1) {
           obj[c.code] = r[c.code] || '';
           const nivKey =
-            c.code === 'nom_commercial'
-              ? 'nom_commercial_niveaux'
-              : c.code === 'dci'
-                ? 'dci_niveaux'
-                : c.code === 'secteur_therapeutique'
-                  ? 'secteur_niveaux'
-                  : c.code === 'classe_therapeutique'
-                    ? 'classe_therapeutique_niveaux'
-                    : c.code === 'classe_pharmacologique'
-                      ? 'classe_pharmacologique_niveaux'
-                      : null;
+            c.code === 'dci'
+              ? 'dci_niveaux'
+              : c.code === 'secteur_therapeutique'
+                ? 'secteur_niveaux'
+                : c.code === 'classe_therapeutique'
+                  ? 'classe_therapeutique_niveaux'
+                  : c.code === 'classe_pharmacologique'
+                    ? 'classe_pharmacologique_niveaux'
+                    : null;
           obj[c.code + '_niveaux'] = nivKey ? formatNiveaux(r[nivKey]) : '';
+        } else if (c.code === 'nom_commercial') {
+          obj[c.code] = formatMulti(r.noms_commerciaux);
+          obj[c.code + '_niveaux'] = formatNiveaux(r.nom_commercial_niveaux || []);
         } else {
           obj[c.code] = formatMulti(r[c.code]);
           obj[c.code + '_niveaux'] = '';

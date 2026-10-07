@@ -61,8 +61,19 @@
     const meta = champMeta(champ);
     if (!meta) return { valeur: null, entite_id: null, valeurs: null };
     if (meta.card === 'N') {
-      const arr = med[champ];
+      const arr =
+        champ === 'nom_commercial'
+          ? med.noms_commerciaux
+          : med[champ];
       if (!Array.isArray(arr) || !arr.length) {
+        // fallback déprécié : 1er nom seul
+        if (champ === 'nom_commercial' && med.nom_commercial) {
+          return {
+            valeur: med.nom_commercial,
+            entite_id: null,
+            valeurs: [med.nom_commercial],
+          };
+        }
         return { valeur: null, entite_id: null, valeurs: null };
       }
       const valeurs = arr.map((x) => x.valeur).filter(Boolean);
@@ -73,9 +84,7 @@
       };
     }
     const idKey = `${champ}_id`;
-    // mapping ids view columns
     const idMap = {
-      nom_commercial: 'nom_commercial_id',
       dci: 'dci_id',
       secteur_therapeutique: 'secteur_therapeutique_id',
       classe_therapeutique: 'classe_therapeutique_id',
@@ -143,7 +152,7 @@
     } else if (opts.secteurId) {
       q = q.eq('secteur_therapeutique_id', opts.secteurId);
     }
-    const { data, error } = await q.order('nom_commercial');
+    const { data, error } = await q.order('dci');
     if (error) throw error;
     return data || [];
   }
@@ -196,9 +205,10 @@
           pick.trou = true;
         }
       }
+      const nomsLabel = global.JpMedicaments?.formatNoms?.(med) || med.nom_commercial || '';
       return {
         matrice_id: med.id,
-        label: med.nom_commercial || med.dci || med.id,
+        label: nomsLabel || med.dci || med.id,
         cells,
       };
     });
