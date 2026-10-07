@@ -1547,22 +1547,21 @@ body > a[title="Retour au portail"] {
 
 .jp-trous-filtres {
   display: grid;
+  grid-template-columns: 1fr;
   gap: 0.85rem;
-  margin: 0.75rem 0 1rem;
+  margin: 0;
+  align-items: stretch;
 }
 
-.jp-trous-filtre-label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
-  color: var(--jp-text);
+.jp-trous-filtres > .jp-field {
+  min-width: 0;
 }
 
 .jp-trous-filtre-list {
-  max-height: 8.5rem;
+  height: 8.5rem;
   overflow: auto;
   display: grid;
+  align-content: start;
   gap: 0.25rem;
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--jp-line);
@@ -1582,6 +1581,7 @@ body > a[title="Retour au portail"] {
 
 .jp-trous-filtre-item input {
   margin-top: 0.12rem;
+  flex-shrink: 0;
 }
 
 .jp-trous-switch {
@@ -1691,7 +1691,11 @@ body > a[title="Retour au portail"] {
 
 @media (min-width: 720px) {
   .jp-trous-filtres {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .jp-trous-filtre-search {
+    grid-column: 1 / -1;
   }
 }
 
