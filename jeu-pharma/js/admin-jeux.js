@@ -1,5 +1,5 @@
 /**
- * Admin Création jeu — quiz + tableau à trous (une page, deux panneaux).
+ * Admin Création jeu — historique + quiz + tableau à trous.
  */
 (function (global) {
   function $(id) {
@@ -45,25 +45,32 @@
 
   function parseTypeFromUrl() {
     const t = new URLSearchParams(location.search).get('type');
+    if (t === 'historique' || t === 'histo' || t === 'parties') return 'historique';
     if (t === 'trous' || t === 'tableau' || t === 'tableau-trous') return 'trous';
     return 'quiz';
   }
 
   function setType(type) {
-    const isQuiz = type !== 'trous';
+    const tab = type === 'historique' || type === 'trous' ? type : 'quiz';
     document.querySelectorAll('[data-jeu-type]').forEach(function (btn) {
-      const active = btn.getAttribute('data-jeu-type') === (isQuiz ? 'quiz' : 'trous');
+      const active = btn.getAttribute('data-jeu-type') === tab;
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
       btn.classList.toggle('is-active', active);
     });
-    $('panelQuiz').hidden = !isQuiz;
-    $('panelTrous').hidden = isQuiz;
+    $('panelHistorique').hidden = tab !== 'historique';
+    $('panelQuiz').hidden = tab !== 'quiz';
+    $('panelTrous').hidden = tab !== 'trous';
+    $('createActions').hidden = tab === 'historique';
+    if (tab !== 'quiz' && tab !== 'trous') {
+      $('resultBox').hidden = true;
+    }
     const url = new URL(location.href);
-    url.searchParams.set('type', isQuiz ? 'quiz' : 'trous');
+    url.searchParams.set('type', tab);
     history.replaceState(null, '', url.pathname + url.search);
   }
 
   function currentType() {
+    if (!$('panelHistorique').hidden) return 'historique';
     return $('panelQuiz').hidden ? 'trous' : 'quiz';
   }
 
@@ -142,7 +149,7 @@
     const defaults = global.JpTrous.COLONNES_DEFAUT;
     (global.JpConstants.CHAMP_CODES || []).forEach(function (c) {
       const label = document.createElement('label');
-      label.className = 'jp-trous-admin-col';
+      label.className = 'jp-quiz-admin-champ';
       label.innerHTML = '<input type="checkbox" name="trousCol" value="' + global.JpUi.escapeHtml(c.code) + '"'
         + (defaults.indexOf(c.code) >= 0 ? ' checked' : '') + '> '
         + '<span>' + global.JpUi.escapeHtml(c.libelle) + '</span>';
@@ -350,16 +357,137 @@
     global.JpToast.ok('Partie créée : ' + created.code_unique);
   }
 
-  /* —— Liste unifiée —— */
-  async function refreshList() {
+  /* —— Historique —— */
+  function statusOf(row) {
+    if (!row.actif) return 'archives';
+    if (row.nbScores > 0) return 'termines';
+    return 'en_cours';
+  }
+
+  function statusLibelle(status) {
+    if (status === 'archives') return 'Archivé';
+    if (status === 'termines') return 'Terminé';
+    return 'En cours';
+  }
+
+  function statusBadgeClass(status) {
+    if (status === 'archives') return 'jp-badge jp-badge-archive';
+    if (status === 'termines') return 'jp-badge jp-jeux-badge-termine';
+    return 'jp-badge jp-jeux-badge-encours';
+  }
+
+  async function loadResponseCounts() {
+    const sb = global.JpApp.sbJeu();
+    const [quizRes, trousRes] = await Promise.all([
+      sb.from('quizz_reponses_utilisateur').select('quizz_id'),
+      sb.from('parties_reponses_utilisateur').select('partie_id'),
+    ]);
+    if (quizRes.error) throw quizRes.error;
+    if (trousRes.error) throw trousRes.error;
+    const quizCounts = {};
+    const trousCounts = {};
+    (quizRes.data || []).forEach(function (r) {
+      if (!r.quizz_id) return;
+      quizCounts[r.quizz_id] = (quizCounts[r.quizz_id] || 0) + 1;
+    });
+    (trousRes.data || []).forEach(function (r) {
+      if (!r.partie_id) return;
+      trousCounts[r.partie_id] = (trousCounts[r.partie_id] || 0) + 1;
+    });
+    return { quizCounts: quizCounts, trousCounts: trousCounts };
+  }
+
+  function bindListActions(wrap, state) {
+    wrap.querySelectorAll('[data-archive]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const kind = btn.getAttribute('data-kind');
+        const label = kind === 'quiz' ? 'ce quiz' : 'cette partie';
+        if (!confirm('Archiver ' + label + ' ? Elle ne sera plus jouable via son code.')) return;
+        try {
+          if (kind === 'quiz') await global.JpQuizz.archive(btn.getAttribute('data-archive'));
+          else await global.JpTrous.archive(btn.getAttribute('data-archive'));
+          global.JpToast.ok(kind === 'quiz' ? 'Quiz archivé' : 'Partie archivée');
+          await refreshList(state);
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+    });
+    wrap.querySelectorAll('[data-desarchiver]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const kind = btn.getAttribute('data-kind');
+        try {
+          if (kind === 'quiz') await global.JpQuizz.desarchiver(btn.getAttribute('data-desarchiver'));
+          else await global.JpTrous.desarchiver(btn.getAttribute('data-desarchiver'));
+          global.JpToast.ok(kind === 'quiz' ? 'Quiz désarchivé' : 'Partie désarchivée');
+          await refreshList(state);
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+    });
+    wrap.querySelectorAll('[data-scores]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        void openScoresModal({
+          kind: btn.getAttribute('data-kind'),
+          id: btn.getAttribute('data-scores'),
+          code: btn.getAttribute('data-code'),
+        });
+      });
+    });
+  }
+
+  function renderRowsTable(rows) {
+    return '<table class="jp-table"><thead><tr>'
+      + '<th>Statut</th><th>Type</th><th>Code</th><th>Titre</th><th>Mode</th><th>Niveau</th><th>Créé</th><th>Réponses</th><th></th>'
+      + '</tr></thead><tbody>'
+      + rows.map(function (r) {
+        const status = statusOf(r);
+        const typeLabel = r.kind === 'quiz' ? 'Quiz' : 'Trous';
+        const playBase = r.kind === 'quiz' ? '../quiz/' : '../trous/';
+        const archiveBtn = r.actif
+          ? '<button type="button" class="jp-link-btn" data-archive="' + global.JpUi.escapeHtml(r.id)
+            + '" data-kind="' + r.kind + '">Archiver</button>'
+          : '<button type="button" class="jp-link-btn" data-desarchiver="' + global.JpUi.escapeHtml(r.id)
+            + '" data-kind="' + r.kind + '">Désarchiver</button>';
+        const playLinks = r.actif
+          ? '<a href="' + playBase + 'jouer.html?code=' + encodeURIComponent(r.code) + '">Jouer</a>'
+            + (r.snapOk
+              ? ' · <a href="' + playBase + 'imprimer.html?code=' + encodeURIComponent(r.code) + '">Imprimer</a>'
+              : '')
+            + ' · '
+          : '';
+        const scoreBtn = '<button type="button" class="jp-link-btn" data-scores="' + global.JpUi.escapeHtml(r.id)
+          + '" data-kind="' + r.kind + '" data-code="' + global.JpUi.escapeHtml(r.code) + '">Score</button>';
+        return '<tr>'
+          + '<td><span class="' + statusBadgeClass(status) + '">' + statusLibelle(status) + '</span></td>'
+          + '<td>' + typeLabel + '</td>'
+          + '<td><code>' + global.JpUi.escapeHtml(r.code) + '</code></td>'
+          + '<td>' + global.JpUi.escapeHtml(r.titre) + '</td>'
+          + '<td>' + global.JpUi.escapeHtml(
+            r.kind === 'quiz' ? global.JpQuizz.modeLibelle(r.mode) : global.JpTrous.modeLibelle(r.mode)
+          ) + '</td>'
+          + '<td>' + global.JpUi.escapeHtml(r.niveau || '—') + '</td>'
+          + '<td>' + global.JpUi.escapeHtml(formatDate(r.created_at)) + '</td>'
+          + '<td>' + (r.nbScores || 0) + '</td>'
+          + '<td class="jp-jeux-histo-actions">' + playLinks + scoreBtn + ' · ' + archiveBtn + '</td>'
+          + '</tr>';
+      }).join('')
+      + '</tbody></table>';
+  }
+
+  async function refreshList(state) {
     const wrap = $('listWrap');
-    const showArchived = $('showArchived').checked;
+    if (!wrap) return;
+    const filter = state.histoFilter || 'tous';
+    const kindFilter = state.histoKind || 'tous';
     try {
-      const [quizzes, parties] = await Promise.all([
-        global.JpQuizz.listQuiz({ actifsOnly: !showArchived }),
-        global.JpTrous.listParties({ actifsOnly: !showArchived }),
+      const [quizzes, parties, counts] = await Promise.all([
+        global.JpQuizz.listQuiz({ actifsOnly: false }),
+        global.JpTrous.listParties({ actifsOnly: false }),
+        loadResponseCounts(),
       ]);
-      const rows = quizzes.map(function (r) {
+      let rows = quizzes.map(function (r) {
         return {
           kind: 'quiz',
           id: r.id,
@@ -370,6 +498,7 @@
           actif: r.actif,
           created_at: r.created_at,
           snapOk: Array.isArray(r.snapshot_questions) && r.snapshot_questions.length,
+          nbScores: counts.quizCounts[r.id] || 0,
         };
       }).concat(parties.map(function (r) {
         return {
@@ -382,93 +511,53 @@
           actif: r.actif,
           created_at: r.created_at,
           snapOk: true,
+          nbScores: counts.trousCounts[r.id] || 0,
         };
       }));
       rows.sort(function (a, b) {
         return String(b.created_at || '').localeCompare(String(a.created_at || ''));
       });
 
+      if (kindFilter !== 'tous') {
+        rows = rows.filter(function (r) { return r.kind === kindFilter; });
+      }
+      if (filter !== 'tous') {
+        rows = rows.filter(function (r) { return statusOf(r) === filter; });
+      }
+
       if (!rows.length) {
+        const emptyText = filter === 'tous' && kindFilter === 'tous'
+          ? 'Créez un quiz ou un tableau à trous.'
+          : 'Aucune partie pour ce filtre.';
         global.JpUi.emptyState(wrap, {
-          title: showArchived ? 'Aucune partie' : 'Aucune partie active',
-          text: showArchived
-            ? 'Créez un jeu ci-dessus.'
-            : 'Cochez « Afficher les archivés » ou créez un jeu.',
+          title: 'Aucune partie',
+          text: emptyText,
         });
         return;
       }
 
-      wrap.innerHTML = '<table class="jp-table"><thead><tr>'
-        + '<th>Type</th><th>Code</th><th>Titre</th><th>Mode</th><th>Niveau</th><th></th>'
-        + '</tr></thead><tbody>'
-        + rows.map(function (r) {
-          const typeLabel = r.kind === 'quiz' ? 'Quiz' : 'Trous';
-          const playBase = r.kind === 'quiz' ? '../quiz/' : '../trous/';
-          const archiveBtn = r.actif
-            ? '<button type="button" class="jp-link-btn" data-archive="' + global.JpUi.escapeHtml(r.id)
-              + '" data-kind="' + r.kind + '">Archiver</button>'
-            : '<button type="button" class="jp-link-btn" data-desarchiver="' + global.JpUi.escapeHtml(r.id)
-              + '" data-kind="' + r.kind + '">Désarchiver</button>';
-          const playLinks = r.actif
-            ? '<a href="' + playBase + 'jouer.html?code=' + encodeURIComponent(r.code) + '">Jouer</a>'
-              + (r.snapOk
-                ? ' · <a href="' + playBase + 'imprimer.html?code=' + encodeURIComponent(r.code) + '">Imprimer</a>'
-                : '')
-              + ' · <button type="button" class="jp-link-btn" data-scores="' + global.JpUi.escapeHtml(r.id)
-              + '" data-kind="' + r.kind + '" data-code="' + global.JpUi.escapeHtml(r.code) + '">Score</button> · '
-            : '<button type="button" class="jp-link-btn" data-scores="' + global.JpUi.escapeHtml(r.id)
-              + '" data-kind="' + r.kind + '" data-code="' + global.JpUi.escapeHtml(r.code) + '">Score</button> · ';
-          return '<tr>'
-            + '<td>' + typeLabel + '</td>'
-            + '<td><code>' + global.JpUi.escapeHtml(r.code) + '</code></td>'
-            + '<td>' + global.JpUi.escapeHtml(r.titre)
-            + (r.actif ? '' : ' <span class="jp-badge jp-badge-archive">archivé</span>') + '</td>'
-            + '<td>' + global.JpUi.escapeHtml(
-              r.kind === 'quiz' ? global.JpQuizz.modeLibelle(r.mode) : global.JpTrous.modeLibelle(r.mode)
-            ) + '</td>'
-            + '<td>' + global.JpUi.escapeHtml(r.niveau || '—') + '</td>'
-            + '<td>' + playLinks + archiveBtn + '</td>'
-            + '</tr>';
-        }).join('')
-        + '</tbody></table>';
+      if (filter === 'tous') {
+        const sections = [
+          { key: 'en_cours', title: 'En cours' },
+          { key: 'termines', title: 'Terminés' },
+          { key: 'archives', title: 'Archivés' },
+        ];
+        let html = '';
+        sections.forEach(function (sec) {
+          const secRows = rows.filter(function (r) { return statusOf(r) === sec.key; });
+          if (!secRows.length) return;
+          html += '<section class="jp-jeux-histo-section" aria-label="' + sec.title + '">'
+            + '<h3 class="jp-jeux-histo-section-title">' + sec.title
+            + ' <span class="jp-muted">(' + secRows.length + ')</span></h3>'
+            + renderRowsTable(secRows)
+            + '</section>';
+        });
+        wrap.innerHTML = html || '<p class="jp-muted">Aucune partie.</p>';
+      } else {
+        wrap.innerHTML = renderRowsTable(rows);
+      }
 
-      wrap.querySelectorAll('[data-archive]').forEach(function (btn) {
-        btn.addEventListener('click', async function () {
-          const kind = btn.getAttribute('data-kind');
-          const label = kind === 'quiz' ? 'ce quiz' : 'cette partie';
-          if (!confirm('Archiver ' + label + ' ? Elle ne sera plus jouable via son code.')) return;
-          try {
-            if (kind === 'quiz') await global.JpQuizz.archive(btn.getAttribute('data-archive'));
-            else await global.JpTrous.archive(btn.getAttribute('data-archive'));
-            global.JpToast.ok(kind === 'quiz' ? 'Quiz archivé' : 'Partie archivée');
-            await refreshList();
-          } catch (e) {
-            global.JpToast.fromError(e);
-          }
-        });
-      });
-      wrap.querySelectorAll('[data-desarchiver]').forEach(function (btn) {
-        btn.addEventListener('click', async function () {
-          const kind = btn.getAttribute('data-kind');
-          try {
-            if (kind === 'quiz') await global.JpQuizz.desarchiver(btn.getAttribute('data-desarchiver'));
-            else await global.JpTrous.desarchiver(btn.getAttribute('data-desarchiver'));
-            global.JpToast.ok(kind === 'quiz' ? 'Quiz désarchivé' : 'Partie désarchivée');
-            await refreshList();
-          } catch (e) {
-            global.JpToast.fromError(e);
-          }
-        });
-      });
-      wrap.querySelectorAll('[data-scores]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          void openScoresModal({
-            kind: btn.getAttribute('data-kind'),
-            id: btn.getAttribute('data-scores'),
-            code: btn.getAttribute('data-code'),
-          });
-        });
-      });
+      bindListActions(wrap, state);
     } catch (e) {
       global.JpToast.fromError(e);
       wrap.innerHTML = '<p class="jp-muted">Impossible de charger la liste.</p>';
@@ -529,12 +618,35 @@
       trousManuels: {},
       allPublieMeds: [],
       selectedMedIds: new Set(),
+      histoFilter: 'tous',
+      histoKind: 'tous',
     };
 
     setType(parseTypeFromUrl());
     document.querySelectorAll('[data-jeu-type]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        setType(btn.getAttribute('data-jeu-type'));
+        const t = btn.getAttribute('data-jeu-type');
+        setType(t);
+        if (t === 'historique') void refreshList(state);
+      });
+    });
+
+    document.querySelectorAll('[data-histo-filter]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.histoFilter = btn.getAttribute('data-histo-filter') || 'tous';
+        document.querySelectorAll('[data-histo-filter]').forEach(function (b) {
+          b.classList.toggle('is-active', b === btn);
+        });
+        void refreshList(state);
+      });
+    });
+    document.querySelectorAll('[data-histo-kind]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.histoKind = btn.getAttribute('data-histo-kind') || 'tous';
+        document.querySelectorAll('[data-histo-kind]').forEach(function (b) {
+          b.classList.toggle('is-active', b === btn);
+        });
+        void refreshList(state);
       });
     });
 
@@ -576,20 +688,21 @@
 
     $('btnCreateJeu').addEventListener('click', async function () {
       const btn = $('btnCreateJeu');
-      if (currentType() === 'quiz') {
+      const t = currentType();
+      if (t === 'historique') return;
+      if (t === 'quiz') {
         if (!$('quizForm').reportValidity()) return;
       } else if (!$('trousForm').reportValidity()) {
         return;
       }
       btn.disabled = true;
       try {
-        if (currentType() === 'quiz') await submitQuiz();
+        if (t === 'quiz') await submitQuiz();
         else await submitTrous(state);
-        await refreshList();
       } catch (e) {
         global.JpToast.fromError(e);
         void global.JpLogs.error(
-          currentType() === 'quiz' ? 'quiz_create_fail' : 'trous_create_fail',
+          t === 'quiz' ? 'quiz_create_fail' : 'trous_create_fail',
           { message: e.message || String(e) }
         );
       } finally {
@@ -606,10 +719,6 @@
       $('btnCreateJeu').click();
     });
 
-    $('showArchived').addEventListener('change', function () {
-      void refreshList();
-    });
-
     $('scoresModalClose').addEventListener('click', closeScoresModal);
     $('scoresModal').addEventListener('click', function (ev) {
       if (ev.target === $('scoresModal')) closeScoresModal();
@@ -618,7 +727,7 @@
       if (ev.key === 'Escape' && !$('scoresModal').hidden) closeScoresModal();
     });
 
-    await refreshList();
+    if (currentType() === 'historique') await refreshList(state);
   }
 
   global.JpAdminJeux = { boot: boot };

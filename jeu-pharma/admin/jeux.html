@@ -26,8 +26,32 @@
     <p class="jp-sub">Créer et gérer les quiz et tableaux à trous.</p>
 
     <div class="jp-jeu-type" role="tablist" aria-label="Type de jeu">
+      <button type="button" class="jp-jeu-type-btn" role="tab" data-jeu-type="historique" aria-selected="false">Historique</button>
       <button type="button" class="jp-jeu-type-btn is-active" role="tab" data-jeu-type="quiz" aria-selected="true">Quiz</button>
       <button type="button" class="jp-jeu-type-btn" role="tab" data-jeu-type="trous" aria-selected="false">Tableau à trous</button>
+    </div>
+
+    <!-- Panel Historique -->
+    <div id="panelHistorique" role="tabpanel" hidden>
+      <section class="jp-jeux-histo" aria-labelledby="histoTitle">
+        <div class="jp-jeux-histo-head">
+          <h2 id="histoTitle" class="jp-jeux-histo-title">Parties</h2>
+          <div class="jp-jeux-histo-filters" role="group" aria-label="Filtrer les parties">
+            <button type="button" class="jp-jeux-histo-filter is-active" data-histo-filter="tous">Tous</button>
+            <button type="button" class="jp-jeux-histo-filter" data-histo-filter="en_cours">En cours</button>
+            <button type="button" class="jp-jeux-histo-filter" data-histo-filter="termines">Terminés</button>
+            <button type="button" class="jp-jeux-histo-filter" data-histo-filter="archives">Archivés</button>
+          </div>
+        </div>
+        <div class="jp-jeux-histo-type-filters" role="group" aria-label="Type de partie">
+          <button type="button" class="jp-jeux-histo-filter is-active" data-histo-kind="tous">Quiz + Trous</button>
+          <button type="button" class="jp-jeux-histo-filter" data-histo-kind="quiz">Quiz</button>
+          <button type="button" class="jp-jeux-histo-filter" data-histo-kind="trous">Trous</button>
+        </div>
+        <div id="listWrap" class="jp-table-wrap">
+          <p class="jp-muted">Chargement…</p>
+        </div>
+      </section>
     </div>
 
     <!-- Panel Quiz -->
@@ -96,121 +120,123 @@
 
     <!-- Panel Trous -->
     <div id="panelTrous" role="tabpanel" hidden>
-      <form id="trousForm" class="jp-form jp-trous-admin-form" novalidate>
-        <div class="jp-trous-admin-panel">
-          <p class="jp-kicker">Identité</p>
-          <div class="jp-field">
-            <label for="trousTitre">Titre</label>
-            <input id="trousTitre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — révision">
-          </div>
-          <div class="jp-split jp-split-2">
+      <form id="trousForm" class="jp-quiz-admin" novalidate>
+        <section class="jp-quiz-admin-panel" aria-labelledby="trousIdentiteTitle">
+          <h2 id="trousIdentiteTitle" class="jp-quiz-admin-panel-title">Identité</h2>
+          <div class="jp-quiz-admin-panel-body">
             <div class="jp-field">
-              <label for="trousNiveau">Niveau cible</label>
-              <select id="trousNiveau" required></select>
+              <label for="trousTitre">Titre</label>
+              <input id="trousTitre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — révision">
             </div>
+            <div class="jp-split jp-split-2">
+              <div class="jp-field">
+                <label for="trousNiveau">Niveau cible</label>
+                <select id="trousNiveau" required></select>
+              </div>
+              <div class="jp-field">
+                <label for="trousMode">Mode</label>
+                <select id="trousMode">
+                  <option value="entrainement">Entraînement</option>
+                  <option value="evaluation">Évaluation</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="jp-quiz-admin-panel jp-quiz-admin-panel-champs" aria-labelledby="trousColonnesTitle">
+          <div class="jp-quiz-admin-panel-head">
+            <h2 id="trousColonnesTitle" class="jp-quiz-admin-panel-title">Colonnes</h2>
+            <div class="jp-quiz-admin-champs-actions">
+              <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnColsAll">Tous</button>
+              <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnColsNone">Aucun</button>
+            </div>
+          </div>
+          <div class="jp-quiz-admin-panel-body">
+            <div id="trousColonnesList" class="jp-quiz-admin-champs-grid" role="group" aria-label="Colonnes"></div>
+            <p class="jp-muted jp-quiz-admin-champs-hint">Au moins une colonne requise.</p>
+          </div>
+        </section>
+
+        <section class="jp-quiz-admin-panel" aria-labelledby="trousTrousTitle">
+          <h2 id="trousTrousTitle" class="jp-quiz-admin-panel-title">Trous</h2>
+          <div class="jp-quiz-admin-panel-body">
             <div class="jp-field">
-              <label for="trousMode">Mode</label>
-              <select id="trousMode">
-                <option value="entrainement">Entraînement</option>
-                <option value="evaluation">Évaluation</option>
+              <label for="trousModeTrous">Placement des trous</label>
+              <select id="trousModeTrous">
+                <option value="ALEATOIRE">Aléatoire</option>
+                <option value="MANUEL">Manuel (cliquer les cellules)</option>
               </select>
             </div>
-          </div>
-        </div>
-
-        <div class="jp-trous-admin-panel">
-          <div class="jp-trous-admin-panel-head">
-            <p class="jp-kicker">Colonnes</p>
-            <div class="jp-trous-admin-col-actions">
-              <button type="button" class="jp-link-btn" id="trousBtnColsAll">Tous</button>
-              <button type="button" class="jp-link-btn" id="trousBtnColsNone">Aucun</button>
+            <div class="jp-field" id="trousDensiteField">
+              <label for="trousDensite">Densité des trous (aléatoire)</label>
+              <input id="trousDensite" type="range" min="20" max="80" value="40">
+              <span id="trousDensiteLabel" class="jp-muted">40 %</span>
             </div>
           </div>
-          <div id="trousColonnesList" class="jp-trous-admin-cols" role="group" aria-label="Colonnes"></div>
-        </div>
+        </section>
 
-        <div class="jp-trous-admin-panel">
-          <p class="jp-kicker">Trous</p>
-          <div class="jp-field">
-            <label for="trousModeTrous">Placement des trous</label>
-            <select id="trousModeTrous">
-              <option value="ALEATOIRE">Aléatoire</option>
-              <option value="MANUEL">Manuel (cliquer les cellules)</option>
-            </select>
-          </div>
-          <div class="jp-field" id="trousDensiteField">
-            <label for="trousDensite">Densité des trous (aléatoire)</label>
-            <input id="trousDensite" type="range" min="20" max="80" value="40">
-            <span id="trousDensiteLabel" class="jp-muted">40 %</span>
-          </div>
-        </div>
-
-        <div class="jp-trous-admin-panel">
-          <p class="jp-kicker">Médicaments</p>
-          <div class="jp-field">
-            <label for="trousSourceMeds">Source</label>
-            <select id="trousSourceMeds">
-              <option value="secteur">Par secteur</option>
-              <option value="ids">Sélection manuelle</option>
-            </select>
-          </div>
-          <div class="jp-field" id="trousSecteurField">
-            <label for="trousSecteur">Secteur</label>
-            <select id="trousSecteur">
-              <option value="">— choisir —</option>
-            </select>
-          </div>
-          <div class="jp-field" id="trousIdsField" hidden>
-            <label for="trousMedsFilter">Filtrer les fiches publiées</label>
-            <input id="trousMedsFilter" type="search" placeholder="Nom commercial ou DCI…" autocomplete="off">
-            <div class="jp-trous-admin-meds-toolbar">
-              <button type="button" class="jp-link-btn" id="trousBtnMedsAllVisible">Tout cocher (visibles)</button>
-              <button type="button" class="jp-link-btn" id="trousBtnMedsNone">Aucun</button>
-              <span id="trousMedsCount" class="jp-muted"></span>
+        <section class="jp-quiz-admin-panel" aria-labelledby="trousMedsTitle">
+          <h2 id="trousMedsTitle" class="jp-quiz-admin-panel-title">Médicaments</h2>
+          <div class="jp-quiz-admin-panel-body">
+            <div class="jp-field">
+              <label for="trousSourceMeds">Source</label>
+              <select id="trousSourceMeds">
+                <option value="secteur">Par secteur</option>
+                <option value="ids">Sélection manuelle</option>
+              </select>
             </div>
-            <div id="trousMedsList" class="jp-trous-admin-meds-list" role="group" aria-label="Médicaments publiés"></div>
+            <div class="jp-field" id="trousSecteurField">
+              <label for="trousSecteur">Secteur</label>
+              <select id="trousSecteur">
+                <option value="">— choisir —</option>
+              </select>
+            </div>
+            <div class="jp-field" id="trousIdsField" hidden>
+              <label for="trousMedsFilter">Filtrer les fiches publiées</label>
+              <input id="trousMedsFilter" type="search" placeholder="Nom commercial ou DCI…" autocomplete="off">
+              <div class="jp-trous-admin-meds-toolbar">
+                <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnMedsAllVisible">Tout cocher (visibles)</button>
+                <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnMedsNone">Aucun</button>
+                <span id="trousMedsCount" class="jp-muted"></span>
+              </div>
+              <div id="trousMedsList" class="jp-trous-admin-meds-list" role="group" aria-label="Médicaments publiés"></div>
+            </div>
+            <div class="jp-field">
+              <label for="trousMaxLignes">Nombre max de lignes</label>
+              <input id="trousMaxLignes" type="number" min="1" max="100" value="10" required>
+            </div>
+            <div class="jp-field-actions">
+              <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnPreview">Prévisualiser la grille</button>
+            </div>
           </div>
-          <div class="jp-field">
-            <label for="trousMaxLignes">Nombre max de lignes</label>
-            <input id="trousMaxLignes" type="number" min="1" max="100" value="10" required>
-          </div>
-        </div>
-
-        <div class="jp-field-actions">
-          <button type="button" class="jp-btn jp-btn-ghost" id="trousBtnPreview">Prévisualiser la grille</button>
-        </div>
+        </section>
       </form>
 
-      <div id="trousPreviewWrap" class="jp-panel" hidden>
-        <p class="jp-kicker">Aperçu</p>
-        <p class="jp-muted" id="trousPreviewHint"></p>
-        <div id="trousPreviewGrid" class="jp-table-wrap"></div>
+      <div id="trousPreviewWrap" class="jp-quiz-admin-panel" hidden>
+        <h2 class="jp-quiz-admin-panel-title">Aperçu</h2>
+        <div class="jp-quiz-admin-panel-body">
+          <p class="jp-muted" id="trousPreviewHint"></p>
+          <div id="trousPreviewGrid" class="jp-table-wrap"></div>
+        </div>
       </div>
     </div>
 
-    <div class="jp-quiz-admin-submit">
-      <button type="button" class="jp-btn jp-btn-primary" id="btnCreateJeu">Créer le jeu</button>
-    </div>
+    <div id="createActions" class="jp-jeux-create-actions">
+      <div class="jp-quiz-admin-submit">
+        <button type="button" class="jp-btn jp-btn-primary" id="btnCreateJeu">Créer le jeu</button>
+      </div>
 
-    <div id="resultBox" class="jp-quiz-admin-result" hidden>
-      <p class="jp-kicker">Code</p>
-      <p id="resultCode" class="jp-quiz-admin-result-code"></p>
-      <p id="resultMeta" class="jp-muted"></p>
-      <div class="jp-quiz-admin-result-actions">
-        <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
-        <a id="resultPrint" class="jp-btn jp-quiz-admin-btn-print" href="#">Imprimer</a>
+      <div id="resultBox" class="jp-quiz-admin-result" hidden>
+        <p class="jp-kicker">Code</p>
+        <p id="resultCode" class="jp-quiz-admin-result-code"></p>
+        <p id="resultMeta" class="jp-muted"></p>
+        <div class="jp-quiz-admin-result-actions">
+          <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
+          <a id="resultPrint" class="jp-btn jp-quiz-admin-btn-print" href="#">Imprimer</a>
+        </div>
       </div>
     </div>
-
-    <section class="jp-panel">
-      <h2 class="jp-title" style="font-size:1.25rem">Parties actuelles</h2>
-      <label class="jp-field" style="margin-bottom:0.75rem">
-        <input type="checkbox" id="showArchived"> Afficher les archivés
-      </label>
-      <div id="listWrap" class="jp-table-wrap">
-        <p class="jp-muted">Chargement…</p>
-      </div>
-    </section>
   </main>
 
   <div id="scoresModal" class="jp-scope-modal" hidden role="dialog" aria-modal="true" aria-labelledby="scoresModalTitle">

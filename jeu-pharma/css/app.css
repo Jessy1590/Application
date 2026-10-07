@@ -1296,68 +1296,56 @@ body > a[title="Retour au portail"] {
   }
 }
 
-/* —— Admin tableau à trous —— */
-.jp-trous-admin-form {
-  display: grid;
-  gap: 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.jp-trous-admin-panel {
-  padding: 1rem 1.1rem;
+/* —— Admin création jeu (quiz + trous partagent .jp-quiz-admin-*) —— */
+.jp-jeu-type {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 1.5rem;
+  padding: 0.25rem;
   background: var(--jp-bg-elevated);
   border: 1px solid var(--jp-line);
-  border-radius: var(--jp-radius);
+  border-radius: var(--jp-radius-sm);
 }
 
-.jp-trous-admin-panel > .jp-kicker {
-  margin-bottom: 0.75rem;
-}
-
-.jp-trous-admin-panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.jp-trous-admin-panel-head > .jp-kicker {
-  margin: 0;
-}
-
-.jp-trous-admin-col-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.jp-trous-admin-cols {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: 0.45rem 0.85rem;
-}
-
-.jp-trous-admin-col {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  font-size: 0.92rem;
-  font-weight: 500;
+.jp-jeu-type-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: calc(var(--jp-radius-sm) - 2px);
+  background: transparent;
+  color: var(--jp-text-muted);
   cursor: pointer;
-  margin: 0;
 }
 
-.jp-trous-admin-col input {
-  margin-top: 0.2rem;
+.jp-jeu-type-btn.is-active,
+.jp-jeu-type-btn[aria-selected="true"] {
+  background: var(--jp-accent);
+  color: #fff;
 }
 
+.jp-jeux-create-actions {
+  margin-top: 0.25rem;
+}
+
+.jp-jeux-create-actions .jp-quiz-admin-submit {
+  margin-top: 1rem;
+}
+
+/* Trous : liste médicaments (spécifique) */
 .jp-trous-admin-meds-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem 0.75rem;
   margin: 0.5rem 0 0.65rem;
+}
+
+.jp-trous-admin-meds-toolbar .jp-btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
 }
 
 .jp-trous-admin-meds-list {
@@ -1385,39 +1373,79 @@ body > a[title="Retour au portail"] {
   margin-top: 0.15rem;
 }
 
-@media (max-width: 720px) {
-  .jp-trous-admin-cols {
-    grid-template-columns: 1fr;
-  }
+/* Historique parties */
+.jp-jeux-histo {
+  margin-top: 0.25rem;
 }
 
-/* —— Admin création jeu —— */
-.jp-jeu-type {
-  display: inline-flex;
-  gap: 0.25rem;
-  margin: 0 0 1.5rem;
-  padding: 0.25rem;
-  background: var(--jp-bg-elevated);
+.jp-jeux-histo-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.jp-jeux-histo-title {
+  margin: 0;
+  font-family: var(--jp-font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.jp-jeux-histo-filters,
+.jp-jeux-histo-type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.jp-jeux-histo-type-filters {
+  margin-bottom: 1rem;
+}
+
+.jp-jeux-histo-filter {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
   border: 1px solid var(--jp-line);
   border-radius: var(--jp-radius-sm);
-}
-
-.jp-jeu-type-btn {
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 0.5rem 1rem;
-  border: 0;
-  border-radius: calc(var(--jp-radius-sm) - 2px);
-  background: transparent;
+  background: var(--jp-bg-elevated);
   color: var(--jp-text-muted);
   cursor: pointer;
 }
 
-.jp-jeu-type-btn.is-active,
-.jp-jeu-type-btn[aria-selected="true"] {
-  background: var(--jp-accent);
-  color: #fff;
+.jp-jeux-histo-filter.is-active {
+  border-color: rgba(15, 107, 92, 0.45);
+  background: var(--jp-accent-soft);
+  color: var(--jp-accent);
+}
+
+.jp-jeux-histo-section {
+  margin-bottom: 1.5rem;
+}
+
+.jp-jeux-histo-section-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--jp-font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.jp-jeux-histo-actions {
+  white-space: nowrap;
+}
+
+.jp-jeux-badge-encours {
+  background: rgba(15, 107, 92, 0.12);
+  color: var(--jp-accent);
+}
+
+.jp-jeux-badge-termine {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
 }
 
 .jp-scores-modal-card {
