@@ -23,7 +23,7 @@
     <a class="jp-back" href="index.html">← Admin</a>
     <p class="jp-kicker">Admin</p>
     <h1 class="jp-title">Suivi</h1>
-    <p class="jp-sub">Scores, réussite et activité (quiz).</p>
+    <p class="jp-sub">Scores, réussite et activité (quiz et tableau à trous).</p>
 
     <div class="jp-filters" role="search">
       <label>Période
@@ -34,14 +34,21 @@
           <option value="all">Tout</option>
         </select>
       </label>
-      <label>Quiz
-        <select id="jpSuiviQuiz">
-          <option value="">Tous les quiz</option>
+      <label>Type
+        <select id="jpSuiviType">
+          <option value="tous" selected>Tous</option>
+          <option value="quiz">Quiz</option>
+          <option value="trous">Trous</option>
+        </select>
+      </label>
+      <label>Activité
+        <select id="jpSuiviItem">
+          <option value="">Toutes les activités</option>
         </select>
       </label>
       <label>Réussite par
         <select id="jpSuiviGroup">
-          <option value="quiz" selected>Quiz</option>
+          <option value="item" selected>Activité</option>
           <option value="secteur">Secteur</option>
         </select>
       </label>
@@ -50,7 +57,7 @@
 
     <div id="jpSuiviEmpty" class="jp-empty" hidden>
       <strong>Aucune donnée</strong>
-      <p>Pas de tentatives quiz sur la période filtrée.</p>
+      <p>Pas de tentatives sur la période filtrée.</p>
     </div>
 
     <div id="jpSuiviCharts" class="jp-charts" hidden>
@@ -63,7 +70,7 @@
       <section class="jp-chart-block" aria-labelledby="jpChartSuccessTitle">
         <h2 id="jpChartSuccessTitle" class="jp-chart-title">Taux de réussite</h2>
         <div class="jp-chart-wrap">
-          <canvas id="jpChartSuccess" aria-label="Taux de réussite par quiz ou secteur"></canvas>
+          <canvas id="jpChartSuccess" aria-label="Taux de réussite par activité ou secteur"></canvas>
         </div>
       </section>
       <section class="jp-chart-block" aria-labelledby="jpChartActivityTitle">

@@ -181,24 +181,6 @@ textarea:focus-visible {
   background: var(--jp-accent-soft);
 }
 
-.jp-admin-nav {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
-.jp-admin-nav a {
-  text-decoration: none;
-  color: var(--jp-text);
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--jp-line);
-  font-weight: 500;
-}
-
-.jp-admin-nav a:hover {
-  color: var(--jp-accent);
-}
-
 /* Toasts */
 .jp-toast-host {
   position: fixed;
@@ -744,12 +726,40 @@ body > a[title="Retour au portail"] {
   color: var(--jp-text);
 }
 
+.jp-trou-input:read-only {
+  opacity: 0.95;
+}
+
 .jp-input-ok {
   border-color: var(--jp-ok) !important;
 }
 
 .jp-input-ko {
   border-color: var(--jp-danger) !important;
+}
+
+.jp-trous-actions {
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jp-trous-attendu {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.jp-trous-attendu-ok {
+  color: var(--jp-ok);
+}
+
+.jp-trous-attendu-ko {
+  color: var(--jp-danger);
+}
+
+.jp-trous-score-value {
+  font-size: 1.5rem;
 }
 
 .jp-sr-only {

@@ -99,6 +99,10 @@
           </div>
           <div id="medsList" class="jp-trous-admin-meds-list" role="group" aria-label="Médicaments publiés"></div>
         </div>
+        <div class="jp-field">
+          <label for="maxLignes">Nombre max de lignes</label>
+          <input id="maxLignes" type="number" min="1" max="100" value="10" required>
+        </div>
       </div>
 
       <div class="jp-field-actions">
@@ -124,6 +128,9 @@
 
     <section class="jp-panel">
       <h2 class="jp-title" style="font-size:1.25rem">Parties récentes</h2>
+      <label class="jp-field" style="margin-bottom:0.75rem">
+        <input type="checkbox" id="showArchived"> Afficher les archivées
+      </label>
       <div id="listWrap" class="jp-table-wrap"><p class="jp-muted">Chargement…</p></div>
     </section>
   </main>
@@ -275,6 +282,12 @@
         });
       }
 
+      function readMaxLignes() {
+        const n = Number(document.getElementById('maxLignes').value);
+        if (!Number.isFinite(n) || n < 1) throw new Error('Nombre max de lignes invalide (min. 1)');
+        return Math.min(Math.floor(n), 100);
+      }
+
       async function loadMeds() {
         const source = document.getElementById('sourceMeds').value;
         if (source === 'ids') {
@@ -336,12 +349,14 @@
         if (modeTrous === 'ALEATOIRE') trousManuels = {};
         const cols = selectedColonnes();
         if (!cols.length) throw new Error('Sélectionnez au moins une colonne');
+        const maxLignes = readMaxLignes();
         const snap = JpTrous.buildSnapshot({
           meds: meds,
           colonnes: cols,
           modeTrous: modeTrous,
           trousManuels: trousManuels,
           densite: Number(document.getElementById('densite').value) / 100,
+          maxLignes: maxLignes,
         });
         if (modeTrous === 'MANUEL' && !Object.keys(trousManuels).length) {
           (snap.lignes || []).forEach(function (ligne) {
@@ -372,15 +387,8 @@
         const btn = document.getElementById('btnCreate');
         btn.disabled = true;
         try {
-          if (!lastSnapshot) await buildCurrentSnapshot();
-          else if (document.getElementById('modeTrous').value === 'MANUEL') {
-            lastSnapshot = JpTrous.buildSnapshot({
-              meds: await loadMeds(),
-              colonnes: selectedColonnes(),
-              modeTrous: 'MANUEL',
-              trousManuels: trousManuels,
-            });
-          }
+          const maxLignes = readMaxLignes();
+          await buildCurrentSnapshot();
           const created = await JpTrous.createPartie({
             titre: document.getElementById('titre').value,
             niveau_cible: document.getElementById('niveau').value,
@@ -392,6 +400,7 @@
               colonnes: selectedColonnes(),
               mode_trous: document.getElementById('modeTrous').value,
               densite: Number(document.getElementById('densite').value) / 100,
+              max_lignes: maxLignes,
             },
             snapshot_grille: lastSnapshot,
           });
@@ -413,25 +422,62 @@
 
       async function refreshList() {
         const wrap = document.getElementById('listWrap');
+        const showArchived = document.getElementById('showArchived').checked;
         try {
-          const rows = await JpTrous.listParties({ actifsOnly: false });
+          const rows = await JpTrous.listParties({ actifsOnly: !showArchived });
           if (!rows.length) {
-            JpUi.emptyState(wrap, { title: 'Aucune partie', text: 'Créez une grille ci-dessus.' });
+            JpUi.emptyState(wrap, {
+              title: showArchived ? 'Aucune partie' : 'Aucune partie active',
+              text: showArchived ? 'Créez une grille ci-dessus.' : 'Cochez « Afficher les archivées » ou créez une partie.',
+            });
             return;
           }
           wrap.innerHTML = '<table class="jp-table"><thead><tr><th>Code</th><th>Titre</th><th>Mode</th><th></th></tr></thead><tbody>'
             + rows.map(function (r) {
+              const archiveBtn = r.actif
+                ? '<button type="button" class="jp-link-btn" data-archive="' + JpUi.escapeHtml(r.id) + '">Archiver</button>'
+                : '<button type="button" class="jp-link-btn" data-desarchiver="' + JpUi.escapeHtml(r.id) + '">Désarchiver</button>';
+              const playLinks = r.actif
+                ? '<a href="../trous/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
+                  + ' · <a href="../trous/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a> · '
+                : '';
               return '<tr><td><code>' + JpUi.escapeHtml(r.code_unique) + '</code></td>'
-                + '<td>' + JpUi.escapeHtml(r.titre) + '</td>'
+                + '<td>' + JpUi.escapeHtml(r.titre)
+                + (r.actif ? '' : ' <span class="jp-badge jp-badge-archive">archivé</span>') + '</td>'
                 + '<td>' + JpUi.escapeHtml(r.mode) + '</td>'
-                + '<td><a href="../trous/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
-                + ' · <a href="../trous/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a>'
-                + '</td></tr>';
+                + '<td>' + playLinks + archiveBtn + '</td></tr>';
             }).join('') + '</tbody></table>';
+          wrap.querySelectorAll('[data-archive]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+              if (!confirm('Archiver cette partie ? Elle ne sera plus jouable via son code.')) return;
+              try {
+                await JpTrous.archive(btn.getAttribute('data-archive'));
+                JpToast.ok('Partie archivée');
+                await refreshList();
+              } catch (e) {
+                JpToast.fromError(e);
+              }
+            });
+          });
+          wrap.querySelectorAll('[data-desarchiver]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+              try {
+                await JpTrous.desarchiver(btn.getAttribute('data-desarchiver'));
+                JpToast.ok('Partie désarchivée');
+                await refreshList();
+              } catch (e) {
+                JpToast.fromError(e);
+              }
+            });
+          });
         } catch (e) {
           JpToast.fromError(e);
         }
       }
+
+      document.getElementById('showArchived').addEventListener('change', function () {
+        void refreshList();
+      });
 
       await refreshList();
     });

@@ -7,8 +7,8 @@ alwaysApply: true
 
 ## Produit
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
-- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Mon suivi | Mon profil | Admin (si admin).
-- Surfaces : `catalogue.html`, `quiz/`, `trous/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps.
+- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Mon espace | Admin (si admin).
+- Surfaces : `catalogue.html`, `espace.html` (profil + suivi), `quiz/`, `trous/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps. `profil.html` et `quiz/suivi.html` redirigent vers `espace.html`.
 - Partagé local : `js/` (clients, métier, FAB, bugs, logs, toast) + `css/` (tokens, app, print).
 
 ## Chemins monorepo

@@ -36,7 +36,7 @@ Admin (portail admin) : suivi Chart.js (`admin/suivi.html`), logs (`admin/logs.h
 jeu-pharma/
   index.html          # hub
   catalogue.html
-  profil.html
+  espace.html         # profil + suivi (profil.html / quiz/suivi.html → redirect)
   quiz/  trous/  admin/
   js/                 # supabase, fab, bugs, logs, charts-admin, …
   css/

@@ -102,6 +102,9 @@
 
     <section class="jp-panel">
       <h2 class="jp-title" style="font-size:1.25rem">Quiz récents</h2>
+      <label class="jp-field" style="margin-bottom:0.75rem">
+        <input type="checkbox" id="showArchived"> Afficher les archivés
+      </label>
       <div id="listWrap" class="jp-table-wrap">
         <p class="jp-muted">Chargement…</p>
       </div>
@@ -166,29 +169,66 @@
 
       async function refreshList() {
         const wrap = document.getElementById('listWrap');
+        const showArchived = document.getElementById('showArchived').checked;
         try {
-          const rows = await JpQuizz.listQuiz({ actifsOnly: false });
+          const rows = await JpQuizz.listQuiz({ actifsOnly: !showArchived });
           if (!rows.length) {
-            JpUi.emptyState(wrap, { title: 'Aucun quiz', text: 'Générez un quiz ci-dessus.' });
+            JpUi.emptyState(wrap, {
+              title: showArchived ? 'Aucun quiz' : 'Aucun quiz actif',
+              text: showArchived ? 'Générez un quiz ci-dessus.' : 'Cochez « Afficher les archivés » ou générez un quiz.',
+            });
             return;
           }
           wrap.innerHTML = '<table class="jp-table"><thead><tr><th>Code</th><th>Titre</th><th>Mode</th><th>Niveau</th><th></th></tr></thead><tbody>'
             + rows.map(function (r) {
               const snapOk = Array.isArray(r.snapshot_questions) && r.snapshot_questions.length;
+              const archiveBtn = r.actif
+                ? '<button type="button" class="jp-link-btn" data-archive="' + JpUi.escapeHtml(r.id) + '">Archiver</button>'
+                : '<button type="button" class="jp-link-btn" data-desarchiver="' + JpUi.escapeHtml(r.id) + '">Désarchiver</button>';
+              const playLinks = r.actif
+                ? '<a href="../quiz/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
+                  + (snapOk ? ' · <a href="../quiz/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a> · ' : ' · ')
+                : '';
               return '<tr><td><code>' + JpUi.escapeHtml(r.code_unique) + '</code></td>'
-                + '<td>' + JpUi.escapeHtml(r.titre) + (r.actif ? '' : ' <span class="jp-badge">inactif</span>') + '</td>'
+                + '<td>' + JpUi.escapeHtml(r.titre)
+                + (r.actif ? '' : ' <span class="jp-badge jp-badge-archive">archivé</span>') + '</td>'
                 + '<td>' + JpUi.escapeHtml(JpQuizz.modeLibelle(r.mode)) + '</td>'
                 + '<td>' + JpUi.escapeHtml(r.niveau_cible) + '</td>'
-                + '<td><a href="../quiz/jouer.html?code=' + encodeURIComponent(r.code_unique) + '">Jouer</a>'
-                + (snapOk ? ' · <a href="../quiz/imprimer.html?code=' + encodeURIComponent(r.code_unique) + '">Imprimer</a>' : '')
-                + '</td></tr>';
+                + '<td>' + playLinks + archiveBtn + '</td></tr>';
             }).join('')
             + '</tbody></table>';
+          wrap.querySelectorAll('[data-archive]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+              if (!confirm('Archiver ce quiz ? Il ne sera plus jouable via son code.')) return;
+              try {
+                await JpQuizz.archive(btn.getAttribute('data-archive'));
+                JpToast.ok('Quiz archivé');
+                await refreshList();
+              } catch (e) {
+                JpToast.fromError(e);
+              }
+            });
+          });
+          wrap.querySelectorAll('[data-desarchiver]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+              try {
+                await JpQuizz.desarchiver(btn.getAttribute('data-desarchiver'));
+                JpToast.ok('Quiz désarchivé');
+                await refreshList();
+              } catch (e) {
+                JpToast.fromError(e);
+              }
+            });
+          });
         } catch (e) {
           JpToast.fromError(e);
           wrap.innerHTML = '<p class="jp-muted">Impossible de charger la liste.</p>';
         }
       }
+
+      document.getElementById('showArchived').addEventListener('change', function () {
+        void refreshList();
+      });
 
       document.getElementById('quizForm').addEventListener('submit', async function (ev) {
         ev.preventDefault();

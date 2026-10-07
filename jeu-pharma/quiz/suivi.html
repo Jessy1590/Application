@@ -2,77 +2,13 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Mon suivi — Jeu Pharma</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
-<meta http-equiv="X-Frame-Options" content="DENY">
-<meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
-<script src="../../shared/supabase-config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../js/supabase.js"></script>
-<style>body{display:none}</style>
-<script src="../../protect.js"></script>
-<script>initialiserSite(JpApp.SITE_ID);</script>
-<link rel="stylesheet" href="../css/app.css">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirection — Mon suivi</title>
+<meta http-equiv="refresh" content="0; url=../espace.html">
+<link rel="canonical" href="../espace.html">
+<script>location.replace('../espace.html');</script>
 </head>
 <body>
-  <main class="jp-page">
-    <a class="jp-back" href="../index.html">← Hub</a>
-    <p class="jp-kicker">Suivi</p>
-    <h1 class="jp-title">Mon suivi</h1>
-    <p class="jp-sub">Vos scores et tentatives de quiz.</p>
-
-    <div id="listWrap">
-      <p class="jp-muted">Chargement…</p>
-    </div>
-  </main>
-  <script src="../js/constants.js"></script>
-  <script src="../js/toast.js"></script>
-  <script src="../js/logs.js"></script>
-  <script src="../js/bugs.js"></script>
-  <script src="../js/fab.js"></script>
-  <script src="../js/ui.js"></script>
-  <script src="../js/quizz.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', async function () {
-      JpUi.bootPage({ module: 'suivi', homeHref: JpFab.PORTAIL_URL });
-      const wrap = document.getElementById('listWrap');
-
-      try {
-        const rows = await JpQuizz.mesScores();
-        if (!rows.length) {
-          JpUi.emptyState(wrap, {
-            title: 'Aucune tentative',
-            text: 'Vos résultats apparaîtront après un quiz.',
-            actionHref: 'index.html',
-            actionLabel: 'Aller aux quiz',
-          });
-          return;
-        }
-        wrap.innerHTML = '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
-          + '<th>Date</th><th>Quiz</th><th>Mode</th><th>Score</th></tr></thead><tbody>'
-          + rows.map(function (r) {
-            const q = r.quizz || {};
-            const titre = q.titre || '—';
-            const code = q.code_unique || '';
-            const pct = r.score_max > 0 ? Math.round((Number(r.score_obtenu) / Number(r.score_max)) * 100) : 0;
-            const d = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '—';
-            return '<tr><td>' + JpUi.escapeHtml(d) + '</td>'
-              + '<td>' + JpUi.escapeHtml(titre)
-              + (code ? '<br><code>' + JpUi.escapeHtml(code) + '</code>' : '') + '</td>'
-              + '<td>' + JpUi.escapeHtml(JpQuizz.modeLibelle(r.mode)) + '</td>'
-              + '<td><strong>' + JpUi.escapeHtml(String(r.score_obtenu)) + ' / ' + JpUi.escapeHtml(String(r.score_max))
-              + '</strong> <span class="jp-muted">(' + pct + '%)</span></td></tr>';
-          }).join('')
-          + '</tbody></table></div>';
-      } catch (e) {
-        JpToast.fromError(e);
-        JpUi.emptyState(wrap, { title: 'Erreur', text: e.message || String(e) });
-      }
-    });
-  </script>
+  <p><a href="../espace.html">Mon espace</a></p>
 </body>
 </html>

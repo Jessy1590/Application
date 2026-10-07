@@ -6,12 +6,21 @@
     return global.JpApp.sbJeu();
   }
 
+  /** Aligné sur jeupharma.normaliser_valeur (NFD + strip diacritiques). */
   function normaliser(valeur) {
     return String(valeur || '')
       .trim()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function isUniqueViolation(err) {
+    if (!err) return false;
+    const code = err.code || err.code?.toString?.();
+    if (code === '23505') return true;
+    const msg = String(err.message || err.details || '');
+    return /duplicate key|unique constraint|_valeur_norm_actif_uidx/i.test(msg);
   }
 
   function assertTable(table) {
@@ -52,6 +61,62 @@
   }
 
   /**
+   * Candidats valeur_norm : norme JS (NFD) + lower seul (legacy SQL avant 003).
+   * @param {string} valeur
+   * @returns {string[]}
+   */
+  function normCandidates(valeur) {
+    const v = String(valeur || '').trim();
+    if (!v) return [];
+    const lower = v.toLowerCase();
+    const nfd = normaliser(v);
+    return [...new Set([nfd, lower].filter(Boolean))];
+  }
+
+  /**
+   * Trouve une entité active dont valeur_norm matche la valeur (plusieurs normes).
+   */
+  async function findActiveByValeur(table, valeur) {
+    assertTable(table);
+    const candidates = normCandidates(valeur);
+    for (const norm of candidates) {
+      const { data, error } = await sb()
+        .from(table)
+        .select('id, valeur, valeur_norm, niveaux_connus, actif')
+        .eq('valeur_norm', norm)
+        .eq('actif', true)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+    }
+    // Dernier recours : égalité insensible à la casse sur valeur affichée
+    const v = String(valeur || '').trim();
+    if (!v) return null;
+    const { data, error } = await sb()
+      .from(table)
+      .select('id, valeur, valeur_norm, niveaux_connus, actif')
+      .ilike('valeur', v)
+      .eq('actif', true)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  async function applyNiveaux(table, existing, niveaux, opts) {
+    if (!Array.isArray(niveaux)) return existing;
+    const next = opts.mergeNiveaux
+      ? Array.from(new Set([...(existing.niveaux_connus || []), ...niveaux]))
+      : niveaux;
+    const prev = [...(existing.niveaux_connus || [])].sort().join('|');
+    const nxt = [...next].sort().join('|');
+    if (prev !== nxt) {
+      return update(table, existing.id, { niveaux_connus: next });
+    }
+    return existing;
+  }
+
+  /**
    * Trouve une entité active par valeur (norm) ou la crée.
    * @param {string} table
    * @param {string} valeur
@@ -62,31 +127,24 @@
     assertTable(table);
     const v = String(valeur || '').trim();
     if (!v) return null;
-    const norm = normaliser(v);
-    const { data: existing, error: findErr } = await sb()
-      .from(table)
-      .select('id, valeur, niveaux_connus, actif')
-      .eq('valeur_norm', norm)
-      .eq('actif', true)
-      .maybeSingle();
-    if (findErr) throw findErr;
+
+    const existing = await findActiveByValeur(table, v);
     if (existing) {
-      if (Array.isArray(niveaux)) {
-        const next = opts.mergeNiveaux
-          ? Array.from(new Set([...(existing.niveaux_connus || []), ...niveaux]))
-          : niveaux;
-        const prev = [...(existing.niveaux_connus || [])].sort().join('|');
-        const nxt = [...next].sort().join('|');
-        if (prev !== nxt) {
-          return update(table, existing.id, { niveaux_connus: next });
-        }
-      }
-      return existing;
+      return applyNiveaux(table, existing, niveaux, opts);
     }
-    return create(table, {
-      valeur: v,
-      niveaux_connus: Array.isArray(niveaux) ? niveaux : [],
-    });
+
+    try {
+      return await create(table, {
+        valeur: v,
+        niveaux_connus: Array.isArray(niveaux) ? niveaux : [],
+      });
+    } catch (err) {
+      // Course / mismatch norm → réutiliser la ligne déjà présente
+      if (!isUniqueViolation(err)) throw err;
+      const again = await findActiveByValeur(table, v);
+      if (!again) throw err;
+      return applyNiveaux(table, again, niveaux, opts);
+    }
   }
 
   /**
@@ -158,6 +216,8 @@
 
   global.JpEntites = {
     normaliser,
+    normCandidates,
+    findActiveByValeur,
     list,
     getById,
     findOrCreate,

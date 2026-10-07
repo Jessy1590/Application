@@ -134,6 +134,7 @@
    */
   async function resolveMulti(items, table) {
     const ids = [];
+    const seenNorm = new Set();
     for (const item of items || []) {
       if (!item) continue;
       if (item.id) {
@@ -144,16 +145,25 @@
           });
         }
         ids.push(item.id);
+        if (item.valeur) {
+          for (const n of global.JpEntites.normCandidates(item.valeur)) seenNorm.add(n);
+        }
         continue;
       }
       if (item.valeur && String(item.valeur).trim()) {
+        const norms = global.JpEntites.normCandidates(item.valeur);
+        if (norms.some((n) => seenNorm.has(n))) continue;
         const ent = await global.JpEntites.findOrCreate(
           table,
           item.valeur,
           Array.isArray(item.niveaux_connus) ? item.niveaux_connus : [],
           { mergeNiveaux: !!item.mergeNiveaux }
         );
-        if (ent?.id) ids.push(ent.id);
+        if (ent?.id) {
+          ids.push(ent.id);
+          for (const n of norms) seenNorm.add(n);
+          if (ent.valeur_norm) seenNorm.add(ent.valeur_norm);
+        }
       }
     }
     return [...new Set(ids)];
@@ -179,11 +189,12 @@
   function mergeMultiPayload(existingArr, incomingItems) {
     const byId = new Map();
     const byVal = new Map();
+    const normOf = (val) => global.JpEntites.normaliser(val);
     for (const x of existingArr || []) {
       if (!x) continue;
       if (x.id) byId.set(x.id, x);
-      const v = String(x.valeur || '').trim().toLowerCase();
-      if (v) byVal.set(v, x);
+      const n = normOf(x.valeur);
+      if (n) byVal.set(n, x);
     }
     for (const item of incomingItems || []) {
       if (!item) continue;
@@ -191,15 +202,15 @@
         byId.set(item.id, { ...byId.get(item.id), ...item });
         continue;
       }
-      const v = String(item.valeur || '').trim().toLowerCase();
-      if (v && byVal.has(v)) {
-        const prev = byVal.get(v);
-        byId.set(prev.id || v, { ...prev, ...item, id: prev.id || item.id });
+      const n = normOf(item.valeur);
+      if (n && byVal.has(n)) {
+        const prev = byVal.get(n);
+        byId.set(prev.id || n, { ...prev, ...item, id: prev.id || item.id });
         continue;
       }
-      const key = item.id || v || Math.random();
+      const key = item.id || n || Math.random();
       byId.set(key, item);
-      if (v) byVal.set(v, item);
+      if (n) byVal.set(n, item);
     }
     return [...byId.values()];
   }

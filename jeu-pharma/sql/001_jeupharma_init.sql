@@ -68,25 +68,9 @@ BEGIN
   IF p_valeur IS NULL THEN
     RETURN NULL;
   END IF;
-  v := trim(both FROM p_valeur);
-  BEGIN
-    v := lower(extensions.unaccent(v));
-  EXCEPTION
-    WHEN undefined_function THEN
-      BEGIN
-        v := lower(public.unaccent(v));
-      EXCEPTION
-        WHEN OTHERS THEN
-          v := lower(v);
-      END;
-    WHEN OTHERS THEN
-      BEGIN
-        v := lower(public.unaccent(v));
-      EXCEPTION
-        WHEN OTHERS THEN
-          v := lower(v);
-      END;
-  END;
+  -- Aligné sur JpEntites.normaliser (NFD + strip) — pas de dépendance unaccent
+  v := lower(trim(both FROM p_valeur));
+  v := regexp_replace(normalize(v, NFD), '[\u0300-\u036f]', '', 'g');
   RETURN v;
 END;
 $$;

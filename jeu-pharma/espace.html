@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mon espace — Jeu Pharma</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID);</script>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Hub</a>
+    <p class="jp-kicker">Espace</p>
+    <h1 class="jp-title">Mon espace</h1>
+    <p class="jp-sub">Niveau pédagogique et historique de vos scores.</p>
+
+    <section class="jp-panel" aria-labelledby="jpProfilHeading">
+      <h2 id="jpProfilHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Profil</h2>
+      <p class="jp-sub" style="margin-top:0">Choisissez votre niveau pédagogique pour préremplir les quiz et filtres.</p>
+
+      <form id="jpProfilForm" class="jp-form" autocomplete="off">
+        <div class="jp-field">
+          <label for="jpNiveau">Niveau d’apprentissage</label>
+          <select id="jpNiveau" name="niveau" required>
+            <option value="">— Choisir —</option>
+          </select>
+        </div>
+        <p id="jpProfilMeta" class="jp-sub" style="margin-bottom:1rem" hidden></p>
+        <div class="jp-field-actions">
+          <button type="submit" class="jp-btn jp-btn-primary" id="jpBtnSave">Enregistrer</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="jp-panel" aria-labelledby="jpSuiviHeading">
+      <h2 id="jpSuiviHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Suivi</h2>
+      <p class="jp-sub" style="margin-top:0">Vos scores quiz et tableau à trous.</p>
+      <div id="listWrap">
+        <p class="jp-muted">Chargement…</p>
+      </div>
+    </section>
+  </main>
+  <script src="js/constants.js"></script>
+  <script src="js/toast.js"></script>
+  <script src="js/logs.js"></script>
+  <script src="js/bugs.js"></script>
+  <script src="js/fab.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/profil.js"></script>
+  <script src="js/quizz.js"></script>
+  <script src="js/trous.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'espace', homeHref: JpFab.PORTAIL_URL });
+
+      const sel = document.getElementById('jpNiveau');
+      (JpConstants.NIVEAUX || []).forEach(function (n) {
+        const o = document.createElement('option');
+        o.value = n.code;
+        o.textContent = n.libelle;
+        sel.appendChild(o);
+      });
+
+      const meta = document.getElementById('jpProfilMeta');
+      const form = document.getElementById('jpProfilForm');
+      const btn = document.getElementById('jpBtnSave');
+
+      try {
+        const profil = await JpProfil.getProfil();
+        if (profil?.niveau_id) {
+          sel.value = profil.niveau_id;
+          if (profil.updated_at) {
+            meta.hidden = false;
+            meta.textContent = 'Dernière mise à jour : '
+              + new Date(profil.updated_at).toLocaleString('fr-FR');
+          }
+        }
+      } catch (e) {
+        JpToast?.error?.(e.message || 'Chargement du profil impossible');
+      }
+
+      form.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        const code = sel.value;
+        if (!code) {
+          JpToast?.error?.('Choisissez un niveau');
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const saved = await JpProfil.upsertNiveau(code);
+          meta.hidden = false;
+          meta.textContent = 'Dernière mise à jour : '
+            + new Date(saved.updated_at || Date.now()).toLocaleString('fr-FR');
+          JpToast?.ok?.('Profil enregistré');
+        } catch (e) {
+          JpToast?.error?.(e.message || 'Enregistrement impossible');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      const wrap = document.getElementById('listWrap');
+      try {
+        const [quizRows, trousRows] = await Promise.all([
+          JpQuizz.mesScores(),
+          JpTrous.mesScores(),
+        ]);
+        const rows = []
+          .concat(quizRows.map(function (r) {
+            const q = r.quizz || {};
+            return {
+              kind: 'quiz',
+              created_at: r.created_at,
+              titre: q.titre || '—',
+              code: q.code_unique || '',
+              mode: r.mode,
+              score_obtenu: r.score_obtenu,
+              score_max: r.score_max,
+            };
+          }))
+          .concat(trousRows.map(function (r) {
+            const p = r.parties_tableau_trous || {};
+            return {
+              kind: 'trous',
+              created_at: r.created_at,
+              titre: p.titre || '—',
+              code: p.code_unique || '',
+              mode: r.mode,
+              score_obtenu: r.score_obtenu,
+              score_max: r.score_max,
+            };
+          }))
+          .sort(function (a, b) {
+            return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+          });
+
+        if (!rows.length) {
+          JpUi.emptyState(wrap, {
+            title: 'Aucune tentative',
+            text: 'Vos résultats apparaîtront après un quiz ou un tableau à trous.',
+            actionHref: 'quiz/index.html',
+            actionLabel: 'Aller aux quiz',
+          });
+          return;
+        }
+        wrap.innerHTML = '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
+          + '<th>Date</th><th>Type</th><th>Activité</th><th>Mode</th><th>Score</th></tr></thead><tbody>'
+          + rows.map(function (r) {
+            const pct = r.score_max > 0 ? Math.round((Number(r.score_obtenu) / Number(r.score_max)) * 100) : 0;
+            const d = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '—';
+            const typeLabel = r.kind === 'trous' ? 'Trous' : 'Quiz';
+            const modeLabel = r.kind === 'trous'
+              ? JpTrous.modeLibelle(r.mode)
+              : JpQuizz.modeLibelle(r.mode);
+            return '<tr><td>' + JpUi.escapeHtml(d) + '</td>'
+              + '<td>' + JpUi.escapeHtml(typeLabel) + '</td>'
+              + '<td>' + JpUi.escapeHtml(r.titre)
+              + (r.code ? '<br><code>' + JpUi.escapeHtml(r.code) + '</code>' : '') + '</td>'
+              + '<td>' + JpUi.escapeHtml(modeLabel) + '</td>'
+              + '<td><strong>' + JpUi.escapeHtml(String(r.score_obtenu)) + ' / ' + JpUi.escapeHtml(String(r.score_max))
+              + '</strong> <span class="jp-muted">(' + pct + '%)</span></td></tr>';
+          }).join('')
+          + '</tbody></table></div>';
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(wrap, { title: 'Erreur', text: e.message || String(e) });
+      }
+    });
+  </script>
+</body>
+</html>

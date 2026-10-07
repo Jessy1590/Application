@@ -30,6 +30,11 @@
     return c?.libelle || code;
   }
 
+  function modeLibelle(mode) {
+    const m = (global.JpConstants?.QUIZ_MODES || []).find((x) => x.code === mode);
+    return m?.libelle || mode;
+  }
+
   function champMeta(code) {
     return (global.JpConstants?.CHAMP_CODES || []).find((x) => x.code === code) || null;
   }
@@ -158,6 +163,18 @@
   }
 
   /**
+   * Limite le nombre de médicaments candidats (shuffle puis slice).
+   * @param {object[]} meds
+   * @param {number|null|undefined} maxLignes
+   */
+  function limiterMeds(meds, maxLignes) {
+    const list = meds || [];
+    const max = maxLignes != null ? Number(maxLignes) : NaN;
+    if (!Number.isFinite(max) || max < 1 || list.length <= max) return list;
+    return shuffle(list).slice(0, Math.min(Math.floor(max), 100));
+  }
+
+  /**
    * Construit snapshot_grille.
    * @param {{
    *   meds: object[],
@@ -165,12 +182,13 @@
    *   modeTrous: 'ALEATOIRE'|'MANUEL',
    *   trousManuels?: Record<string, boolean>, // key `${matriceId}|${champ}`
    *   densite?: number, // 0–1 pour ALEATOIRE (défaut 0.4)
+   *   maxLignes?: number, // plafond de lignes médicaments (défaut : pas de limite)
    * }} opts
    */
   function buildSnapshot(opts) {
     const colonnes = (opts.colonnes || []).filter(Boolean);
     if (!colonnes.length) throw new Error('Sélectionnez au moins une colonne');
-    const meds = opts.meds || [];
+    const meds = limiterMeds(opts.meds || [], opts.maxLignes);
     if (!meds.length) throw new Error('Aucun médicament sélectionné');
 
     const modeTrous = opts.modeTrous === 'MANUEL' ? 'MANUEL' : 'ALEATOIRE';
@@ -347,30 +365,16 @@
   }
 
   /**
-   * Compare réponses aux valeurs du snapshot (rechargé depuis la DB), insert score.
+   * Compare réponses aux valeurs du snapshot (rechargé depuis la DB), sans écrire.
    * @param {string} partieId
    * @param {{ matrice_id: string, champ_code: string, reponse: string }[]} reponses
    */
-  async function soumettre(partieId, reponses) {
-    const user = await global.JpApp.getUser();
-    if (!user) throw new Error('Non authentifié');
-
+  async function evaluer(partieId, reponses) {
     const partie = await getById(partieId);
     if (!partie) throw new Error('Partie introuvable');
     const snap = partie.snapshot_grille;
     const mode = partie.mode || 'entrainement';
     if (!snap) throw new Error('Grille manquante');
-
-    if (mode === 'evaluation') {
-      const { data: existing } = await sb()
-        .from('parties_reponses_utilisateur')
-        .select('id')
-        .eq('partie_id', partieId)
-        .eq('utilisateur_id', user.id)
-        .eq('mode', 'evaluation')
-        .maybeSingle();
-      if (existing) throw new Error('Tentative évaluation déjà enregistrée');
-    }
 
     const byKey = {};
     (reponses || []).forEach((r) => {
@@ -401,15 +405,47 @@
       });
     });
 
+    return {
+      mode,
+      score_obtenu: score,
+      score_max: total,
+      details,
+      snapshot: snap,
+    };
+  }
+
+  /**
+   * Évalue puis enregistre le score dans parties_reponses_utilisateur.
+   * @param {string} partieId
+   * @param {{ matrice_id: string, champ_code: string, reponse: string }[]} reponses
+   */
+  async function soumettre(partieId, reponses) {
+    const user = await global.JpApp.getUser();
+    if (!user) throw new Error('Non authentifié');
+
+    const result = await evaluer(partieId, reponses);
+    const mode = result.mode || 'entrainement';
+
+    if (mode === 'evaluation') {
+      const { data: existing } = await sb()
+        .from('parties_reponses_utilisateur')
+        .select('id')
+        .eq('partie_id', partieId)
+        .eq('utilisateur_id', user.id)
+        .eq('mode', 'evaluation')
+        .maybeSingle();
+      if (existing) throw new Error('Tentative évaluation déjà enregistrée');
+    }
+
     const { data, error } = await sb()
       .from('parties_reponses_utilisateur')
       .insert({
         partie_id: partieId,
         utilisateur_id: user.id,
         mode,
-        score_obtenu: score,
-        score_max: total,
-        details_reponses: details,
+        score_obtenu: result.score_obtenu,
+        score_max: result.score_max,
+        details_reponses: result.details,
       })
       .select('id, score_obtenu, score_max, mode')
       .single();
@@ -417,37 +453,80 @@
 
     void global.JpLogs?.action?.('trous_soumettre', {
       partie_id: partieId,
-      score,
-      max: total,
+      score: result.score_obtenu,
+      max: result.score_max,
     });
 
     return {
       reponse_id: data.id,
       mode: data.mode,
-      score_obtenu: score,
-      score_max: total,
-      details: mode === 'entrainement' ? details : details,
+      score_obtenu: result.score_obtenu,
+      score_max: result.score_max,
+      details: result.details,
     };
+  }
+
+  /** Soft-archive : actif = false (pas de hard-delete). */
+  async function setActif(id, actif) {
+    const { data, error } = await sb()
+      .from('parties_tableau_trous')
+      .update({ actif: !!actif })
+      .eq('id', id)
+      .select('id, code_unique, actif')
+      .single();
+    if (error) throw error;
+    void global.JpLogs?.action?.(actif ? 'trous_desarchiver' : 'trous_archiver', {
+      partie_id: id,
+      code: data?.code_unique,
+    });
+    return data;
+  }
+
+  async function mesScores() {
+    const user = await global.JpApp.getUser();
+    if (!user) return [];
+    const { data, error } = await sb()
+      .from('parties_reponses_utilisateur')
+      .select('id, partie_id, mode, score_obtenu, score_max, created_at, parties_tableau_trous(code_unique, titre, mode)')
+      .eq('utilisateur_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+
+  function archive(id) {
+    return setActif(id, false);
+  }
+
+  function desarchiver(id) {
+    return setActif(id, true);
   }
 
   global.JpTrous = {
     COLONNES_DEFAUT,
     genCode,
     champLibelle,
+    modeLibelle,
     champMeta,
     cellDisplay,
     cellAcceptedValues,
     listSecteurs,
     listParties,
     fetchMedicaments,
+    limiterMeds,
     buildSnapshot,
     grillePourJoueur,
     createPartie,
     getByCode,
     getById,
     ouvrir,
+    evaluer,
     soumettre,
+    mesScores,
     shuffle,
     normalizeAnswer,
+    setActif,
+    archive,
+    desarchiver,
   };
 })(window);

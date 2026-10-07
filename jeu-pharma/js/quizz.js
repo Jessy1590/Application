@@ -178,6 +178,30 @@
     return data;
   }
 
+  /** Soft-archive : actif = false (pas de hard-delete). */
+  async function setActif(id, actif) {
+    const { data, error } = await sb()
+      .from('quizz')
+      .update({ actif: !!actif })
+      .eq('id', id)
+      .select('id, code_unique, actif')
+      .single();
+    if (error) throw error;
+    void global.JpLogs?.action?.(actif ? 'quiz_desarchiver' : 'quiz_archiver', {
+      quizz_id: id,
+      code: data?.code_unique,
+    });
+    return data;
+  }
+
+  function archive(id) {
+    return setActif(id, false);
+  }
+
+  function desarchiver(id) {
+    return setActif(id, true);
+  }
+
   global.JpQuizz = {
     genCode,
     champLibelle,
@@ -190,5 +214,8 @@
     soumettre,
     mesScores,
     getByCode,
+    setActif,
+    archive,
+    desarchiver,
   };
 })(window);
