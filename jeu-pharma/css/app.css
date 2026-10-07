@@ -768,3 +768,280 @@ body > a[title="Retour au portail"] {
   margin-top: 1.5rem;
 }
 
+/* —— Admin médicaments : plein écran + filtres —— */
+.jp-page-wide {
+  width: min(100% - 1.5rem, var(--jp-max-wide));
+  max-width: none;
+}
+
+.jp-med-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) repeat(4, minmax(8rem, 1fr)) auto;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+}
+
+.jp-med-filters label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+}
+
+.jp-med-filters input,
+.jp-med-filters select {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--jp-text);
+  background: var(--jp-bg);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 0.5rem 0.65rem;
+  width: 100%;
+}
+
+.jp-med-filters input:focus,
+.jp-med-filters select:focus {
+  border-color: var(--jp-accent);
+  box-shadow: var(--jp-focus);
+  outline: none;
+}
+
+.jp-med-filters-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.jp-med-workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+  min-height: 60vh;
+}
+
+.jp-med-workspace.is-editing {
+  grid-template-columns: minmax(18rem, 0.95fr) minmax(0, 1.55fr);
+}
+
+.jp-med-listpane {
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 11rem);
+}
+
+.jp-med-listmeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--jp-line);
+  font-size: 0.85rem;
+  color: var(--jp-text-muted);
+  background: var(--jp-accent-soft);
+}
+
+.jp-med-listpane .jp-table-wrap {
+  margin: 0;
+  overflow: auto;
+  flex: 1;
+}
+
+.jp-med-listpane .jp-table {
+  font-size: 0.85rem;
+}
+
+.jp-med-listpane .jp-table th,
+.jp-med-listpane .jp-table td {
+  padding: 0.45rem 0.55rem;
+  white-space: nowrap;
+}
+
+.jp-med-listpane .jp-table td.jp-med-cell-wrap {
+  white-space: normal;
+  max-width: 12rem;
+}
+
+.jp-med-listpane tbody tr {
+  cursor: pointer;
+}
+
+.jp-med-listpane tbody tr.is-selected td {
+  background: rgba(15, 107, 92, 0.14);
+}
+
+.jp-med-editor {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  background: var(--jp-bg-elevated);
+  max-height: calc(100dvh - 11rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.jp-med-editor-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--jp-line);
+  background: var(--jp-bg);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.jp-med-editor-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.jp-med-editor-body {
+  overflow: auto;
+  padding: 1rem 1.1rem 1.25rem;
+  flex: 1;
+}
+
+.jp-med-editor .jp-form {
+  max-width: none;
+  gap: 1.5rem;
+}
+
+.jp-med-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.jp-med-section-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jp-accent);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.jp-med-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+.jp-med-grid .jp-field-span-2 {
+  grid-column: 1 / -1;
+}
+
+.jp-med-field-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  background: var(--jp-bg);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+}
+
+.jp-med-field-card > label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--jp-text-muted);
+}
+
+.jp-med-niveaux-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.jp-med-niveaux-compact label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  cursor: pointer;
+  user-select: none;
+}
+
+.jp-med-niveaux-compact input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--jp-accent);
+}
+
+.jp-med-niveaux-compact label:has(input:checked) {
+  background: var(--jp-accent-soft);
+  border-color: rgba(15, 107, 92, 0.35);
+  color: var(--jp-accent);
+}
+
+.jp-med-editor-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--jp-line);
+  background: var(--jp-bg);
+}
+
+@media (max-width: 1100px) {
+  .jp-med-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jp-med-filters-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .jp-med-filters-actions .jp-btn {
+    flex: 1;
+  }
+
+  .jp-med-workspace.is-editing {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-med-listpane,
+  .jp-med-editor {
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .jp-med-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-med-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

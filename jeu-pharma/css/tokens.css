@@ -19,6 +19,7 @@
   --jp-radius-sm: 8px;
   --jp-space: 1rem;
   --jp-max: 52rem;
+  --jp-max-wide: 90rem;
   --jp-shadow: 0 8px 24px rgba(15, 107, 92, 0.08);
 
   --jp-focus: 0 0 0 3px rgba(15, 107, 92, 0.35);
