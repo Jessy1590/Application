@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — refonte création tableau à trous (4 étapes + aperçu fidèle + `ligne_id`) ; hospitalier (`005`) + catalogue RCP (`004`) + score manuel ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-07 — refonte création quiz (4 étapes + filtres multi + snapshot client) ; création trous (4 étapes + aperçu) ; hospitalier (`005`) + catalogue RCP (`004`) + score manuel ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -58,10 +58,21 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
-- [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** dans Paramètres → Filtres (global = noms/DCI/secteur ; ou champ ciblé via `jpIncompletChamp`).
+- [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** dans Paramètres → Filtres (global = noms/DCI/secteur ; ou champ ciblé via `jpIncompletChamp`). Autocomplétion locale sous chaque champ entité du modal fiche (cache `JpEntites`, filtre `normaliser`, remplace l’ancien `<datalist>`).
 - [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — onglets **Historique** | Quiz | Tableau à trous ; Historique = liste filtrée (en cours / terminés / archivés) ; Quiz/Trous = création seule (même structure CSS `.jp-quiz-admin-*`) ; redirects `quizz.html` / `trous.html` → `?type=`.
 - [x] Trous jouer — flux score manuel (voir section ci-dessous).
 - [x] Refonte création tableau à trous (voir section ci-dessous) — **pas de migration Supabase**.
+- [x] Refonte création quiz (voir section ci-dessous) — **pas de migration Supabase** (génération QCM côté client).
+
+## Création quiz (refonte admin)
+- UI : `admin/jeux.html` panneau Quiz — **4 étapes** (Médicaments → Paramètres → Questions → Titre) ; **pas d’aperçu grille** (liste de questions éditable à l’étape 3).
+- Étape 1 : niveau (filtre hospitalier via `visiblePourNiveau`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** (même logique que trous) ; coches médicaments = pool QCM.
+- Étape 2 : champs interrogés + nb questions + nb propositions.
+- Étape 3 : « Générer les questions » ; par question : **Supprimer** / **Régénérer** ; « Ajouter une question » (même contraintes filtres/champs). Génération **client** (`JpQuizz.genererQuestions` / `genererUneQuestion`) — distracteurs priorité même secteur puis pool.
+- Création = **exactement la liste affichée** via `JpQuizz.createWithSnapshot` (insert `snapshot_questions`, **zéro** appel `generer_et_geler_quiz`).
+- `configuration_json` : `champs_interroges`, `nb_questions` (= longueur snapshot), `nb_propositions`, `distracteurs`, `filtres` ; `secteur_therapeutique_id` = seul secteur coché s’il y en a exactement un (sinon null).
+- RPC `generer_et_geler_quiz` conservée (legacy / `createAndGenerate` / `regenerer`) — ne gère ni filtres multi ni régénération unitaire.
+- Fichiers : `admin/jeux.html`, `js/admin-jeux.js`, `js/quizz.js`, `css/app.css` ; docs STATE + architecture.
 
 ## Création tableau à trous (refonte admin)
 - UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu** auto-refresh (bouton Masquer / Afficher l’aperçu, UI only) ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.

@@ -87,20 +87,283 @@
     } catch (_) { /* ignore */ }
   }
 
-  async function fillSecteurs(sel) {
-    const secteurs = await global.JpQuizz.listSecteurs();
-    secteurs.forEach(function (s) {
-      const o = document.createElement('option');
-      o.value = s.id;
-      o.textContent = s.valeur;
-      sel.appendChild(o);
+  /* —— Quiz form —— */
+  function createQuizState() {
+    return {
+      etape: 1,
+      niveau: '',
+      filtres: { secteurs: [], classesTher: [], classesPharma: [], texte: '' },
+      medsCoches: new Set(),
+      champs: ['classe_pharmacologique', 'dci', 'classe_therapeutique'],
+      nbQuestions: 10,
+      nbPropositions: 3,
+      questions: [],
+      allMeds: [],
+    };
+  }
+
+  function selectedQuizChampsFromDom() {
+    return Array.from(document.querySelectorAll('input[name="quizChamp"]:checked')).map(function (el) {
+      return el.value;
     });
   }
 
-  /* —— Quiz form —— */
-  function initQuizForm() {
+  function syncQuizChamps(q) {
+    q.champs = selectedQuizChampsFromDom();
+  }
+
+  function readQuizNbQuestions() {
+    const n = Number($('quizNbQ').value);
+    if (!Number.isFinite(n) || n < 1) throw new Error('Nombre de questions invalide (min. 1)');
+    return Math.min(Math.floor(n), 50);
+  }
+
+  function readQuizNbProp() {
+    const n = Number($('quizNbProp').value);
+    if (!Number.isFinite(n) || n < 2) throw new Error('Nombre de propositions invalide (min. 2)');
+    return Math.min(Math.floor(n), 6);
+  }
+
+  function syncQuizParams(q) {
+    syncQuizChamps(q);
+    try { q.nbQuestions = readQuizNbQuestions(); } catch (_) { q.nbQuestions = 10; }
+    try { q.nbPropositions = readQuizNbProp(); } catch (_) { q.nbPropositions = 3; }
+  }
+
+  function syncQuizFiltresFromDom(q) {
+    q.filtres.secteurs = readFiltreIds('quizFiltreSecteur');
+    q.filtres.classesTher = readFiltreIds('quizFiltreClasseTher');
+    q.filtres.classesPharma = readFiltreIds('quizFiltreClassePharma');
+    q.filtres.texte = ($('quizFiltreTexte').value || '');
+  }
+
+  function quizMedsFiltres(q) {
+    return (q.allMeds || []).filter(function (m) { return medMatchesFiltres(m, q.filtres); });
+  }
+
+  function quizPool(q) {
+    return quizMedsFiltres(q).filter(function (m) { return q.medsCoches.has(m.id); });
+  }
+
+  function setQuizEtape(q, n) {
+    const step = Number(n) || 1;
+    q.etape = step;
+    document.querySelectorAll('[data-quiz-etape]').forEach(function (btn) {
+      const active = Number(btn.getAttribute('data-quiz-etape')) === step;
+      btn.classList.toggle('is-active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-quiz-panel]').forEach(function (panel) {
+      panel.hidden = Number(panel.getAttribute('data-quiz-panel')) !== step;
+    });
+    if (step === 4) updateQuizRecap(q);
+  }
+
+  function updateQuizMedsCount(q) {
+    const n = quizPool(q).length;
+    const el = $('quizMedsCount');
+    if (!el) return;
+    el.textContent = n
+      ? n + ' médicament' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '')
+      : '';
+  }
+
+  function updateQuizQuestionsCount(q) {
+    const el = $('quizQuestionsCount');
+    if (!el) return;
+    const n = (q.questions || []).length;
+    el.textContent = n ? n + ' question' + (n > 1 ? 's' : '') : '';
+  }
+
+  function updateQuizRecap(q) {
+    const el = $('quizRecap');
+    if (!el) return;
+    syncQuizParams(q);
+    syncQuizFiltresFromDom(q);
+    const niv = $('quizNiveau').value || '—';
+    const champs = (q.champs || []).map(function (c) {
+      return global.JpQuizz.champLibelle(c);
+    }).join(', ') || '—';
+    el.innerHTML = '<p><strong>Récapitulatif</strong></p>'
+      + '<ul class="jp-trous-recap-list">'
+      + '<li>Niveau : ' + global.JpUi.escapeHtml(niv) + '</li>'
+      + '<li>Médicaments (pool) : ' + quizPool(q).length + '</li>'
+      + '<li>Champs : ' + global.JpUi.escapeHtml(champs) + '</li>'
+      + '<li>Questions : ' + (q.questions || []).length + '</li>'
+      + '<li>Propositions : ' + q.nbPropositions + '</li>'
+      + '</ul>';
+  }
+
+  function renderQuizMedsList(q) {
+    const wrap = $('quizMedsList');
+    if (!wrap) return;
+    const meds = quizMedsFiltres(q);
+    if (!meds.length) {
+      wrap.innerHTML = '<p class="jp-muted">Aucune fiche publiée correspondante.</p>';
+      updateQuizMedsCount(q);
+      return;
+    }
+
+    wrap.innerHTML = meds.map(function (med) {
+      const label = (global.JpMedicaments.formatNoms(med) || med.dci || med.id)
+        + (med.dci && global.JpMedicaments.formatNoms(med) ? ' · ' + med.dci : '');
+      return '<label class="jp-trous-admin-med">'
+        + '<input type="checkbox" name="quizMed" value="' + global.JpUi.escapeHtml(med.id) + '"'
+        + (q.medsCoches.has(med.id) ? ' checked' : '') + '>'
+        + '<span>' + global.JpUi.escapeHtml(label) + '</span></label>';
+    }).join('');
+
+    wrap.querySelectorAll('input[name="quizMed"]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        if (el.checked) q.medsCoches.add(el.value);
+        else q.medsCoches.delete(el.value);
+        updateQuizMedsCount(q);
+      });
+    });
+    updateQuizMedsCount(q);
+  }
+
+  function onQuizFiltresChange(q) {
+    syncQuizFiltresFromDom(q);
+    renderQuizMedsList(q);
+  }
+
+  function renderQuizQuestions(q) {
+    const wrap = $('quizQuestionsList');
+    if (!wrap) return;
+    const list = q.questions || [];
+    updateQuizQuestionsCount(q);
+    if (!list.length) {
+      wrap.innerHTML = '<p class="jp-muted">Aucune question — cliquez « Générer les questions ».</p>';
+      return;
+    }
+
+    wrap.innerHTML = list.map(function (item, idx) {
+      const props = (item.propositions || []).map(function (p) {
+        const cls = p.correct ? 'jp-quiz-q-prop is-correct' : 'jp-quiz-q-prop';
+        return '<li class="' + cls + '">' + global.JpUi.escapeHtml(p.valeur || '') + '</li>';
+      }).join('');
+      const champ = global.JpQuizz.champLibelle(item.champ_code);
+      return '<article class="jp-quiz-q-item" data-quiz-q="' + idx + '">'
+        + '<div class="jp-quiz-q-item-head">'
+        + '<h3 class="jp-quiz-q-item-title">Q' + (idx + 1) + ' · '
+        + global.JpUi.escapeHtml(champ) + '</h3>'
+        + '<div class="jp-quiz-q-item-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-quiz-regen="' + idx + '">Régénérer</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-quiz-del="' + idx + '">Supprimer</button>'
+        + '</div></div>'
+        + '<p class="jp-quiz-q-enonce">' + global.JpUi.escapeHtml(item.enonce || '') + '</p>'
+        + '<ul class="jp-quiz-q-props">' + props + '</ul>'
+        + '</article>';
+    }).join('');
+
+    wrap.querySelectorAll('[data-quiz-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const i = Number(btn.getAttribute('data-quiz-del'));
+        if (!Number.isFinite(i)) return;
+        q.questions.splice(i, 1);
+        q.questions = global.JpQuizz.renumeroter(q.questions);
+        renderQuizQuestions(q);
+        updateQuizRecap(q);
+      });
+    });
+    wrap.querySelectorAll('[data-quiz-regen]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const i = Number(btn.getAttribute('data-quiz-regen'));
+        if (!Number.isFinite(i)) return;
+        void regenererQuizQuestion(q, i);
+      });
+    });
+  }
+
+  function quizGenOpts(q) {
+    syncQuizParams(q);
+    return {
+      meds: quizPool(q),
+      champs: q.champs,
+      niveau: $('quizNiveau').value || null,
+      nb_propositions: q.nbPropositions,
+    };
+  }
+
+  function genererQuizQuestions(q) {
+    syncQuizParams(q);
+    const pool = quizPool(q);
+    if (!pool.length) throw new Error('Cochez au moins un médicament (étape 1)');
+    if (!q.champs.length) throw new Error('Sélectionnez au moins un champ (étape 2)');
+    const nb = readQuizNbQuestions();
+    const props = readQuizNbProp();
+    q.nbQuestions = nb;
+    q.nbPropositions = props;
+    q.questions = global.JpQuizz.renumeroter(global.JpQuizz.genererQuestions({
+      meds: pool,
+      champs: q.champs,
+      niveau: $('quizNiveau').value || null,
+      nb_questions: nb,
+      nb_propositions: props,
+    }));
+    renderQuizQuestions(q);
+    updateQuizRecap(q);
+    global.JpToast.ok(q.questions.length + ' question' + (q.questions.length > 1 ? 's' : '') + ' générée'
+      + (q.questions.length > 1 ? 's' : ''));
+  }
+
+  function ajouterQuizQuestion(q) {
+    const opts = quizGenOpts(q);
+    if (!opts.meds.length) throw new Error('Cochez au moins un médicament (étape 1)');
+    if (!opts.champs.length) throw new Error('Sélectionnez au moins un champ (étape 2)');
+    if ((q.questions || []).length >= 50) throw new Error('Maximum 50 questions');
+    const avoid = (q.questions || []).map(function (item) {
+      return String(item.matrice_id) + '|' + item.champ_code;
+    });
+    const one = global.JpQuizz.genererUneQuestion(Object.assign({}, opts, { avoidKeys: avoid }));
+    if (!one) throw new Error('Impossible de générer une question supplémentaire avec ces contraintes');
+    q.questions.push(one);
+    q.questions = global.JpQuizz.renumeroter(q.questions);
+    renderQuizQuestions(q);
+    updateQuizRecap(q);
+    global.JpToast.ok('Question ajoutée');
+  }
+
+  function regenererQuizQuestion(q, index) {
+    try {
+      const opts = quizGenOpts(q);
+      if (!opts.meds.length) throw new Error('Cochez au moins un médicament (étape 1)');
+      if (!opts.champs.length) throw new Error('Sélectionnez au moins un champ (étape 2)');
+      const avoid = (q.questions || []).map(function (item, i) {
+        if (i === index) return null;
+        return String(item.matrice_id) + '|' + item.champ_code;
+      }).filter(Boolean);
+      const one = global.JpQuizz.genererUneQuestion(Object.assign({}, opts, { avoidKeys: avoid }));
+      if (!one) throw new Error('Impossible de régénérer cette question');
+      q.questions[index] = one;
+      q.questions = global.JpQuizz.renumeroter(q.questions);
+      renderQuizQuestions(q);
+      updateQuizRecap(q);
+      global.JpToast.ok('Question régénérée');
+    } catch (e) {
+      global.JpToast.fromError(e);
+    }
+  }
+
+  async function refreshQuizMeds(q) {
+    const niveau = $('quizNiveau').value || null;
+    q.niveau = niveau;
+    syncQuizFiltresFromDom(q);
+    q.allMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
+    const allowed = new Set(q.allMeds.map(function (m) { return m.id; }));
+    const next = new Set();
+    q.medsCoches.forEach(function (id) {
+      if (allowed.has(id)) next.add(id);
+    });
+    q.medsCoches = next;
+    renderQuizMedsList(q);
+  }
+
+  function initQuizForm(state) {
+    const q = state.quiz;
     const champsList = $('quizChampsList');
-    const defaultChamps = ['classe_pharmacologique', 'dci', 'classe_therapeutique'];
+    const defaultChamps = q.champs.slice();
     (global.JpConstants.CHAMP_CODES || []).forEach(function (c) {
       const id = 'quiz_ch_' + c.code;
       const label = document.createElement('label');
@@ -114,33 +377,98 @@
       champsList.querySelectorAll('input[name="quizChamp"]').forEach(function (el) {
         el.checked = checked;
       });
+      syncQuizChamps(q);
     }
     $('quizBtnChampsTous').addEventListener('click', function () { setAll(true); });
     $('quizBtnChampsAucun').addEventListener('click', function () { setAll(false); });
+    champsList.addEventListener('change', function () { syncQuizChamps(q); });
+
+    document.querySelectorAll('[data-quiz-etape]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        setQuizEtape(q, btn.getAttribute('data-quiz-etape'));
+      });
+    });
+    setQuizEtape(q, 1);
+
+    $('quizFiltreTexte').addEventListener('input', function () { onQuizFiltresChange(q); });
+    $('quizFiltreSecteurs').addEventListener('change', function () { onQuizFiltresChange(q); });
+    $('quizFiltreClassesTher').addEventListener('change', function () { onQuizFiltresChange(q); });
+    $('quizFiltreClassesPharma').addEventListener('change', function () { onQuizFiltresChange(q); });
+
+    $('quizBtnMedsAllVisible').addEventListener('click', function () {
+      quizMedsFiltres(q).forEach(function (med) { q.medsCoches.add(med.id); });
+      renderQuizMedsList(q);
+    });
+    $('quizBtnMedsNone').addEventListener('click', function () {
+      q.medsCoches.clear();
+      renderQuizMedsList(q);
+    });
+
+    $('quizNiveau').addEventListener('change', async function () {
+      try {
+        await refreshQuizMeds(q);
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    });
+
+    $('quizBtnGenerer').addEventListener('click', function () {
+      try {
+        genererQuizQuestions(q);
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    });
+    $('quizBtnAjouterQ').addEventListener('click', function () {
+      try {
+        ajouterQuizQuestion(q);
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    });
+
+    $('quizMode').addEventListener('change', function () { updateQuizRecap(q); });
+    $('quizNbQ').addEventListener('change', function () { syncQuizParams(q); });
+    $('quizNbProp').addEventListener('change', function () { syncQuizParams(q); });
+
+    renderQuizQuestions(q);
   }
 
-  async function submitQuiz() {
-    const champs = Array.from(document.querySelectorAll('input[name="quizChamp"]:checked')).map(function (el) {
-      return el.value;
-    });
-    const created = await global.JpQuizz.createAndGenerate({
+  async function submitQuiz(state) {
+    const q = state.quiz;
+    syncQuizParams(q);
+    syncQuizFiltresFromDom(q);
+    setQuizEtape(q, 4);
+    if (!(q.questions || []).length) {
+      throw new Error('Générez au moins une question (étape 3)');
+    }
+    const snap = global.JpQuizz.renumeroter(q.questions);
+    const created = await global.JpQuizz.createWithSnapshot({
       titre: $('quizTitre').value,
-      secteur_therapeutique_id: $('quizSecteur').value || null,
+      secteur_therapeutique_id: q.filtres.secteurs.length === 1 ? q.filtres.secteurs[0] : null,
       niveau_cible: $('quizNiveau').value,
       mode: $('quizMode').value,
-      champs_interroges: champs,
-      nb_questions: Number($('quizNbQ').value),
-      nb_propositions: Number($('quizNbProp').value),
+      champs_interroges: q.champs,
+      nb_questions: snap.length,
+      nb_propositions: q.nbPropositions,
+      filtres: {
+        secteurs: q.filtres.secteurs.slice(),
+        classes_ther: q.filtres.classesTher.slice(),
+        classes_pharma: q.filtres.classesPharma.slice(),
+        texte: q.filtres.texte || '',
+      },
+      snapshot_questions: snap,
     });
     const box = $('resultBox');
     box.hidden = false;
     $('resultCode').textContent = created.code_unique;
     $('resultMeta').textContent =
-      'Quiz · ' + created.titre + ' · ' + global.JpQuizz.modeLibelle(created.mode) + ' · ' + created.niveau_cible;
+      'Quiz · ' + created.titre + ' · ' + global.JpQuizz.modeLibelle(created.mode) + ' · ' + created.niveau_cible
+      + ' · ' + snap.length + ' Q';
     $('resultPlay').href = '../quiz/jouer.html?code=' + encodeURIComponent(created.code_unique);
     $('resultPrint').href = '../quiz/imprimer.html?code=' + encodeURIComponent(created.code_unique);
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    global.JpToast.ok('Quiz généré : ' + created.code_unique);
+    global.JpToast.ok('Quiz créé : ' + created.code_unique);
   }
 
   /* —— Trous form —— */
@@ -1234,6 +1562,7 @@
     global.JpUi.bootPage({ module: 'admin-jeux', homeHref: global.JpFab.PORTAIL_URL });
 
     const state = {
+      quiz: createQuizState(),
       trous: createTrousState(),
       histoFilter: 'tous',
       histoKind: 'tous',
@@ -1272,14 +1601,8 @@
       fillNiveaux($('trousNiveau')),
     ]);
 
-    initQuizForm();
+    initQuizForm(state);
     initTrousForm(state);
-
-    try {
-      await fillSecteurs($('quizSecteur'));
-    } catch (e) {
-      global.JpToast.fromError(e);
-    }
 
     try {
       const [secteurs, classesTher, classesPharma] = await Promise.all([
@@ -1287,6 +1610,9 @@
         global.JpEntites.list('classes_therapeutiques', { actif: true }),
         global.JpEntites.list('classes_pharmacologiques', { actif: true }),
       ]);
+      fillFiltreCheckboxes('quizFiltreSecteurs', secteurs, 'quizFiltreSecteur', []);
+      fillFiltreCheckboxes('quizFiltreClassesTher', classesTher, 'quizFiltreClasseTher', []);
+      fillFiltreCheckboxes('quizFiltreClassesPharma', classesPharma, 'quizFiltreClassePharma', []);
       fillFiltreCheckboxes('trousFiltreSecteurs', secteurs, 'trousFiltreSecteur', []);
       fillFiltreCheckboxes('trousFiltreClassesTher', classesTher, 'trousFiltreClasseTher', []);
       fillFiltreCheckboxes('trousFiltreClassesPharma', classesPharma, 'trousFiltreClassePharma', []);
@@ -1294,6 +1620,12 @@
       global.JpToast.fromError(e);
     }
 
+    try {
+      await refreshQuizMeds(state.quiz);
+    } catch (e) {
+      global.JpToast.fromError(e);
+      $('quizMedsList').innerHTML = '<p class="jp-muted">Impossible de charger les médicaments.</p>';
+    }
     try {
       await refreshTrousMeds(state.trous);
     } catch (e) {
@@ -1306,6 +1638,7 @@
       const tab = currentType();
       if (tab === 'historique') return;
       if (tab === 'quiz') {
+        setQuizEtape(state.quiz, 4);
         if (!$('quizForm').reportValidity()) return;
       } else {
         setTrousEtape(state.trous, 4);
@@ -1313,7 +1646,7 @@
       }
       btn.disabled = true;
       try {
-        if (tab === 'quiz') await submitQuiz();
+        if (tab === 'quiz') await submitQuiz(state);
         else await submitTrous(state);
       } catch (e) {
         global.JpToast.fromError(e);

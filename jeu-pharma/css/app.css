@@ -1151,6 +1151,40 @@ body > a[title="Retour au portail"] {
   color: var(--jp-text-muted);
 }
 
+.jp-ac-wrap {
+  position: relative;
+}
+
+.jp-ac-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.2rem;
+  max-height: 10.5rem;
+  overflow: auto;
+  border: 1px solid var(--jp-line);
+  border-radius: calc(var(--jp-radius-sm) - 1px);
+  background: var(--jp-bg-elevated);
+  box-shadow: 0 4px 14px rgba(15, 40, 35, 0.08);
+}
+
+.jp-ac-list[hidden] {
+  display: none;
+}
+
+.jp-ac-item {
+  padding: 0.4rem 0.55rem;
+  border-radius: 4px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--jp-text);
+}
+
+.jp-ac-item:hover,
+.jp-ac-item.is-active {
+  background: rgba(15, 107, 92, 0.1);
+  color: var(--jp-accent);
+}
+
 .jp-med-niveaux-compact {
   display: flex;
   flex-wrap: wrap;
@@ -1369,6 +1403,10 @@ body > a[title="Retour au portail"] {
   gap: 0.85rem;
 }
 
+.jp-quiz-admin-panel-body[hidden] {
+  display: none !important;
+}
+
 .jp-quiz-admin-panel-body .jp-field,
 .jp-quiz-admin-panel-body .jp-split {
   margin: 0;
@@ -1512,7 +1550,8 @@ body > a[title="Retour au portail"] {
   margin-top: 1rem;
 }
 
-/* Trous : création guidée (étapes + aperçu) */
+/* Création guidée (quiz + trous) : étapes */
+.jp-jeu-etapes,
 .jp-trous-etapes {
   display: inline-flex;
   flex-wrap: wrap;
@@ -1524,6 +1563,7 @@ body > a[title="Retour au portail"] {
   border-radius: var(--jp-radius-sm);
 }
 
+.jp-jeu-etape-btn,
 .jp-trous-etape-btn {
   font: inherit;
   font-size: 0.85rem;
@@ -1536,10 +1576,70 @@ body > a[title="Retour au portail"] {
   cursor: pointer;
 }
 
+.jp-jeu-etape-btn.is-active,
+.jp-jeu-etape-btn[aria-selected="true"],
 .jp-trous-etape-btn.is-active,
 .jp-trous-etape-btn[aria-selected="true"] {
   background: var(--jp-accent);
   color: #fff;
+}
+
+/* Quiz : liste de questions (étape 3) */
+.jp-quiz-q-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.jp-quiz-q-item {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+}
+
+.jp-quiz-q-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.jp-quiz-q-item-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.jp-quiz-q-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.jp-quiz-q-item-actions .jp-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+.jp-quiz-q-enonce {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.jp-quiz-q-props {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.9rem;
+  color: var(--jp-text-muted);
+}
+
+.jp-quiz-q-prop.is-correct {
+  color: var(--jp-text);
+  font-weight: 600;
 }
 
 .jp-trous-preview {

@@ -35,8 +35,8 @@ alwaysApply: true
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
 - BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
 - Admin contenu : une page `admin/catalogue.html` (« Modification du catalogue ») — table type catalogue joueur, édition fiche, import CSV, fusion (`fusionner_entites`), niveaux bulk. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
-- Admin jeux : une page `admin/jeux.html` (« Création jeu ») — onglets Historique | Quiz | Tableau à trous (`?type=historique|quiz|trous`) ; Historique = parties filtrées ; Quiz/Trous = création ; scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
-- Quiz = assemblage algorithmique de QCM depuis fiches `publie` + distracteurs même secteur (RPC), zéro IA.
+- Admin jeux : une page `admin/jeux.html` (« Création jeu ») — onglets Historique | Quiz | Tableau à trous (`?type=historique|quiz|trous`) ; Historique = parties filtrées ; Quiz/Trous = création guidée en étapes ; scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
+- Quiz (création admin) : 4 étapes (médicaments/filtres multi → paramètres → questions éditables → titre) ; génération QCM **client** (`JpQuizz.genererQuestions`) + insert snapshot fidèle (`createWithSnapshot`) ; delete / régénérer une question ; RPC `generer_et_geler_quiz` = legacy / regénération globale. Zéro IA.
 
 ## Droits
 - Admin métier = `portail.profiles.role === 'admin'` uniquement.

@@ -56,39 +56,61 @@
 
     <!-- Panel Quiz -->
     <div id="panelQuiz" role="tabpanel">
-      <form id="quizForm" class="jp-quiz-admin" novalidate>
-        <section class="jp-quiz-admin-panel" aria-labelledby="quizIdentiteTitle">
-          <h2 id="quizIdentiteTitle" class="jp-quiz-admin-panel-title">Identité</h2>
+      <form id="quizForm" class="jp-quiz-admin jp-quiz-create" novalidate>
+        <nav class="jp-jeu-etapes jp-trous-etapes" role="tablist" aria-label="Étapes de création du quiz">
+          <button type="button" class="jp-jeu-etape-btn jp-trous-etape-btn is-active" role="tab" data-quiz-etape="1" aria-selected="true">1. Médicaments</button>
+          <button type="button" class="jp-jeu-etape-btn jp-trous-etape-btn" role="tab" data-quiz-etape="2" aria-selected="false">2. Paramètres</button>
+          <button type="button" class="jp-jeu-etape-btn jp-trous-etape-btn" role="tab" data-quiz-etape="3" aria-selected="false">3. Questions</button>
+          <button type="button" class="jp-jeu-etape-btn jp-trous-etape-btn" role="tab" data-quiz-etape="4" aria-selected="false">4. Titre</button>
+        </nav>
+
+        <section id="quizEtape1" class="jp-quiz-admin-panel jp-quiz-etape-panel" data-quiz-panel="1" aria-labelledby="quizMedsTitle">
+          <h2 id="quizMedsTitle" class="jp-quiz-admin-panel-title">1. Médicaments</h2>
           <div class="jp-quiz-admin-panel-body">
             <div class="jp-field">
-              <label for="quizTitre">Titre</label>
-              <input id="quizTitre" name="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — classes">
+              <label for="quizNiveau">Niveau cible</label>
+              <select id="quizNiveau" name="niveau" required></select>
             </div>
-            <div class="jp-split jp-split-2">
+
+            <div class="jp-trous-filtres" aria-label="Filtres">
               <div class="jp-field">
-                <label for="quizSecteur">Secteur (optionnel)</label>
-                <select id="quizSecteur" name="secteur">
-                  <option value="">Tous</option>
-                </select>
+                <span class="jp-field-label">Secteur thérapeutique</span>
+                <div id="quizFiltreSecteurs" class="jp-trous-filtre-list" role="group" aria-label="Secteurs"></div>
               </div>
               <div class="jp-field">
-                <label for="quizNiveau">Niveau cible</label>
-                <select id="quizNiveau" name="niveau" required></select>
+                <span class="jp-field-label">Classe thérapeutique</span>
+                <div id="quizFiltreClassesTher" class="jp-trous-filtre-list" role="group" aria-label="Classes thérapeutiques"></div>
+              </div>
+              <div class="jp-field">
+                <span class="jp-field-label">Classe pharmacologique</span>
+                <div id="quizFiltreClassesPharma" class="jp-trous-filtre-list" role="group" aria-label="Classes pharmacologiques"></div>
+              </div>
+              <div class="jp-field jp-trous-filtre-search">
+                <label for="quizFiltreTexte">Recherche texte</label>
+                <input id="quizFiltreTexte" type="search" placeholder="Nom commercial ou DCI…" autocomplete="off">
               </div>
             </div>
-            <div class="jp-field">
-              <label for="quizMode">Mode</label>
-              <select id="quizMode" name="mode">
-                <option value="entrainement">Entraînement</option>
-                <option value="evaluation">Évaluation</option>
-              </select>
+
+            <div class="jp-trous-admin-meds-toolbar">
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnMedsAllVisible">Tout cocher (visibles)</button>
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnMedsNone">Aucun</button>
+              <span id="quizMedsCount" class="jp-muted"></span>
             </div>
+            <div id="quizMedsList" class="jp-trous-admin-meds-list" role="group" aria-label="Médicaments candidats"></div>
           </div>
         </section>
 
-        <section class="jp-quiz-admin-panel" aria-labelledby="quizQuestionsTitle">
-          <h2 id="quizQuestionsTitle" class="jp-quiz-admin-panel-title">Questions</h2>
+        <section id="quizEtape2" class="jp-quiz-admin-panel jp-quiz-admin-panel-champs jp-quiz-etape-panel" data-quiz-panel="2" hidden aria-labelledby="quizParamsTitle">
+          <div class="jp-quiz-admin-panel-head">
+            <h2 id="quizParamsTitle" class="jp-quiz-admin-panel-title">2. Paramètres</h2>
+            <div class="jp-quiz-admin-champs-actions">
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnChampsTous">Tous</button>
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnChampsAucun">Aucun</button>
+            </div>
+          </div>
           <div class="jp-quiz-admin-panel-body">
+            <div id="quizChampsList" class="jp-quiz-admin-champs-grid" role="group" aria-label="Champs interrogés"></div>
+            <p class="jp-muted jp-quiz-admin-champs-hint">Au moins un champ requis.</p>
             <div class="jp-split jp-split-2">
               <div class="jp-field">
                 <label for="quizNbQ">Nombre de questions</label>
@@ -102,17 +124,34 @@
           </div>
         </section>
 
-        <section class="jp-quiz-admin-panel jp-quiz-admin-panel-champs" aria-labelledby="quizChampsTitle">
-          <div class="jp-quiz-admin-panel-head">
-            <h2 id="quizChampsTitle" class="jp-quiz-admin-panel-title">Champs interrogés</h2>
-            <div class="jp-quiz-admin-champs-actions">
-              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnChampsTous">Tous</button>
-              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnChampsAucun">Aucun</button>
-            </div>
-          </div>
+        <section id="quizEtape3" class="jp-quiz-admin-panel jp-quiz-etape-panel" data-quiz-panel="3" hidden aria-labelledby="quizQuestionsTitle">
+          <h2 id="quizQuestionsTitle" class="jp-quiz-admin-panel-title">3. Questions</h2>
           <div class="jp-quiz-admin-panel-body">
-            <div id="quizChampsList" class="jp-quiz-admin-champs-grid" role="group" aria-label="Champs interrogés"></div>
-            <p class="jp-muted jp-quiz-admin-champs-hint">Au moins un champ requis.</p>
+            <div class="jp-trous-admin-meds-toolbar">
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnGenerer">Générer les questions</button>
+              <button type="button" class="jp-btn jp-btn-ghost" id="quizBtnAjouterQ">Ajouter une question</button>
+              <span id="quizQuestionsCount" class="jp-muted"></span>
+            </div>
+            <p class="jp-muted">La liste affichée sera enregistrée telle quelle (pas de re-tirage à la création).</p>
+            <div id="quizQuestionsList" class="jp-quiz-q-list" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section id="quizEtape4" class="jp-quiz-admin-panel jp-quiz-etape-panel" data-quiz-panel="4" hidden aria-labelledby="quizTitreTitle">
+          <h2 id="quizTitreTitle" class="jp-quiz-admin-panel-title">4. Titre et création</h2>
+          <div class="jp-quiz-admin-panel-body">
+            <div class="jp-field">
+              <label for="quizTitre">Titre</label>
+              <input id="quizTitre" name="titre" type="text" required maxlength="200" placeholder="Ex. Cardiologie — classes">
+            </div>
+            <div class="jp-field">
+              <label for="quizMode">Mode</label>
+              <select id="quizMode" name="mode">
+                <option value="entrainement">Entraînement</option>
+                <option value="evaluation">Évaluation</option>
+              </select>
+            </div>
+            <div id="quizRecap" class="jp-trous-recap jp-muted"></div>
           </div>
         </section>
       </form>

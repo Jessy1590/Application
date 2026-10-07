@@ -320,6 +320,12 @@
       let csvText = '';
       let lastDry = null;
       let pendingSave = null;
+      /** Cache entités actives par table (suggestions fiche). */
+      let entityCache = {};
+      let acActiveCode = null;
+      let acHighlight = -1;
+      let acBlurTimer = null;
+      const AC_MAX = 12;
 
       function defaultPrefs() {
         return {
@@ -720,21 +726,27 @@
         const span = c.card === 'N' || c.code === 'detail_pharmacologie' || c.code === 'posologie_generale' || c.code === 'grossesse_allaitement'
           ? ' jp-field-span-2'
           : '';
+        const sugId = 'sug_' + c.code;
         if (c.card === 1) {
           return `
-            <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="1">
+            <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="1" data-table="${esc(c.table)}">
               <label for="val_${esc(c.code)}">${esc(c.libelle)}</label>
-              <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" list="dl_${esc(c.code)}" autocomplete="off" data-entity-id="">
-              <datalist id="dl_${esc(c.code)}"></datalist>
+              <div class="jp-ac-wrap">
+                <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" autocomplete="off" data-entity-id="" data-ac-code="${esc(c.code)}" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false">
+                <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+              </div>
               <span class="jp-field-label">Niveaux</span>
               ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
             </div>
           `;
         }
         return `
-          <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="N">
+          <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="N" data-table="${esc(c.table)}">
             <label for="val_${esc(c.code)}">${esc(c.libelle)} <span class="jp-muted">(une valeur / ligne)</span></label>
-            <textarea id="val_${esc(c.code)}" name="val_${esc(c.code)}" rows="3"></textarea>
+            <div class="jp-ac-wrap">
+              <textarea id="val_${esc(c.code)}" name="val_${esc(c.code)}" rows="3" autocomplete="off" data-ac-code="${esc(c.code)}" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false"></textarea>
+              <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+            </div>
             <span class="jp-field-label">Niveaux (toutes les lignes)</span>
             ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
           </div>
@@ -773,7 +785,196 @@
         host.innerHTML = parts.join('');
         host.addEventListener('click', onNivClick);
         host.addEventListener('change', refreshWarns);
+        bindFieldAutocomplete(host);
         // Conserver data-entity-id (baseline) pour proposer le choix de portée à l’enregistrement.
+      }
+
+      /* —— Autocomplétion entités (local, cache JpEntites) —— */
+      function queryForField(el, card) {
+        if (card === 1) return String(el.value || '').trim();
+        const info = currentLineInfo(el);
+        return String(info.line || '').trim();
+      }
+
+      function currentLineInfo(ta) {
+        const v = String(ta.value || '');
+        const pos = typeof ta.selectionStart === 'number' ? ta.selectionStart : v.length;
+        const before = v.slice(0, pos);
+        const lineStart = before.lastIndexOf('\n') + 1;
+        const after = v.slice(pos);
+        const nl = after.indexOf('\n');
+        const lineEnd = nl < 0 ? v.length : pos + nl;
+        return { lineStart, lineEnd, line: v.slice(lineStart, lineEnd) };
+      }
+
+      function filterEntitySuggestions(table, rawQuery) {
+        const q = JpEntites.normaliser(rawQuery);
+        if (!q) return [];
+        const rows = entityCache[table] || [];
+        const matched = [];
+        for (const r of rows) {
+          const n = JpEntites.normaliser(r.valeur);
+          if (!n || !n.includes(q)) continue;
+          matched.push({
+            id: r.id,
+            valeur: r.valeur,
+            prefix: n.startsWith(q) ? 0 : 1,
+          });
+        }
+        matched.sort((a, b) => a.prefix - b.prefix || a.valeur.localeCompare(b.valeur, 'fr'));
+        return matched.slice(0, AC_MAX);
+      }
+
+      function hideSuggestions(code) {
+        const codes = code ? [code] : CHAMPS.map((c) => c.code);
+        let closed = false;
+        for (const c of codes) {
+          const list = document.getElementById('sug_' + c);
+          const input = document.getElementById('val_' + c);
+          if (list && !list.hidden) {
+            list.hidden = true;
+            list.innerHTML = '';
+            closed = true;
+          }
+          if (input) input.setAttribute('aria-expanded', 'false');
+        }
+        if (!code || acActiveCode === code) {
+          acActiveCode = null;
+          acHighlight = -1;
+        }
+        return closed;
+      }
+
+      function renderSuggestions(code, items) {
+        const list = document.getElementById('sug_' + code);
+        const input = document.getElementById('val_' + code);
+        if (!list || !input) return;
+        if (!items.length) {
+          hideSuggestions(code);
+          return;
+        }
+        acActiveCode = code;
+        acHighlight = -1;
+        list.innerHTML = items.map((it, i) =>
+          `<li role="option" class="jp-ac-item" data-ac-idx="${i}" data-ac-id="${esc(it.id)}" data-ac-valeur="${esc(it.valeur)}" id="sug_${esc(code)}_${i}">${esc(it.valeur)}</li>`
+        ).join('');
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      }
+
+      function updateSuggestions(code) {
+        const c = champByCode(code);
+        const input = document.getElementById('val_' + code);
+        if (!c || !input) return;
+        const q = queryForField(input, c.card);
+        if (!q) {
+          hideSuggestions(code);
+          return;
+        }
+        const exact = JpEntites.normaliser(q);
+        // Exclure la correspondance exacte (valeur déjà saisie) ; laisser les proches.
+        const show = filterEntitySuggestions(c.table, q).filter(
+          (it) => JpEntites.normaliser(it.valeur) !== exact
+        );
+        if (!show.length) {
+          hideSuggestions(code);
+          return;
+        }
+        renderSuggestions(code, show);
+      }
+
+      function applySuggestion(code, id, valeur) {
+        const c = champByCode(code);
+        const input = document.getElementById('val_' + code);
+        if (!c || !input || !valeur) return;
+        if (c.card === 1) {
+          input.value = valeur;
+          input.dataset.entityId = id || '';
+        } else {
+          const info = currentLineInfo(input);
+          const before = input.value.slice(0, info.lineStart);
+          const after = input.value.slice(info.lineEnd);
+          input.value = before + valeur + after;
+          const caret = info.lineStart + valeur.length;
+          input.setSelectionRange(caret, caret);
+        }
+        hideSuggestions(code);
+        input.focus();
+        refreshWarns();
+      }
+
+      function moveAcHighlight(delta) {
+        if (!acActiveCode) return;
+        const list = document.getElementById('sug_' + acActiveCode);
+        if (!list || list.hidden) return;
+        const items = [...list.querySelectorAll('.jp-ac-item')];
+        if (!items.length) return;
+        items.forEach((el) => el.classList.remove('is-active'));
+        acHighlight = (acHighlight + delta + items.length) % items.length;
+        const cur = items[acHighlight];
+        cur.classList.add('is-active');
+        cur.scrollIntoView({ block: 'nearest' });
+        const input = document.getElementById('val_' + acActiveCode);
+        if (input) input.setAttribute('aria-activedescendant', cur.id);
+      }
+
+      function bindFieldAutocomplete(host) {
+        host.addEventListener('input', (e) => {
+          const el = e.target.closest('[data-ac-code]');
+          if (!el) return;
+          updateSuggestions(el.getAttribute('data-ac-code'));
+        });
+        host.addEventListener('focusin', (e) => {
+          const el = e.target.closest('[data-ac-code]');
+          if (!el) return;
+          clearTimeout(acBlurTimer);
+          updateSuggestions(el.getAttribute('data-ac-code'));
+        });
+        host.addEventListener('focusout', (e) => {
+          const el = e.target.closest('[data-ac-code]');
+          if (!el) return;
+          const code = el.getAttribute('data-ac-code');
+          acBlurTimer = setTimeout(() => hideSuggestions(code), 160);
+        });
+        host.addEventListener('click', (e) => {
+          const el = e.target.closest('textarea[data-ac-code]');
+          if (!el) return;
+          updateSuggestions(el.getAttribute('data-ac-code'));
+        });
+        host.addEventListener('keydown', (e) => {
+          const el = e.target.closest('[data-ac-code]');
+          if (!el) return;
+          const code = el.getAttribute('data-ac-code');
+          const list = document.getElementById('sug_' + code);
+          const open = list && !list.hidden;
+          if (e.key === 'ArrowDown' && open) {
+            e.preventDefault();
+            moveAcHighlight(1);
+          } else if (e.key === 'ArrowUp' && open) {
+            e.preventDefault();
+            moveAcHighlight(-1);
+          } else if (e.key === 'Enter' && open && acHighlight >= 0) {
+            const item = list.querySelector(`.jp-ac-item[data-ac-idx="${acHighlight}"]`);
+            if (item) {
+              e.preventDefault();
+              applySuggestion(code, item.getAttribute('data-ac-id'), item.getAttribute('data-ac-valeur'));
+            }
+          } else if (e.key === 'Escape' && open) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideSuggestions(code);
+          }
+        });
+        host.addEventListener('mousedown', (e) => {
+          const item = e.target.closest('.jp-ac-item');
+          if (!item) return;
+          e.preventDefault();
+          clearTimeout(acBlurTimer);
+          const list = item.closest('.jp-ac-list');
+          const code = list?.id?.replace(/^sug_/, '');
+          if (!code) return;
+          applySuggestion(code, item.getAttribute('data-ac-id'), item.getAttribute('data-ac-valeur'));
+        });
       }
 
       function onNivClick(e) {
@@ -909,6 +1110,7 @@
       }
 
       function closeEditor() {
+        hideSuggestions();
         setEditingMode(false);
         editingId = null;
         baseline = null;
@@ -989,6 +1191,8 @@
             if (
               v &&
               id &&
+              base?.id &&
+              id === base.id &&
               base?.valeur != null &&
               JpEntites.normaliser(base.valeur) !== JpEntites.normaliser(v)
             ) {
@@ -1059,7 +1263,7 @@
           const saved = await JpMedicaments.save(payload, editingId);
           JpToast.ok('Fiche enregistrée');
           await refreshAll();
-          await loadDatalists();
+          await loadEntityCache();
           const row = all.find((r) => r.id === (saved?.id || editingId));
           if (row) openEditor(row);
           else closeEditor();
@@ -1071,15 +1275,17 @@
         }
       }
 
-      async function loadDatalists() {
-        for (const c of CHAMPS.filter((x) => x.card === 1)) {
-          const dl = document.getElementById('dl_' + c.code);
-          if (!dl) continue;
+      async function loadEntityCache() {
+        const tables = [...new Set(CHAMPS.map((c) => c.table).filter(Boolean))];
+        const next = {};
+        await Promise.all(tables.map(async (table) => {
           try {
-            const rows = await JpEntites.list(c.table, { actif: true, limit: 500 });
-            dl.innerHTML = rows.map((r) => `<option value="${esc(r.valeur)}"></option>`).join('');
-          } catch (_) { /* ignore */ }
-        }
+            next[table] = await JpEntites.list(table, { actif: true, limit: 500 });
+          } catch (_) {
+            next[table] = [];
+          }
+        }));
+        entityCache = next;
       }
 
       async function refreshAll() {
@@ -1481,7 +1687,7 @@
         bindCsv();
         bindFusion();
         bindNiveaux();
-        await loadDatalists();
+        await loadEntityCache();
         await refreshAll();
 
         document.getElementById('jpBtnNew').addEventListener('click', () => openEditor(null));
@@ -1555,6 +1761,7 @@
               return;
             }
             if (isEditorOpen()) {
+              if (hideSuggestions()) return;
               closeEditor();
               return;
             }
