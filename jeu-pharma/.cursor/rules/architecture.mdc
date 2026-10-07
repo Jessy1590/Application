@@ -19,8 +19,9 @@ alwaysApply: true
 
 ## Données
 - Schéma métier : **`jeupharma`** (minuscules).
-- Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, posologies, interactions, surveillances, grossesse/allaitement, voies.
+- Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ legacy en base : posologies, grossesse/allaitement, voies).
 - Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
+- Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, indications, CI, EI, précautions, interactions, surveillances — **pas** posologie / grossesse / voies (legacy, pas de DROP).
 - **`hospitalier`** (bool, défaut false) sur la matrice : fiche réservée au niveau pédagogique `pharmacien` (pas `portail.profiles.role`) ; marquage admin manuel, pas de seed.
 - Noms commerciaux : liaison multi `matrice_noms_commerciaux` (plus de FK singulière `nom_commercial_id`).
 - Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier`.
@@ -29,12 +30,12 @@ alwaysApply: true
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `005_hospitalier` ; ne pas réappliquer sans check (voir STATE.md).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `006_catalogue_champs_actifs_notes` ; ne pas réappliquer sans check (voir STATE.md).
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
-- BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI, posologie…) reste saisie cours. Pas d’OCR ni d’IA en v1.
-- Admin contenu : une page `admin/catalogue.html` (« Modification du catalogue ») — table type catalogue joueur, édition fiche, import CSV, fusion (`fusionner_entites`), niveaux bulk. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
+- BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI…) reste saisie cours. Pas d’OCR ni d’IA en v1.
+- Admin contenu : une page `admin/catalogue.html` — table + modal fiche (picker chips / ids), filtre « Lié à », import CSV champs actifs, fusion + scanner doublons `valeur_norm`, niveaux bulk. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
 - Admin jeux : une page `admin/jeux.html` (« Création jeu ») — onglets Historique | Quiz | Tableau à trous (`?type=historique|quiz|trous`) ; Historique = parties filtrées ; Quiz/Trous = création guidée en étapes ; scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
 - Quiz (création admin) : 4 étapes (médicaments/filtres multi → paramètres → questions éditables → titre) ; génération QCM **client** (`JpQuizz.genererQuestions`) + insert snapshot fidèle (`createWithSnapshot`) ; delete / régénérer une question ; RPC `generer_et_geler_quiz` = legacy / regénération globale. Zéro IA.
 

@@ -1185,6 +1185,105 @@ body > a[title="Retour au portail"] {
   color: var(--jp-accent);
 }
 
+.jp-ac-item.jp-ac-create {
+  font-style: italic;
+  border-top: 1px solid var(--jp-line);
+  margin-top: 0.15rem;
+  padding-top: 0.45rem;
+}
+
+.jp-entity-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.jp-entity-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 0;
+}
+
+.jp-entity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.2rem 0.35rem 0.2rem 0.55rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  font-size: 0.85rem;
+  color: var(--jp-text);
+}
+
+.jp-entity-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-entity-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--jp-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.jp-entity-chip-remove:hover {
+  background: rgba(15, 40, 35, 0.08);
+  color: var(--jp-text);
+}
+
+.jp-entity-singular-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.jp-entity-singular-row .jp-ac-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.jp-entity-clear {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.jp-fusion-doublons {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--jp-line);
+}
+
+.jp-fusion-doublons-list {
+  margin-top: 0.75rem;
+}
+
+.jp-fusion-doublon-group {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg);
+}
+
+.jp-fusion-doublon-group ul {
+  margin: 0.4rem 0 0.55rem;
+  padding-left: 1.1rem;
+}
+
 .jp-med-niveaux-compact {
   display: flex;
   flex-wrap: wrap;

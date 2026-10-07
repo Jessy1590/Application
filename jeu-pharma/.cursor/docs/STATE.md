@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — refonte création quiz (4 étapes + filtres multi + snapshot client) ; création trous (4 étapes + aperçu) ; hospitalier (`005`) + catalogue RCP (`004`) + score manuel ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-07 — catalogue entités liées (champs actifs, picker chips par id, filtre « Lié à », CSV/fusion) ; refonte quiz/trous ; hospitalier (`005`) + catalogue RCP (`004`) ; modèle DCI-centrique (`002`) inchangé.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -51,14 +51,26 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - vue `v_medicaments_complet.hospitalier`
   - `generer_et_geler_quiz` : exclut hospitalier si `niveau_cible <> 'pharmacien'`
   - Filtre client : catalogue joueur + trous (`JpMedicaments.visiblePourNiveau`) ; admin catalogue voit tout + case à cocher
+- [x] Notes **`006_catalogue_champs_actifs_notes.sql`** (pas de DDL) + audit dédup remote (2026-10-07) :
+  - **0** groupe actif en doublon exact `valeur_norm` (tables entités actives) — index unique `_valeur_norm_actif_uidx` respecté ; aucune fusion RPC nécessaire
+  - Pas de fusion sémantique (« AVC » vs « AVC ischémique ») — uniquement panneau Fusion / scanner doublons exacts
+
+## Catalogue — champs actifs & entités liées
+- Flag `actif` sur `JpConstants.CHAMP_CODES` + `champsActifs()` / `isChampActif()`.
+- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut, hospitalier, niveaux).
+- **Legacy masqués** (tables/données conservées) : posologie générale, grossesse & allaitement, voies d’administration — absents UI admin/joueur, CSV modèle, cases quiz/trous ; `JpMedicaments.save` ne touche plus ces FK/jonctions.
+- **Picker fiche** : chips multi `{ id, valeur }` + recherche ; « Créer … » seulement si pas de match exact `valeur_norm` ; singuliers id forcé (`data-entity-id`) + Effacer ; save priorise les ids.
+- **Filtre Paramètres → Lié à** : type d’entité + sélection entité → fiches via jonction / FK (`JpMedicaments.lieAEntite`).
+- **CSV** : en-têtes champs actifs ; dry-run refuse colonnes inconnues, ignore legacy si présentes ; import `findOrCreate` inchangé.
+- **Fusion** : RPC inchangé + scanner « doublons exacts valeur_norm » (garder le plus lié).
 
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
-- [x] SQL `sql/001` … `005_hospitalier.sql`.
+- [x] SQL `sql/001` … `006_catalogue_champs_actifs_notes.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
-- [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** dans Paramètres → Filtres (global = noms/DCI/secteur ; ou champ ciblé via `jpIncompletChamp`). Autocomplétion locale sous chaque champ entité du modal fiche (cache `JpEntites`, filtre `normaliser`, remplace l’ancien `<datalist>`).
+- [x] Admin contenu unifié : `admin/catalogue.html` (table + création/édition en modal `.jp-catalogue-fiche-modal` + import + fusion + niveaux) ; redirects depuis medicaments / import-export / fusion / entites. Filtre **Incomplètes** + filtre **Lié à** (type + entité). Picker chips / id forcé (plus de textareas multi).
 - [x] Admin jeux unifié : `admin/jeux.html` (« Création jeu ») — onglets **Historique** | Quiz | Tableau à trous ; Historique = liste filtrée (en cours / terminés / archivés) ; Quiz/Trous = création seule (même structure CSS `.jp-quiz-admin-*`) ; redirects `quizz.html` / `trous.html` → `?type=`.
 - [x] Trous jouer — flux score manuel (voir section ci-dessous).
 - [x] Refonte création tableau à trous (voir section ci-dessous) — **pas de migration Supabase**.

@@ -364,7 +364,10 @@
     const q = state.quiz;
     const champsList = $('quizChampsList');
     const defaultChamps = q.champs.slice();
-    (global.JpConstants.CHAMP_CODES || []).forEach(function (c) {
+    const quizChamps = typeof global.JpConstants.champsActifs === 'function'
+      ? global.JpConstants.champsActifs()
+      : (global.JpConstants.CHAMP_CODES || []).filter(function (c) { return c.actif !== false; });
+    quizChamps.forEach(function (c) {
       const id = 'quiz_ch_' + c.code;
       const label = document.createElement('label');
       label.className = 'jp-quiz-admin-champ';
@@ -1148,7 +1151,10 @@
     const t = state.trous;
     const colonnesList = $('trousColonnesList');
     const defaults = global.JpTrous.COLONNES_DEFAUT;
-    (global.JpConstants.CHAMP_CODES || []).forEach(function (c) {
+    const trousChamps = typeof global.JpConstants.champsActifs === 'function'
+      ? global.JpConstants.champsActifs()
+      : (global.JpConstants.CHAMP_CODES || []).filter(function (c) { return c.actif !== false; });
+    trousChamps.forEach(function (c) {
       const label = document.createElement('label');
       label.className = 'jp-quiz-admin-champ';
       label.innerHTML = '<input type="checkbox" name="trousCol" value="' + global.JpUi.escapeHtml(c.code) + '"'

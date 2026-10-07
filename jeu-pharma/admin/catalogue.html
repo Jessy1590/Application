@@ -34,7 +34,7 @@
 
     <section class="jp-admin-cat-panel" id="jpPanelImport" hidden>
       <h2 class="jp-admin-cat-panel-title">Import / export CSV</h2>
-      <p class="jp-muted">Multi-valeurs séparées par <code>;</code> — niveaux par <code>|</code> (ex. <code>apprenti|pharmacien</code>).</p>
+      <p class="jp-muted">En-têtes = champs actifs uniquement. Multi-valeurs séparées par <code>;</code> — niveaux par <code>|</code> (ex. <code>apprenti|pharmacien</code>). Résolution <code>findOrCreate</code> par texte (<code>valeur_norm</code>). Colonnes legacy (posologie, grossesse, voies) ignorées si présentes ; colonnes inconnues refusées au dry-run.</p>
       <div class="jp-toolbar" style="margin-top:0.75rem">
         <button type="button" class="jp-btn jp-btn-primary" id="jpTpl">Télécharger le modèle</button>
         <button type="button" class="jp-btn jp-btn-ghost" id="jpExport">Exporter le catalogue</button>
@@ -73,6 +73,12 @@
           <button type="submit" class="jp-btn jp-btn-primary">Fusionner</button>
         </div>
       </form>
+      <div class="jp-fusion-doublons">
+        <h3 class="jp-admin-cat-panel-title">Doublons exacts (valeur_norm)</h3>
+        <p class="jp-muted">Paires actives avec la même <code>valeur_norm</code> pour le type sélectionné. Pas de fusion sémantique automatique.</p>
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpFusionScan">Scanner les doublons</button>
+        <div id="jpFusionDoublonsList" class="jp-fusion-doublons-list" aria-live="polite"></div>
+      </div>
     </section>
 
     <section class="jp-admin-cat-panel" id="jpPanelNiveaux" hidden>
@@ -160,6 +166,19 @@
                 <select id="jpNiveau" aria-label="Niveau">
                   <option value="">Tous les niveaux</option>
                 </select>
+              </label>
+              <label class="jp-catalogue-field">Lié à (type)
+                <select id="jpLieType" aria-label="Type d’entité liée">
+                  <option value="">—</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Lié à (entité)
+                <div class="jp-ac-wrap">
+                  <input type="search" id="jpLieEntity" autocomplete="off" placeholder="Rechercher une entité…" aria-label="Entité liée" aria-autocomplete="list" aria-controls="sug_lie" aria-expanded="false" disabled>
+                  <ul id="sug_lie" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions entité liée"></ul>
+                </div>
+                <input type="hidden" id="jpLieEntityId" value="">
+                <button type="button" class="jp-link-btn" id="jpLieClear" hidden>Effacer le filtre lié à</button>
               </label>
             </div>
             <div class="jp-catalogue-prefs-section">
@@ -275,7 +294,9 @@
         'indications',
       ];
       const esc = JpUi.escapeHtml;
-      const CHAMPS = JpConstants.CHAMP_CODES || [];
+      const CHAMPS = typeof JpConstants.champsActifs === 'function'
+        ? JpConstants.champsActifs()
+        : (JpConstants.CHAMP_CODES || []).filter((c) => c.actif !== false);
 
       const NIVEAU_SHORT = {
         apprenti: 'App',
@@ -290,12 +311,12 @@
         {
           id: 'identite',
           title: 'Identité',
-          codes: ['nom_commercial', 'dci', 'secteur_therapeutique', 'voies_administration'],
+          codes: ['nom_commercial', 'dci', 'secteur_therapeutique'],
         },
         {
           id: 'classes',
           title: 'Classes & pharmacologie',
-          codes: ['classe_therapeutique', 'classe_pharmacologique', 'detail_pharmacologie', 'posologie_generale'],
+          codes: ['classe_therapeutique', 'classe_pharmacologique', 'detail_pharmacologie'],
         },
         {
           id: 'indications',
@@ -304,8 +325,8 @@
         },
         {
           id: 'autres',
-          title: 'Interactions, surveillance, grossesse',
-          codes: ['interactions', 'surveillances', 'grossesse_allaitement'],
+          title: 'Interactions & surveillance',
+          codes: ['interactions', 'surveillances'],
         },
       ];
 
@@ -322,9 +343,13 @@
       let pendingSave = null;
       /** Cache entités actives par table (suggestions fiche). */
       let entityCache = {};
+      /** Chips multi : { [code]: [{ id, valeur }] } */
+      let pickerMulti = {};
       let acActiveCode = null;
       let acHighlight = -1;
       let acBlurTimer = null;
+      let lieAcHighlight = -1;
+      let lieBlurTimer = null;
       const AC_MAX = 12;
 
       function defaultPrefs() {
@@ -338,6 +363,9 @@
           statut: '',
           incomplet: false,
           incompletChamp: '',
+          lieType: '',
+          lieEntityId: '',
+          lieEntityLabel: '',
           columns: DEFAULT_COLS.slice(),
         };
       }
@@ -356,6 +384,10 @@
             CHAMPS.some((c) => c.code === parsed.incompletChamp)
             ? parsed.incompletChamp
             : '';
+          const lieType = typeof parsed.lieType === 'string' &&
+            CHAMPS.some((c) => c.code === parsed.lieType)
+            ? parsed.lieType
+            : '';
           return {
             q: typeof parsed.q === 'string' ? parsed.q : '',
             sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(parsed.sort) ? parsed.sort : 'dci',
@@ -366,6 +398,9 @@
             statut: typeof parsed.statut === 'string' ? parsed.statut : '',
             incomplet: !!parsed.incomplet,
             incompletChamp,
+            lieType,
+            lieEntityId: typeof parsed.lieEntityId === 'string' ? parsed.lieEntityId : '',
+            lieEntityLabel: typeof parsed.lieEntityLabel === 'string' ? parsed.lieEntityLabel : '',
             columns: cols.length ? cols : base.columns,
           };
         } catch (_) {
@@ -550,6 +585,9 @@
             const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
             if (!nivs.includes(prefs.niveau)) return false;
           }
+          if (prefs.lieType && prefs.lieEntityId) {
+            if (!JpMedicaments.lieAEntite(r, prefs.lieType, prefs.lieEntityId)) return false;
+          }
           if (!q) return true;
           const blob = [
             nomsOf(r),
@@ -563,6 +601,170 @@
         }));
       }
 
+      function fillLieTypeSelect() {
+        const sel = document.getElementById('jpLieType');
+        const current = prefs.lieType || '';
+        sel.innerHTML =
+          '<option value="">—</option>' +
+          CHAMPS.map((c) =>
+            `<option value="${esc(c.code)}">${esc(c.libelle)}</option>`
+          ).join('');
+        sel.value = CHAMPS.some((c) => c.code === current) ? current : '';
+        prefs.lieType = sel.value;
+        syncLieEntityUi();
+      }
+
+      function syncLieEntityUi() {
+        const input = document.getElementById('jpLieEntity');
+        const hidden = document.getElementById('jpLieEntityId');
+        const clearBtn = document.getElementById('jpLieClear');
+        const hasType = !!prefs.lieType;
+        input.disabled = !hasType;
+        if (!hasType) {
+          prefs.lieEntityId = '';
+          prefs.lieEntityLabel = '';
+          input.value = '';
+          hidden.value = '';
+          clearBtn.hidden = true;
+          hideLieSuggestions();
+          return;
+        }
+        if (prefs.lieEntityId && prefs.lieEntityLabel) {
+          input.value = prefs.lieEntityLabel;
+          hidden.value = prefs.lieEntityId;
+          clearBtn.hidden = false;
+        } else {
+          hidden.value = '';
+          clearBtn.hidden = !input.value;
+        }
+      }
+
+      function hideLieSuggestions() {
+        const list = document.getElementById('sug_lie');
+        const input = document.getElementById('jpLieEntity');
+        if (list) {
+          list.hidden = true;
+          list.innerHTML = '';
+        }
+        if (input) input.setAttribute('aria-expanded', 'false');
+        lieAcHighlight = -1;
+      }
+
+      function updateLieSuggestions() {
+        const code = prefs.lieType || document.getElementById('jpLieType').value;
+        const input = document.getElementById('jpLieEntity');
+        const list = document.getElementById('sug_lie');
+        if (!code || !input || !list || input.disabled) {
+          hideLieSuggestions();
+          return;
+        }
+        const champ = champByCode(code);
+        if (!champ) {
+          hideLieSuggestions();
+          return;
+        }
+        const q = String(input.value || '').trim();
+        if (!q) {
+          hideLieSuggestions();
+          return;
+        }
+        const items = filterEntitySuggestions(champ.table, q);
+        if (!items.length) {
+          hideLieSuggestions();
+          return;
+        }
+        lieAcHighlight = -1;
+        list.innerHTML = items.map((it, i) =>
+          `<li role="option" class="jp-ac-item" data-lie-idx="${i}" data-lie-id="${esc(it.id)}" data-lie-valeur="${esc(it.valeur)}" id="sug_lie_${i}">${esc(it.valeur)}</li>`
+        ).join('');
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      }
+
+      function applyLieEntity(id, valeur) {
+        prefs.lieType = document.getElementById('jpLieType').value || prefs.lieType;
+        prefs.lieEntityId = id || '';
+        prefs.lieEntityLabel = valeur || '';
+        document.getElementById('jpLieEntity').value = valeur || '';
+        document.getElementById('jpLieEntityId').value = id || '';
+        document.getElementById('jpLieClear').hidden = !id;
+        hideLieSuggestions();
+        savePrefs();
+        render();
+      }
+
+      function clearLieEntity() {
+        prefs.lieEntityId = '';
+        prefs.lieEntityLabel = '';
+        document.getElementById('jpLieEntity').value = '';
+        document.getElementById('jpLieEntityId').value = '';
+        document.getElementById('jpLieClear').hidden = true;
+        hideLieSuggestions();
+        savePrefs();
+        render();
+      }
+
+      function bindLieFilter() {
+        const typeSel = document.getElementById('jpLieType');
+        const input = document.getElementById('jpLieEntity');
+        const list = document.getElementById('sug_lie');
+        typeSel.addEventListener('change', () => {
+          prefs.lieType = typeSel.value || '';
+          clearLieEntity();
+          syncLieEntityUi();
+          onPrefsChange();
+        });
+        input.addEventListener('input', () => {
+          prefs.lieEntityId = '';
+          prefs.lieEntityLabel = '';
+          document.getElementById('jpLieEntityId').value = '';
+          document.getElementById('jpLieClear').hidden = !input.value;
+          updateLieSuggestions();
+        });
+        input.addEventListener('focus', () => {
+          clearTimeout(lieBlurTimer);
+          updateLieSuggestions();
+        });
+        input.addEventListener('blur', () => {
+          lieBlurTimer = setTimeout(() => hideLieSuggestions(), 160);
+        });
+        input.addEventListener('keydown', (e) => {
+          const open = list && !list.hidden;
+          const items = open ? [...list.querySelectorAll('.jp-ac-item')] : [];
+          if (e.key === 'ArrowDown' && open && items.length) {
+            e.preventDefault();
+            items.forEach((el) => el.classList.remove('is-active'));
+            lieAcHighlight = (lieAcHighlight + 1 + items.length) % items.length;
+            items[lieAcHighlight].classList.add('is-active');
+          } else if (e.key === 'ArrowUp' && open && items.length) {
+            e.preventDefault();
+            items.forEach((el) => el.classList.remove('is-active'));
+            lieAcHighlight = (lieAcHighlight - 1 + items.length) % items.length;
+            items[lieAcHighlight].classList.add('is-active');
+          } else if (e.key === 'Enter' && open && lieAcHighlight >= 0) {
+            const item = list.querySelector(`.jp-ac-item[data-lie-idx="${lieAcHighlight}"]`);
+            if (item) {
+              e.preventDefault();
+              applyLieEntity(item.getAttribute('data-lie-id'), item.getAttribute('data-lie-valeur'));
+            }
+          } else if (e.key === 'Escape' && open) {
+            e.preventDefault();
+            hideLieSuggestions();
+          }
+        });
+        list.addEventListener('mousedown', (e) => {
+          const item = e.target.closest('.jp-ac-item');
+          if (!item) return;
+          e.preventDefault();
+          clearTimeout(lieBlurTimer);
+          applyLieEntity(item.getAttribute('data-lie-id'), item.getAttribute('data-lie-valeur'));
+        });
+        document.getElementById('jpLieClear').addEventListener('click', () => {
+          clearLieEntity();
+          onPrefsChange();
+        });
+      }
+
       function readPrefsFromUi() {
         prefs.q = document.getElementById('jpQ').value || '';
         prefs.sort = document.getElementById('jpSort').value || 'dci';
@@ -573,6 +775,11 @@
         prefs.statut = document.getElementById('jpStatutFilter').value || '';
         prefs.incomplet = document.getElementById('jpIncomplet').checked;
         prefs.incompletChamp = document.getElementById('jpIncompletChamp').value || '';
+        prefs.lieType = document.getElementById('jpLieType').value || '';
+        prefs.lieEntityId = document.getElementById('jpLieEntityId').value || '';
+        if (prefs.lieEntityId) {
+          prefs.lieEntityLabel = document.getElementById('jpLieEntity').value || prefs.lieEntityLabel || '';
+        }
         syncIncompletChampEnabled();
         prefs.columns = [...document.querySelectorAll('#jpCols input[data-col]:checked')]
           .map((el) => el.getAttribute('data-col'))
@@ -590,6 +797,7 @@
         document.getElementById('jpStatutFilter').value = prefs.statut || '';
         document.getElementById('jpIncomplet').checked = !!prefs.incomplet;
         fillIncompletChampSelect();
+        fillLieTypeSelect();
         renderColToggles();
       }
 
@@ -723,17 +931,18 @@
       }
 
       function fieldCardHtml(c) {
-        const span = c.card === 'N' || c.code === 'detail_pharmacologie' || c.code === 'posologie_generale' || c.code === 'grossesse_allaitement'
-          ? ' jp-field-span-2'
-          : '';
+        const span = c.card === 'N' || c.code === 'detail_pharmacologie' ? ' jp-field-span-2' : '';
         const sugId = 'sug_' + c.code;
         if (c.card === 1) {
           return `
             <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="1" data-table="${esc(c.table)}">
               <label for="val_${esc(c.code)}">${esc(c.libelle)}</label>
-              <div class="jp-ac-wrap">
-                <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" autocomplete="off" data-entity-id="" data-ac-code="${esc(c.code)}" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false">
-                <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+              <div class="jp-entity-singular-row">
+                <div class="jp-ac-wrap">
+                  <input type="text" id="val_${esc(c.code)}" name="val_${esc(c.code)}" autocomplete="off" data-entity-id="" data-ac-code="${esc(c.code)}" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false" placeholder="Rechercher ou créer…">
+                  <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+                </div>
+                <button type="button" class="jp-link-btn jp-entity-clear" data-clear-singular="${esc(c.code)}" title="Effacer" hidden>Effacer</button>
               </div>
               <span class="jp-field-label">Niveaux</span>
               ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
@@ -742,12 +951,15 @@
         }
         return `
           <div class="jp-med-field-card${span}" data-champ="${esc(c.code)}" data-card="N" data-table="${esc(c.table)}">
-            <label for="val_${esc(c.code)}">${esc(c.libelle)} <span class="jp-muted">(une valeur / ligne)</span></label>
-            <div class="jp-ac-wrap">
-              <textarea id="val_${esc(c.code)}" name="val_${esc(c.code)}" rows="3" autocomplete="off" data-ac-code="${esc(c.code)}" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false"></textarea>
-              <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+            <label for="val_${esc(c.code)}">${esc(c.libelle)}</label>
+            <div class="jp-entity-picker" data-picker-code="${esc(c.code)}">
+              <div class="jp-entity-chips" id="chips_${esc(c.code)}" role="list" aria-label="${esc(c.libelle)} sélectionnées"></div>
+              <div class="jp-ac-wrap">
+                <input type="search" id="val_${esc(c.code)}" name="val_${esc(c.code)}" autocomplete="off" data-ac-code="${esc(c.code)}" data-picker="multi" aria-autocomplete="list" aria-controls="${esc(sugId)}" aria-expanded="false" placeholder="Rechercher une entité existante…">
+                <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
+              </div>
             </div>
-            <span class="jp-field-label">Niveaux (toutes les lignes)</span>
+            <span class="jp-field-label">Niveaux (toutes les valeurs)</span>
             ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
           </div>
         `;
@@ -789,24 +1001,7 @@
         // Conserver data-entity-id (baseline) pour proposer le choix de portée à l’enregistrement.
       }
 
-      /* —— Autocomplétion entités (local, cache JpEntites) —— */
-      function queryForField(el, card) {
-        if (card === 1) return String(el.value || '').trim();
-        const info = currentLineInfo(el);
-        return String(info.line || '').trim();
-      }
-
-      function currentLineInfo(ta) {
-        const v = String(ta.value || '');
-        const pos = typeof ta.selectionStart === 'number' ? ta.selectionStart : v.length;
-        const before = v.slice(0, pos);
-        const lineStart = before.lastIndexOf('\n') + 1;
-        const after = v.slice(pos);
-        const nl = after.indexOf('\n');
-        const lineEnd = nl < 0 ? v.length : pos + nl;
-        return { lineStart, lineEnd, line: v.slice(lineStart, lineEnd) };
-      }
-
+      /* —— Picker entités (chips multi + id forcé) —— */
       function filterEntitySuggestions(table, rawQuery) {
         const q = JpEntites.normaliser(rawQuery);
         if (!q) return [];
@@ -823,6 +1018,34 @@
         }
         matched.sort((a, b) => a.prefix - b.prefix || a.valeur.localeCompare(b.valeur, 'fr'));
         return matched.slice(0, AC_MAX);
+      }
+
+      function getMultiItems(code) {
+        return pickerMulti[code] || [];
+      }
+
+      function setMultiItems(code, items) {
+        pickerMulti[code] = items || [];
+        renderChips(code);
+      }
+
+      function renderChips(code) {
+        const host = document.getElementById('chips_' + code);
+        if (!host) return;
+        const items = getMultiItems(code);
+        host.innerHTML = items.map((it) => `
+          <span class="jp-entity-chip" role="listitem" data-chip-id="${esc(it.id)}">
+            <span class="jp-entity-chip-label">${esc(it.valeur)}</span>
+            <button type="button" class="jp-entity-chip-remove" data-remove-chip="${esc(code)}" data-remove-id="${esc(it.id)}" aria-label="Retirer ${esc(it.valeur)}">×</button>
+          </span>
+        `).join('');
+      }
+
+      function syncSingularClear(code) {
+        const input = document.getElementById('val_' + code);
+        const btn = document.querySelector(`[data-clear-singular="${code}"]`);
+        if (!btn || !input) return;
+        btn.hidden = !(input.value || input.dataset.entityId);
       }
 
       function hideSuggestions(code) {
@@ -845,19 +1068,24 @@
         return closed;
       }
 
-      function renderSuggestions(code, items) {
+      function renderSuggestions(code, items, createLabel) {
         const list = document.getElementById('sug_' + code);
         const input = document.getElementById('val_' + code);
         if (!list || !input) return;
-        if (!items.length) {
+        if (!items.length && !createLabel) {
           hideSuggestions(code);
           return;
         }
         acActiveCode = code;
         acHighlight = -1;
-        list.innerHTML = items.map((it, i) =>
+        let html = items.map((it, i) =>
           `<li role="option" class="jp-ac-item" data-ac-idx="${i}" data-ac-id="${esc(it.id)}" data-ac-valeur="${esc(it.valeur)}" id="sug_${esc(code)}_${i}">${esc(it.valeur)}</li>`
         ).join('');
+        if (createLabel) {
+          const idx = items.length;
+          html += `<li role="option" class="jp-ac-item jp-ac-create" data-ac-idx="${idx}" data-ac-create="1" data-ac-valeur="${esc(createLabel)}" id="sug_${esc(code)}_${idx}">Créer « ${esc(createLabel)} »</li>`;
+        }
+        list.innerHTML = html;
         list.hidden = false;
         input.setAttribute('aria-expanded', 'true');
       }
@@ -866,37 +1094,60 @@
         const c = champByCode(code);
         const input = document.getElementById('val_' + code);
         if (!c || !input) return;
-        const q = queryForField(input, c.card);
+        const q = String(input.value || '').trim();
         if (!q) {
           hideSuggestions(code);
           return;
         }
         const exact = JpEntites.normaliser(q);
-        // Exclure la correspondance exacte (valeur déjà saisie) ; laisser les proches.
-        const show = filterEntitySuggestions(c.table, q).filter(
-          (it) => JpEntites.normaliser(it.valeur) !== exact
-        );
-        if (!show.length) {
+        let matched = filterEntitySuggestions(c.table, q);
+        if (c.card === 'N') {
+          const selected = new Set(getMultiItems(code).map((x) => String(x.id)));
+          matched = matched.filter((it) => !selected.has(String(it.id)));
+        }
+        const hasExact = matched.some((it) => JpEntites.normaliser(it.valeur) === exact)
+          || (entityCache[c.table] || []).some((r) => JpEntites.normaliser(r.valeur) === exact);
+        const createLabel = hasExact ? null : q;
+        if (!matched.length && !createLabel) {
           hideSuggestions(code);
           return;
         }
-        renderSuggestions(code, show);
+        renderSuggestions(code, matched, createLabel);
       }
 
-      function applySuggestion(code, id, valeur) {
+      async function applySuggestion(code, id, valeur, isCreate) {
         const c = champByCode(code);
         const input = document.getElementById('val_' + code);
-        if (!c || !input || !valeur) return;
+        if (!c || !input) return;
+        let entId = id || '';
+        let entVal = valeur || '';
+        if (isCreate) {
+          const niveaux = readNiveaux('niv_' + c.code);
+          try {
+            const ent = await JpEntites.findOrCreate(c.table, entVal, niveaux, { mergeNiveaux: true });
+            if (!ent?.id) throw new Error('Création impossible');
+            entId = ent.id;
+            entVal = ent.valeur || entVal;
+            if (!entityCache[c.table]) entityCache[c.table] = [];
+            if (!entityCache[c.table].some((r) => r.id === entId)) {
+              entityCache[c.table].push(ent);
+            }
+          } catch (err) {
+            JpToast.fromError(err);
+            return;
+          }
+        }
+        if (!entId || !entVal) return;
         if (c.card === 1) {
-          input.value = valeur;
-          input.dataset.entityId = id || '';
+          input.value = entVal;
+          input.dataset.entityId = entId;
+          syncSingularClear(code);
         } else {
-          const info = currentLineInfo(input);
-          const before = input.value.slice(0, info.lineStart);
-          const after = input.value.slice(info.lineEnd);
-          input.value = before + valeur + after;
-          const caret = info.lineStart + valeur.length;
-          input.setSelectionRange(caret, caret);
+          const items = getMultiItems(code);
+          if (!items.some((x) => String(x.id) === String(entId))) {
+            setMultiItems(code, items.concat([{ id: entId, valeur: entVal }]));
+          }
+          input.value = '';
         }
         hideSuggestions(code);
         input.focus();
@@ -922,7 +1173,13 @@
         host.addEventListener('input', (e) => {
           const el = e.target.closest('[data-ac-code]');
           if (!el) return;
-          updateSuggestions(el.getAttribute('data-ac-code'));
+          const code = el.getAttribute('data-ac-code');
+          const c = champByCode(code);
+          if (c?.card === 1) {
+            el.dataset.entityId = '';
+            syncSingularClear(code);
+          }
+          updateSuggestions(code);
         });
         host.addEventListener('focusin', (e) => {
           const el = e.target.closest('[data-ac-code]');
@@ -937,9 +1194,27 @@
           acBlurTimer = setTimeout(() => hideSuggestions(code), 160);
         });
         host.addEventListener('click', (e) => {
-          const el = e.target.closest('textarea[data-ac-code]');
-          if (!el) return;
-          updateSuggestions(el.getAttribute('data-ac-code'));
+          const remove = e.target.closest('[data-remove-chip]');
+          if (remove) {
+            e.preventDefault();
+            const code = remove.getAttribute('data-remove-chip');
+            const id = remove.getAttribute('data-remove-id');
+            setMultiItems(code, getMultiItems(code).filter((x) => String(x.id) !== String(id)));
+            return;
+          }
+          const clearBtn = e.target.closest('[data-clear-singular]');
+          if (clearBtn) {
+            e.preventDefault();
+            const code = clearBtn.getAttribute('data-clear-singular');
+            const input = document.getElementById('val_' + code);
+            if (input) {
+              input.value = '';
+              input.dataset.entityId = '';
+            }
+            syncSingularClear(code);
+            hideSuggestions(code);
+            return;
+          }
         });
         host.addEventListener('keydown', (e) => {
           const el = e.target.closest('[data-ac-code]');
@@ -957,7 +1232,12 @@
             const item = list.querySelector(`.jp-ac-item[data-ac-idx="${acHighlight}"]`);
             if (item) {
               e.preventDefault();
-              applySuggestion(code, item.getAttribute('data-ac-id'), item.getAttribute('data-ac-valeur'));
+              applySuggestion(
+                code,
+                item.getAttribute('data-ac-id'),
+                item.getAttribute('data-ac-valeur'),
+                item.getAttribute('data-ac-create') === '1'
+              );
             }
           } else if (e.key === 'Escape' && open) {
             e.preventDefault();
@@ -967,13 +1247,18 @@
         });
         host.addEventListener('mousedown', (e) => {
           const item = e.target.closest('.jp-ac-item');
-          if (!item) return;
+          if (!item || !item.closest('.jp-ac-list')) return;
           e.preventDefault();
           clearTimeout(acBlurTimer);
           const list = item.closest('.jp-ac-list');
           const code = list?.id?.replace(/^sug_/, '');
           if (!code) return;
-          applySuggestion(code, item.getAttribute('data-ac-id'), item.getAttribute('data-ac-valeur'));
+          applySuggestion(
+            code,
+            item.getAttribute('data-ac-id'),
+            item.getAttribute('data-ac-valeur'),
+            item.getAttribute('data-ac-create') === '1'
+          );
         });
       }
 
@@ -1054,6 +1339,7 @@
       function resetForm() {
         editingId = null;
         baseline = { singular: {}, multi: {} };
+        pickerMulti = {};
         document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
         document.getElementById('jpStatut').value = 'brouillon';
         document.getElementById('jpHospitalier').checked = false;
@@ -1061,8 +1347,12 @@
           const input = document.getElementById('val_' + c.code);
           if (input) {
             input.value = '';
-            if (c.card === 1) input.dataset.entityId = '';
+            if (c.card === 1) {
+              input.dataset.entityId = '';
+              syncSingularClear(c.code);
+            }
           }
+          if (c.card === 'N') setMultiItems(c.code, []);
           setNiveaux('niv_' + c.code, allNiveauxCodes());
         }
         refreshWarns();
@@ -1088,6 +1378,7 @@
           if (c.card === 1) {
             input.value = row[c.code] || '';
             input.dataset.entityId = row[c.fk] || '';
+            syncSingularClear(c.code);
             const nivKey =
               c.code === 'dci' ? 'dci_niveaux'
               : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
@@ -1097,7 +1388,13 @@
             setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
           } else {
             const arr = multiFieldArr(row, c.code);
-            input.value = arr.map((x) => x.valeur || x).join('\n');
+            setMultiItems(
+              c.code,
+              arr
+                .filter((x) => x && x.id)
+                .map((x) => ({ id: x.id, valeur: x.valeur || '' }))
+            );
+            input.value = '';
             if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
               setNiveaux('niv_' + c.code, row.nom_commercial_niveaux || allNiveauxCodes());
             } else {
@@ -1124,52 +1421,28 @@
       }
 
       function collectMultiItems(code, niveaux) {
-        const raw = document.getElementById('val_' + code)?.value;
-        const lines = String(raw || '')
-          .split(/\n/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        const base = (baseline?.multi?.[code] || []).slice();
-        const used = new Set();
-        const items = [];
-        const unmatched = [];
-
-        for (const line of lines) {
-          const match = base.find(
-            (b) =>
-              b.id &&
-              !used.has(b.id) &&
-              JpEntites.normaliser(b.valeur) === JpEntites.normaliser(line)
-          );
-          if (match) {
-            used.add(match.id);
-            items.push({ id: match.id, valeur: line, niveaux_connus: niveaux });
-          } else {
-            unmatched.push(line);
-          }
-        }
-
-        const orphans = base.filter((b) => b.id && !used.has(b.id));
+        const items = getMultiItems(code).map((it) => ({
+          id: it.id,
+          valeur: it.valeur,
+          niveaux_connus: niveaux,
+        }));
+        const base = baseline?.multi?.[code] || [];
         const renamed = [];
-        unmatched.forEach((line, i) => {
-          if (orphans[i]) {
+        for (const it of items) {
+          const prev = base.find((b) => b.id && String(b.id) === String(it.id));
+          if (
+            prev &&
+            prev.valeur != null &&
+            JpEntites.normaliser(prev.valeur) !== JpEntites.normaliser(it.valeur)
+          ) {
             renamed.push({
               code,
               libelle: champByCode(code)?.libelle || code,
-              from: orphans[i].valeur,
-              to: line,
+              from: prev.valeur,
+              to: it.valeur,
             });
-            items.push({
-              id: orphans[i].id,
-              valeur: line,
-              niveaux_connus: niveaux,
-              _renamed: true,
-            });
-          } else {
-            items.push({ valeur: line, niveaux_connus: niveaux });
           }
-        });
-
+        }
         return { items, renamed };
       }
 
@@ -1180,14 +1453,13 @@
 
         for (const c of CHAMPS) {
           const niveaux = readNiveaux('niv_' + c.code);
-          const raw = document.getElementById('val_' + c.code)?.value;
-          if (raw == null) continue;
+          const input = document.getElementById('val_' + c.code);
+          if (!input) continue;
 
           if (c.card === 1) {
-            const v = String(raw || '').trim();
-            const input = document.getElementById('val_' + c.code);
+            const v = String(input.value || '').trim();
             const base = baseline?.singular?.[c.code];
-            const id = input?.dataset?.entityId || base?.id || undefined;
+            const id = input.dataset.entityId || undefined;
             if (
               v &&
               id &&
@@ -1203,13 +1475,17 @@
                 to: v,
               });
             }
-            if (v) {
+            if (v && id) {
               singular[c.code] = {
                 valeur: v,
                 niveaux_connus: niveaux,
-                id: id || undefined,
+                id,
                 scope: scope || 'all',
               };
+            } else if (v && !id) {
+              // Texte libre sans id : résolution findOrCreate au save (création implicite refusée — demander Créer)
+              JpToast.warn(c.libelle + ' : choisissez une suggestion ou « Créer »');
+              throw new Error('Sélectionnez ou créez « ' + c.libelle + ' » via la liste');
             }
           } else {
             const { items, renamed } = collectMultiItems(c.code, niveaux);
@@ -1327,6 +1603,23 @@
         host.hidden = false;
       }
 
+      async function addNomCommercialChip(valeur) {
+        const v = String(valeur || '').trim();
+        if (!v) return;
+        const ent = await JpEntites.findOrCreate('noms_commerciaux', v, allNiveauxCodes(), {
+          mergeNiveaux: true,
+        });
+        if (!ent?.id) return;
+        if (!entityCache.noms_commerciaux) entityCache.noms_commerciaux = [];
+        if (!entityCache.noms_commerciaux.some((r) => r.id === ent.id)) {
+          entityCache.noms_commerciaux.push(ent);
+        }
+        const items = getMultiItems('nom_commercial');
+        if (!items.some((x) => String(x.id) === String(ent.id))) {
+          setMultiItems('nom_commercial', items.concat([{ id: ent.id, valeur: ent.valeur || v }]));
+        }
+      }
+
       async function applyBdmPrefill(row) {
         const pre = JpBdm.pickToPrefill(row);
         clearBdmResults();
@@ -1337,25 +1630,17 @@
               mergeNiveaux: true,
             });
             if (ent?.id) {
+              if (!entityCache.dcis) entityCache.dcis = [];
+              if (!entityCache.dcis.some((r) => r.id === ent.id)) entityCache.dcis.push(ent);
               const existing = await JpMedicaments.findByDciId(ent.id, null);
               if (existing) {
                 openEditor(existing);
-                const nomTa = document.getElementById('val_nom_commercial');
-                if (nomTa && pre.nom_commercial) {
-                  const lines = String(nomTa.value || '')
-                    .split(/\n/)
-                    .map((s) => s.trim())
-                    .filter(Boolean);
-                  const lower = new Set(lines.map((s) => s.toLowerCase()));
-                  if (!lower.has(pre.nom_commercial.toLowerCase())) {
-                    lines.push(pre.nom_commercial);
-                    nomTa.value = lines.join('\n');
-                  }
-                }
+                if (pre.nom_commercial) await addNomCommercialChip(pre.nom_commercial);
                 const dciInp = document.getElementById('val_dci');
                 if (dciInp) {
-                  dciInp.value = pre.dci;
+                  dciInp.value = ent.valeur || pre.dci;
                   dciInp.dataset.entityId = ent.id;
+                  syncSingularClear('dci');
                 }
                 JpToast.ok('DCI existante — nom ajouté à la fiche');
                 return;
@@ -1367,22 +1652,31 @@
           }
         }
         if (!editingId) openEditor(null);
-        const nom = document.getElementById('val_nom_commercial');
-        const dci = document.getElementById('val_dci');
-        if (nom && pre.nom_commercial) {
-          const lines = String(nom.value || '')
-            .split(/\n/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const lower = new Set(lines.map((s) => s.toLowerCase()));
-          if (!lower.has(pre.nom_commercial.toLowerCase())) {
-            lines.push(pre.nom_commercial);
-            nom.value = lines.join('\n');
+        if (pre.nom_commercial) {
+          try {
+            await addNomCommercialChip(pre.nom_commercial);
+          } catch (e) {
+            JpToast.fromError(e);
+            return;
           }
         }
+        const dci = document.getElementById('val_dci');
         if (dci && pre.dci) {
-          dci.value = pre.dci;
-          dci.dataset.entityId = '';
+          try {
+            const ent = await JpEntites.findOrCreate('dcis', pre.dci, allNiveauxCodes(), {
+              mergeNiveaux: true,
+            });
+            if (ent?.id) {
+              dci.value = ent.valeur || pre.dci;
+              dci.dataset.entityId = ent.id;
+              syncSingularClear('dci');
+              if (!entityCache.dcis) entityCache.dcis = [];
+              if (!entityCache.dcis.some((r) => r.id === ent.id)) entityCache.dcis.push(ent);
+            }
+          } catch (e) {
+            JpToast.fromError(e);
+            return;
+          }
         }
         JpToast.ok('Prérempli — compléter le reste depuis le cours');
       }
@@ -1531,12 +1825,115 @@
         }
       }
 
+      function countEntityLinks(table, entityId) {
+        const champ = CHAMPS.find((c) => c.table === table)
+          || (JpConstants.CHAMP_CODES || []).find((c) => c.table === table);
+        if (!champ || !entityId) return 0;
+        return all.filter((r) => JpMedicaments.lieAEntite(r, champ.code, entityId)).length;
+      }
+
+      function renderFusionDoublons(groups) {
+        const host = document.getElementById('jpFusionDoublonsList');
+        if (!groups.length) {
+          host.innerHTML = '<p class="jp-muted">Aucun doublon exact (valeur_norm) pour ce type.</p>';
+          return;
+        }
+        host.innerHTML = groups.map((g, gi) => {
+          const rows = g.items
+            .slice()
+            .sort((a, b) => b.links - a.links || a.valeur.localeCompare(b.valeur, 'fr'));
+          const keep = rows[0];
+          return `
+            <div class="jp-fusion-doublon-group" data-norm="${esc(g.norm)}">
+              <strong>valeur_norm</strong> : <code>${esc(g.norm)}</code>
+              <ul>
+                ${rows.map((it) =>
+                  `<li>« ${esc(it.valeur)} » — ${it.links} fiche(s)${it.id === keep.id ? ' <em>(conservée proposée)</em>' : ''}</li>`
+                ).join('')}
+              </ul>
+              <button type="button" class="jp-btn jp-btn-ghost" data-fusion-group="${gi}">
+                Fusionner vers « ${esc(keep.valeur)} »
+              </button>
+            </div>
+          `;
+        }).join('');
+        host._groups = groups;
+      }
+
+      async function scanFusionDoublons() {
+        const table = document.getElementById('jpFusionType').value;
+        const host = document.getElementById('jpFusionDoublonsList');
+        if (!table) {
+          host.innerHTML = '<p class="jp-muted">Choisissez un type d’entité.</p>';
+          return;
+        }
+        try {
+          const rows = await JpEntites.list(table, { actif: true, limit: 500 });
+          const byNorm = new Map();
+          for (const r of rows) {
+            const norm = r.valeur_norm || JpEntites.normaliser(r.valeur);
+            if (!norm) continue;
+            if (!byNorm.has(norm)) byNorm.set(norm, []);
+            byNorm.get(norm).push(r);
+          }
+          const groups = [];
+          for (const [norm, items] of byNorm) {
+            if (items.length < 2) continue;
+            groups.push({
+              norm,
+              items: items.map((it) => ({
+                id: it.id,
+                valeur: it.valeur,
+                links: countEntityLinks(table, it.id),
+              })),
+            });
+          }
+          groups.sort((a, b) => b.items.length - a.items.length || a.norm.localeCompare(b.norm));
+          renderFusionDoublons(groups);
+          JpToast.ok(groups.length ? groups.length + ' groupe(s)' : 'Aucun doublon');
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      }
+
+      async function fusionnerDoublonGroup(gi) {
+        const host = document.getElementById('jpFusionDoublonsList');
+        const groups = host._groups || [];
+        const g = groups[gi];
+        const table = document.getElementById('jpFusionType').value;
+        if (!g || !table) return;
+        const rows = g.items
+          .slice()
+          .sort((a, b) => b.links - a.links || a.valeur.localeCompare(b.valeur, 'fr'));
+        const keep = rows[0];
+        const drops = rows.slice(1);
+        if (!confirm(
+          'Fusionner ' + drops.length + ' doublon(s) dans « ' + keep.valeur + ' » (le plus lié) ?'
+        )) return;
+        try {
+          for (const d of drops) {
+            await JpEntites.fusionner(table, keep.id, d.id);
+            void JpLogs.action('fusion_entites', { table, keep: keep.id, drop: d.id, source: 'doublons' });
+          }
+          JpToast.ok('Fusion doublons effectuée');
+          await loadFusionEntities();
+          await refreshAll();
+          await scanFusionDoublons();
+        } catch (err) {
+          JpToast.fromError(err);
+          void JpLogs.error('fusion_entites', { message: err?.message });
+        }
+      }
+
       function bindFusion() {
         const sel = document.getElementById('jpFusionType');
         sel.innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
           `<option value="${esc(t.table)}">${esc(t.libelle)}</option>`
         ).join('');
-        sel.addEventListener('change', loadFusionEntities);
+        sel.addEventListener('change', () => {
+          loadFusionEntities();
+          document.getElementById('jpFusionDoublonsList').innerHTML = '';
+        });
         document.getElementById('jpFusionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const table = sel.value;
@@ -1563,6 +1960,12 @@
             JpToast.fromError(err);
             void JpLogs.error('fusion_entites', { message: err?.message });
           }
+        });
+        document.getElementById('jpFusionScan').addEventListener('click', () => scanFusionDoublons());
+        document.getElementById('jpFusionDoublonsList').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-fusion-group]');
+          if (!btn) return;
+          fusionnerDoublonGroup(Number(btn.getAttribute('data-fusion-group')));
         });
       }
 
@@ -1687,6 +2090,7 @@
         bindCsv();
         bindFusion();
         bindNiveaux();
+        bindLieFilter();
         await loadEntityCache();
         await refreshAll();
 
@@ -1732,13 +2136,17 @@
 
         document.getElementById('jpForm').addEventListener('submit', async (e) => {
           e.preventDefault();
-          const { changes } = collectPayload('all');
-          if (changes.length) {
-            const scope = await showScopeModal(changes);
-            if (!scope) return;
-            await doSave(scope);
-          } else {
-            await doSave('all');
+          try {
+            const { changes } = collectPayload('all');
+            if (changes.length) {
+              const scope = await showScopeModal(changes);
+              if (!scope) return;
+              await doSave(scope);
+            } else {
+              await doSave('all');
+            }
+          } catch (err) {
+            if (err?.message) JpToast.warn(err.message);
           }
         });
 

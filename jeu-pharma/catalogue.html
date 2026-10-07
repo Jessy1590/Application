@@ -109,7 +109,9 @@
         'indications',
       ];
       const esc = JpUi.escapeHtml;
-      const CHAMPS = JpConstants.CHAMP_CODES || [];
+      const CHAMPS = typeof JpConstants.champsActifs === 'function'
+        ? JpConstants.champsActifs()
+        : (JpConstants.CHAMP_CODES || []).filter((c) => c.actif !== false);
 
       let all = [];
       let prefs = loadPrefs();

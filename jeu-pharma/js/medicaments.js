@@ -11,12 +11,42 @@
     return global.JpConstants?.CHAMP_CODES || [];
   }
 
+  /** Champs pédagogiques actifs (hors legacy posologie / grossesse / voies). */
+  function champsActifs() {
+    if (typeof global.JpConstants?.champsActifs === 'function') {
+      return global.JpConstants.champsActifs();
+    }
+    return champs().filter((c) => c.actif !== false);
+  }
+
   function singularChamps() {
-    return champs().filter((c) => c.card === 1);
+    return champsActifs().filter((c) => c.card === 1);
   }
 
   function multiChamps() {
-    return champs().filter((c) => c.card === 'N');
+    return champsActifs().filter((c) => c.card === 'N');
+  }
+
+  /**
+   * True si la fiche référence l’entité (FK singulière ou jonction multi).
+   * @param {object} row
+   * @param {string} champCode
+   * @param {string} entityId
+   */
+  function lieAEntite(row, champCode, entityId) {
+    if (!row || !champCode || !entityId) return false;
+    const champ = champs().find((c) => c.code === champCode);
+    if (!champ) return false;
+    if (champ.card === 1 && champ.fk) {
+      return String(row[champ.fk] || '') === String(entityId);
+    }
+    const arr =
+      champCode === 'nom_commercial'
+        ? row.noms_commerciaux || []
+        : Array.isArray(row[champCode])
+          ? row[champCode]
+          : [];
+    return arr.some((x) => x && String(x.id) === String(entityId));
   }
 
   /** Liste des libellés noms commerciaux (vue array ou fallback déprécié). */
@@ -178,6 +208,7 @@
       const v = item.valeur != null ? String(item.valeur).trim() : '';
       const niveaux = Array.isArray(item.niveaux_connus) ? item.niveaux_connus : null;
 
+      // Id forcé (picker) : prioriser le lien ; n’update la valeur que si fournie et scope all
       if (item.id && scope === 'all') {
         const patch = {};
         if (niveaux) patch.niveaux_connus = niveaux;
@@ -189,6 +220,10 @@
         if (v) {
           for (const n of global.JpEntites.normCandidates(v)) seenNorm.add(n);
         }
+        continue;
+      }
+      if (item.id && !v) {
+        ids.push(item.id);
         continue;
       }
 
@@ -446,6 +481,8 @@
     listHistorique,
     singularChamps,
     multiChamps,
+    champsActifs,
+    lieAEntite,
     nomsList,
     formatNoms,
     visiblePourNiveau,

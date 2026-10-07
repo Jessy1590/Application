@@ -6,9 +6,23 @@
   const VALUE_SEP = ';';
   const NIVEAUX_SEP = '|';
 
+  /** En-têtes / import : champs actifs uniquement (legacy ignorés). */
   function champs() {
-    return global.JpConstants?.CHAMP_CODES || [];
+    if (typeof global.JpConstants?.champsActifs === 'function') {
+      return global.JpConstants.champsActifs();
+    }
+    return (global.JpConstants?.CHAMP_CODES || []).filter((c) => c.actif !== false);
   }
+
+  function allChampCodes() {
+    return (global.JpConstants?.CHAMP_CODES || []).map((c) => c.code);
+  }
+
+  const LEGACY_CODES = new Set([
+    'posologie_generale',
+    'grossesse_allaitement',
+    'voies_administration',
+  ]);
 
   function niveauCodes() {
     return (global.JpConstants?.NIVEAUX || []).map((n) => n.code);
@@ -155,12 +169,26 @@
   function dryRun(text) {
     const { headers, records } = parseCsv(text);
     const errors = [];
-    const expected = templateHeaders();
-    const missing = expected.filter((h) => !headers.includes(h));
-    if (missing.length) {
+    const expected = new Set(templateHeaders());
+    const knownBase = new Set(allChampCodes());
+    // Colonnes legacy acceptées en lecture seule (ignorées à l’import) ; autres inconnues = erreur.
+    for (const h of headers) {
+      if (!h) continue;
+      if (expected.has(h) || h === 'statut') continue;
+      const base = h.endsWith('_niveaux') ? h.slice(0, -'_niveaux'.length) : h;
+      if (LEGACY_CODES.has(base)) continue;
+      if (!knownBase.has(base) && h !== 'statut') {
+        errors.push({
+          line: 1,
+          message: 'Colonne inconnue: ' + h,
+        });
+      }
+    }
+    // Colonnes actives non obligatoires (absence OK) — au moins statut conseillé.
+    if (!headers.includes('statut') && !headers.includes('dci') && !headers.includes('nom_commercial')) {
       errors.push({
         line: 1,
-        message: 'Colonnes manquantes: ' + missing.join(', '),
+        message: 'Colonnes requises absentes: statut ou dci / nom_commercial',
       });
     }
     const allowedStatuts = new Set(
