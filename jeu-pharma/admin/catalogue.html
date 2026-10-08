@@ -218,10 +218,6 @@
               <option value="archive">Archivé</option>
             </select>
           </div>
-          <label class="jp-med-hospitalier" title="Réservé au niveau pédagogique pharmacien">
-            <input type="checkbox" id="jpHospitalier" name="hospitalier">
-            Hospitalier (pharmacien)
-          </label>
         </div>
       </div>
       <div class="jp-med-editor-body">
@@ -305,6 +301,7 @@
         etu_3a: '3A',
         etu_4a: '4A',
         etu_6a: '6A',
+        hospitalier: 'Hosp',
       };
 
       const SECTIONS = [
@@ -414,8 +411,14 @@
         } catch (_) { /* ignore */ }
       }
 
+      /** Niveaux standards (hors hospitalier exclusif) — défaut nouvelle fiche / « Tous ». */
       function allNiveauxCodes() {
-        return (JpConstants.NIVEAUX || []).map((n) => n.code);
+        if (typeof JpConstants.niveauxStandards === 'function') {
+          return JpConstants.niveauxStandards();
+        }
+        return (JpConstants.NIVEAUX || [])
+          .map((n) => n.code)
+          .filter((c) => c !== 'hospitalier');
       }
 
       function champByCode(code) {
@@ -894,7 +897,7 @@
                   ${cols.map((c) => `<td class="jp-med-cell-wrap">${esc(cellValue(r, c.code))}</td>`).join('')}
                   <td>
                     <span class="jp-badge jp-badge-${esc(r.statut)}">${esc(r.statut)}</span>
-                    ${r.hospitalier ? ' <span class="jp-badge jp-badge-hospitalier">Hosp.</span>' : ''}
+                    ${JpMedicaments.isHospitaliere?.(r) || r.hospitalier ? ' <span class="jp-badge jp-badge-hospitalier">Hosp.</span>' : ''}
                   </td>
                 </tr>
               `).join('')}
@@ -996,7 +999,7 @@
         }
         host.innerHTML = parts.join('');
         host.addEventListener('click', onNivClick);
-        host.addEventListener('change', refreshWarns);
+        host.addEventListener('change', onNiveauxChange);
         bindFieldAutocomplete(host);
         // Conserver data-entity-id (baseline) pour proposer le choix de portée à l’enregistrement.
       }
@@ -1268,9 +1271,15 @@
         const name = allBtn || none;
         if (!name) return;
         e.preventDefault();
-        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
-          cb.checked = !!allBtn;
-        });
+        if (allBtn) {
+          // « Tous » = standards uniquement (hospitalier reste exclusif, coché à part)
+          setNiveaux(allBtn, allNiveauxCodes());
+        } else {
+          setNiveaux(name, []);
+        }
+        if (name === 'niv_dci' || name === 'niv_nom_commercial') {
+          syncHospitalierExclusif(name);
+        }
         refreshWarns();
       }
 
@@ -1291,6 +1300,43 @@
         document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
           cb.checked = set.has(cb.value);
         });
+      }
+
+      /**
+       * Niveau hospitalier exclusif sur DCI + noms commerciaux :
+       * cocher Hosp → uniquement hospitalier sur les deux ;
+       * ajouter un autre niveau → retire Hosp et aligne le couple.
+       */
+      function syncHospitalierExclusif(sourceName) {
+        if (sourceName !== 'niv_dci' && sourceName !== 'niv_nom_commercial') return;
+        const codes = readNiveaux(sourceName);
+        const hasHosp = codes.includes('hospitalier');
+        const others = codes.filter((c) => c !== 'hospitalier');
+        if (hasHosp && !others.length) {
+          setNiveaux('niv_dci', ['hospitalier']);
+          setNiveaux('niv_nom_commercial', ['hospitalier']);
+          return;
+        }
+        if (hasHosp && others.length) {
+          setNiveaux(sourceName, others);
+          const otherName = sourceName === 'niv_dci' ? 'niv_nom_commercial' : 'niv_dci';
+          const otherCodes = readNiveaux(otherName);
+          if (otherCodes.length === 1 && otherCodes[0] === 'hospitalier') {
+            setNiveaux(otherName, others);
+          }
+        }
+      }
+
+      function onNiveauxChange(e) {
+        const t = e.target;
+        if (!t || t.type !== 'checkbox' || !t.name) {
+          refreshWarns();
+          return;
+        }
+        if (t.name === 'niv_dci' || t.name === 'niv_nom_commercial') {
+          syncHospitalierExclusif(t.name);
+        }
+        refreshWarns();
       }
 
       function multiFieldArr(row, code) {
@@ -1342,7 +1388,6 @@
         pickerMulti = {};
         document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
         document.getElementById('jpStatut').value = 'brouillon';
-        document.getElementById('jpHospitalier').checked = false;
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (input) {
@@ -1371,7 +1416,7 @@
         document.getElementById('jpEditorTitle').textContent =
           nomsOf(row) || row.dci || 'Modifier la fiche';
         document.getElementById('jpStatut').value = row.statut || 'brouillon';
-        document.getElementById('jpHospitalier').checked = !!row.hospitalier;
+        const hospOnly = !!(JpMedicaments.isHospitaliere?.(row) || row.hospitalier);
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (!input) continue;
@@ -1379,13 +1424,17 @@
             input.value = row[c.code] || '';
             input.dataset.entityId = row[c.fk] || '';
             syncSingularClear(c.code);
-            const nivKey =
-              c.code === 'dci' ? 'dci_niveaux'
-              : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
-              : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
-              : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
-              : null;
-            setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
+            if (c.code === 'dci' && hospOnly) {
+              setNiveaux('niv_dci', ['hospitalier']);
+            } else {
+              const nivKey =
+                c.code === 'dci' ? 'dci_niveaux'
+                : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
+                : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
+                : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
+                : null;
+              setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
+            }
           } else {
             const arr = multiFieldArr(row, c.code);
             setMultiItems(
@@ -1395,7 +1444,9 @@
                 .map((x) => ({ id: x.id, valeur: x.valeur || '' }))
             );
             input.value = '';
-            if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
+            if (c.code === 'nom_commercial' && hospOnly) {
+              setNiveaux('niv_nom_commercial', ['hospitalier']);
+            } else if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
               setNiveaux('niv_' + c.code, row.nom_commercial_niveaux || allNiveauxCodes());
             } else {
               setNiveaux('niv_' + c.code, allNiveauxCodes());
@@ -1499,10 +1550,21 @@
           }
         }
 
+        // Hospitalier exclusif DCI + noms (save dérive aussi le bool matrice)
+        const dciNiv = singular.dci?.niveaux_connus || [];
+        const nomItems = multi.nom_commercial || [];
+        const hosp =
+          dciNiv.includes('hospitalier') ||
+          nomItems.some((it) => (it.niveaux_connus || []).includes('hospitalier'));
+        if (hosp) {
+          if (singular.dci) singular.dci.niveaux_connus = ['hospitalier'];
+          for (const it of nomItems) it.niveaux_connus = ['hospitalier'];
+        }
+
         return {
           payload: {
             statut: document.getElementById('jpStatut').value,
-            hospitalier: document.getElementById('jpHospitalier').checked,
+            hospitalier: hosp,
             singular,
             multi,
           },

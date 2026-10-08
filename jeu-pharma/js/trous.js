@@ -300,7 +300,9 @@
       const visible = global.JpMedicaments?.visiblePourNiveau;
       if (typeof visible === 'function') {
         rows = rows.filter((r) => visible(r, opts.niveau, opts));
-      } else if (opts.niveau !== 'pharmacien') {
+      } else if (opts.niveau === 'hospitalier') {
+        rows = rows.filter((r) => !!r.hospitalier);
+      } else {
         rows = rows.filter((r) => !r.hospitalier);
       }
     }

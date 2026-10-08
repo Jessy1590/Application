@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-07 — catalogue entités liées (champs actifs, picker chips par id, filtre « Lié à », CSV/fusion) ; refonte quiz/trous ; hospitalier (`005`) + catalogue RCP (`004`) ; modèle DCI-centrique (`002`) inchangé.
+Dernière mise à jour : 2026-10-08 — niveau pédagogique `hospitalier` (`007`) remplace la case bool UI ; bool matrice sync ; `005` legacy.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -47,17 +47,23 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - Eau oxygénée → DCI `Peroxyde d'hydrogène` ; Digoxine : nom redondant retiré, Hémigoxine conservé
 - [x] Vérif post-`004` : **162** `publie` / **59** `archive` ; **0** sans `dci_id` actif ; **0** DCI multi-matrices actives.
 - [x] Migration **`005_hospitalier`** (MCP `jeupharma_005_hospitalier`, fichier `sql/005_hospitalier.sql`) :
-  - `matrice_medicaments.hospitalier boolean NOT NULL DEFAULT false` (pas de seed — admin coche)
+  - `matrice_medicaments.hospitalier boolean NOT NULL DEFAULT false` (legacy — sync depuis niveau)
   - vue `v_medicaments_complet.hospitalier`
-  - `generer_et_geler_quiz` : exclut hospitalier si `niveau_cible <> 'pharmacien'`
-  - Filtre client : catalogue joueur + trous (`JpMedicaments.visiblePourNiveau`) ; admin catalogue voit tout + case à cocher
+  - RPC / filtre initialement liés au niveau `pharmacien` → remplacés par `007`
+- [x] Migration **`007_niveau_hospitalier`** (MCP + fichier `sql/007_niveau_hospitalier.sql`) :
+  - Seed `jeupharma.niveaux` code `hospitalier` (ordre 7) + `JpConstants.NIVEAUX`
+  - Données : matrices `hospitalier=true` → `niveaux_connus = ['hospitalier']` sur DCI + noms commerciaux liés (6 DCI / 6 noms)
+  - Bool `matrice.hospitalier` **conservé** : dérivé au save si DCI/noms portent le niveau hospitalier (exclusif)
+  - `generer_et_geler_quiz` : pool = hospitaliers **ssi** `niveau_cible = 'hospitalier'` ; sinon exclus
+  - UI : case « Hospitalier (pharmacien) » retirée ; contrôle = niveaux DCI / noms (Hosp exclusif)
+  - Filtre client : `visiblePourNiveau` → visible seulement si niveau `hospitalier` (plus le hack pharmacien)
 - [x] Notes **`006_catalogue_champs_actifs_notes.sql`** (pas de DDL) + audit dédup remote (2026-10-07) :
   - **0** groupe actif en doublon exact `valeur_norm` (tables entités actives) — index unique `_valeur_norm_actif_uidx` respecté ; aucune fusion RPC nécessaire
   - Pas de fusion sémantique (« AVC » vs « AVC ischémique ») — uniquement panneau Fusion / scanner doublons exacts
 
 ## Catalogue — champs actifs & entités liées
 - Flag `actif` sur `JpConstants.CHAMP_CODES` + `champsActifs()` / `isChampActif()`.
-- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut, hospitalier, niveaux).
+- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut, niveaux dont `hospitalier` exclusif DCI/noms).
 - **Legacy masqués** (tables/données conservées) : posologie générale, grossesse & allaitement, voies d’administration — absents UI admin/joueur, CSV modèle, cases quiz/trous ; `JpMedicaments.save` ne touche plus ces FK/jonctions.
 - **Picker fiche** : chips multi `{ id, valeur }` + recherche ; « Créer … » seulement si pas de match exact `valeur_norm` ; singuliers id forcé (`data-entity-id`) + Effacer ; save priorise les ids.
 - **Filtre Paramètres → Lié à** : type d’entité + sélection entité → fiches via jonction / FK (`JpMedicaments.lieAEntite`).
@@ -66,7 +72,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
-- [x] SQL `sql/001` … `006_catalogue_champs_actifs_notes.sql`.
+- [x] SQL `sql/001` … `007_niveau_hospitalier.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
@@ -78,7 +84,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 
 ## Création quiz (refonte admin)
 - UI : `admin/jeux.html` panneau Quiz — **4 étapes** (Médicaments → Paramètres → Questions → Titre) ; **pas d’aperçu grille** (liste de questions éditable à l’étape 3).
-- Étape 1 : niveau (filtre hospitalier via `visiblePourNiveau`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** (même logique que trous) ; coches médicaments = pool QCM.
+- Étape 1 : niveau (filtre fiches hospitalières via `visiblePourNiveau` — niveau `hospitalier` uniquement) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** (même logique que trous) ; coches médicaments = pool QCM.
 - Étape 2 : champs interrogés + nb questions + nb propositions.
 - Étape 3 : « Générer les questions » ; par question : **Supprimer** / **Régénérer** ; « Ajouter une question » (même contraintes filtres/champs). Génération **client** (`JpQuizz.genererQuestions` / `genererUneQuestion`) — distracteurs priorité même secteur puis pool.
 - Création = **exactement la liste affichée** via `JpQuizz.createWithSnapshot` (insert `snapshot_questions`, **zéro** appel `generer_et_geler_quiz`).
@@ -88,7 +94,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 
 ## Création tableau à trous (refonte admin)
 - UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu** auto-refresh (bouton Masquer / Afficher l’aperçu, UI only) ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.
-- Étape 1 : niveau (filtre hospitalier via `visiblePourNiveau`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
+- Étape 1 : niveau (filtre fiches hospitalières via `visiblePourNiveau` — niveau `hospitalier` uniquement) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
 - Étape 2 : colonnes + **identité de ligne** (`identite_visible` : `dci` | `noms` | `les_deux` | `au_moins_un`, défaut `au_moins_un`) — cases concernées jamais en trou ; `au_moins_un` empêche noms+DCI tous deux trous sur la même ligne (tirage + clic).
 - Étape 3 : densité + « Tirer les trous au hasard » + clic case + « Effacer les trous ».
 - Création = **exactement la grille affichée** (zéro re-tirage) via `buildSnapshot({ lignes, colonnes, trous, identite_visible })`.
@@ -115,8 +121,8 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - Inventer UI / flux / IA hors demande.
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
-- Réappliquer `001` / `002` / `004` / `005` sans vérifier l’état remote.
-- Confondre `hospitalier` / niveau pédagogique `pharmacien` avec `portail.profiles.role`.
+- Réappliquer `001` / `002` / `004` / `005` / `007` sans vérifier l’état remote.
+- Confondre le niveau pédagogique `hospitalier` (ou l’ancien bool) avec `portail.profiles.role` ou le niveau `pharmacien`.
 - Impression via `window.open`.
 
 ## Règles Cursor

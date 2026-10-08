@@ -22,7 +22,7 @@ alwaysApply: true
 - Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ legacy en base : posologies, grossesse/allaitement, voies).
 - Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
 - Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, indications, CI, EI, précautions, interactions, surveillances — **pas** posologie / grossesse / voies (legacy, pas de DROP).
-- **`hospitalier`** (bool, défaut false) sur la matrice : fiche réservée au niveau pédagogique `pharmacien` (pas `portail.profiles.role`) ; marquage admin manuel, pas de seed.
+- Niveau pédagogique **`hospitalier`** (lookup `niveaux` + `JpConstants.NIVEAUX`) : exclusif sur **DCI** + **noms commerciaux** (`niveaux_connus = ['hospitalier']`) ; bool `matrice_medicaments.hospitalier` dérivé / sync au save (compat vue + RPC). Visible seulement si filtre / `niveau_cible` = `hospitalier` (pas `portail.profiles.role`).
 - Noms commerciaux : liaison multi `matrice_noms_commerciaux` (plus de FK singulière `nom_commercial_id`).
 - Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier`.
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.

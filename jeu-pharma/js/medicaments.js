@@ -64,7 +64,18 @@
   }
 
   /**
-   * Fiche hospitalière : visible seulement au niveau pédagogique `pharmacien`.
+   * Fiche hospitalière (bool legacy ou DCI à niveaux_connus = hospitalier exclusif).
+   * @param {object} row
+   */
+  function isHospitaliere(row) {
+    if (!row) return false;
+    if (row.hospitalier) return true;
+    const nivs = Array.isArray(row.dci_niveaux) ? row.dci_niveaux : [];
+    return nivs.length === 1 && nivs[0] === 'hospitalier';
+  }
+
+  /**
+   * Fiche hospitalière : visible seulement au niveau pédagogique `hospitalier`.
    * Admin : toujours visible. Niveau vide côté joueur → masqué.
    * @param {object} row
    * @param {string|null|undefined} niveauCode
@@ -72,8 +83,34 @@
    */
   function visiblePourNiveau(row, niveauCode, opts = {}) {
     if (opts.admin) return true;
-    if (!row?.hospitalier) return true;
-    return niveauCode === 'pharmacien';
+    if (!isHospitaliere(row)) return true;
+    return niveauCode === 'hospitalier';
+  }
+
+  /**
+   * Si DCI ou noms portent le niveau hospitalier → force `['hospitalier']` exclusif
+   * sur DCI + noms commerciaux ; dérive le bool matrice.
+   * @param {object} payload
+   * @returns {boolean}
+   */
+  function applyHospitalierExclusif(payload) {
+    if (!payload) return false;
+    const dci = payload.singular?.dci;
+    const noms = Array.isArray(payload.multi?.nom_commercial)
+      ? payload.multi.nom_commercial
+      : [];
+    const fromDci =
+      Array.isArray(dci?.niveaux_connus) && dci.niveaux_connus.includes('hospitalier');
+    const fromNom = noms.some(
+      (n) => Array.isArray(n?.niveaux_connus) && n.niveaux_connus.includes('hospitalier')
+    );
+    const hospitalier = !!(fromDci || fromNom || payload.hospitalier);
+    if (!hospitalier) return false;
+    if (dci) dci.niveaux_connus = ['hospitalier'];
+    for (const n of noms) {
+      if (n) n.niveaux_connus = ['hospitalier'];
+    }
+    return true;
   }
 
   /**
@@ -354,9 +391,10 @@
    */
   async function save(payload, existingId) {
     const user = await global.JpApp.getUser();
+    const hospitalier = applyHospitalierExclusif(payload);
     const row = {
       statut: payload.statut || 'brouillon',
-      hospitalier: !!payload.hospitalier,
+      hospitalier,
       updated_by: user?.id || null,
     };
 
@@ -485,6 +523,7 @@
     lieAEntite,
     nomsList,
     formatNoms,
+    isHospitaliere,
     visiblePourNiveau,
   };
 })(window);

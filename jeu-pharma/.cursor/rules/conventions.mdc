@@ -35,7 +35,7 @@ alwaysApply: false
 - Schéma `jeupharma` ; tables entités au pluriel ; liaisons `matrice_*`.
 - Fiche : `statut` `brouillon` | `publie` | `archive` ; entités : `actif` soft-delete.
 - Quiz : `mode` `entrainement` | `evaluation` ; code `PH-XXXXX`.
-- Niveaux (codes) : `apprenti` | `pharmacien` | `preparatrice` | `etu_3a` | `etu_4a` | `etu_6a`.
+- Niveaux (codes) : `apprenti` | `pharmacien` | `preparatrice` | `etu_3a` | `etu_4a` | `etu_6a` | `hospitalier` (exclusif DCI + noms).
 - Bugs : `type` `bug`|`amelioration` ; `statut` `nouveau`|`en_cours`|`modifie`|`impossible`|`annule`.
 - Logs : `level` `info`|`warn`|`error`.
 
