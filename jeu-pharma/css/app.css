@@ -6,6 +6,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   color-scheme: light;
 }
@@ -1044,7 +1048,7 @@ body > a[title="Retour au portail"] {
   border: 1px solid var(--jp-line);
   border-radius: var(--jp-radius);
   background: var(--jp-bg-elevated);
-  width: min(56rem, 100%);
+  width: min(64rem, 100%);
   max-height: min(92dvh, 52rem);
   display: flex;
   flex-direction: column;
@@ -1077,26 +1081,65 @@ body > a[title="Retour au portail"] {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+  justify-content: flex-end;
 }
 
-.jp-med-hospitalier {
+.jp-med-editor-status {
+  margin: 0;
+  min-width: 9rem;
+}
+
+.jp-med-classifications {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: 0.35rem 0.85rem;
+  margin: 0;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+}
+
+.jp-med-classifications legend {
+  padding: 0 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+}
+
+.jp-med-classifications small {
+  grid-column: 1 / -1;
+  color: var(--jp-text-muted);
+  font-size: 0.72rem;
+}
+
+.jp-med-switch {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-size: 0.875rem;
-  color: var(--jp-text);
-  cursor: pointer;
-  user-select: none;
   white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.jp-med-hospitalier input {
+.jp-med-switch input {
+  flex: 0 0 auto;
+  width: auto;
   margin: 0;
+  accent-color: var(--jp-accent);
 }
 
 .jp-badge-hospitalier {
   background: #e8eef5;
   color: #3a5a7a;
+}
+
+.jp-badge-complexe {
+  background: var(--jp-accent-soft);
+  color: var(--jp-accent);
 }
 
 .jp-badge-validee {
@@ -1111,8 +1154,10 @@ body > a[title="Retour au portail"] {
 
 .jp-med-editor-body {
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 1rem 1.1rem 1.25rem;
   flex: 1;
+  min-height: 0;
 }
 
 .jp-med-editor .jp-form {
@@ -1123,6 +1168,7 @@ body > a[title="Retour au portail"] {
 .jp-med-section {
   display: grid;
   gap: 0.85rem;
+  min-width: 0;
 }
 
 .jp-med-section-title {
@@ -1149,6 +1195,7 @@ body > a[title="Retour au portail"] {
 .jp-med-field-card {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
   padding: 0.65rem 0.75rem;
   background: var(--jp-bg);
   border: 1px solid var(--jp-line);
@@ -1166,6 +1213,11 @@ body > a[title="Retour au portail"] {
 }
 
 .jp-ac-list {
+  position: absolute;
+  z-index: 6;
+  top: 100%;
+  left: 0;
+  right: 0;
   list-style: none;
   margin: 0.25rem 0 0;
   padding: 0.2rem;
@@ -1206,6 +1258,12 @@ body > a[title="Retour au portail"] {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.jp-med-field-card input[type="text"],
+.jp-med-field-card input[type="search"] {
+  width: 100%;
+  min-width: 0;
 }
 
 .jp-entity-chips {
@@ -1334,6 +1392,10 @@ body > a[title="Retour au portail"] {
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--jp-line);
   background: var(--jp-bg);
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
 }
 
 @media (max-width: 1100px) {
@@ -1373,6 +1435,49 @@ body > a[title="Retour au portail"] {
 
   .jp-med-grid {
     grid-template-columns: 1fr;
+  }
+
+  .jp-med-editor-head {
+    align-items: stretch;
+  }
+
+  .jp-med-editor-head-meta {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .jp-med-editor-status {
+    flex: 1 1 9rem;
+  }
+
+  .jp-med-classifications {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .jp-catalogue-fiche-modal {
+    padding: 0;
+  }
+
+  .jp-catalogue-fiche-modal-panel,
+  .jp-med-editor {
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .jp-med-classifications {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-med-classifications small {
+    grid-column: auto;
+  }
+
+  .jp-med-editor-foot .jp-btn {
+    flex: 1;
   }
 }
 

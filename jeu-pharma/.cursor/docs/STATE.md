@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-08 — `016` configuration pédagogique centralisée par niveau + suppression staging ATC.
+Dernière mise à jour : 2026-10-08 — `017` classifications hospitalière / complexe réservées au niveau pharmacien.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -51,13 +51,13 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - `matrice_medicaments.hospitalier boolean NOT NULL DEFAULT false` (legacy — sync depuis niveau)
   - vue `v_medicaments_complet.hospitalier`
   - RPC / filtre initialement liés au niveau `pharmacien` → remplacés par `007`
-- [x] Migration **`007_niveau_hospitalier`** (MCP + fichier `sql/007_niveau_hospitalier.sql`) :
-  - Seed `jeupharma.niveaux` code `hospitalier` (ordre 7) + `JpConstants.NIVEAUX`
+- [x] Migration historique **`007_niveau_hospitalier`** (MCP + fichier `sql/007_niveau_hospitalier.sql`, comportement remplacé par `017`) :
+  - Seed DB legacy `jeupharma.niveaux` code `hospitalier` (ordre 7), désormais absent de `JpConstants.NIVEAUX`
   - Données : matrices `hospitalier=true` → `niveaux_connus = ['hospitalier']` sur DCI + noms commerciaux liés (6 DCI / 6 noms)
   - Bool `matrice.hospitalier` **conservé** : dérivé au save si DCI/noms portent le niveau hospitalier (exclusif)
-  - `generer_et_geler_quiz` : pool = hospitaliers **ssi** `niveau_cible = 'hospitalier'` ; sinon exclus
+  - ancien `generer_et_geler_quiz` : pool hospitalier dédié, remplacé par la règle pharmacien de `017`
   - UI : case « Hospitalier (pharmacien) » retirée ; contrôle = niveaux DCI / noms (Hosp exclusif)
-  - Filtre client : `visiblePourNiveau` → visible seulement si niveau `hospitalier` (plus le hack pharmacien)
+  - ancien filtre client hospitalier exclusif, remplacé par `hospitalier OR complexe` réservé à `pharmacien`
 - [x] Migration **`008_scores_fiche_aleatoire`** (MCP + fichier `sql/008_scores_fiche_aleatoire.sql`) :
   - Table `jeupharma.scores_fiche_aleatoire` : `utilisateur_id`, `matrice_id`, `score_obtenu` (sans défaut), `score_max` défaut 10, `created_at`
   - RLS : select soi ou `is_portail_admin()` ; insert soi + `has_jeupharma_access()`
@@ -99,6 +99,13 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - quiz / trous / catalogue joueur / fiche aléatoire lisent taxonomies + champs du niveau
   - tables supprimées après contrôle des libellés migrés : `atc_map_staging`, `atc_labels_staging`, `atc_cp_fix_staging`, `atc_cp_extra_staging`
   - tables conservées : `secteurs_therapeutiques`, `classes_therapeutiques`, `classes_pharmacologiques` et leurs trois jonctions `matrice_*`
+- [x] Migration **`017_classifications_fiches`** (MCP `jeupharma_017_classifications_fiches` + `jeupharma_017_classifications_fiches_rls`, fichier `sql/017_classifications_fiches.sql`) :
+  - ajoute `matrice_medicaments.complexe boolean NOT NULL DEFAULT false` ; conserve `hospitalier` comme source du statut hospitalier
+  - expose `hospitalier` + `complexe` dans `v_medicaments_complet` (`security_invoker`)
+  - une fiche `hospitalier OR complexe` est visible / générable uniquement pour `profil_apprentissage.niveau_id = 'pharmacien'` ; les fiches ordinaires restent disponibles au pharmacien
+  - `_matrice_disponible_niveau` et le générateur quiz legacy appliquent la même règle ; aucun `niveaux_connus` d’entité réintroduit
+  - RLS `matrice_medicaments` / `quizz` / `parties_tableau_trous` + RPC `ouvrir_quiz` / `soumettre_quiz` empêchent la lecture et le jeu des contenus pharmacien par les autres profils
+  - éditeur admin : deux switches explicites, sauvegardés séparément ; l’admin voit et édite toujours toutes les fiches
 
 ## Import cours Sang / CV / HTA (2026-10-08)
 
@@ -134,7 +141,7 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 
 ## Catalogue — champs actifs & entités liées
 - Flag `actif` sur `JpConstants.CHAMP_CODES` + `champsActifs()` / `isChampActif()`.
-- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut et booléen fiche hospitalière).
+- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut et booléens fiche hospitalière / complexe).
 - Disponibilité par niveau : panneau admin centralisé (taxonomies + champs), sans `niveaux_connus` sur chaque valeur.
 - **Legacy masqués** (tables/données conservées) : posologie générale, grossesse & allaitement, voies d’administration — absents UI admin/joueur, CSV modèle, cases quiz/trous ; `JpMedicaments.save` ne touche plus ces FK/jonctions.
 - **Picker fiche** : chips multi `{ id, valeur }` + recherche ; « Créer … » seulement si pas de match exact `valeur_norm` ; singuliers id forcé (`data-entity-id`) + Effacer ; save priorise les ids.
@@ -157,7 +164,7 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 
 ## Création quiz (refonte admin)
 - UI : `admin/jeux.html` panneau Quiz — **4 étapes** (Médicaments → Paramètres → Questions → Titre) ; **pas d’aperçu grille** (liste de questions éditable à l’étape 3).
-- Étape 1 : niveau (filtre fiches hospitalières via `visiblePourNiveau` — niveau `hospitalier` uniquement) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** (même logique que trous) ; coches médicaments = pool QCM.
+- Étape 1 : niveau (les fiches hospitalières ou complexes entrent dans le pool uniquement pour `pharmacien`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** (même logique que trous) ; coches médicaments = pool QCM.
 - Étape 2 : champs interrogés + nb questions + nb propositions.
 - Étape 3 : « Générer les questions » ; par question : **Supprimer** / **Régénérer** ; « Ajouter une question » (même contraintes filtres/champs). Génération **client** (`JpQuizz.genererQuestions` / `genererUneQuestion`) — distracteurs priorité même secteur puis pool.
 - Création = **exactement la liste affichée** via `JpQuizz.createWithSnapshot` (insert `snapshot_questions`, **zéro** appel `generer_et_geler_quiz`).
@@ -167,7 +174,7 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 
 ## Création tableau à trous (refonte admin)
 - UI : `admin/jeux.html` panneau Trous — **4 étapes** (Lignes → Colonnes → Trous → Titre) + **aperçu** auto-refresh (bouton Masquer / Afficher l’aperçu, UI only) ; plus de « Prévisualiser » ni select Aléatoire/Manuel exclusif.
-- Étape 1 : niveau (filtre fiches hospitalières via `visiblePourNiveau` — niveau `hospitalier` uniquement) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
+- Étape 1 : niveau (les fiches hospitalières ou complexes entrent dans le pool uniquement pour `pharmacien`) ; filtres multi (secteurs + classes théra/pharma + texte) — **OR intra-filtre, AND inter-filtres** ; interrupteur « Une ligne par nom commercial » + retouche noms par fiche ; max lignes + « Tirer les lignes au hasard » (tirage figé jusqu’au re-clic).
 - Étape 2 : colonnes + **identité de ligne** (`identite_visible` : `dci` | `noms` | `les_deux` | `au_moins_un`, défaut `au_moins_un`) — cases concernées jamais en trou ; `au_moins_un` empêche noms+DCI tous deux trous sur la même ligne (tirage + clic).
 - Étape 3 : densité + « Tirer les trous au hasard » + clic case + « Effacer les trous ».
 - Création = **exactement la grille affichée** (zéro re-tirage) via `buildSnapshot({ lignes, colonnes, trous, identite_visible })`.
@@ -206,7 +213,7 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
 - Réappliquer `001` / `002` / `004` / `005` / `007` / `008` sans vérifier l’état remote.
-- Confondre le niveau pédagogique `hospitalier` (ou l’ancien bool) avec `portail.profiles.role` ou le niveau `pharmacien`.
+- Utiliser `portail.profiles.role` pour filtrer les classifications hospitalière / complexe : seule la valeur `pharmacien` de `profil_apprentissage` autorise ces fiches côté joueur.
 - Impression via `window.open`.
 
 ## Règles Cursor

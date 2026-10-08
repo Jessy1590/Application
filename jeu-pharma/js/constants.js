@@ -10,12 +10,11 @@
     { code: 'etu_3a', libelle: 'Étudiant pharma 3A' },
     { code: 'etu_4a', libelle: 'Étudiant pharma 4A' },
     { code: 'etu_6a', libelle: 'Étudiant pharma 6A' },
-    { code: 'hospitalier', libelle: 'Hospitalier' },
   ];
 
-  /** Niveaux pédagogiques standards (hors hospitalier exclusif). */
+  /** Niveaux pédagogiques proposés dans l’UI. */
   function niveauxStandards() {
-    return NIVEAUX.filter((n) => n.code !== 'hospitalier').map((n) => n.code);
+    return NIVEAUX.map((n) => n.code);
   }
 
   /** Codes champ pour configuration quiz / affichage fiches */

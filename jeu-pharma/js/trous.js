@@ -319,10 +319,12 @@
       const filterLevel = global.JpNiveaux?.filtrerMedicaments;
       if (typeof filterLevel === 'function') {
         rows = filterLevel(rows, opts.niveau);
-      } else if (opts.niveau === 'hospitalier') {
-        rows = rows.filter((r) => !!r.hospitalier);
       } else {
-        rows = rows.filter((r) => !r.hospitalier);
+        rows = rows.filter((r) =>
+          global.JpMedicaments?.visiblePourNiveau
+            ? global.JpMedicaments.visiblePourNiveau(r, opts.niveau)
+            : (!(r.hospitalier || r.complexe) || opts.niveau === 'pharmacien')
+        );
       }
     }
     return rows;
@@ -570,6 +572,12 @@
     }
     if (!partie) throw new Error('Partie introuvable ou inactive');
     if (!partie.snapshot_grille) throw new Error('Grille manquante');
+    if (partie.niveau_cible === 'pharmacien' || partie.niveau_cible === 'hospitalier') {
+      const niveau = await global.JpProfil?.getNiveauCode?.();
+      if (niveau !== 'pharmacien') {
+        throw new Error('Cette partie est réservée au niveau d’apprentissage pharmacien');
+      }
+    }
 
     void global.JpLogs?.action?.('trous_ouvrir', { code: partie.code_unique });
 

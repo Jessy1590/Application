@@ -83,7 +83,7 @@
 
     <section class="jp-admin-cat-panel" id="jpPanelNiveaux" hidden>
       <h2 class="jp-admin-cat-panel-title">Paramétrage pédagogique par niveau</h2>
-      <p class="jp-muted">Choisissez les taxonomies disponibles à l’apprentissage et les champs à connaître. Le niveau hospitalier est pédagogique et indépendant des rôles portail.</p>
+      <p class="jp-muted">Choisissez les taxonomies disponibles à l’apprentissage et les champs à connaître. Les classifications hospitalière et complexe sont des propriétés de fiche réservées au niveau pharmacien.</p>
       <label class="jp-field">Niveau
         <select id="jpConfigNiveau" aria-label="Niveau pédagogique"></select>
       </label>
@@ -210,7 +210,7 @@
       <div class="jp-med-editor-head">
         <h2 class="jp-title" id="jpEditorTitle">Nouvelle fiche</h2>
         <div class="jp-med-editor-head-meta">
-          <div class="jp-field" style="margin:0;min-width:9rem">
+          <div class="jp-field jp-med-editor-status">
             <label class="jp-sr-only" for="jpStatut">Statut</label>
             <select id="jpStatut" name="statut" aria-label="Statut de la fiche">
               <option value="brouillon">Brouillon</option>
@@ -218,10 +218,18 @@
               <option value="archive">Archivé</option>
             </select>
           </div>
-          <label class="jp-catalogue-col">
-            <input type="checkbox" id="jpHospitalier">
-            <span>Fiche hospitalière</span>
-          </label>
+          <fieldset class="jp-med-classifications">
+            <legend>Classifications</legend>
+            <label class="jp-med-switch">
+              <input type="checkbox" id="jpHospitalier">
+              <span>Fiche hospitalière</span>
+            </label>
+            <label class="jp-med-switch">
+              <input type="checkbox" id="jpComplexe">
+              <span>Fiche complexe</span>
+            </label>
+            <small>Réservées au niveau d’apprentissage pharmacien.</small>
+          </fieldset>
         </div>
       </div>
       <div class="jp-med-editor-body">
@@ -932,6 +940,7 @@
                   <td>
                     <span class="jp-badge jp-badge-${esc(r.statut)}">${esc(r.statut)}</span>
                     ${JpMedicaments.isHospitaliere?.(r) || r.hospitalier ? ' <span class="jp-badge jp-badge-hospitalier">Hosp.</span>' : ''}
+                    ${JpMedicaments.isComplexe?.(r) || r.complexe ? ' <span class="jp-badge jp-badge-complexe">Complexe</span>' : ''}
                     ${isFicheValidee(r)
                       ? ' <span class="jp-badge jp-badge-validee">Validée</span>'
                       : ' <span class="jp-badge jp-badge-a-valider">À valider</span>'}
@@ -1497,6 +1506,7 @@
         document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
         document.getElementById('jpStatut').value = 'brouillon';
         document.getElementById('jpHospitalier').checked = false;
+        document.getElementById('jpComplexe').checked = false;
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (input) {
@@ -1523,8 +1533,10 @@
         document.getElementById('jpEditorTitle').textContent =
           nomsOf(row) || row.dci || 'Modifier la fiche';
         document.getElementById('jpStatut').value = row.statut || 'brouillon';
-        const hospOnly = !!(JpMedicaments.isHospitaliere?.(row) || row.hospitalier);
-        document.getElementById('jpHospitalier').checked = hospOnly;
+        document.getElementById('jpHospitalier').checked =
+          !!(JpMedicaments.isHospitaliere?.(row) || row.hospitalier);
+        document.getElementById('jpComplexe').checked =
+          !!(JpMedicaments.isComplexe?.(row) || row.complexe);
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (!input) continue;
@@ -1642,6 +1654,7 @@
           payload: {
             statut: document.getElementById('jpStatut').value,
             hospitalier: document.getElementById('jpHospitalier').checked,
+            complexe: document.getElementById('jpComplexe').checked,
             singular,
             multi,
           },

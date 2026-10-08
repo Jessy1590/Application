@@ -23,9 +23,9 @@ alwaysApply: true
 - Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
 - Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, indications, CI, EI, précautions, interactions, surveillances — **pas** posologie / grossesse / voies (legacy, pas de DROP).
 - Paramétrage pédagogique centralisé par niveau : `niveau_secteurs_therapeutiques`, `niveau_classes_therapeutiques`, `niveau_classes_pharmacologiques`, `niveau_champs`. Lecture par les joueurs autorisés, écriture via RPC/RLS admin portail. Quiz, trous, catalogue et fiche aléatoire appliquent cette configuration.
-- Niveau pédagogique **`hospitalier`** (lookup `niveaux` + `JpConstants.NIVEAUX`) : `matrice_medicaments.hospitalier` est l’unique source pour la fiche ; visible dans le pool hospitalier uniquement (pas `portail.profiles.role`).
+- Classifications de fiche : `matrice_medicaments.hospitalier` (legacy conservé) et `matrice_medicaments.complexe`, deux booléens indépendants. Une fiche portant au moins un des deux flags est visible / jouable uniquement si `profil_apprentissage.niveau_id = 'pharmacien'` ; jamais selon `portail.profiles.role`. Les admins catalogue gardent l’accès complet.
 - Noms commerciaux : liaison multi `matrice_noms_commerciaux` (plus de FK singulière `nom_commercial_id`).
-- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier` + `fiche_validee`.
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier` + `complexe` + `fiche_validee`.
 - **`fiche_validee`** (bool, défaut false) : revue admin catalogue (`Valider fiches` / filtre / Remettre à 0) ; invalidée à chaque save éditeur.
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
 - Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
@@ -33,7 +33,7 @@ alwaysApply: true
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `016_configuration_niveaux` ; ne pas réappliquer sans check (voir STATE.md).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017_classifications_fiches` ; ne pas réappliquer sans check (voir STATE.md).
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique

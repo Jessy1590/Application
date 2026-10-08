@@ -416,6 +416,12 @@
       p_code: String(code || '').trim().toUpperCase(),
     });
     if (error) throw error;
+    if (data && (data.niveau_cible === 'pharmacien' || data.niveau_cible === 'hospitalier')) {
+      const niveau = await global.JpProfil?.getNiveauCode?.();
+      if (niveau !== 'pharmacien') {
+        throw new Error('Ce quiz est réservé au niveau d’apprentissage pharmacien');
+      }
+    }
     void global.JpLogs?.action?.('quiz_ouvrir', { code: String(code || '').trim().toUpperCase() });
     return data;
   }

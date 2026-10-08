@@ -1,6 +1,7 @@
 /**
  * Configuration pédagogique centralisée : taxonomies et champs par niveau.
- * Le niveau `hospitalier` reste un niveau de cours, jamais un rôle portail.
+ * Les classifications de fiche sont filtrées par `JpMedicaments` selon le
+ * niveau d'apprentissage, jamais selon un rôle portail.
  */
 (function (global) {
   let cache = null;

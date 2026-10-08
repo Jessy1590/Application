@@ -118,25 +118,26 @@
     return ids;
   }
 
-  /**
-   * Fiche hospitalière : booléen porté par la matrice.
-   * @param {object} row
-   */
+  /** Classifications portées uniquement par la matrice. */
   function isHospitaliere(row) {
     return !!row?.hospitalier;
   }
 
+  function isComplexe(row) {
+    return !!row?.complexe;
+  }
+
+  function isReserveePharmacien(row) {
+    return isHospitaliere(row) || isComplexe(row);
+  }
+
   /**
-   * Fiche hospitalière : visible seulement au niveau pédagogique `hospitalier`.
-   * Admin : toujours visible. Niveau vide côté joueur → masqué.
-   * @param {object} row
-   * @param {string|null|undefined} niveauCode
-   * @param {{ admin?: boolean }} [opts]
+   * Les fiches hospitalières ou complexes sont réservées au niveau
+   * d'apprentissage `pharmacien`. Le rôle portail n'intervient jamais ici.
    */
   function visiblePourNiveau(row, niveauCode, opts = {}) {
     if (opts.admin) return true;
-    if (niveauCode === 'hospitalier') return isHospitaliere(row);
-    return !isHospitaliere(row);
+    return !isReserveePharmacien(row) || niveauCode === 'pharmacien';
   }
 
   /**
@@ -452,9 +453,16 @@
     const user = await global.JpApp.getUser();
     const row = {
       statut: payload.statut || 'brouillon',
-      hospitalier: !!payload.hospitalier,
       updated_by: user?.id || null,
     };
+    // Les imports/anciens appelants qui n'envoient pas les flags ne doivent pas
+    // effacer une classification existante. Les inserts utilisent les défauts DB.
+    if (Object.prototype.hasOwnProperty.call(payload, 'hospitalier')) {
+      row.hospitalier = !!payload.hospitalier;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'complexe')) {
+      row.complexe = !!payload.complexe;
+    }
     // Toute modification depuis l’éditeur invalide la validation précédente.
     if (existingId) row.fiche_validee = false;
 
@@ -600,6 +608,8 @@
     resetFicheValidee,
     idsOf,
     isHospitaliere,
+    isComplexe,
+    isReserveePharmacien,
     visiblePourNiveau,
   };
 })(window);

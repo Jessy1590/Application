@@ -116,6 +116,7 @@
 
       let all = [];
       let prefs = loadPrefs();
+      let niveauProfil = null;
 
       function defaultPrefs() {
         return {
@@ -277,7 +278,8 @@
           if (prefs.secteur && !JpMedicaments.labelsOf(r.secteur_therapeutique).includes(prefs.secteur)) return false;
           if (prefs.classeTh && !JpMedicaments.labelsOf(r.classe_therapeutique).includes(prefs.classeTh)) return false;
           if (prefs.classePh && !JpMedicaments.labelsOf(r.classe_pharmacologique).includes(prefs.classePh)) return false;
-          if (!JpMedicaments.visiblePourNiveau(r, prefs.niveau || null)) return false;
+          // Le filtre affiché ne peut jamais contourner le niveau réel du profil.
+          if (!JpMedicaments.visiblePourNiveau(r, niveauProfil)) return false;
           if (!JpNiveaux.ficheDisponible(r, prefs.niveau || null)) return false;
           if (!q) return true;
           const blob = [
@@ -410,13 +412,15 @@
             JpMedicaments.list({ publieOnly: true }),
             JpNiveaux.load(),
           ]);
+          try {
+            niveauProfil = await JpProfil.getNiveauCode();
+          } catch (_) {
+            niveauProfil = null;
+          }
           if (!prefs.niveau) {
-            try {
-              const niv = await JpProfil.getNiveauCode();
-              if (niv && (JpConstants.NIVEAUX || []).some((n) => n.code === niv)) {
-                prefs.niveau = niv;
-              }
-            } catch (_) { /* ignore */ }
+            if (niveauProfil && (JpConstants.NIVEAUX || []).some((n) => n.code === niveauProfil)) {
+              prefs.niveau = niveauProfil;
+            }
           }
           syncFilterOptions();
           applyPrefsToUi();
