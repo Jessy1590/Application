@@ -388,7 +388,9 @@
     const modeTrous = hasExplicitTrous
       ? 'MANUEL'
       : (opts.modeTrous === 'MANUEL' ? 'MANUEL' : 'ALEATOIRE');
-    const densite = opts.densite != null ? opts.densite : 0.4;
+    const densiteBrute = opts.densite != null ? Number(opts.densite) : 0.4;
+    const densite = Number.isFinite(densiteBrute) ? densiteBrute : 0.4;
+    const plein = densite >= 1;
     const manuels = opts.trousManuels || {};
 
     const lignes = rawLignes.map((entry) => {
@@ -414,7 +416,7 @@
           } else if (modeTrous === 'MANUEL') {
             trou = !!(manuels[key] || manuels[`${med.id}|${champ}`]);
           } else {
-            trou = Math.random() < densite;
+            trou = plein || Math.random() < densite;
           }
         }
         return {

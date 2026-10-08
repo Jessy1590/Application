@@ -1112,12 +1112,13 @@
     }
     const next = new Set();
     let fillable = 0;
+    const plein = densite >= 1;
     pack.lignes.forEach(function (l) {
       (t.colonnes || []).forEach(function (champ) {
         const cv = global.JpTrous.cellValeurFromMed(l.med, champ, l.nom_commercial_id);
         if (!cv.valeur) return;
         fillable += 1;
-        if (Math.random() >= densite) return;
+        if (!plein && Math.random() >= densite) return;
         if (!global.JpTrous.peutPoserTrou({
           identite_visible: t.identiteVisible,
           ligne_id: l.ligne_id,
