@@ -166,7 +166,8 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 - Exclusion : **3 notes > 8/10** (8 ne compte pas) pour l’utilisateur connecté → fiche plus proposée.
 - Filtre : `JpMedicaments.visiblePourNiveau` + `JpProfil.getNiveauCode()` (joueur, pas le bypass admin du catalogue).
 - RLS : select soi ou `is_portail_admin()` ; insert soi + `has_jeupharma_access()`.
-- Fichiers : `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `index.html`, `sql/008_scores_fiche_aleatoire.sql`.
+- **Suivi** : scores dans Mon espace (`espace.html`) + admin suivi Chart.js (`charts-admin.js`) — type « Fiche aléatoire », libellé DCI · noms, note /10.
+- Fichiers : `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `espace.html`, `admin/suivi.html`, `js/charts-admin.js`, `index.html`, `sql/008_scores_fiche_aleatoire.sql`.
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).

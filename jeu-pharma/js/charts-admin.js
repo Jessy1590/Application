@@ -1,14 +1,27 @@
 /**
  * Graphiques admin suivi — Chart.js (chargé uniquement sur admin/suivi.html).
- * Sources : quizz_reponses_utilisateur + parties_reponses_utilisateur.
+ * Sources : quizz_reponses_utilisateur + parties_reponses_utilisateur + scores_fiche_aleatoire.
  */
 (function (global) {
   const ACCENT = '#0F6B5C';
   const ACCENT_TROUS = '#3D6B8A';
+  const ACCENT_FICHE = '#9A6B4F';
   const MUTED = '#4a5c56';
   const GRID = 'rgba(20, 32, 28, 0.08)';
 
   const instances = {};
+
+  const FICHE_SELECT =
+    'id, matrice_id, utilisateur_id, score_obtenu, score_max, created_at, '
+    + 'matrice_medicaments('
+    + 'id, secteur_therapeutique_id, '
+    + 'secteurs_therapeutiques(valeur), '
+    + 'dcis(valeur), '
+    + 'matrice_noms_commerciaux(noms_commerciaux(valeur))'
+    + ')';
+
+  const FICHE_SELECT_LIGHT =
+    'id, matrice_id, utilisateur_id, score_obtenu, score_max, created_at';
 
   function dayKey(iso) {
     const d = new Date(iso);
@@ -42,6 +55,54 @@
     const days = Number(p);
     if (!Number.isFinite(days) || days < 1) return null;
     return new Date(Date.now() - days * 86400000).toISOString();
+  }
+
+  function bucketsForKind(kind) {
+    if (kind === 'trous') return 'trous';
+    if (kind === 'fiche') return 'fiche';
+    return 'quiz';
+  }
+
+  function ficheLibelle(matrice) {
+    if (!matrice) return '—';
+    const dci = matrice.dcis?.valeur ? String(matrice.dcis.valeur) : '';
+    const noms = (matrice.matrice_noms_commerciaux || [])
+      .map((x) => x?.noms_commerciaux?.valeur)
+      .filter(Boolean)
+      .map(String);
+    const nomsStr = noms.join(', ');
+    if (dci && nomsStr) return dci + ' · ' + nomsStr;
+    return dci || nomsStr || '—';
+  }
+
+  function mapFicheRow(r) {
+    const m = r.matrice_medicaments || null;
+    return {
+      id: r.id,
+      kind: 'fiche',
+      item_id: r.matrice_id,
+      utilisateur_id: r.utilisateur_id,
+      score_obtenu: r.score_obtenu,
+      score_max: r.score_max,
+      created_at: r.created_at,
+      meta: m
+        ? {
+          id: r.matrice_id,
+          kind: 'fiche',
+          titre: ficheLibelle(m),
+          code: '',
+          secteurId: m.secteur_therapeutique_id || null,
+          secteurLabel: m.secteurs_therapeutiques?.valeur || 'Sans secteur',
+        }
+        : {
+          id: r.matrice_id,
+          kind: 'fiche',
+          titre: 'Fiche',
+          code: '',
+          secteurId: null,
+          secteurLabel: 'Sans secteur',
+        },
+    };
   }
 
   async function loadItems(kind) {
@@ -114,21 +175,88 @@
     }));
   }
 
+  async function loadFicheResponses(opts) {
+    const sb = global.JpApp.sbJeu();
+    let useLight = false;
+    let data;
+    let error;
+    for (;;) {
+      let q = sb
+        .from('scores_fiche_aleatoire')
+        .select(useLight ? FICHE_SELECT_LIGHT : FICHE_SELECT)
+        .order('created_at', { ascending: true })
+        .limit(3000);
+      if (opts.since) q = q.gte('created_at', opts.since);
+      if (opts.itemId) q = q.eq('matrice_id', opts.itemId);
+      ({ data, error } = await q);
+      if (!error) break;
+      if (!useLight) {
+        useLight = true;
+        continue;
+      }
+      throw error;
+    }
+    return (data || []).map(mapFicheRow);
+  }
+
+  /** Options filtre activité : matrices déjà scorées (admin lit tout via RLS). */
+  async function loadFicheItemOptions() {
+    const sb = global.JpApp.sbJeu();
+    const { data, error } = await sb
+      .from('scores_fiche_aleatoire')
+      .select(FICHE_SELECT)
+      .order('created_at', { ascending: false })
+      .limit(3000);
+    if (error) {
+      const light = await sb
+        .from('scores_fiche_aleatoire')
+        .select('matrice_id')
+        .limit(3000);
+      if (light.error) throw light.error;
+      const ids = [...new Set((light.data || []).map((r) => r.matrice_id).filter(Boolean))];
+      return ids.map((id) => ({
+        id,
+        kind: 'fiche',
+        titre: 'Fiche ' + String(id).slice(0, 8),
+        code: '',
+        secteurId: null,
+        secteurLabel: 'Sans secteur',
+      }));
+    }
+    const byId = new Map();
+    (data || []).forEach((r) => {
+      if (!r.matrice_id || byId.has(r.matrice_id)) return;
+      const mapped = mapFicheRow(r);
+      byId.set(r.matrice_id, mapped.meta);
+    });
+    return [...byId.values()].sort((a, b) =>
+      String(a.titre || '').localeCompare(String(b.titre || ''), 'fr')
+    );
+  }
+
   function buildScoreSeriesCombined(rows) {
     const quizBuckets = new Map();
     const trousBuckets = new Map();
+    const ficheBuckets = new Map();
     rows.forEach((r) => {
       const key = dayKey(r.created_at);
       if (!key) return;
       const p = pct(r.score_obtenu, r.score_max);
       if (p == null) return;
-      const buckets = r.kind === 'trous' ? trousBuckets : quizBuckets;
+      const which = bucketsForKind(r.kind);
+      const buckets = which === 'trous'
+        ? trousBuckets
+        : (which === 'fiche' ? ficheBuckets : quizBuckets);
       const b = buckets.get(key) || { sum: 0, n: 0 };
       b.sum += p;
       b.n += 1;
       buckets.set(key, b);
     });
-    const labels = [...new Set([...quizBuckets.keys(), ...trousBuckets.keys()])].sort();
+    const labels = [...new Set([
+      ...quizBuckets.keys(),
+      ...trousBuckets.keys(),
+      ...ficheBuckets.keys(),
+    ])].sort();
     return {
       labels: labels.map(formatDay),
       quiz: labels.map((k) => {
@@ -137,6 +265,10 @@
       }),
       trous: labels.map((k) => {
         const b = trousBuckets.get(k);
+        return b ? Math.round((b.sum / b.n) * 10) / 10 : null;
+      }),
+      fiche: labels.map((k) => {
+        const b = ficheBuckets.get(k);
         return b ? Math.round((b.sum / b.n) * 10) / 10 : null;
       }),
       dual: true,
@@ -164,10 +296,15 @@
   }
 
   function itemLabel(meta, id, kind) {
-    if (!meta) return (kind === 'trous' ? 'TT' : 'PH') + ' ' + id.slice(0, 8);
+    if (!meta) {
+      if (kind === 'trous') return 'TT ' + id.slice(0, 8);
+      if (kind === 'fiche') return 'Fiche ' + id.slice(0, 8);
+      return 'PH ' + id.slice(0, 8);
+    }
     const base = meta.code || meta.titre || id.slice(0, 8);
     if (kind === 'trous') return 'Trous · ' + base;
     if (kind === 'quiz') return 'Quiz · ' + base;
+    if (kind === 'fiche') return 'Fiche · ' + base;
     return base;
   }
 
@@ -225,23 +362,31 @@
   function buildActivityCombined(rows) {
     const quizByDay = new Map();
     const trousByDay = new Map();
+    const ficheByDay = new Map();
     const usersByDay = new Map();
     rows.forEach((r) => {
       const key = dayKey(r.created_at);
       if (!key) return;
       if (r.kind === 'trous') {
         trousByDay.set(key, (trousByDay.get(key) || 0) + 1);
+      } else if (r.kind === 'fiche') {
+        ficheByDay.set(key, (ficheByDay.get(key) || 0) + 1);
       } else {
         quizByDay.set(key, (quizByDay.get(key) || 0) + 1);
       }
       if (!usersByDay.has(key)) usersByDay.set(key, new Set());
       if (r.utilisateur_id) usersByDay.get(key).add(r.utilisateur_id);
     });
-    const labels = [...new Set([...quizByDay.keys(), ...trousByDay.keys()])].sort();
+    const labels = [...new Set([
+      ...quizByDay.keys(),
+      ...trousByDay.keys(),
+      ...ficheByDay.keys(),
+    ])].sort();
     return {
       labels: labels.map(formatDay),
       quizAttempts: labels.map((k) => quizByDay.get(k) || 0),
       trousAttempts: labels.map((k) => trousByDay.get(k) || 0),
+      ficheAttempts: labels.map((k) => ficheByDay.get(k) || 0),
       users: labels.map((k) => usersByDay.get(k)?.size || 0),
       dual: true,
     };
@@ -310,6 +455,16 @@
             data: series.trous,
             borderColor: ACCENT_TROUS,
             backgroundColor: 'rgba(61, 107, 138, 0.10)',
+            fill: false,
+            tension: 0.25,
+            pointRadius: 3,
+            spanGaps: true,
+          },
+          {
+            label: 'Fiche aléatoire (%)',
+            data: series.fiche,
+            borderColor: ACCENT_FICHE,
+            backgroundColor: 'rgba(154, 107, 79, 0.10)',
             fill: false,
             tension: 0.25,
             pointRadius: 3,
@@ -388,6 +543,15 @@
             yAxisID: 'y',
           },
           {
+            type: 'bar',
+            label: 'Fiche aléatoire',
+            data: series.ficheAttempts,
+            backgroundColor: ACCENT_FICHE,
+            borderRadius: 4,
+            stack: 'attempts',
+            yAxisID: 'y',
+          },
+          {
             type: 'line',
             label: 'Utilisateurs',
             data: series.users,
@@ -454,8 +618,8 @@
     });
   }
 
-  function fillItemSelect(els, quizzes, parties, type) {
-    const key = type + '|' + quizzes.length + '|' + parties.length;
+  function fillItemSelect(els, quizzes, parties, fiches, type) {
+    const key = type + '|' + quizzes.length + '|' + parties.length + '|' + fiches.length;
     if (els.itemEl.dataset.filled === key) return;
     const current = els.itemEl.value;
     let html = '<option value="">Toutes les activités</option>';
@@ -475,6 +639,14 @@
         ? `<optgroup label="Tableau à trous">${opts}</optgroup>`
         : opts;
     }
+    if (type === 'fiche' || type === 'tous') {
+      const opts = fiches.map((f) =>
+        `<option value="fiche:${f.id}">${escapeAttr(f.titre || f.id.slice(0, 8))}</option>`
+      ).join('');
+      html += type === 'tous'
+        ? `<optgroup label="Fiche aléatoire">${opts}</optgroup>`
+        : opts;
+    }
     els.itemEl.innerHTML = html;
     if ([...els.itemEl.options].some((o) => o.value === current)) {
       els.itemEl.value = current;
@@ -489,6 +661,7 @@
     if (!itemOpt) return;
     if (type === 'quiz') itemOpt.textContent = 'Quiz';
     else if (type === 'trous') itemOpt.textContent = 'Partie';
+    else if (type === 'fiche') itemOpt.textContent = 'Médicament';
     else itemOpt.textContent = 'Activité';
   }
 
@@ -530,30 +703,38 @@
 
     const loadQuiz = type === 'tous' || type === 'quiz';
     const loadTrous = type === 'tous' || type === 'trous';
+    const loadFiche = type === 'tous' || type === 'fiche';
 
     const quizItemFilter = itemKind === 'quiz' ? itemId : (type === 'quiz' && itemId ? itemId : null);
     const trousItemFilter = itemKind === 'trous' ? itemId : (type === 'trous' && itemId ? itemId : null);
+    const ficheItemFilter = itemKind === 'fiche' ? itemId : (type === 'fiche' && itemId ? itemId : null);
 
-    // Si filtre activité d'un type précis alors que l'autre type est visible : ne charger que le type de l'item
     const wantQuiz = loadQuiz && (!itemKind || itemKind === 'quiz');
     const wantTrous = loadTrous && (!itemKind || itemKind === 'trous');
+    const wantFiche = loadFiche && (!itemKind || itemKind === 'fiche');
 
-    const [quizzes, parties, quizRows, trousRows] = await Promise.all([
+    const [quizzes, parties, fiches, quizRows, trousRows, ficheRows] = await Promise.all([
       loadQuiz ? loadItems('quiz') : Promise.resolve([]),
       loadTrous ? loadItems('trous') : Promise.resolve([]),
+      loadFiche ? loadFicheItemOptions() : Promise.resolve([]),
       wantQuiz ? loadQuizResponses({ since, itemId: quizItemFilter || (itemKind === 'quiz' ? itemId : null) }) : Promise.resolve([]),
       wantTrous ? loadTrousResponses({ since, itemId: trousItemFilter || (itemKind === 'trous' ? itemId : null) }) : Promise.resolve([]),
+      wantFiche ? loadFicheResponses({ since, itemId: ficheItemFilter || (itemKind === 'fiche' ? itemId : null) }) : Promise.resolve([]),
     ]);
 
-    fillItemSelect(els, quizzes, parties, type);
+    fillItemSelect(els, quizzes, parties, fiches, type);
     updateGroupLabels(els, type);
 
     const itemMap = new Map([
       ...quizzes.map((q) => [q.id, q]),
       ...parties.map((p) => [p.id, p]),
+      ...fiches.map((f) => [f.id, f]),
     ]);
+    ficheRows.forEach((r) => {
+      if (r.meta && !itemMap.has(r.item_id)) itemMap.set(r.item_id, r.meta);
+    });
 
-    const responses = [...quizRows, ...trousRows];
+    const responses = [...quizRows, ...trousRows, ...ficheRows];
 
     if (!responses.length) {
       destroyAll();
@@ -569,9 +750,11 @@
       const users = new Set(responses.map((r) => r.utilisateur_id).filter(Boolean));
       const nQ = quizRows.length;
       const nT = trousRows.length;
+      const nF = ficheRows.length;
       const parts = [];
       if (nQ) parts.push(`${nQ} quiz`);
       if (nT) parts.push(`${nT} trous`);
+      if (nF) parts.push(`${nF} fiche`);
       els.metaEl.textContent =
         `${responses.length} tentative${responses.length > 1 ? 's' : ''}`
         + (parts.length ? ` (${parts.join(' · ')})` : '')
