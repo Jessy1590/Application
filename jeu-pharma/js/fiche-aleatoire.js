@@ -93,19 +93,60 @@
     return rows.filter((r) => visible(r, niveau || null));
   }
 
+  const SCORE_SELECT =
+    'id, matrice_id, score_obtenu, score_max, created_at, '
+    + 'matrice_medicaments('
+    + 'id, secteur_therapeutique_id, '
+    + 'secteurs_therapeutiques(valeur), '
+    + 'dcis(valeur), '
+    + 'matrice_noms_commerciaux(noms_commerciaux(valeur))'
+    + ')';
+
+  const SCORE_SELECT_LIGHT = 'id, matrice_id, score_obtenu, score_max, created_at';
+
+  /**
+   * Libellé médicament pour suivi (DCI · noms).
+   * @param {object} scoreRow
+   */
+  function libelleFiche(scoreRow) {
+    const m = scoreRow?.matrice_medicaments;
+    if (!m) return '—';
+    const dci = m.dcis?.valeur ? String(m.dcis.valeur) : '';
+    const noms = (m.matrice_noms_commerciaux || [])
+      .map((x) => x?.noms_commerciaux?.valeur)
+      .filter(Boolean)
+      .map(String);
+    const nomsStr = noms.join(', ');
+    if (dci && nomsStr) return dci + ' · ' + nomsStr;
+    return dci || nomsStr || '—';
+  }
+
+  function secteurLabel(scoreRow) {
+    const m = scoreRow?.matrice_medicaments;
+    return m?.secteurs_therapeutiques?.valeur || 'Sans secteur';
+  }
+
   async function mesScores() {
     const user = await global.JpApp.getUser();
     if (!user) throw new Error('Non connecté');
     const all = [];
     let from = 0;
+    let useLight = false;
     for (;;) {
+      const select = useLight ? SCORE_SELECT_LIGHT : SCORE_SELECT;
       const { data, error } = await sb()
         .from('scores_fiche_aleatoire')
-        .select('id, matrice_id, score_obtenu, score_max, created_at')
+        .select(select)
         .eq('utilisateur_id', user.id)
-        .order('id', { ascending: true })
+        .order('created_at', { ascending: false })
         .range(from, from + PAGE - 1);
-      if (error) throw error;
+      if (error) {
+        if (!useLight && from === 0) {
+          useLight = true;
+          continue;
+        }
+        throw error;
+      }
       const rows = data || [];
       all.push(...rows);
       if (rows.length < PAGE) break;
@@ -172,6 +213,8 @@
     estIdentite,
     texteChamp,
     idsAcquises,
+    libelleFiche,
+    secteurLabel,
     listerEligibles,
     mesScores,
     filtrerAcquises,

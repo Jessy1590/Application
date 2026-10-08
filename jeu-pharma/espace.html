@@ -45,7 +45,7 @@
 
     <section class="jp-panel" aria-labelledby="jpSuiviHeading">
       <h2 id="jpSuiviHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Suivi</h2>
-      <p class="jp-sub" style="margin-top:0">Vos scores quiz et tableau à trous.</p>
+      <p class="jp-sub" style="margin-top:0">Vos scores quiz, tableau à trous et fiche aléatoire.</p>
       <div id="listWrap">
         <p class="jp-muted">Chargement…</p>
       </div>
@@ -60,6 +60,7 @@
   <script src="js/profil.js"></script>
   <script src="js/quizz.js"></script>
   <script src="js/trous.js"></script>
+  <script src="js/fiche-aleatoire.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'espace', homeHref: JpFab.PORTAIL_URL });
@@ -113,9 +114,10 @@
 
       const wrap = document.getElementById('listWrap');
       try {
-        const [quizRows, trousRows] = await Promise.all([
+        const [quizRows, trousRows, ficheRows] = await Promise.all([
           JpQuizz.mesScores(),
           JpTrous.mesScores(),
+          JpFicheAleatoire.mesScores(),
         ]);
         const rows = []
           .concat(quizRows.map(function (r) {
@@ -142,6 +144,17 @@
               score_max: r.score_max,
             };
           }))
+          .concat(ficheRows.map(function (r) {
+            return {
+              kind: 'fiche',
+              created_at: r.created_at,
+              titre: JpFicheAleatoire.libelleFiche(r),
+              code: '',
+              mode: null,
+              score_obtenu: r.score_obtenu,
+              score_max: r.score_max,
+            };
+          }))
           .sort(function (a, b) {
             return new Date(b.created_at || 0) - new Date(a.created_at || 0);
           });
@@ -149,7 +162,7 @@
         if (!rows.length) {
           JpUi.emptyState(wrap, {
             title: 'Aucune tentative',
-            text: 'Vos résultats apparaîtront après un quiz ou un tableau à trous.',
+            text: 'Vos résultats apparaîtront après un quiz, un tableau à trous ou une fiche aléatoire.',
             actionHref: 'quiz/index.html',
             actionLabel: 'Aller aux quiz',
           });
@@ -160,10 +173,14 @@
           + rows.map(function (r) {
             const pct = r.score_max > 0 ? Math.round((Number(r.score_obtenu) / Number(r.score_max)) * 100) : 0;
             const d = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '—';
-            const typeLabel = r.kind === 'trous' ? 'Trous' : 'Quiz';
-            const modeLabel = r.kind === 'trous'
-              ? JpTrous.modeLibelle(r.mode)
-              : JpQuizz.modeLibelle(r.mode);
+            const typeLabel = r.kind === 'trous'
+              ? 'Trous'
+              : (r.kind === 'fiche' ? 'Fiche aléatoire' : 'Quiz');
+            const modeLabel = r.kind === 'fiche'
+              ? '—'
+              : (r.kind === 'trous'
+                ? JpTrous.modeLibelle(r.mode)
+                : JpQuizz.modeLibelle(r.mode));
             return '<tr><td>' + JpUi.escapeHtml(d) + '</td>'
               + '<td>' + JpUi.escapeHtml(typeLabel) + '</td>'
               + '<td>' + JpUi.escapeHtml(r.titre)
