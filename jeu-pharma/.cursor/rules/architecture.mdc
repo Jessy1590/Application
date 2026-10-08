@@ -7,8 +7,8 @@ alwaysApply: true
 
 ## Produit
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
-- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Mon espace | Admin (si admin).
-- Surfaces : `catalogue.html`, `espace.html` (profil + suivi), `quiz/`, `trous/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps. `profil.html` et `quiz/suivi.html` redirigent vers `espace.html`.
+- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Mon espace | Admin (si admin).
+- Surfaces : `catalogue.html`, `espace.html` (profil + suivi), `quiz/`, `trous/`, `fiche-aleatoire/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps. `profil.html` et `quiz/suivi.html` redirigent vers `espace.html`.
 - Partagé local : `js/` (clients, métier, FAB, bugs, logs, toast) + `css/` (tokens, app, print).
 
 ## Chemins monorepo
@@ -27,10 +27,12 @@ alwaysApply: true
 - Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier`.
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
 - Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
+- Fiche aléatoire (joueur, pas d’admin) : `scores_fiche_aleatoire` — `sql/008_scores_fiche_aleatoire.sql`.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `006_catalogue_champs_actifs_notes` ; ne pas réappliquer sans check (voir STATE.md).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `011_cours_sang_cv_hta` ; ne pas réappliquer sans check (voir STATE.md).
+- Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
@@ -47,3 +49,10 @@ alwaysApply: true
 
 ## FABs
 - Accueil portail + Bug via `js/fab.js` + `js/bugs.js` (code isolé dans `jeu-pharma/`, pas d’import `PhieEvreux/shared/*`).
+
+## Fiche aléatoire
+- Route joueur : `fiche-aleatoire/index.html` (tuile hub). Pas de paramètres admin.
+- Fiche publiée tirée au hasard. Noms commerciaux + DCI visibles ; autres champs actifs vides jusqu’à « Voir les réponses » (aucun score).
+- « Mettre un score » : note manuelle /10, insert seulement après validation. « Passer » : fiche suivante, sans score.
+- 3 notes > 8/10 pour l’utilisateur connecté → la fiche n’est plus proposée.
+- Filtre joueur : `visiblePourNiveau` + niveau du `profil_apprentissage` (pas le bypass admin du catalogue).

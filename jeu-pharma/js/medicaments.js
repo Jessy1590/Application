@@ -63,6 +63,30 @@
     return nomsList(row).join(sep != null ? sep : ', ');
   }
 
+  /** Libellés d'un champ scalaire ou jsonb[] {valeur}. */
+  function labelsOf(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map((x) => (x && typeof x === 'object' ? x.valeur : x))
+        .filter(Boolean)
+        .map(String);
+    }
+    if (value && typeof value === 'object') return value.valeur ? [String(value.valeur)] : [];
+    return value ? [String(value)] : [];
+  }
+
+  /** Ids d'un champ multi (jonction) plus la FK legacy si elle n'y est pas. */
+  function idsOf(row, code) {
+    const champ = champs().find((c) => c.code === code);
+    const arr = Array.isArray(row?.[code]) ? row[code] : [];
+    const ids = arr.map((x) => (x && x.id ? String(x.id) : '')).filter(Boolean);
+    if (champ?.fk && row?.[champ.fk]) {
+      const id = String(row[champ.fk]);
+      if (ids.indexOf(id) < 0) ids.push(id);
+    }
+    return ids;
+  }
+
   /**
    * Fiche hospitalière (bool legacy ou DCI à niveaux_connus = hospitalier exclusif).
    * @param {object} row
@@ -140,8 +164,8 @@
           formatNoms(r, ' '),
           r.dci,
           r.secteur_therapeutique,
-          r.classe_therapeutique,
-          r.classe_pharmacologique,
+          labelsOf(r.classe_therapeutique).join(' '),
+          labelsOf(r.classe_pharmacologique).join(' '),
         ]
           .filter(Boolean)
           .join(' ')
@@ -466,6 +490,16 @@
       }
       const ids = await resolveMulti(items, c.table);
       await replaceLiaisons(id, c, ids);
+      if (
+        c.fk &&
+        (c.code === 'classe_therapeutique' || c.code === 'classe_pharmacologique')
+      ) {
+        const { error: fkErr } = await sb()
+          .from('matrice_medicaments')
+          .update({ [c.fk]: ids[0] || null })
+          .eq('id', id);
+        if (fkErr) throw fkErr;
+      }
     }
 
     void global.JpLogs?.action?.('medicament_save', {
@@ -523,6 +557,8 @@
     lieAEntite,
     nomsList,
     formatNoms,
+    labelsOf,
+    idsOf,
     isHospitaliere,
     visiblePourNiveau,
   };

@@ -200,7 +200,7 @@
 
         fillSelect(
           document.getElementById('jpClasseTh'),
-          uniqueSorted(all.map((r) => r.classe_therapeutique)),
+          uniqueSorted(all.flatMap((r) => JpMedicaments.labelsOf(r.classe_therapeutique))),
           'Toutes',
           prefs.classeTh
         );
@@ -208,7 +208,7 @@
 
         fillSelect(
           document.getElementById('jpClassePh'),
-          uniqueSorted(all.map((r) => r.classe_pharmacologique)),
+          uniqueSorted(all.flatMap((r) => JpMedicaments.labelsOf(r.classe_pharmacologique))),
           'Toutes',
           prefs.classePh
         );
@@ -275,8 +275,8 @@
         const q = String(prefs.q || '').trim().toLowerCase();
         return sortRows(all.filter((r) => {
           if (prefs.secteur && r.secteur_therapeutique !== prefs.secteur) return false;
-          if (prefs.classeTh && r.classe_therapeutique !== prefs.classeTh) return false;
-          if (prefs.classePh && r.classe_pharmacologique !== prefs.classePh) return false;
+          if (prefs.classeTh && !JpMedicaments.labelsOf(r.classe_therapeutique).includes(prefs.classeTh)) return false;
+          if (prefs.classePh && !JpMedicaments.labelsOf(r.classe_pharmacologique).includes(prefs.classePh)) return false;
           if (prefs.niveau) {
             const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
             if (!nivs.includes(prefs.niveau)) return false;
@@ -287,8 +287,8 @@
             JpMedicaments.formatNoms(r),
             r.dci,
             r.secteur_therapeutique,
-            r.classe_therapeutique,
-            r.classe_pharmacologique,
+            JpMedicaments.labelsOf(r.classe_therapeutique).join(' '),
+            JpMedicaments.labelsOf(r.classe_pharmacologique).join(' '),
             r.detail_pharmacologie,
           ].filter(Boolean).join(' ').toLowerCase();
           return blob.includes(q);

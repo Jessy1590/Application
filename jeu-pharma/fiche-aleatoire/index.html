@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Fiche aléatoire — Jeu Pharma</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID);</script>
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="../index.html">← Hub</a>
+    <p class="jp-kicker">Fiche aléatoire</p>
+    <h1 class="jp-title">Fiche aléatoire</h1>
+    <p class="jp-sub">Noms commerciaux et DCI visibles. Le reste se révèle au clic.</p>
+
+    <div id="root">
+      <p class="jp-muted">Chargement…</p>
+    </div>
+  </main>
+
+  <div id="scoreModal" class="jp-trous-score-modal" hidden>
+    <div class="jp-trous-score-modal-backdrop" data-close-score-modal></div>
+    <div class="jp-trous-score-modal-panel" role="dialog" aria-modal="true" aria-labelledby="scoreModalTitle">
+      <div class="jp-trous-score-modal-head">
+        <h2 id="scoreModalTitle">Mettre un score</h2>
+        <button type="button" class="jp-icon-btn" data-close-score-modal aria-label="Fermer">×</button>
+      </div>
+      <form id="scoreForm">
+        <label class="jp-trous-score-field" for="scoreNote">Note sur 10
+          <input id="scoreNote" type="number" inputmode="numeric" min="0" max="10" step="1" autocomplete="off">
+        </label>
+        <div class="jp-field-actions jp-trous-score-modal-actions">
+          <button type="button" class="jp-btn jp-btn-ghost" data-close-score-modal>Annuler</button>
+          <button type="submit" class="jp-btn jp-btn-primary" id="btnScoreValidate">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/profil.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script src="../js/fiche-aleatoire.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'fiche-aleatoire', homeHref: JpFab.PORTAIL_URL });
+
+      const root = document.getElementById('root');
+      const scoreModal = document.getElementById('scoreModal');
+      const scoreForm = document.getElementById('scoreForm');
+      const scoreNote = document.getElementById('scoreNote');
+
+      let eligibles = [];
+      let scores = [];
+      let pool = [];
+      let current = null;
+      let revealed = false;
+      let dernierScore = null;
+
+      function refreshPool() {
+        pool = JpFicheAleatoire.filtrerAcquises(eligibles, scores);
+      }
+
+      function render() {
+        if (!current) {
+          JpUi.emptyState(root, {
+            title: 'Aucune fiche',
+            text: 'Aucune fiche publiée à proposer pour votre niveau, ou chacune a déjà 3 notes supérieures à 8/10.',
+          });
+          return;
+        }
+        const champs = JpFicheAleatoire.champsActifs();
+        let html = '<div class="jp-table-wrap"><table class="jp-table"><tbody>';
+        champs.forEach(function (c) {
+          const show = JpFicheAleatoire.estIdentite(c.code) || revealed;
+          const texte = show ? (JpFicheAleatoire.texteChamp(current, c) || '—') : '';
+          html += '<tr><th scope="row">' + JpUi.escapeHtml(c.libelle) + '</th><td>'
+            + (show ? JpUi.escapeHtml(texte) : '') + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        html += '<div class="jp-field-actions jp-trous-actions">'
+          + '<button type="button" class="jp-btn jp-btn-primary" id="btnReveal">Voir les réponses</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" id="btnScore">Mettre un score</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPass">Passer</button>'
+          + '</div>';
+        if (dernierScore && dernierScore.matrice_id === current.id) {
+          html += '<div id="scoreBox" class="jp-panel">'
+            + '<p class="jp-kicker">Score enregistré</p>'
+            + '<p class="jp-brand jp-trous-score-value">'
+            + JpUi.escapeHtml(String(dernierScore.score_obtenu)) + ' / '
+            + JpUi.escapeHtml(String(dernierScore.score_max)) + '</p></div>';
+        }
+        root.innerHTML = html;
+
+        document.getElementById('btnReveal').addEventListener('click', function () {
+          if (revealed) return;
+          revealed = true;
+          render();
+        });
+        document.getElementById('btnScore').addEventListener('click', openScoreModal);
+        document.getElementById('btnPass').addEventListener('click', function () {
+          montrer(current && current.id);
+        });
+      }
+
+      function montrer(excludeId) {
+        current = JpFicheAleatoire.tirer(pool, excludeId || null);
+        revealed = false;
+        dernierScore = null;
+        render();
+      }
+
+      function openScoreModal() {
+        if (!current) return;
+        scoreNote.value = '';
+        scoreModal.hidden = false;
+        scoreNote.focus();
+      }
+
+      function closeScoreModal() {
+        scoreModal.hidden = true;
+      }
+
+      scoreModal.querySelectorAll('[data-close-score-modal]').forEach(function (el) {
+        el.addEventListener('click', closeScoreModal);
+      });
+      document.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape' && !scoreModal.hidden) closeScoreModal();
+      });
+
+      scoreForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        if (!current) return;
+        const raw = scoreNote.value.trim();
+        if (raw === '') {
+          JpToast.warn('Indiquez une note');
+          return;
+        }
+        if (!/^\d+$/.test(raw) || Number(raw) > JpFicheAleatoire.SCORE_MAX) {
+          JpToast.warn('Note entière entre 0 et 10');
+          return;
+        }
+        const note = Number(raw);
+        const btn = document.getElementById('btnScoreValidate');
+        btn.disabled = true;
+        try {
+          const saved = await JpFicheAleatoire.enregistrer(current.id, note);
+          scores.push(saved);
+          refreshPool();
+          dernierScore = saved;
+          closeScoreModal();
+          render();
+          JpToast.ok('Score enregistré : ' + saved.score_obtenu + '/' + saved.score_max);
+        } catch (e) {
+          JpToast.fromError(e);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      try {
+        eligibles = await JpFicheAleatoire.listerEligibles();
+        scores = await JpFicheAleatoire.mesScores();
+        refreshPool();
+        montrer(null);
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(root, {
+          title: 'Fiche indisponible',
+          text: e.message || String(e),
+        });
+      }
+    });
+  </script>
+</body>
+</html>

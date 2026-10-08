@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-08 — niveau pédagogique `hospitalier` (`007`) remplace la case bool UI ; bool matrice sync ; `005` legacy.
+Dernière mise à jour : 2026-10-08 — cours Sang / CV / HTA vers le catalogue (`010` classes N-N, `011` compléments). Aucune fiche DCI nouvelle : les molécules des cours étaient déjà publiées.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -15,7 +15,8 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - **1 `matrice_medicaments` = 1 DCI** (`dci_id` ; index unique partiel hors `archive`).
 - **N noms commerciaux** via `jeupharma.matrice_noms_commerciaux` (plus de colonne `nom_commercial_id`).
 - Champs pédagogiques (secteur, classes, indications, CI, EI…) partagés sur la fiche DCI.
-- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié).
+- Classes théra / pharma : plusieurs par fiche (`matrice_classes_*`). La FK `classe_*_id` = classe d’ordre 0.
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié). `classe_therapeutique` / `classe_pharmacologique` = jsonb[].
 - Save / CSV / BDPM : fusion par DCI (append noms, soft-archive doublons).
 
 ### Règles DCI / noms (catalogue RCP)
@@ -57,9 +58,52 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - `generer_et_geler_quiz` : pool = hospitaliers **ssi** `niveau_cible = 'hospitalier'` ; sinon exclus
   - UI : case « Hospitalier (pharmacien) » retirée ; contrôle = niveaux DCI / noms (Hosp exclusif)
   - Filtre client : `visiblePourNiveau` → visible seulement si niveau `hospitalier` (plus le hack pharmacien)
+- [x] Migration **`008_scores_fiche_aleatoire`** (MCP + fichier `sql/008_scores_fiche_aleatoire.sql`) :
+  - Table `jeupharma.scores_fiche_aleatoire` : `utilisateur_id`, `matrice_id`, `score_obtenu` (sans défaut), `score_max` défaut 10, `created_at`
+  - RLS : select soi ou `is_portail_admin()` ; insert soi + `has_jeupharma_access()`
+  - Contrainte : note entière 0–10 ; 11 et omission de `score_obtenu` refusés
+- [x] Migration **`010_classes_m2m`** (MCP + `sql/010_classes_m2m.sql`) :
+  - jonctions `matrice_classes_therapeutiques` / `matrice_classes_pharmacologiques` (modèle `matrice_indications`) + RLS
+  - migration de la FK existante en ordre 0 ; trigger : la FK reste la classe d’ordre minimum
+  - vue : `classe_therapeutique` et `classe_pharmacologique` = jsonb `[{id,valeur,ordre,niveaux_connus}]` ; `*_id` et `*_niveaux` = 1er rang
+  - `_valeur_champ_matrice` tire une classe au hasard dans la jonction ; `fusionner_entites` réécrit les jonctions
+  - UI : `card: 'N'` (chips), filtres catalogue / jeux sur tous les ids
+- [x] Import cours **`011_cours_sang_cv_hta.sql`** (MCP, idempotent) — voir section dédiée. Pas de fiche DCI créée.
 - [x] Notes **`006_catalogue_champs_actifs_notes.sql`** (pas de DDL) + audit dédup remote (2026-10-07) :
   - **0** groupe actif en doublon exact `valeur_norm` (tables entités actives) — index unique `_valeur_norm_actif_uidx` respecté ; aucune fusion RPC nécessaire
   - Pas de fusion sémantique (« AVC » vs « AVC ischémique ») — uniquement panneau Fusion / scanner doublons exacts
+
+## Import cours Sang / CV / HTA (2026-10-08)
+
+Sources lues (`ppt/slides/*.xml`, pas d’OCR) :
+- `1-1 Rappel SANG AP et Cas de comptoir.pptx` — 34 slides, texte quasi vide (images). Aucune DCI extraite.
+- `1-3 Sang PP 25-26 CécileB.pptx` — 79 slides (19 sans texte).
+- `2- Appareil CV PP 23-24 Cécile.pptx` — 108 slides (34 sans texte, schémas).
+- `5-HTA 2024.pptx` — 92 slides.
+
+Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
+
+### Fiches
+- **Créées : 0.** Les DCI des cours (sang, CV, HTA, associations) étaient déjà `publie`.
+- **Mises à jour** (fiches existantes, `publie` inchangé) :
+  - classes multiples : 15 bêtabloquants du cours + classe pharma « Anti-arythmiques de classe 2 » ; Sotalol aussi bêtabloquant (FK reste classe 3) ; Vérapamil et Diltiazem + classe 4 et classe théra Anti-arythmiques ; Trinitrine + nitrés d’action immédiate ; Dabigatran + inhibiteurs de la thrombine (IIa)
+  - précautions cours : dérivés nitrés (hypotension, association aux autres hypotenseurs) ; bêtabloquants « ne jamais interrompre brutalement »
+  - indications cours manquantes : Molsidomine (angor) ; Amiodarone (troubles du rythme) ; Sacubitril + valsartan (insuffisance cardiaque) ; Sels ferreux + acide folique (3 indications acide folique du cours)
+  - associations : CI, EI, précautions, interactions, surveillances recopiées des monocomposants déjà en base (dédoublonnées). Ex. Bisoprolol + HCT 15 CI / 16 EI ; Entresto 6 CI / 7 EI (valsartan) + indication IC ; fer + B9 : 5 indications, 2 CI, 4 EI. Clopidogrel + aspirine déjà complète, rien de nouveau.
+  - nom Bisoce sur Bisoprolol ; détail Adrénaline (IV hôpital vs Anapen/Jext IM officine) ; thrombolytiques du cours en niveau `hospitalier` exclusif (Altéplase déjà, + Ténectéplase, Rétéplase, Streptokinase, Urokinase)
+- **RCP (une seule molécule)** : Digoxine, BDPM CIS 67681303, rubriques 4.1 et 4.3. +2 indications (dont « Insuffisance cardiaque » déjà en entité), +4 CI graves. CI cours déjà présentes non dupliquées (BAV, hypokaliémie).
+- **Ignorées** (citées, pas de fiche créée) : culots globulaires ; noradrénaline / dopamine (physiologie) ; pseudoéphédrine, réglisse, lithium, floctafénine, dantrolène (conseils / interactions) ; HE cyprès ; homéopathie et sclérosants déjà soft-archivés en `004` ; nom Digoxine® déjà retiré en `004`. Chlortalidone, altizide, méthyclothiazide, atorvastatine, triamtérène : pas de fiche mono. Triamtérène dans Prestole / Isobar : sécurité copiée de l’amiloride (même classe cours « épargneurs potassiques non antialdostérone »), pas du RCP triamtérène.
+
+### Compteurs
+- Cours : 3 classes nouvelles (classe 2, classe 4, inhibiteurs thrombine IIa) ; **20** liaisons pharma et **2** liaisons théra en plus de la classe d’ordre 0 (15 bêtabloquants + classe 2, Sotalol aussi bêtabloquant, Vérapamil et Diltiazem + classe 4 et classe théra Anti-arythmiques, Trinitrine + nitrés immédiats, Dabigatran + IIa) ; précautions nitrés et arrêt brutal ; 6 indications posées (molsidomine, amiodarone, entresto, 3 folate sur fer+B9) ; recopies sécurité des associations ; 1 nom (Bisoce) ; 1 détail (adrénaline) ; 4 fiches passées hospitalier.
+- RCP : 1 indication nouvelle + 1 liaison indication existante + 4 CI, toutes sur Digoxine.
+
+### Laissé vide (pas de source cours, RCP non extrait)
+- Acide folique / folinique : pas de CI ni EI.
+- Alginate de calcium, peroxyde d’hydrogène : pas d’indication rédigée dans le texte des slides.
+- Rivaroxaban (CI et EI), apixaban (CI), fondaparinux (CI), dapagliflozine (CI et EI), thrombolytiques (CI), amiodarone (interactions), adrénaline (CI et EI) : cours muet ; pages BDPM des produits centralisés renvoient à l’EMA sans le texte des rubriques 4.x. Non complété.
+- Partenaires sans fiche mono (chlortalidone, altizide, méthyclothiazide, atorvastatine) : leur part propre n’est pas dans les associations, hors la part amlodipine / amiloride / thiazidique déjà en base.
+- Niveaux des fiches existantes non modifiés, sauf les 5 thrombolytiques hospitaliers. Niveaux des entités nouvelles = copie d’une entité sœur déjà en base.
 
 ## Catalogue — champs actifs & entités liées
 - Flag `actif` sur `JpConstants.CHAMP_CODES` + `champsActifs()` / `isChampActif()`.
@@ -73,6 +117,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
 - [x] SQL `sql/001` … `007_niveau_hospitalier.sql`.
+- [x] Fiche aléatoire (joueur) : `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `sql/008_scores_fiche_aleatoire.sql`.
 - [x] Socle hub / CSS / dual client / FAB / toasts / logs / bugs.
 - [x] Admin + catalogue + quiz + trous + CSV + BDPM + profil + suivi charts.
 - [x] Refactor DCI-centrique surfaces : `constants`, `medicaments`, `csv`, `bdm`, `trous`, `admin/catalogue`, `catalogue`, `admin/trous`, architecture.
@@ -113,6 +158,16 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - API : `JpTrous.soumettreManuel(partieId, { mode_saisie, score_obtenu, score_max, details })` — pas d’`evaluer()` sur les champs écran. Log `trous_soumettre_manuel`. `soumettre()` (auto-éval saisies) reste exposé mais n’est plus utilisé par jouer.
 - Fichiers : `js/trous.js`, `trous/jouer.html`, `css/app.css` (`.jp-trous-score-modal*`).
 
+## Fiche aléatoire (joueur)
+- Route : `fiche-aleatoire/index.html` — tuile hub « Fiche aléatoire ». Pas de page ni d’options admin.
+- Tirage d’une fiche `publie`. Noms commerciaux + DCI visibles ; autres champs actifs vides jusqu’à **Voir les réponses** (aucun score calculé ni enregistré).
+- **Mettre un score** : popup, note entière /10, insert `scores_fiche_aleatoire` seulement après validation. Pas de 0 par défaut.
+- **Passer** : fiche suivante, sans score.
+- Exclusion : **3 notes > 8/10** (8 ne compte pas) pour l’utilisateur connecté → fiche plus proposée.
+- Filtre : `JpMedicaments.visiblePourNiveau` + `JpProfil.getNiveauCode()` (joueur, pas le bypass admin du catalogue).
+- RLS : select soi ou `is_portail_admin()` ; insert soi + `has_jeupharma_access()`.
+- Fichiers : `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `index.html`, `sql/008_scores_fiche_aleatoire.sql`.
+
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
 - [ ] (Optionnel) Regénérer les snapshots quiz / grilles trous créés **avant** les merges (matrice_id archivés éventuels dans JSON).
@@ -121,7 +176,7 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - Inventer UI / flux / IA hors demande.
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
-- Réappliquer `001` / `002` / `004` / `005` / `007` sans vérifier l’état remote.
+- Réappliquer `001` / `002` / `004` / `005` / `007` / `008` sans vérifier l’état remote.
 - Confondre le niveau pédagogique `hospitalier` (ou l’ancien bool) avec `portail.profiles.role` ou le niveau `pharmacien`.
 - Impression via `window.open`.
 

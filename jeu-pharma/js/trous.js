@@ -288,14 +288,22 @@
         ? opts.secteurIds
         : (opts.secteurId ? [opts.secteurId] : null);
       if (secteurIds?.length) q = q.in('secteur_therapeutique_id', secteurIds);
-      if (opts.classeTherIds?.length) q = q.in('classe_therapeutique_id', opts.classeTherIds);
-      if (opts.classePharmaIds?.length) {
-        q = q.in('classe_pharmacologique_id', opts.classePharmaIds);
-      }
     }
     const { data, error } = await q.order('dci');
     if (error) throw error;
     let rows = data || [];
+    if (!opts.matriceIds?.length && opts.classeTherIds?.length) {
+      const want = new Set(opts.classeTherIds.map(String));
+      rows = rows.filter((r) =>
+        global.JpMedicaments.idsOf(r, 'classe_therapeutique').some((id) => want.has(String(id)))
+      );
+    }
+    if (!opts.matriceIds?.length && opts.classePharmaIds?.length) {
+      const wantPh = new Set(opts.classePharmaIds.map(String));
+      rows = rows.filter((r) =>
+        global.JpMedicaments.idsOf(r, 'classe_pharmacologique').some((id) => wantPh.has(String(id)))
+      );
+    }
     if (!opts.admin) {
       const visible = global.JpMedicaments?.visiblePourNiveau;
       if (typeof visible === 'function') {

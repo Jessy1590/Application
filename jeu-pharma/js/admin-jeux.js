@@ -571,12 +571,14 @@
       }
     }
     if (filtres.classesTher.length) {
-      if (!med.classe_therapeutique_id || filtres.classesTher.indexOf(med.classe_therapeutique_id) < 0) {
+      const ids = global.JpMedicaments.idsOf(med, 'classe_therapeutique');
+      if (!ids.some(function (id) { return filtres.classesTher.indexOf(id) >= 0; })) {
         return false;
       }
     }
     if (filtres.classesPharma.length) {
-      if (!med.classe_pharmacologique_id || filtres.classesPharma.indexOf(med.classe_pharmacologique_id) < 0) {
+      const idsPh = global.JpMedicaments.idsOf(med, 'classe_pharmacologique');
+      if (!idsPh.some(function (id) { return filtres.classesPharma.indexOf(id) >= 0; })) {
         return false;
       }
     }

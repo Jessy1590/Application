@@ -1,0 +1,987 @@
+===== SLIDE 1 =====
+LE SANG
+DEUST
+Pathologies - Pharmacologie
+
+===== SLIDE 2 =====
+Pathologies et Traitements
+Les anémies
+Les thromboses
+Les 
+hémophilies
+Autres troubles de l’hémostase
+
+===== SLIDE 3 =====
+1. 
+Les anémies
+Définition
+ : 
+diminution du taux d’hémoglobine dans le sang
+Hb
+ < 13 g / 100 
+mL
+ (homme)
+Hb
+ < 12 g / 100 
+mL
+ (femme)
+Résultat d’une production de GR matures inférieure au rythme de l’hémolyse
+
+===== SLIDE 4 =====
+Classification des anémies
+Basée sur 
+la cause 
+: 
+Production de GR altérée (anémies centrales ou 
+arégénératives
+)
+Déficit en fer
+ Déficit en vitamines B9 et B12
+ Anémies hypoplasiques et aplasiques
+Perte accrue de GR (anémies périphériques ou régénératives)
+Anémies hémolytiques
+Hémorragies
+
+===== SLIDE 5 =====
+Basée sur 
+la nature des GR 
+: 
+Normocytaires
+ (VGM normal)
+Microcytaires
+ (VGM < 82 
+fL
+)
+Macrocytaires
+ (VGM > 100 
+fL
+)
+Normochromes
+ (CCMH normale)
+Hypochromes
+ (CCMH < 31 % ou g / 100 
+mL
+)
+L’anémie 
+peut être associée à une leucopénie et/ou une thrombopénie
+
+===== SLIDE 6 =====
+Signes cliniques
+Pâleur de la peau et des muqueuses
+Asthénie (= fatigue)
+Polypnée (= augmentation de rythme respiratoire)
+Tachycardie et palpitations
+Céphalées et vertiges
+
+===== SLIDE 7 =====
+
+===== SLIDE 8 =====
+Les anémies ferriprives
+Anémies les plus fréquentes
+Carences en fer
+ troublant l’
+hémoglobinogénèse
+Causes
+ : 
+Carence alimentaire
+Besoins élevés : G&A, Nourrissons, Adolescents, Pertes chroniques de sang
+Malabsorption du fer : Pathologies gastriques ou intestinales
+Aspect des GR : microcytaires, hypochromes
+
+===== SLIDE 9 =====
+Les anémies macrocytaires (mégaloblastiques)
+Défaut de synthèse de l’ADN des GR
+TCMH normale
+GR fragiles
+ (durée de vie de 40 jours environ)
+Causes
+ : 
+Carence en vitamine B12
+Anémie de Biermer
+Carence alimentaire
+Pathologies gastro-intestinales
+Carence en vitamine B9
+Carences alimentaires
+Femmes enceintes
+Alcoolisme
+Malabsorption
+ANÉMIE DE BIERMER
+ : 
+(appelée anémie pernicieuse) 
+maladie survenant surtout vers 50 à 65 ans, à prédominance féminine et 
+d'origine auto-immune, 
+avec atrophie de la muqueuse gastrique et 
+donc déficit d’absorption de la vitamine B12
+
+===== SLIDE 10 =====
+Les anémies hypoplasiques ou aplasiques
+La production des GR au niveau de la moelle osseuse est soit :
+Diminuée (hypoplasie médullaire)
+Absente (aplasie médullaire)
+Souvent associées à une leucopénie et/ou une thrombopénie
+Causes
+ : 
+Médicaments (cytotoxiques)
+Radiations
+Intoxications chimiques
+Infections virales (hépatites)
+Leucémies (= cancers du sang)
+
+===== SLIDE 11 =====
+Les anémies hémolytiques
+Destruction anormale des GR
+Anémies 
+congénitales
+Drépanocytose
+ (anémie à hématies falciformes) (photo B)
+Thalassémies
+ (diminution de la synthèse des chaînes de globine)
+Maladie hémolytique du nouveau-né
+Anémies acquises, provoquées par : 
+ Agents chimiques
+ Auto-immunité
+ Accidents transfusionnels
+ Maladies parasitaires (paludisme)
+ Agression mécanique des GR (dialyse…)
+
+===== SLIDE 12 =====
+Les anémies hémolytiques
+THALASSÉMIES :
+maladies génétiques héréditaires provoquant 
+une production insuffisante ou nulle 
+des chaines de l'hémoglobine 
+ce qui provoque 
+une production insuffisante d’hémoglobine globale.
+DRÉPANOCYTOSE
+ :
+(appelée 
+anémie à hématies falciformes) 
+maladie génétique héréditaire récessive liée à X 
+modifiant les chaines de l'hémoglobine. 
+Les globules rouges sont déformés et prennent une forme de faucille.
+
+===== SLIDE 13 =====
+Les anémies hémolytiques
+La maladie hémolytique peut toucher un fœtus Rh+ alors que la mère est Rh-.
+Au cours d’une première grossesse chez une femme Rh-
+, 
+des hématies d’un fœtus Rh+ peuvent être en contact avec ceux de la mère (lors de l’accouchement) 
+ce qui déclenche une réaction immunitaire chez la mère et la synthèse d’Anticorps anti-Rh+ .
+Au cours d’une seconde grossesse
+, 
+ces Anticorps anti-Rh+ peuvent traverser le placenta et provoquer la lyse des hématies si le fœtus est Rh+.
+
+===== SLIDE 14 =====
+
+===== SLIDE 15 =====
+Traitements des anémies
+Classe thérapeutique des 
+anti-anémiques
+Plusieurs classes pharmacologiques :
+Les sels ferreux
+L’acide folique (vitamine B9)
+La vitamine B12
+L’EPO
+Les culots globulaires
+
+===== SLIDE 16 =====
+1) 
+Les sels ferreux
+Traitement 
+curatif
+ des anémies ferriprives
+Traitement 
+préventif
+ des 
+carences martiales
+Tardyféron
+® (sulfate)
+Tardyféron
+ B9®
+Timoférol
+ ® (sulfate)
+Ferograd
+ ®
+Fumafer
+® (fumarate)
+Ascofer
+® (
+ascorbate
+)
+Ferrostrane
+® (
+férédétate
+)
+Inofer
+® 
+
+===== SLIDE 17 =====
+Effets indésirables 
+: 
+Coloration des selles
+Noircissement des dents (formes orales liquides)
+Constipation
+Douleurs abdominales
+Contre-indications
+ :
+Hémochromatose
+Surcharge martiale
+HEMOCHROMATOSE :
+ma
+ladie génétique due à une absorption intestinale 
+excessive
+ de fer provoquant son dépôt au niveau de différents organes 
+(foie, cœur et peau).
+L’a
+bsorption du fer pourrait être inhibée par une consommation importante de thé !
+
+===== SLIDE 18 =====
+2) 
+L’acide folique (vitamine B9) et folates
+Spéciafoldine
+® (acide folique)
+Lederfoline
+® (acide 
+folinique
+)
+Indications
+ :
+Traitement des anémies mégaloblastiques, des carences d’absorption ou d’apport (5 mg)
+Prévention du spina bifida (0,4 mg ) : 
+prescrit au moment de la conception et pendant la grossesse
+Prévention de la toxicité du méthotrexate (5 mg ,la 
+prise se fera  un jour différent de la prise du MTX)
+
+===== SLIDE 19 =====
+3) 
+La vitamine B12
+Vitamine B12®ampoule
+Traitement des carences d’absorption ou d’apport et de l’anémie de Biermer
+Effets indésirables 
+: 
+Allergies
+Acné
+Hypokaliémie si traitement prolongé
+Coloration rouge des urines
+Contre-indications : 
+Tumeurs malignes
+
+===== SLIDE 20 =====
+4) 
+L’érythropoïétine humaine
+Epoétine
+alfa
+(
+Eprex
+®, 
+Binocrit
+®, 
+Retacrit
+®)
+Epoétine
+ béta
+ (
+Néorécormon
+®, 
+Mircera
+®)
+Darbépoétine
+ alfa
+ (
+Aranesp
+®)
+Traitement des anémies chez les insuffisants rénaux chroniques, les myélodysplasiques, certains patients traités par chimiothérapies
+
+===== SLIDE 21 =====
+L’érythropoïétine humaine
+Effets indésirables 
+: 
+HTA
+Syndrome pseudo-grippal transitoire
+Thromboses
+Contre-indications : 
+Grossesse
+HTA non contrôlée
+Précautions d’emploi : 
+Bilan sanguin régulier (fer, NFS, ionogramme)
+Vérifier TA
+
+===== SLIDE 22 =====
+5) 
+Les culots globulaires
+Concentrés 
+érythrocytaires
+ obtenus à partir de sang total (sans plasma)
+Indication
+ : traitement des 
+chocs hémorragiques
+ et des 
+anémies chroniques
+ importantes
+
+===== SLIDE 23 =====
+Les culots globulaires
+Effets indésirables 
+: 
+Hémolyses par incompatibilités
+Chocs septiques
+Contaminations virales
+Précautions d’emploi : 
+Vérifier au préalable les groupes ABO et Rh, les agglutinines irrégulières
+Surveillance pendant et après la transfusion
+Agglutinines irrégulières : 
+anticorps dirigés contre certaines molécules (antigènes) présentes à la surface des globules rouges.
+Ces anticorps sont « irréguliers » car anormalement présents et pourront se diriger contre les globules rouges 
+(choc transfusionnel).
+
+===== SLIDE 24 =====
+2. 
+Les thromboses
+Définitions
+ :
+Thrombose
+ : formation d’un thrombus (caillot de sang) dans un vaisseau sanguin. 
+Thrombose veineuse 
+: formation d’un thrombus  dans une veine.
+TVP
+ (Thrombose veineuse profonde) ou Phlébite
+se développe le plus souvent au niveau des membres inférieurs 
+ Complication de la TVP : une partie du thrombus (= l’embole) se détache de la veine 
+et migre dans la circulation jusqu’à la circulation pulmonaire. 
+L’embole va obstruer une artère pulmonaire : c’est 
+l’embolie pulmonaire
+
+===== SLIDE 25 =====
+
+===== SLIDE 26 =====
+
+===== SLIDE 27 =====
+
+===== SLIDE 28 =====
+Définitions
+ :
+Thrombose artérielle
+ : formation d’un thrombus dans une artère.
+ au niveau d’une artère cérébrale, on parle d’accident vasculaire cérébrale 
+AVC
+ au niveau d’une artère coronaire, on parle 
+d’infarctus du myocarde 
+
+===== SLIDE 29 =====
+AVC artériel ischémique
+
+===== SLIDE 30 =====
+
+===== SLIDE 31 =====
+Les Traitements des thromboses
+Classes thérapeutiques 
+: 
+Les 
+anti-agrégants
+ plaquettaires
+Les anticoagulants 
+Plusieurs classes pharmacologiques d’anticoagulants :
+Les HHPM
+Les HBPM
+Les Inhibiteurs du facteur 
+Xa
+Les AOD
+Les AVK
+Les hirudines recombinantes
+Les 
+thrombolytiques
+
+===== SLIDE 32 =====
+1) 
+Les anti-agrégants plaquettaires
+Indications
+ : 
+Réduction 
+des risques d’IDM 
+chez les patients à antécédents d’athérosclérose, d’artérite ou à angor instable
+IDM (
+en aigu ou en prévention des récidives
+)
+Réduction du risque d’embolie en cas de 
+fibrillation auriculaire
+, 
+Réduction du risque d’occlusion après pontage coronarien
+Réduction du risque d’AVC après un AIT
+Action sur l’hémostase primaire
+
+===== SLIDE 33 =====
+
+===== SLIDE 34 =====
+Schéma montrant le rôle clé des enzymes COX 
+(Cyclo-oxygénases) 
+dans l’organisme
+ en particulier pour la synthèse des prostaglandines (thromboxane A2) responsables de l’agrégation plaquettaire.
+
+===== SLIDE 35 =====
+Les anti-agrégants plaquettaires
+Salicylés
+ (aspirine et dérivés)
+Prescrit en 1
+ère
+ intention, à faible dose
+Kardegic
+®, Aspirine 
+Protect
+®, 
+Resitune
+®, 
+Aspegic
+®
+Blocage irréversible de la synthèse du TX A2 
+=> effet 
+anti-agrégant
+ par inhibition des cyclooxygénases COX
+
+===== SLIDE 36 =====
+
+===== SLIDE 37 =====
+Les anti-agrégants plaquettaires
+Clopidogrel
+ (Plavix®)
+Prasugrel
+ (
+Efient
+®)
+Ticagrélor
+ (
+Brilique
+®)
+Clopidogrel
+ + aspirine (
+Duoplavin
+®)
+Effet synergique en association à l’aspirine
+Brilique
+® : 
+Alternative au 
+clopidogrel
+AMM en association avec l’aspirine (dose < 300mg) dans la prévention des accidents 
+athéro
+-thrombotiques chez patients adultes ayant un syndrome coronarien aigu (angor instable, IDM)
+Mécanisme d’action 
+: 
+empêche l’activation et l’agrégation des plaquettes
+diminution du risque de formation 
+du clou plaquettaire
+
+===== SLIDE 38 =====
+Les anti-agrégants plaquettaires
+Effets indésirables 
+: 
+Hémorragies
+Toxicité hématologique
+Troubles digestifs
+Contre-indications
+ :
+Lésions hémorragique évolutives (UGD…)
+IH sévère
+Précautions d’emploi : 
+Interventions chirurgicales : arrêter 7 jours avant
+Arrêt immédiat si troubles inattendus
+Arrêt 7 jours avant une
+intervention chirurgicale : 
+temps nécessaire pour synthétiser à nouveau suffisamment de plaquettes actives et donc éviter une hémorragie.
+
+===== SLIDE 39 =====
+Les anti-agrégants plaquettaires 
+D
+ipyridamole
+ (
+Persantine
+®)
+Utilisé en prévention de l’AVC et des accidents thromboemboliques chez les porteurs de prothèses valvulaires
+
+===== SLIDE 40 =====
+2) 
+Les anticoagulants 
+Plusieurs classes pharmacologiques d’anticoagulants :
+Les HHPM
+Les HBPM
+Les Inhibiteurs du facteur 
+Xa
+Les AOD
+Les AVK
+Les hirudines recombinantes
+Action sur l’hémostase secondaire
+Action sur l’hémostase secondaire
+
+===== SLIDE 41 =====
+
+===== SLIDE 42 =====
+
+===== SLIDE 43 =====
+a) 
+Classe pharmacologique des HHPM (les héparines de haut poids moléculaire) 
+Héparinate
+ de sodium
+ (Héparine sodique®)
+IV
+Agit en 
+qq
+ min et pendant 3h
+Héparinate
+ de calcium
+ (
+Calciparine
+®) 
+SC
+Agit en 1 à 2h et pendant 8 à 12h
+Héparines 
+non fractionnées
+
+===== SLIDE 44 =====
+
+===== SLIDE 45 =====
+
+===== SLIDE 46 =====
+Indications
+ : 
+Traitement curatif :
+Maladies veineuses 
+thrombo-emboliques
+Syndrome coronarien aigu
+Embolies artérielles 
+extracérébrales
+Traitement préventif : 
+Accidents 
+thrombo-emboliques
+ artériels et veineux et des circuits extracorporels
+Contre-indications : 
+ATCD de thrombopénie
+Hémorragies
+UGD évolutif, AVC hémorragique
+Endocardites et péricardites
+HHPM contre-indiquées avec les 
+injections et les ponctions IM, intra-articulaires et intra-artérielles 
+(car saignement important !)
+Classe pharmacologique des HHPM (les héparines de haut poids moléculaire) 
+
+===== SLIDE 47 =====
+Effets indésirables 
+: 
+Risque hémorragique et hématomes
+Thrombopénies
+Éruptions cutanées
+Hyperkaliémie et ostéoporose si traitement prolongé
+Précautions d’emploi : 
+Bilan sanguin préalable (NFS, INR, TCA, plaquettes)
+Surveillance pendant le traitement
+Classe pharmacologique des HHPM (les héparines de haut poids moléculaire) 
+
+===== SLIDE 48 =====
+Daltéparine
+ (
+Fragmine
+®)
+Enoxaparine
+ (Lovenox®)
+Tinzaparine
+ (
+Innohep
+®)
+Nadroparine
+ (
+Fraxiparine
+®, 
+Fraxodi
+®)
+Danaparoïde
+ (
+Orgaran
+®) SC ou IV
+Fragments d’héparine
+Meilleure action
+Diminution du risque hémorragique et thrombopénique
+Action pendant 12 à 18h
+SC
+b) 
+Classe pharmacologique des HBPM (les héparines de bas poids moléculaire) 
+
+===== SLIDE 49 =====
+Indications
+ : 
+Traitement curatif :
+Thromboses veineuses profondes +/- embolie pulmonaire sans signe de gravité
+Syndrome coronarien aigu
+Traitement préventif : 
+Maladies veineuses 
+thrombo-emboliques
+ en médecine et chirurgie
+Coagulation dans les circuits extracorporels
+Contre-indications : 
+ATCD de thrombopénie
+Hémorragies
+UGD évolutif, AVC hémorragique
+Endocardites et péricardites
+IR
+Les HBPM sont contre-indiquées avec les 
+injections et les ponctions IM, intra-articulaires et intra-artérielles (car saignement important !)
+Classe pharmacologique des HBPM (les héparines de bas poids moléculaire) 
+
+===== SLIDE 50 =====
+
+===== SLIDE 51 =====
+Effets indésirables 
+: 
+Risque hémorragique et hématomes
+Thrombopénies
+Éruptions cutanées
+Précautions d’emploi : 
+Bilan rénal et sanguin préalable (NFS, INR, TCA, plaquettes)
+Surveillance pendant le traitement
+Grossesse (utiliser que si nécessité stricte)
+Classe pharmacologique des HBPM (les héparines de bas poids moléculaire) 
+
+===== SLIDE 52 =====
+Fondaparinux
+ (Arixtra®)
+Apparentés aux héparines
+Pas de risque de thrombopénie,  pas de surveillance des plaquettes 
+Indications
+ : prévention des événements 
+thrombo-emboliques
+ veineux en chirurgie orthopédique, en chirurgie abdominale, traitement des TV superficielles
+c) 
+Classe pharmacologique des Inhibiteurs du facteur 
+Xa
+
+===== SLIDE 53 =====
+ Inhibiteurs du facteur 
+Xa
+Rivaroxaban
+ (Xarelto®)
+Apixaban
+ (Eliquis®)
+Indications
+ : 
+Prévention des accidents 
+thrombo-emboliques
+(interventions chirurgicales orthopédiques, patients à haut risque) (pour 
+Xarelto
+® et 
+Eliquis
+®)
+TVP, EP, Syndrome coronarien (pour 
+Xarelto
+® )
+d) 
+Classe pharmacologique des AOD (Anticoagulants oraux d’action directe)   
+
+===== SLIDE 54 =====
+
+===== SLIDE 55 =====
+Contre-indications : 
+Saignements évolutifs ou hémorragies
+IR sévère
+G&A
+Effets indésirables : 
+Risque hémorragique
+Anémie, troubles hépatiques (
+Fondaparinux
+)
+Médicaments contre-indiqués avec les 
+injections et les ponctions IM, intra-articulaires et intra-artérielles 
+(car saignement important !)
+Classe pharmacologique des AOD (Anticoagulants oraux d’action directe)   
+
+===== SLIDE 56 =====
+ Inhibiteurs de la thrombine (
+IIa
+)
+Dabigatran
+ (
+Pradaxa
+®)
+Indications
+ : 
+Prévention des accidents thromboemboliques (interventions chirurgicales orthopédiques)
+Prévention des complications thromboemboliques avec troubles du rythme
+Classe pharmacologique des AOD (Anticoagulants oraux d’action directe)   
+
+===== SLIDE 57 =====
+
+===== SLIDE 58 =====
+Ne nécessitent pas de surveillance biologique 
+de leur activité anticoagulante. 
+Mais, des cas d’hémorragies parfois fatales ont été observées.
+Antidote disponible ( seulement pour 
+Pradaxa
+®) : 
+idarucizumab
+ (
+Praxbind
+®)
+ disponible à l’hôpital
+Recommandations pour le suivi des patients : 
+Surveillance de toute manifestation hémorragique
+Surveillance de la fonction rénale
+Classe pharmacologique des AOD (Anticoagulants oraux d’action directe)   
+
+===== SLIDE 59 =====
+
+===== SLIDE 60 =====
+Anticoagulants oraux
+Dérivés 
+coumariniques
+ : 
+Warfarine
+ (
+Coumadine
+®)
+Acénocoumarol
+ (Sintrom®)
+Dérivés de l’
+indane-dione
+ : 
+Fluindione
+ (Préviscan®)
+Il n’est plus possible d’instaurer de nouveaux traitements par 
+Previscan
+®
+ ! 
+Seuls les patients déjà traités peuvent continuer à se voir prescrire ce médicament !
+e) 
+Classe pharmacologique des AVK (
+Antivitamine
+ K)   
+
+===== SLIDE 61 =====
+Anticoagulants d’action différée 
+délai d’action de 24 à 72h 
+durée d’action de 2 à 5 jours
+Blocage de la synthèse des facteurs de la coagulation vitamine K dépendants.
+Indications
+ : 
+Traitement et prévention de la maladie 
+thrombo-embolique
+ veineuse
+Cardiopathies 
+emboligènes
+IDM
+Prévention des thromboses sur cathéter
+Classe pharmacologique des AVK (
+Antivitamine
+ K)   
+
+===== SLIDE 62 =====
+
+===== SLIDE 63 =====
+Contre-indications : 
+Syndrome hémorragique, lésions susceptibles de saigner
+G&A
+IH et IR sévères
+Effets indésirables : 
+Risque hémorragique (INR > 5)
+Troubles digestifs
+Alopécie (coumarines)
+Allergies graves
+Médicaments contre-indiquées avec les 
+injections et les ponctions IM, intra-articulaires et intra-artérielles (car saignement important !)
+Classe pharmacologique des AVK (
+Antivitamine
+ K)   
+
+===== SLIDE 64 =====
+Précautions d’emploi :
+Bilan 
+hépatique et sanguin préalables (NFS, TP, TCA)
+Quand l’INR souhaité est stable => surveillance 
+régulière de l’INR 1 fois par mois
+Relais héparine vers AVK : 
+commencer les AVK tout en 
+continuant l’héparine jusqu'à obtenir l’INR voulu à 2 reprises à 24 ou 48h d'intervalle. 
+Puis, arrêter héparine et continuer AVK.
+Patient sous traitement AVK : le plus souvent 
+INR situé entre 2 et 3.
+Plus l’INR augmente, plus le risque hémorragique augmente !
+Classe pharmacologique des AVK (
+Antivitamine
+ K)   
+
+===== SLIDE 65 =====
+
+===== SLIDE 66 =====
+L’INR se dose le matin afin de pouvoir avoir 
+le résultat dans 
+la journée 
+et corriger le dosage 
+le soir même !
+
+===== SLIDE 67 =====
+
+===== SLIDE 68 =====
+Désirudine
+ (
+Revasc
+®)
+Lépirudine
+ (
+Refludan
+®)
+Réservés aux hôpitaux
+Analogues de l’hirudine
+Indiqués chez les patients développant une 
+thrombopénie
+ avec les héparines
+f) 
+Classe pharmacologique des hirudines recombinantes   
+
+===== SLIDE 69 =====
+Médicaments d’urgence
+Réservés à l’usage hospitalier
+Altéplase
+ (
+Actilyse
+®)
+Ténectéplase
+ (
+Métalyse
+®)
+Rétéplase
+ (
+Rapilysin
+®)
+Streptokinase
+ (
+Streptase
+®)
+Urokinase
+ (
+Actosolv
+®)
+3) 
+Les 
+thrombolytiques
+
+===== SLIDE 70 =====
+Activateurs du plasminogène en plasmine
+Indications
+ : 
+Thrombolyse dans l’IDM (avant la 6
+ème
+ heure)
+EP massive
+AVC ischémique (dans les 3 h suivant les symptômes)
+Thromboses artérielles et veineuses récentes
+
+===== SLIDE 71 =====
+3. 
+Les hémophilies
+Maladies congénitales récessives liées au sexe 
+(gène porté par le chromosome X) troublant la coagulation.
+
+===== SLIDE 72 =====
+2 formes d’hémophilies
+ : 
+Hémophilie A : d
+éficit en 
+facteur VIII
+Hémophilie B ou maladie de Christmas : d
+éficit en 
+facteur IX
+Moins fréquente
+Modérée
+Symptômes
+ : 
+Sévères épisodes hémorragiques prolongés et répétés (sauf formes atténuées)
+Hématomes
+Hémarthroses (sang dans les articulations) fréquentes avec douleurs et altérations des cartilages
+
+===== SLIDE 73 =====
+Traitements
+ : 
+Injection régulière des facteurs hémostatiques manquants
+
+===== SLIDE 74 =====
+Classe thérapeutique des hémostatiques
+(m
+édicaments
+ arrêtant l’écoulement sanguin utilisés pour traiter les hémorragies) 
+Phytoménadione
+ ( Vitamine K1 Roche®)
+Les 
+antifibrinolytiques
+Les hémostatiques locaux
+4. 
+Autres troubles de l’hémostase
+
+===== SLIDE 75 =====
+1) 
+Phytoménadione
+ (Vitamine K1 Roche®)
+Indications : 
+Prévention et traitement des hémorragies dues à une carence en vitamine K
+Prophylaxie de la maladie hémorragique du nouveau-né
+Effets indésirables : 
+Hématomes en IM
+Précautions d’emploi :
+Aliments riches en vitamine K
+
+===== SLIDE 76 =====
+2) 
+Les 
+Antifibrinolytiques
+Acide 
+tranéxamique
+ (
+Exacyl
+®, 
+Spotof
+®)
+Inhibiteur de la fibrinolyse
+Indications :
+Sd
+ hémorragiques fibrinolytiques
+Prévention des hémorragies (stomatologie ou ORL) 
+Accidents hémorragiques (
+méno
+-métrorragies, hémorragies digestives, ORL, 
+stomatologiques
+…)
+Ménorragies
+ : saignements abondants ou plus long lors des règles
+Métrorragies
+ : saignements abondants en dehors des règles
+Méno-métrorragies
+ : association des 2 symptômes ci-dessus.
+
+===== SLIDE 77 =====
+Contre-indications : 
+Thrombo
+-embolies
+IR sévère
+G&A
+Effets indésirables : 
+Accidents 
+thrombo-emboliques
+Convulsions
+N&V
+
+===== SLIDE 78 =====
+3) 
+Les hémostatiques locaux
+Eau oxygénée à 10 volumes
+Action antiseptique et hémostatique
+Alginate de calcium
+ (
+Coalgan
+®, 
+Algostéril
+®)
+Sous forme de mèches ou de compresses
+
+===== SLIDE 79 =====
+Autres troubles de l’hémostase
+Thrombopénie
+Nombre de plaquettes < 150 000 / mm3
+Soit par production diminuée (insuffisance médullaire)
+Soit par destruction accrue (purpura thrombopénique…)
+PURPURA THROMBOPÉNIQUE : 
+maladie auto-immune provoquant une diminution des plaquettes et donc l’apparition d’hématomes spontanés et d’un purpura 
+c’est-à-dire de petites tâches rouges cutanées (pétéchies).
+
