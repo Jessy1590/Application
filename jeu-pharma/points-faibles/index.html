@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Fiche aléatoire — Jeu Pharma</title>
+<title>Mes points faibles — Jeu Pharma</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -20,34 +20,14 @@
 </head>
 <body>
   <main class="jp-page">
-    <a class="jp-back" href="../index.html">← Hub</a>
-    <p class="jp-kicker">Fiche aléatoire</p>
-    <h1 class="jp-title">Fiche aléatoire</h1>
-    <p class="jp-sub">Noms commerciaux et DCI visibles. Le reste se révèle au clic.</p>
+    <a class="jp-back" href="../espace.html">← Mon espace</a>
+    <p class="jp-kicker">Révision</p>
+    <h1 class="jp-title">Mes points faibles</h1>
+    <p class="jp-sub">Fiches et champs les plus ratés d’après vos quiz, tableaux à trous et notes de fiche aléatoire.</p>
 
-    <form id="filtresForm" class="jp-form jp-fa-filtres" autocomplete="off">
-      <div class="jp-field">
-        <label for="filtreSecteur">Secteur</label>
-        <select id="filtreSecteur">
-          <option value="">Tous</option>
-        </select>
-      </div>
-      <div class="jp-field">
-        <label for="filtreClasseThera">Classe thérapeutique</label>
-        <select id="filtreClasseThera">
-          <option value="">Toutes</option>
-        </select>
-      </div>
-      <div class="jp-field">
-        <label for="filtreClassePharma">Classe pharmacologique</label>
-        <select id="filtreClassePharma">
-          <option value="">Toutes</option>
-        </select>
-      </div>
-      <div class="jp-field-actions">
-        <button type="submit" class="jp-btn jp-btn-ghost">Appliquer</button>
-      </div>
-    </form>
+    <div id="summary" class="jp-panel" hidden>
+      <p id="summaryText" class="jp-sub" style="margin:0"></p>
+    </div>
 
     <div id="root">
       <p class="jp-muted">Chargement…</p>
@@ -81,69 +61,115 @@
   <script src="../js/ui.js"></script>
   <script src="../js/profil.js"></script>
   <script src="../js/medicaments.js"></script>
-  <script src="../js/entites.js"></script>
   <script src="../js/niveaux.js"></script>
   <script src="../js/fiche-aleatoire.js"></script>
+  <script src="../js/points-faibles.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
-      JpUi.bootPage({ module: 'fiche-aleatoire', homeHref: JpFab.PORTAIL_URL });
+      JpUi.bootPage({ module: 'points-faibles', homeHref: JpFab.PORTAIL_URL });
 
       const root = document.getElementById('root');
+      const summary = document.getElementById('summary');
+      const summaryText = document.getElementById('summaryText');
       const scoreModal = document.getElementById('scoreModal');
       const scoreForm = document.getElementById('scoreForm');
       const scoreNote = document.getElementById('scoreNote');
-      const selSecteur = document.getElementById('filtreSecteur');
-      const selCt = document.getElementById('filtreClasseThera');
-      const selCp = document.getElementById('filtreClassePharma');
 
-      let eligibles = [];
-      let scores = [];
+      let mode = 'liste';
       let pool = [];
+      let index = 0;
       let current = null;
       let revealed = false;
+      let scores = [];
       let dernierScore = null;
+      let agg = null;
 
-      function fillSelect(sel, items, emptyLabel) {
-        const keep = sel.value;
-        sel.innerHTML = '';
-        const o0 = document.createElement('option');
-        o0.value = '';
-        o0.textContent = emptyLabel;
-        sel.appendChild(o0);
-        (items || []).forEach(function (it) {
-          const o = document.createElement('option');
-          o.value = it.id;
-          o.textContent = it.valeur;
-          sel.appendChild(o);
-        });
-        if (keep && [...sel.options].some(function (o) { return o.value === keep; })) {
-          sel.value = keep;
-        }
+      function libelleFiche(row) {
+        const dci = row.dci ? String(row.dci) : '';
+        const noms = JpMedicaments.formatNoms(row) || '';
+        if (dci && noms) return dci + ' · ' + noms;
+        return dci || noms || '—';
       }
 
-      function filtresCourants() {
-        return {
-          secteurId: selSecteur.value || null,
-          classeTherapeutiqueId: selCt.value || null,
-          classePharmacologiqueId: selCp.value || null,
-        };
-      }
-
-      function refreshPool() {
-        const filtered = JpFicheAleatoire.filtrerTaxonomie(eligibles, filtresCourants());
-        pool = JpFicheAleatoire.filtrerAcquises(filtered, scores);
-      }
-
-      function render() {
-        if (!current) {
+      function renderListe() {
+        mode = 'liste';
+        if (!agg || (!agg.matrices.length && !agg.champs.length)) {
           JpUi.emptyState(root, {
-            title: 'Aucune fiche',
-            text: 'Aucune fiche publiée à proposer pour votre niveau et ces filtres, ou chacune a déjà 3 notes supérieures à 8/10.',
+            title: 'Aucun point faible',
+            text: 'Jouez à un quiz, un tableau à trous ou une fiche aléatoire pour alimenter cette liste.',
+            actionHref: '../espace.html',
+            actionLabel: 'Mon espace',
           });
           return;
         }
+
+        let html = '';
+        if (pool.length) {
+          html += '<div class="jp-field-actions" style="margin-bottom:1rem">'
+            + '<button type="button" class="jp-btn jp-btn-primary" id="btnStart">Réviser les fiches</button>'
+            + '</div>';
+        }
+
+        if (agg.matrices.length) {
+          html += '<h2 class="jp-title" style="font-size:1.15rem;margin:0 0 0.5rem">Fiches</h2>';
+          html += '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
+            + '<th>Médicament</th><th>Échecs</th></tr></thead><tbody>';
+          const byId = new Map(pool.map(function (r) { return [String(r.id), r]; }));
+          agg.matrices.slice(0, 30).forEach(function (m) {
+            const row = byId.get(String(m.id));
+            const label = row ? libelleFiche(row) : ('Fiche ' + String(m.id).slice(0, 8) + '…');
+            html += '<tr><td>' + JpUi.escapeHtml(label) + '</td>'
+              + '<td><strong>' + JpUi.escapeHtml(String(m.erreurs)) + '</strong></td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        if (agg.champs.length) {
+          html += '<h2 class="jp-title" style="font-size:1.15rem;margin:1.5rem 0 0.5rem">Champs</h2>';
+          html += '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
+            + '<th>Champ</th><th>Échecs</th></tr></thead><tbody>';
+          agg.champs.slice(0, 20).forEach(function (c) {
+            html += '<tr><td>' + JpUi.escapeHtml(c.libelle) + '</td>'
+              + '<td><strong>' + JpUi.escapeHtml(String(c.erreurs)) + '</strong></td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+
+        root.innerHTML = html;
+        const btn = document.getElementById('btnStart');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            index = 0;
+            montrer();
+          });
+        }
+      }
+
+      function renderSession() {
+        mode = 'session';
+        if (!current) {
+          JpUi.emptyState(root, {
+            title: 'Session terminée',
+            text: 'Toutes les fiches de la liste ont été parcourues.',
+            actionHref: '#',
+            actionLabel: 'Retour à la liste',
+          });
+          const a = root.querySelector('a.jp-btn, a');
+          if (a) {
+            a.addEventListener('click', function (ev) {
+              ev.preventDefault();
+              renderListe();
+            });
+          }
+          return;
+        }
+
         const champs = JpFicheAleatoire.champsActifs();
-        let html = '<div class="jp-table-wrap"><table class="jp-table"><tbody>';
+        let html = '<p class="jp-muted" style="margin:0 0 0.75rem">'
+          + 'Fiche ' + (index + 1) + ' / ' + pool.length
+          + (current._erreurs ? ' · ' + current._erreurs + ' échec(s) recensés' : '')
+          + '</p>';
+        html += '<div class="jp-table-wrap"><table class="jp-table"><tbody>';
         champs.forEach(function (c) {
           const show = JpFicheAleatoire.estIdentite(c.code) || revealed;
           const texte = show ? (JpFicheAleatoire.texteChamp(current, c) || '—') : '';
@@ -154,10 +180,11 @@
         html += '<div class="jp-field-actions jp-trous-actions">'
           + '<button type="button" class="jp-btn jp-btn-primary" id="btnReveal">Voir les réponses</button>'
           + '<button type="button" class="jp-btn jp-btn-ghost" id="btnScore">Mettre un score</button>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPass">Passer</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" id="btnNext">Suivante</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" id="btnBackList">Liste</button>'
           + '</div>';
         if (dernierScore && dernierScore.matrice_id === current.id) {
-          html += '<div id="scoreBox" class="jp-panel">'
+          html += '<div class="jp-panel">'
             + '<p class="jp-kicker">Score enregistré</p>'
             + '<p class="jp-brand jp-trous-score-value">'
             + JpUi.escapeHtml(String(dernierScore.score_obtenu)) + ' / '
@@ -168,19 +195,26 @@
         document.getElementById('btnReveal').addEventListener('click', function () {
           if (revealed) return;
           revealed = true;
-          render();
+          renderSession();
         });
         document.getElementById('btnScore').addEventListener('click', openScoreModal);
-        document.getElementById('btnPass').addEventListener('click', function () {
-          montrer(current && current.id);
+        document.getElementById('btnNext').addEventListener('click', function () {
+          index += 1;
+          montrer();
         });
+        document.getElementById('btnBackList').addEventListener('click', renderListe);
       }
 
-      function montrer(excludeId) {
-        current = JpFicheAleatoire.tirer(pool, excludeId || null);
+      function montrer() {
+        if (index < 0 || index >= pool.length) {
+          current = null;
+          renderSession();
+          return;
+        }
+        current = pool[index];
         revealed = false;
         dernierScore = null;
-        render();
+        renderSession();
       }
 
       function openScoreModal() {
@@ -201,12 +235,6 @@
         if (ev.key === 'Escape' && !scoreModal.hidden) closeScoreModal();
       });
 
-      document.getElementById('filtresForm').addEventListener('submit', function (ev) {
-        ev.preventDefault();
-        refreshPool();
-        montrer(null);
-      });
-
       scoreForm.addEventListener('submit', async function (ev) {
         ev.preventDefault();
         if (!current) return;
@@ -219,16 +247,14 @@
           JpToast.warn('Note entière entre 0 et 10');
           return;
         }
-        const note = Number(raw);
         const btn = document.getElementById('btnScoreValidate');
         btn.disabled = true;
         try {
-          const saved = await JpFicheAleatoire.enregistrer(current.id, note);
+          const saved = await JpFicheAleatoire.enregistrer(current.id, Number(raw));
           scores.push(saved);
-          refreshPool();
           dernierScore = saved;
           closeScoreModal();
-          render();
+          renderSession();
           JpToast.ok('Score enregistré : ' + saved.score_obtenu + '/' + saved.score_max);
         } catch (e) {
           JpToast.fromError(e);
@@ -238,18 +264,23 @@
       });
 
       try {
-        const opts = await JpFicheAleatoire.optionsFiltres();
-        fillSelect(selSecteur, opts.secteurs, 'Tous');
-        fillSelect(selCt, opts.classesTherapeutiques, 'Toutes');
-        fillSelect(selCp, opts.classesPharmacologiques, 'Toutes');
-        eligibles = await JpFicheAleatoire.listerEligibles();
+        agg = await JpPointsFaibles.agreger();
         scores = await JpFicheAleatoire.mesScores();
-        refreshPool();
-        montrer(null);
+        pool = await JpPointsFaibles.poolRevision(agg);
+        summary.hidden = false;
+        summaryText.textContent = agg.totalErreurs
+          ? (agg.matrices.length + ' fiche(s) et ' + agg.champs.length
+            + ' champ(s) avec échecs recensés (' + agg.totalErreurs + ' occurrences).')
+          : 'Aucune erreur recensée pour le moment.';
+        void JpLogs?.action?.('points_faibles_ouvrir', {
+          matrices: agg.matrices.length,
+          champs: agg.champs.length,
+        });
+        renderListe();
       } catch (e) {
         JpToast.fromError(e);
         JpUi.emptyState(root, {
-          title: 'Fiche indisponible',
+          title: 'Indisponible',
           text: e.message || String(e),
         });
       }

@@ -28,8 +28,10 @@
     <div class="jp-admin-cat-actions">
       <button type="button" class="jp-btn jp-btn-primary" id="jpBtnNew">Nouvelle fiche</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnValider" title="Parcourir les fiches à valider (filtre courant)">Valider fiches</button>
+      <span class="jp-admin-cat-validation-count jp-muted" id="jpValidationCount" aria-live="polite">0 / 0 fiches validées</span>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnImport" aria-expanded="false" aria-controls="jpPanelImport">Import CSV</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnFusion" aria-expanded="false" aria-controls="jpPanelFusion">Fusion</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnCompletude" aria-expanded="false" aria-controls="jpPanelCompletude">Complétude</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnNiveaux" aria-expanded="false" aria-controls="jpPanelNiveaux">Paramétrage des niveaux</button>
     </div>
 
@@ -79,6 +81,18 @@
         <button type="button" class="jp-btn jp-btn-ghost" id="jpFusionScan">Scanner les doublons</button>
         <div id="jpFusionDoublonsList" class="jp-fusion-doublons-list" aria-live="polite"></div>
       </div>
+      <div class="jp-fusion-doublons">
+        <h3 class="jp-admin-cat-panel-title">Quasi-doublons (inclusion de mots)</h3>
+        <p class="jp-muted">Suggestions : une valeur dont tous les mots (après normalisation) figurent dans une autre, sans égalité exacte de <code>valeur_norm</code> (ex. « Hypotension » / « Hypotension orthostatique »). Fusion toujours manuelle via le formulaire ci-dessus.</p>
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpFusionScanQuasi">Scanner les quasi-doublons</button>
+        <div id="jpFusionQuasiList" class="jp-fusion-doublons-list" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="jp-admin-cat-panel" id="jpPanelCompletude" hidden>
+      <h2 class="jp-admin-cat-panel-title">Complétude des fiches publiées</h2>
+      <p class="jp-muted">Pour chaque champ actif, nombre de fiches au statut <code>publie</code> dont le champ est vide (<code>isChampIncomplet</code>). Indépendant du filtre tableau.</p>
+      <div id="jpCompletudeBody" class="jp-completude-body" aria-live="polite"></div>
     </section>
 
     <section class="jp-admin-cat-panel" id="jpPanelNiveaux" hidden>
@@ -641,6 +655,53 @@
           : 'Aucune fiche dans le filtre actuel';
       }
 
+      /** Compteur « X / N fiches validées » — filtre tableau courant. */
+      function syncValidationProgressCount() {
+        const el = document.getElementById('jpValidationCount');
+        if (!el) return;
+        const rows = all.length ? filtered() : [];
+        const n = rows.length;
+        const x = rows.filter(isFicheValidee).length;
+        el.textContent = `${x} / ${n} fiches validées`;
+      }
+
+      /** Tableau de bord complétude : fiches publiées vides par champ actif. */
+      function renderCompletude() {
+        const host = document.getElementById('jpCompletudeBody');
+        if (!host) return;
+        const publiees = all.filter((r) => r.statut === 'publie');
+        const total = publiees.length;
+        if (!total) {
+          host.innerHTML = '<p class="jp-muted">Aucune fiche publiée.</p>';
+          return;
+        }
+        const rows = CHAMPS.map((c) => {
+          const vides = publiees.filter((r) => isChampIncomplet(r, c.code)).length;
+          return { code: c.code, libelle: c.libelle, vides };
+        }).sort((a, b) => b.vides - a.vides || a.libelle.localeCompare(b.libelle, 'fr'));
+        host.innerHTML = `
+          <p class="jp-muted" style="margin:0 0 0.65rem">${total} fiche${total > 1 ? 's' : ''} publiée${total > 1 ? 's' : ''}.</p>
+          <div class="jp-table-wrap">
+            <table class="jp-table jp-completude-table">
+              <thead>
+                <tr>
+                  <th scope="col">Champ</th>
+                  <th scope="col">Fiches publiées vides</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map((r) => `
+                  <tr data-completude-champ="${esc(r.code)}">
+                    <td>${esc(r.libelle)}</td>
+                    <td>${r.vides} / ${total}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
       function fillLieTypeSelect() {
         const sel = document.getElementById('jpLieType');
         const current = prefs.lieType || '';
@@ -855,6 +916,7 @@
         const map = {
           jpPanelImport: 'jpBtnImport',
           jpPanelFusion: 'jpBtnFusion',
+          jpPanelCompletude: 'jpBtnCompletude',
           jpPanelNiveaux: 'jpBtnNiveaux',
         };
         panel.hidden = !open;
@@ -865,10 +927,11 @@
       function togglePanel(id) {
         const panel = document.getElementById(id);
         const willOpen = panel.hidden;
-        ['jpPanelImport', 'jpPanelFusion', 'jpPanelNiveaux'].forEach((pid) => {
+        ['jpPanelImport', 'jpPanelFusion', 'jpPanelCompletude', 'jpPanelNiveaux'].forEach((pid) => {
           setPanel(pid, willOpen && pid === id);
         });
         if (willOpen && id === 'jpPanelFusion') loadFusionEntities();
+        if (willOpen && id === 'jpPanelCompletude') renderCompletude();
         if (willOpen && id === 'jpPanelNiveaux') loadConfigNiveau();
       }
 
@@ -892,6 +955,8 @@
             text: 'Ajoutez une fiche ou importez un CSV.',
           });
           syncResetValidationBtn();
+          syncValidationProgressCount();
+          if (!document.getElementById('jpPanelCompletude').hidden) renderCompletude();
           return;
         }
 
@@ -907,6 +972,8 @@
             text: 'Modifiez la recherche ou les filtres (Paramètres).',
           });
           syncResetValidationBtn();
+          syncValidationProgressCount();
+          if (!document.getElementById('jpPanelCompletude').hidden) renderCompletude();
           return;
         }
 
@@ -916,6 +983,8 @@
             text: 'Activez au moins une colonne dans Paramètres.',
           });
           syncResetValidationBtn();
+          syncValidationProgressCount();
+          if (!document.getElementById('jpPanelCompletude').hidden) renderCompletude();
           return;
         }
 
@@ -951,6 +1020,8 @@
           </table>
         `;
         syncResetValidationBtn();
+        syncValidationProgressCount();
+        if (!document.getElementById('jpPanelCompletude').hidden) renderCompletude();
       }
 
       function onPrefsChange() {
@@ -2071,6 +2142,115 @@
         }
       }
 
+      /** Mots d’une valeur_norm (espaces). */
+      function motsNorm(norm) {
+        return String(norm || '').split(/\s+/).filter(Boolean);
+      }
+
+      /**
+       * Inclusion stricte de mots : tous les mots de A sont dans B (ou l’inverse),
+       * sans égalité exacte de valeur_norm.
+       */
+      function isQuasiDoublonNorm(normA, normB) {
+        if (!normA || !normB || normA === normB) return false;
+        const wa = motsNorm(normA);
+        const wb = motsNorm(normB);
+        if (!wa.length || !wb.length) return false;
+        if (wa.length === wb.length) return false;
+        const shorter = wa.length < wb.length ? wa : wb;
+        const longer = wa.length < wb.length ? wb : wa;
+        return shorter.every((w) => longer.includes(w));
+      }
+
+      function renderFusionQuasi(pairs) {
+        const host = document.getElementById('jpFusionQuasiList');
+        if (!pairs.length) {
+          host.innerHTML = '<p class="jp-muted">Aucun quasi-doublon (inclusion de mots) pour ce type.</p>';
+          host._pairs = [];
+          return;
+        }
+        host.innerHTML = pairs.map((p, pi) => `
+          <div class="jp-fusion-doublon-group" data-quasi-index="${pi}">
+            <p style="margin:0">
+              « <strong>${esc(p.a.valeur)}</strong> »
+              <span class="jp-muted">(${p.a.links} fiche(s))</span>
+              ⊂
+              « <strong>${esc(p.b.valeur)}</strong> »
+              <span class="jp-muted">(${p.b.links} fiche(s))</span>
+            </p>
+            <p class="jp-muted" style="margin:0.35rem 0 0.55rem;font-size:0.85rem">
+              Suggestion uniquement — préremplit Conserver / Fusionner (validation manuelle).
+            </p>
+            <button type="button" class="jp-btn jp-btn-ghost" data-quasi-select="${pi}">
+              Sélectionner dans le formulaire
+            </button>
+          </div>
+        `).join('');
+        host._pairs = pairs;
+      }
+
+      async function scanFusionQuasi() {
+        const table = document.getElementById('jpFusionType').value;
+        const host = document.getElementById('jpFusionQuasiList');
+        if (!table) {
+          host.innerHTML = '<p class="jp-muted">Choisissez un type d’entité.</p>';
+          return;
+        }
+        try {
+          const rows = await JpEntites.list(table, { actif: true, limit: 500 });
+          const enriched = rows.map((r) => {
+            const norm = r.valeur_norm || JpEntites.normaliser(r.valeur);
+            return {
+              id: r.id,
+              valeur: r.valeur,
+              norm,
+              links: countEntityLinks(table, r.id),
+            };
+          }).filter((r) => r.norm);
+          const pairs = [];
+          for (let i = 0; i < enriched.length; i++) {
+            for (let j = i + 1; j < enriched.length; j++) {
+              const a = enriched[i];
+              const b = enriched[j];
+              if (!isQuasiDoublonNorm(a.norm, b.norm)) continue;
+              const wa = motsNorm(a.norm);
+              const wb = motsNorm(b.norm);
+              // a = contenu (plus court), b = contenant (plus long)
+              const shorter = wa.length < wb.length ? a : b;
+              const longer = wa.length < wb.length ? b : a;
+              pairs.push({ a: shorter, b: longer });
+            }
+          }
+          pairs.sort((p, q) =>
+            (q.a.links + q.b.links) - (p.a.links + p.b.links) ||
+            p.a.valeur.localeCompare(q.a.valeur, 'fr')
+          );
+          renderFusionQuasi(pairs);
+          JpToast.ok(pairs.length ? pairs.length + ' suggestion(s)' : 'Aucun quasi-doublon');
+        } catch (e) {
+          JpToast.fromError(e);
+        }
+      }
+
+      function selectQuasiInForm(pi) {
+        const host = document.getElementById('jpFusionQuasiList');
+        const pairs = host._pairs || [];
+        const p = pairs[pi];
+        if (!p) return;
+        // Conserver = plus lié, sinon le contenant (plus long) ; drop = l’autre
+        const keepFirst = p.b.links >= p.a.links;
+        const keep = keepFirst ? p.b : p.a;
+        const drop = keepFirst ? p.a : p.b;
+        document.getElementById('jpFusionKeep').value = keep.id;
+        document.getElementById('jpFusionDrop').value = drop.id;
+        JpToast.ok('Formulaire prérempli — validez la fusion manuellement');
+      }
+
+      function clearFusionScanLists() {
+        document.getElementById('jpFusionDoublonsList').innerHTML = '';
+        document.getElementById('jpFusionQuasiList').innerHTML = '';
+      }
+
       function bindFusion() {
         const sel = document.getElementById('jpFusionType');
         sel.innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
@@ -2078,7 +2258,7 @@
         ).join('');
         sel.addEventListener('change', () => {
           loadFusionEntities();
-          document.getElementById('jpFusionDoublonsList').innerHTML = '';
+          clearFusionScanLists();
         });
         document.getElementById('jpFusionForm').addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -2102,16 +2282,23 @@
             JpToast.ok('Fusion effectuée');
             await loadFusionEntities();
             await refreshAll();
+            clearFusionScanLists();
           } catch (err) {
             JpToast.fromError(err);
             void JpLogs.error('fusion_entites', { message: err?.message });
           }
         });
         document.getElementById('jpFusionScan').addEventListener('click', () => scanFusionDoublons());
+        document.getElementById('jpFusionScanQuasi').addEventListener('click', () => scanFusionQuasi());
         document.getElementById('jpFusionDoublonsList').addEventListener('click', (e) => {
           const btn = e.target.closest('[data-fusion-group]');
           if (!btn) return;
           fusionnerDoublonGroup(Number(btn.getAttribute('data-fusion-group')));
+        });
+        document.getElementById('jpFusionQuasiList').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-quasi-select]');
+          if (!btn) return;
+          selectQuasiInForm(Number(btn.getAttribute('data-quasi-select')));
         });
       }
 
@@ -2207,6 +2394,7 @@
         });
         document.getElementById('jpBtnImport').addEventListener('click', () => togglePanel('jpPanelImport'));
         document.getElementById('jpBtnFusion').addEventListener('click', () => togglePanel('jpPanelFusion'));
+        document.getElementById('jpBtnCompletude').addEventListener('click', () => togglePanel('jpPanelCompletude'));
         document.getElementById('jpBtnNiveaux').addEventListener('click', () => togglePanel('jpPanelNiveaux'));
 
         document.getElementById('jpPrefsBtn').addEventListener('click', (e) => {

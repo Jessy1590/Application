@@ -107,8 +107,6 @@
    * Trouve une entité active par valeur (norm) ou la crée.
    * @param {string} table
    * @param {string} valeur
-   * @param {string[]} [niveaux]
-   * @param {{ mergeNiveaux?: boolean }} [opts] — merge = union (CSV) ; sinon remplacement
    */
   async function findOrCreate(table, valeur) {
     assertTable(table);

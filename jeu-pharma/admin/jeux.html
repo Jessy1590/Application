@@ -48,6 +48,11 @@
           <button type="button" class="jp-jeux-histo-filter" data-histo-kind="quiz">Quiz</button>
           <button type="button" class="jp-jeux-histo-filter" data-histo-kind="trous">Trous</button>
         </div>
+        <section id="snapshotsAudit" class="jp-jeux-histo-section" aria-labelledby="snapshotsAuditTitle" hidden>
+          <h3 id="snapshotsAuditTitle" class="jp-jeux-histo-section-title">Snapshots à vérifier</h3>
+          <p class="jp-muted">Parties dont le snapshot référence des fiches archivées (fusions DCI). Régénération quiz optionnelle ; trous à recréer.</p>
+          <div id="snapshotsAuditList" class="jp-table-wrap"></div>
+        </section>
         <div id="listWrap" class="jp-table-wrap">
           <p class="jp-muted">Chargement…</p>
         </div>
@@ -312,6 +317,10 @@
         <p class="jp-kicker">Code</p>
         <p id="resultCode" class="jp-quiz-admin-result-code"></p>
         <p id="resultMeta" class="jp-muted"></p>
+        <div class="jp-quiz-admin-result-share" id="resultShare" hidden>
+          <canvas id="resultQr" class="jp-quiz-admin-result-qr" width="160" height="160" aria-label="QR code de partage"></canvas>
+          <p id="resultShareUrl" class="jp-muted jp-quiz-admin-result-share-url"></p>
+        </div>
         <div class="jp-quiz-admin-result-actions">
           <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
           <a id="resultPrint" class="jp-btn jp-quiz-admin-btn-print" href="#">Imprimer</a>
@@ -330,6 +339,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
   <script src="../js/logs.js"></script>
@@ -342,6 +352,7 @@
   <script src="../js/niveaux.js"></script>
   <script src="../js/quizz.js"></script>
   <script src="../js/trous.js"></script>
+  <script src="../js/snapshots-audit.js"></script>
   <script src="../js/admin-jeux.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

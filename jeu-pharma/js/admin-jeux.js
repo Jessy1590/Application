@@ -6,6 +6,45 @@
     return document.getElementById(id);
   }
 
+  /**
+   * QR de partage (URL absolue de jeu) — lib qrious@4.0.2 via jsDelivr (CSP).
+   * @param {string} playHref relatif ou absolu vers jouer.html?code=
+   */
+  function renderResultQr(playHref) {
+    const share = $('resultShare');
+    const canvas = $('resultQr');
+    const urlEl = $('resultShareUrl');
+    if (!share || !canvas) return;
+
+    let absolute = '';
+    try {
+      absolute = new URL(playHref, window.location.href).href;
+    } catch (_) {
+      absolute = String(playHref || '');
+    }
+
+    if (urlEl) urlEl.textContent = absolute;
+
+    const QRious = global.QRious;
+    if (typeof QRious !== 'function' || !absolute) {
+      share.hidden = true;
+      return;
+    }
+
+    try {
+      new QRious({
+        element: canvas,
+        value: absolute,
+        size: 160,
+        level: 'M',
+      });
+      share.hidden = false;
+    } catch (err) {
+      share.hidden = true;
+      void global.JpLogs?.error?.('admin_jeux_qr', { message: err.message || String(err) });
+    }
+  }
+
   function formatDate(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -470,8 +509,10 @@
     $('resultMeta').textContent =
       'Quiz · ' + created.titre + ' · ' + global.JpQuizz.modeLibelle(created.mode) + ' · ' + created.niveau_cible
       + ' · ' + snap.length + ' Q';
-    $('resultPlay').href = '../quiz/jouer.html?code=' + encodeURIComponent(created.code_unique);
+    const playHref = '../quiz/jouer.html?code=' + encodeURIComponent(created.code_unique);
+    $('resultPlay').href = playHref;
     $('resultPrint').href = '../quiz/imprimer.html?code=' + encodeURIComponent(created.code_unique);
+    renderResultQr(playHref);
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     global.JpToast.ok('Quiz créé : ' + created.code_unique);
   }
@@ -1336,10 +1377,91 @@
     $('resultCode').textContent = created.code_unique;
     $('resultMeta').textContent =
       'Trous · ' + created.titre + ' · ' + global.JpTrous.modeLibelle(created.mode) + ' · ' + created.niveau_cible;
-    $('resultPlay').href = '../trous/jouer.html?code=' + encodeURIComponent(created.code_unique);
+    const playHref = '../trous/jouer.html?code=' + encodeURIComponent(created.code_unique);
+    $('resultPlay').href = playHref;
     $('resultPrint').href = '../trous/imprimer.html?code=' + encodeURIComponent(created.code_unique);
+    renderResultQr(playHref);
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     global.JpToast.ok('Partie créée : ' + created.code_unique);
+  }
+
+  /* —— Audit snapshots (matrices archivées) —— */
+  async function refreshSnapshotsAudit() {
+    const section = $('snapshotsAudit');
+    const list = $('snapshotsAuditList');
+    if (!section || !list || !global.JpSnapshotsAudit) return;
+    try {
+      const report = await global.JpSnapshotsAudit.auditer();
+      const rows = (report.quiz || []).map(function (r) {
+        return {
+          kind: 'quiz',
+          id: r.id,
+          code: r.code_unique,
+          titre: r.titre,
+          actif: r.actif,
+          nb: (r.archived_matrice_ids || []).length,
+          canRegen: true,
+        };
+      }).concat((report.trous || []).map(function (r) {
+        return {
+          kind: 'trous',
+          id: r.id,
+          code: r.code_unique,
+          titre: r.titre,
+          actif: r.actif,
+          nb: (r.archived_matrice_ids || []).length,
+          canRegen: false,
+        };
+      }));
+      if (!rows.length) {
+        section.hidden = true;
+        list.innerHTML = '';
+        return;
+      }
+      section.hidden = false;
+      list.innerHTML = '<table class="jp-table"><thead><tr>'
+        + '<th>Type</th><th>Code</th><th>Titre</th><th>Actif</th><th>Fiches archivées</th><th></th>'
+        + '</tr></thead><tbody>'
+        + rows.map(function (r) {
+          const typeLabel = r.kind === 'quiz' ? 'Quiz' : 'Trous';
+          const actions = r.canRegen
+            ? '<button type="button" class="jp-link-btn" data-snap-regen="'
+              + global.JpUi.escapeHtml(r.id) + '">Régénérer</button>'
+            : '<span class="jp-muted">Recréer la partie</span>';
+          return '<tr>'
+            + '<td>' + typeLabel + '</td>'
+            + '<td><code>' + global.JpUi.escapeHtml(r.code) + '</code></td>'
+            + '<td>' + global.JpUi.escapeHtml(r.titre || '') + '</td>'
+            + '<td>' + (r.actif ? 'oui' : 'non') + '</td>'
+            + '<td>' + r.nb + '</td>'
+            + '<td>' + actions + '</td>'
+            + '</tr>';
+        }).join('')
+        + '</tbody></table>';
+      list.querySelectorAll('[data-snap-regen]').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          const id = btn.getAttribute('data-snap-regen');
+          if (!confirm(
+            'Régénérer le snapshot de ce quiz ? Les questions actuelles seront remplacées par un nouveau tirage (pool hors fiches archivées).'
+          )) return;
+          btn.disabled = true;
+          try {
+            await global.JpSnapshotsAudit.regenererQuiz(id);
+            global.JpToast.ok('Snapshot régénéré');
+            void global.JpLogs?.action?.('quiz_snapshot_regen_archive', { quizz_id: id });
+            await refreshSnapshotsAudit();
+          } catch (e) {
+            global.JpToast.fromError(e);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+    } catch (e) {
+      section.hidden = false;
+      list.innerHTML = '<p class="jp-muted">Impossible de contrôler les snapshots.</p>';
+      global.JpToast.fromError(e);
+    }
   }
 
   /* —— Historique —— */
@@ -1466,6 +1588,7 @@
     if (!wrap) return;
     const filter = state.histoFilter || 'tous';
     const kindFilter = state.histoKind || 'tous';
+    void refreshSnapshotsAudit();
     try {
       const [quizzes, parties, counts] = await Promise.all([
         global.JpQuizz.listQuiz({ actifsOnly: false }),

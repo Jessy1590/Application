@@ -168,6 +168,79 @@
   }
 
   /**
+   * Filtre client secteur / classes (ids), après éligibilité niveau.
+   * @param {object[]} rows
+   * @param {{
+   *   secteurId?: string|null,
+   *   classeTherapeutiqueId?: string|null,
+   *   classePharmacologiqueId?: string|null,
+   * }} [filtres]
+   */
+  function filtrerTaxonomie(rows, filtres) {
+    const f = filtres || {};
+    let list = rows || [];
+    if (f.secteurId) {
+      const want = String(f.secteurId);
+      list = list.filter((r) =>
+        (global.JpMedicaments?.idsOf?.(r, 'secteur_therapeutique') || []).indexOf(want) >= 0
+      );
+    }
+    if (f.classeTherapeutiqueId) {
+      const want = String(f.classeTherapeutiqueId);
+      list = list.filter((r) =>
+        (global.JpMedicaments?.idsOf?.(r, 'classe_therapeutique') || []).indexOf(want) >= 0
+      );
+    }
+    if (f.classePharmacologiqueId) {
+      const want = String(f.classePharmacologiqueId);
+      list = list.filter((r) =>
+        (global.JpMedicaments?.idsOf?.(r, 'classe_pharmacologique') || []).indexOf(want) >= 0
+      );
+    }
+    return list;
+  }
+
+  /**
+   * Options de filtres limitées au niveau via `niveau_*`.
+   * @returns {Promise<{
+   *   secteurs: {id:string,valeur:string}[],
+   *   classesTherapeutiques: {id:string,valeur:string}[],
+   *   classesPharmacologiques: {id:string,valeur:string}[],
+   *   niveau: string|null,
+   * }>}
+   */
+  async function optionsFiltres() {
+    let niveau = niveauCourant;
+    if (!niveau) {
+      try {
+        niveau = await global.JpProfil?.getNiveauCode?.();
+      } catch (_) {
+        niveau = null;
+      }
+      niveauCourant = niveau;
+    }
+    if (global.JpNiveaux?.load) await global.JpNiveaux.load();
+    const [secteurs, ct, cp] = await Promise.all([
+      global.JpEntites.list('secteurs_therapeutiques', { actif: true }),
+      global.JpEntites.list('classes_therapeutiques', { actif: true }),
+      global.JpEntites.list('classes_pharmacologiques', { actif: true }),
+    ]);
+    const filtrer = global.JpNiveaux?.filtrerEntites;
+    return {
+      niveau: niveau || null,
+      secteurs: filtrer
+        ? filtrer(secteurs, niveau, 'secteur_therapeutique')
+        : secteurs,
+      classesTherapeutiques: filtrer
+        ? filtrer(ct, niveau, 'classe_therapeutique')
+        : ct,
+      classesPharmacologiques: filtrer
+        ? filtrer(cp, niveau, 'classe_pharmacologique')
+        : cp,
+    };
+  }
+
+  /**
    * @param {object[]} pool
    * @param {string|null} [excludeId]
    */
@@ -225,6 +298,8 @@
     listerEligibles,
     mesScores,
     filtrerAcquises,
+    filtrerTaxonomie,
+    optionsFiltres,
     tirer,
     enregistrer,
   };

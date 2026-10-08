@@ -43,6 +43,22 @@
       </form>
     </section>
 
+    <section class="jp-panel" aria-labelledby="jpProgressHeading">
+      <h2 id="jpProgressHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Progression par secteur</h2>
+      <p class="jp-sub" style="margin-top:0">Fiches acquises en fiche aléatoire (3 notes &gt; 8/10), pour votre niveau.</p>
+      <div id="progressWrap">
+        <p class="jp-muted">Chargement…</p>
+      </div>
+    </section>
+
+    <section class="jp-panel" aria-labelledby="jpFaiblesHeading">
+      <h2 id="jpFaiblesHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Mes points faibles</h2>
+      <p class="jp-sub" style="margin-top:0">Agrégation de vos erreurs quiz, tableaux à trous et notes faibles.</p>
+      <div id="faiblesWrap">
+        <p class="jp-muted">Chargement…</p>
+      </div>
+    </section>
+
     <section class="jp-panel" aria-labelledby="jpSuiviHeading">
       <h2 id="jpSuiviHeading" class="jp-title" style="font-size:1.25rem;margin:0 0 0.35rem">Suivi</h2>
       <p class="jp-sub" style="margin-top:0">Vos scores quiz, tableau à trous et fiche aléatoire.</p>
@@ -58,9 +74,12 @@
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/profil.js"></script>
+  <script src="js/medicaments.js"></script>
+  <script src="js/niveaux.js"></script>
   <script src="js/quizz.js"></script>
   <script src="js/trous.js"></script>
   <script src="js/fiche-aleatoire.js"></script>
+  <script src="js/points-faibles.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'espace', homeHref: JpFab.PORTAIL_URL });
@@ -111,6 +130,75 @@
           btn.disabled = false;
         }
       });
+
+      const progressWrap = document.getElementById('progressWrap');
+      try {
+        const prog = await JpPointsFaibles.progressionParSecteur();
+        if (!prog.secteurs.length) {
+          JpUi.emptyState(progressWrap, {
+            title: 'Aucune fiche',
+            text: 'Aucune fiche publiée visible pour votre niveau.',
+          });
+        } else {
+          progressWrap.innerHTML = '<p class="jp-muted" style="margin:0 0 0.75rem">'
+            + JpUi.escapeHtml(String(prog.acquisesTotal)) + ' / '
+            + JpUi.escapeHtml(String(prog.total))
+            + ' fiche(s) acquise(s) au total.</p>'
+            + '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
+            + '<th>Secteur</th><th>Acquises</th><th>Progression</th></tr></thead><tbody>'
+            + prog.secteurs.map(function (s) {
+              const pct = s.total > 0 ? Math.round((s.acquises / s.total) * 100) : 0;
+              return '<tr><td>' + JpUi.escapeHtml(s.label) + '</td>'
+                + '<td><strong>' + JpUi.escapeHtml(String(s.acquises)) + ' / '
+                + JpUi.escapeHtml(String(s.total)) + '</strong></td>'
+                + '<td><div class="jp-progress" role="progressbar" aria-valuenow="'
+                + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="'
+                + JpUi.escapeHtml(s.label) + '">'
+                + '<span class="jp-progress-track"><span class="jp-progress-bar" style="width:'
+                + pct + '%"></span></span>'
+                + '<span class="jp-muted">' + pct + '%</span></div></td></tr>';
+            }).join('')
+            + '</tbody></table></div>';
+        }
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(progressWrap, { title: 'Erreur', text: e.message || String(e) });
+      }
+
+      const faiblesWrap = document.getElementById('faiblesWrap');
+      try {
+        const agg = await JpPointsFaibles.agreger();
+        if (!agg.matrices.length && !agg.champs.length) {
+          JpUi.emptyState(faiblesWrap, {
+            title: 'Aucun point faible',
+            text: 'Vos erreurs apparaîtront ici après quiz, trous ou notes de fiche aléatoire ≤ 8/10.',
+          });
+        } else {
+          const pool = await JpPointsFaibles.poolRevision(agg);
+          const byId = new Map(pool.map(function (r) { return [String(r.id), r]; }));
+          const top = agg.matrices.slice(0, 5);
+          faiblesWrap.innerHTML = '<p class="jp-muted" style="margin:0 0 0.75rem">'
+            + JpUi.escapeHtml(String(agg.matrices.length)) + ' fiche(s) et '
+            + JpUi.escapeHtml(String(agg.champs.length)) + ' champ(s) avec échecs ('
+            + JpUi.escapeHtml(String(agg.totalErreurs)) + ' occurrences).</p>'
+            + (top.length
+              ? '<ul class="jp-scope-list">' + top.map(function (m) {
+                const row = byId.get(String(m.id));
+                const dci = row?.dci ? String(row.dci) : '';
+                const noms = row ? (JpMedicaments.formatNoms(row) || '') : '';
+                const label = (dci && noms) ? (dci + ' · ' + noms) : (dci || noms || 'Fiche hors niveau');
+                return '<li><strong>' + JpUi.escapeHtml(String(m.erreurs)) + '</strong> — '
+                  + JpUi.escapeHtml(label) + '</li>';
+              }).join('') + '</ul>'
+              : '')
+            + '<div class="jp-field-actions">'
+            + '<a class="jp-btn jp-btn-primary" href="points-faibles/index.html">Réviser mes points faibles</a>'
+            + '</div>';
+        }
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(faiblesWrap, { title: 'Erreur', text: e.message || String(e) });
+      }
 
       const wrap = document.getElementById('listWrap');
       try {

@@ -743,6 +743,7 @@
       els.emptyEl.innerHTML =
         '<strong>Aucune donnée</strong><p>Pas de tentatives sur la période filtrée.</p>';
       if (els.metaEl) els.metaEl.textContent = '';
+      await refreshClasse(els, itemKind, itemId, since);
       return;
     }
 
@@ -775,6 +776,7 @@
     renderScore(els.canvasScore, scoreSeries);
     renderSuccess(els.canvasSuccess, successSeries);
     renderActivity(els.canvasActivity, activitySeries);
+    await refreshClasse(els, itemKind, itemId, since);
   }
 
   function escapeAttr(s) {
@@ -782,6 +784,292 @@
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;')
       .replace(/</g, '&lt;');
+  }
+
+  function escapeHtml(s) {
+    return global.JpUi?.escapeHtml?.(s) || String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function champLibelle(code) {
+    const c = (global.JpConstants?.CHAMP_CODES || []).find((x) => x.code === code);
+    return c?.libelle || code || '—';
+  }
+
+  function hideClasse(els) {
+    if (els.classeEl) els.classeEl.hidden = true;
+  }
+
+  /**
+   * Détails scorables depuis details_reponses (quiz array | trous auto/manuel).
+   * @returns {{ key: string, label: string, correct: boolean }[]}
+   */
+  function extractDetailItems(details, kind, labelMap) {
+    const out = [];
+    if (details == null) return out;
+
+    if (Array.isArray(details)) {
+      details.forEach((d) => {
+        if (!d || typeof d !== 'object') return;
+        if (typeof d.correct !== 'boolean') return;
+        if (kind === 'quiz') {
+          const ordre = Number(d.ordre);
+          const key = Number.isFinite(ordre) ? 'q:' + ordre : 'q:' + (d.matrice_id || '') + ':' + (d.champ_code || '');
+          const fromSnap = labelMap?.get(key);
+          const label = fromSnap
+            || ('Q' + (Number.isFinite(ordre) ? ordre : '?')
+              + (d.champ_code ? ' · ' + champLibelle(d.champ_code) : ''));
+          out.push({ key, label, correct: d.correct });
+          return;
+        }
+        const lid = d.ligne_id || d.matrice_id || '';
+        const champ = d.champ_code || '';
+        const key = 'c:' + lid + '|' + champ;
+        const label = (d.label ? d.label + ' · ' : '')
+          + (champ ? champLibelle(champ) : (d.label || key));
+        out.push({ key, label, correct: d.correct });
+      });
+      return out;
+    }
+
+    if (typeof details !== 'object') return out;
+
+    if (details.type === 'case' && Array.isArray(details.cases)) {
+      details.cases.forEach((c) => {
+        if (!c || typeof c.correct !== 'boolean') return;
+        const lid = c.ligne_id || c.matrice_id || '';
+        const champ = c.champ_code || '';
+        const key = 'c:' + lid + '|' + champ;
+        const fromMap = labelMap?.get(key);
+        out.push({
+          key,
+          label: fromMap || ((c.label ? c.label + ' · ' : '') + (champ ? champLibelle(champ) : key)),
+          correct: c.correct,
+        });
+      });
+      return out;
+    }
+
+    if (details.type === 'ligne' && Array.isArray(details.lignes)) {
+      details.lignes.forEach((l) => {
+        if (!l || typeof l.correct !== 'boolean') return;
+        const lid = l.ligne_id || l.matrice_id || '';
+        const key = 'l:' + lid;
+        out.push({
+          key,
+          label: l.label || ('Ligne ' + (lid ? String(lid).slice(0, 8) : '?')),
+          correct: l.correct,
+        });
+      });
+    }
+
+    return out;
+  }
+
+  function buildQuizLabelMap(snapshot) {
+    const map = new Map();
+    (Array.isArray(snapshot) ? snapshot : []).forEach((q) => {
+      if (!q) return;
+      const ordre = Number(q.ordre);
+      if (!Number.isFinite(ordre)) return;
+      const key = 'q:' + ordre;
+      const enonce = q.enonce ? String(q.enonce) : '';
+      const champ = q.champ_code ? champLibelle(q.champ_code) : '';
+      map.set(key, enonce || ('Q' + ordre + (champ ? ' · ' + champ : '')));
+    });
+    return map;
+  }
+
+  function buildTrousLabelMap(snapshot) {
+    const map = new Map();
+    const lignes = snapshot?.lignes || [];
+    lignes.forEach((ligne) => {
+      const lid = ligne.ligne_id || ligne.matrice_id || '';
+      (ligne.cells || []).forEach((cell) => {
+        if (!cell?.trou) return;
+        const champ = cell.champ_code || '';
+        const key = 'c:' + lid + '|' + champ;
+        const label = (ligne.label ? ligne.label + ' · ' : '')
+          + (champ ? champLibelle(champ) : key);
+        map.set(key, label);
+      });
+    });
+    return map;
+  }
+
+  async function loadClassePayload(kind, itemId, since) {
+    const sb = global.JpApp.sbJeu();
+    if (kind === 'quiz') {
+      const [quizRes, rowsRes] = await Promise.all([
+        sb.from('quizz').select('id, titre, code_unique, snapshot_questions').eq('id', itemId).maybeSingle(),
+        (function () {
+          let q = sb
+            .from('quizz_reponses_utilisateur')
+            .select('id, utilisateur_id, score_obtenu, score_max, details_reponses, created_at')
+            .eq('quizz_id', itemId)
+            .order('created_at', { ascending: true })
+            .limit(3000);
+          if (since) q = q.gte('created_at', since);
+          return q;
+        })(),
+      ]);
+      if (quizRes.error) throw quizRes.error;
+      if (rowsRes.error) throw rowsRes.error;
+      return {
+        kind: 'quiz',
+        meta: quizRes.data,
+        rows: rowsRes.data || [],
+        labelMap: buildQuizLabelMap(quizRes.data?.snapshot_questions),
+      };
+    }
+
+    const [partieRes, rowsRes] = await Promise.all([
+      sb.from('parties_tableau_trous').select('id, titre, code_unique, snapshot_grille').eq('id', itemId).maybeSingle(),
+      (function () {
+        let q = sb
+          .from('parties_reponses_utilisateur')
+          .select('id, utilisateur_id, score_obtenu, score_max, details_reponses, created_at')
+          .eq('partie_id', itemId)
+          .order('created_at', { ascending: true })
+          .limit(3000);
+        if (since) q = q.gte('created_at', since);
+        return q;
+      })(),
+    ]);
+    if (partieRes.error) throw partieRes.error;
+    if (rowsRes.error) throw rowsRes.error;
+    return {
+      kind: 'trous',
+      meta: partieRes.data,
+      rows: rowsRes.data || [],
+      labelMap: buildTrousLabelMap(partieRes.data?.snapshot_grille),
+    };
+  }
+
+  function aggregateClasse(payload) {
+    const rows = payload.rows || [];
+    const users = new Set(rows.map((r) => r.utilisateur_id).filter(Boolean));
+    let sumPct = 0;
+    let nPct = 0;
+    rows.forEach((r) => {
+      const p = pct(r.score_obtenu, r.score_max);
+      if (p == null) return;
+      sumPct += p;
+      nPct += 1;
+    });
+    const moyenne = nPct ? Math.round((sumPct / nPct) * 10) / 10 : null;
+
+    const failBuckets = new Map();
+    let detailAttempts = 0;
+    rows.forEach((r) => {
+      const items = extractDetailItems(r.details_reponses, payload.kind, payload.labelMap);
+      items.forEach((it) => {
+        detailAttempts += 1;
+        const b = failBuckets.get(it.key) || { key: it.key, label: it.label, fails: 0, total: 0 };
+        b.total += 1;
+        if (!it.correct) b.fails += 1;
+        if (it.label && (!b.label || b.label.length < it.label.length)) b.label = it.label;
+        failBuckets.set(it.key, b);
+      });
+    });
+
+    const fails = [...failBuckets.values()]
+      .filter((b) => b.fails > 0)
+      .map((b) => ({
+        label: b.label,
+        fails: b.fails,
+        total: b.total,
+        rate: Math.round((b.fails / b.total) * 1000) / 10,
+      }))
+      .sort((a, b) => b.rate - a.rate || b.fails - a.fails)
+      .slice(0, 15);
+
+    return {
+      tentatives: rows.length,
+      utilisateurs: users.size,
+      moyenne,
+      fails,
+      hasDetailItems: detailAttempts > 0,
+    };
+  }
+
+  function renderClasse(els, payload) {
+    if (!els.classeEl) return;
+    const agg = aggregateClasse(payload);
+    const meta = payload.meta;
+    const title = meta
+      ? ((meta.code_unique || '') + (meta.titre ? ' — ' + meta.titre : '')).trim()
+      : '';
+
+    els.classeEl.hidden = false;
+    if (els.classeMetaEl) {
+      els.classeMetaEl.textContent = title
+        ? (payload.kind === 'trous' ? 'Trous · ' : 'Quiz · ') + title
+        : '';
+    }
+
+    if (els.classeStatsEl) {
+      const moy = agg.moyenne == null ? '—' : (agg.moyenne + ' %');
+      els.classeStatsEl.innerHTML =
+        '<div class="jp-suivi-classe-stat"><strong>' + escapeHtml(moy) + '</strong><span>Moyenne</span></div>'
+        + '<div class="jp-suivi-classe-stat"><strong>' + agg.tentatives + '</strong><span>Tentative'
+        + (agg.tentatives > 1 ? 's' : '') + '</span></div>'
+        + '<div class="jp-suivi-classe-stat"><strong>' + agg.utilisateurs + '</strong><span>Utilisateur'
+        + (agg.utilisateurs > 1 ? 's' : '') + '</span></div>';
+    }
+
+    if (!els.classeFailsEl) return;
+
+    if (!agg.tentatives) {
+      els.classeFailsEl.innerHTML = '<p class="jp-muted">Aucune tentative sur la période.</p>';
+      return;
+    }
+    if (!agg.hasDetailItems) {
+      els.classeFailsEl.innerHTML =
+        '<p class="jp-muted">Pas de détail par question (scores généraux sans cases / lignes).</p>';
+      return;
+    }
+    if (!agg.fails.length) {
+      els.classeFailsEl.innerHTML = '<p class="jp-muted">Aucune question ratée sur la période.</p>';
+      return;
+    }
+
+    const rowsHtml = agg.fails.map((f) =>
+      '<tr>'
+      + '<td>' + escapeHtml(f.label) + '</td>'
+      + '<td class="jp-num">' + f.fails + ' / ' + f.total + '</td>'
+      + '<td class="jp-num">' + f.rate + ' %</td>'
+      + '</tr>'
+    ).join('');
+    els.classeFailsEl.innerHTML =
+      '<table class="jp-suivi-classe-table">'
+      + '<thead><tr><th>Question</th><th>Échecs</th><th>Taux</th></tr></thead>'
+      + '<tbody>' + rowsHtml + '</tbody></table>';
+  }
+
+  async function refreshClasse(els, itemKind, itemId, since) {
+    if (!els.classeEl) return;
+    if ((itemKind !== 'quiz' && itemKind !== 'trous') || !itemId) {
+      hideClasse(els);
+      return;
+    }
+    try {
+      const payload = await loadClassePayload(itemKind, itemId, since);
+      renderClasse(els, payload);
+    } catch (err) {
+      els.classeEl.hidden = false;
+      if (els.classeMetaEl) els.classeMetaEl.textContent = '';
+      if (els.classeStatsEl) els.classeStatsEl.innerHTML = '';
+      if (els.classeFailsEl) {
+        els.classeFailsEl.innerHTML =
+          '<p class="jp-muted">Impossible de charger le tableau de bord classe : '
+          + escapeHtml(err.message || String(err)) + '</p>';
+      }
+      void global.JpLogs?.error?.('admin_suivi_classe', { message: err.message || String(err) });
+    }
   }
 
   /**
@@ -802,6 +1090,10 @@
       emptyEl: root.querySelector('#jpSuiviEmpty'),
       chartsEl: root.querySelector('#jpSuiviCharts'),
       metaEl: root.querySelector('#jpSuiviMeta'),
+      classeEl: root.querySelector('#jpSuiviClasse'),
+      classeMetaEl: root.querySelector('#jpSuiviClasseMeta'),
+      classeStatsEl: root.querySelector('#jpSuiviClasseStats'),
+      classeFailsEl: root.querySelector('#jpSuiviClasseFails'),
     };
 
     if (!els.periodEl || !els.canvasScore) return;
@@ -811,6 +1103,7 @@
         await refresh(els);
       } catch (err) {
         destroyAll();
+        hideClasse(els);
         els.chartsEl.hidden = true;
         els.emptyEl.hidden = false;
         els.emptyEl.innerHTML =

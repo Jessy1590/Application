@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-08 — `017` classifications hospitalière / complexe réservées au niveau pharmacien.
+Dernière mise à jour : 2026-10-08 — Priorité 1 E2E (partiel : auth bloquée) ; legacy/snapshots + Priorité 2–4 livrés en worktree.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -80,12 +80,14 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - UI : `admin/catalogue.html` + joueur `labelsOf` sur secteur (filtres/tri/recherche/incomplet) — plus de `[object Object]`
 - [x] Notes **`006_catalogue_champs_actifs_notes.sql`** (pas de DDL) + audit dédup remote (2026-10-07) :
   - **0** groupe actif en doublon exact `valeur_norm` (tables entités actives) — index unique `_valeur_norm_actif_uidx` respecté ; aucune fusion RPC nécessaire
-  - Pas de fusion sémantique (« AVC » vs « AVC ischémique ») — uniquement panneau Fusion / scanner doublons exacts
+  - Doublons exacts `valeur_norm` : panneau Fusion / scanner (garder le plus lié)
+  - **Quasi-doublons** (Priorité 2) : scanner séparé « inclusion de mots » (ex. « Hypotension » ⊂ « Hypotension orthostatique ») — suggestions uniquement, préremplissage formulaire ; fusion toujours manuelle ; exclus les égalités exactes `valeur_norm`
 - [x] Migration **`014_fiche_validee`** (MCP + `sql/014_fiche_validee.sql`) :
   - `matrice_medicaments.fiche_validee boolean NOT NULL DEFAULT false` + colonne exposée dans `v_medicaments_complet`
   - Admin catalogue : bouton **Valider fiches** (file des fiches non validées du filtre courant) → **Validé** (écrit en base) ou **Modifier** (ouvre l’éditeur, reprend la file au fermeture)
   - Filtre toolbar « À valider / Validées » + badge tableau ; **Remettre à 0** remet `fiche_validee=false` sur les fiches du filtre actuel
   - Toute sauvegarde éditeur remet `fiche_validee` à `false` ; API `JpMedicaments.setFicheValidee` / `resetFicheValidee`
+  - **Progression validation** (Priorité 2) : compteur « X / N fiches validées » à côté de **Valider fiches**, recalculé sur le filtre tableau courant
 - [x] Migration **`015_simplifier_securite_cours`** (MCP + `sql/015_simplifier_securite_cours.sql`) :
   - Indications / CI / EI / précautions / interactions / surveillances : libellés courts isolables (ex. toutes variantes IDM → `IDM` ; angor → `Angor` ; IC ; FA ; SCA ; TVP ; MTEV…)
   - Fusion des doublons après renommage (jonctions réaffectées, anciennes entités soft-désactivées)
@@ -106,6 +108,14 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - `_matrice_disponible_niveau` et le générateur quiz legacy appliquent la même règle ; aucun `niveaux_connus` d’entité réintroduit
   - RLS `matrice_medicaments` / `quizz` / `parties_tableau_trous` + RPC `ouvrir_quiz` / `soumettre_quiz` empêchent la lecture et le jeu des contenus pharmacien par les autres profils
   - éditeur admin : deux switches explicites, sauvegardés séparément ; l’admin voit et édite toujours toutes les fiches
+- [x] Nettoyage legacy **`niveaux_connus` / `*_niveaux`** (Priorité 1 — UI/JS uniquement) :
+  - JSDoc morts retirés (`entites.js` `mergeNiveaux`, `quizz.js` contrôle `*_niveaux`) ; CSS `.jp-niveaux-warn` retiré
+  - CSV continue d’ignorer les colonnes `*_niveaux` à l’import (compat anciens fichiers)
+  - fichier local **`sql/018_vue_sans_niveaux_entite.sql`** prêt (`DROP VIEW` + `CREATE`, car Postgres refuse de retirer des colonnes via `CREATE OR REPLACE`) — **non appliqué remote** (prudence plan : colonnes vue encore exposées ; tables `niveaux_connus` de toute façon conservées)
+- [x] Outil **audit snapshots** (pas de DDL) : `js/snapshots-audit.js` + section Historique dans `admin/jeux.html` ; SQL ops `sql/ops_audit_snapshots_archives.sql`
+  - détecte quiz / trous dont le snapshot référence des `matrice_medicaments` en `archive`
+  - régénération optionnelle quiz via `JpQuizz.regenerer` / RPC `generer_et_geler_quiz` ; trous = recréer (pas de régénération auto)
+  - vérif remote initiale : 1 quiz touché (`PH-HH4X6`, déjà inactif), 0 trous
 
 ## Import cours Sang / CV / HTA (2026-10-08)
 
@@ -147,7 +157,9 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 - **Picker fiche** : chips multi `{ id, valeur }` + recherche ; « Créer … » seulement si pas de match exact `valeur_norm` ; singuliers id forcé (`data-entity-id`) + Effacer ; save priorise les ids.
 - **Filtre Paramètres → Lié à** : type d’entité + sélection entité → fiches via jonction / FK (`JpMedicaments.lieAEntite`).
 - **CSV** : en-têtes champs actifs ; dry-run refuse colonnes inconnues, ignore legacy si présentes ; import `findOrCreate` inchangé.
-- **Fusion** : RPC inchangé + scanner « doublons exacts valeur_norm » (garder le plus lié).
+- **Fusion** : RPC inchangé + scanner « doublons exacts valeur_norm » (garder le plus lié) + scanner « quasi-doublons » (inclusion de mots, suggestions / préremplissage formulaire, fusion manuelle).
+- **Complétude** (Priorité 2) : panneau admin **Complétude** — pour chaque champ actif, nombre de fiches `publie` vides via `isChampIncomplet` (indépendant du filtre tableau).
+- **Progression validation** (Priorité 2) : compteur « X / N fiches validées » à côté de **Valider fiches** (filtre courant).
 
 ## Build code (livré)
 - [x] `.cursor/` (rules + STATE).
@@ -161,6 +173,20 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 - [x] Trous jouer — flux score manuel (voir section ci-dessous).
 - [x] Refonte création tableau à trous (voir section ci-dessous) — **pas de migration Supabase**.
 - [x] Refonte création quiz (voir section ci-dessous) — **pas de migration Supabase** (génération QCM côté client).
+- [x] Priorité 4 — QR partage + tableau de bord classe (voir sections ci-dessous) — **pas de migration Supabase**.
+- [x] Priorité 3 — points faibles + filtres FA + progression secteur + mobile trous (voir section dédiée) — **pas de migration Supabase**.
+
+## Partage QR (création quiz / trous)
+- Sur `admin/jeux.html` après création : bloc résultat affiche le `code_unique`, un **QR code** (canvas) et l’URL absolue de `quiz/jouer.html?code=` ou `trous/jouer.html?code=`.
+- Génération **client** via `qrious@4.0.2` (jsDelivr, déjà autorisé CSP `script-src`) ; image canvas / pas d’API QR externe.
+- Fichiers : `admin/jeux.html`, `js/admin-jeux.js` (`renderResultQr`), `css/app.css`.
+
+## Tableau de bord classe (admin suivi)
+- `admin/suivi.html` : section « Tableau de bord classe » visible **uniquement** quand une activité quiz ou trous est sélectionnée (filtre Activité).
+- Agrégats sur la période : **moyenne** (%), nombre de tentatives / utilisateurs ; **questions les plus ratées** (top 15) depuis `details_reponses`.
+- Quiz : items `correct` + libellé depuis `snapshot_questions.enonce` (ordre).
+- Trous : détail auto (tableau), manuel `case` / `ligne` ; score **général** sans détail → message, pas de faux taux.
+- Fichiers : `admin/suivi.html`, `js/charts-admin.js`, `css/app.css`.
 
 ## Création quiz (refonte admin)
 - UI : `admin/jeux.html` panneau Quiz — **4 étapes** (Médicaments → Paramètres → Questions → Titre) ; **pas d’aperçu grille** (liste de questions éditable à l’étape 3).
@@ -199,14 +225,59 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 - **Mettre un score** : popup, note entière /10, insert `scores_fiche_aleatoire` seulement après validation. Pas de 0 par défaut.
 - **Passer** : fiche suivante, sans score.
 - Exclusion : **3 notes > 8/10** (8 ne compte pas) pour l’utilisateur connecté → fiche plus proposée.
-- Filtre : `JpMedicaments.visiblePourNiveau` + `JpProfil.getNiveauCode()` (joueur, pas le bypass admin du catalogue).
+- Filtre niveau : `JpNiveaux.filtrerMedicaments` / `visiblePourNiveau` + `JpProfil.getNiveauCode()` (joueur, pas le bypass admin du catalogue).
+- **Filtres joueur** (Priorité 3) : secteur + classe thérapeutique + classe pharmacologique — options limitées via `niveau_*` (`JpFicheAleatoire.optionsFiltres` / `filtrerTaxonomie`) ; **Appliquer** retraite le pool puis tire.
 - RLS : select soi ou `is_portail_admin()` ; insert soi + `has_jeupharma_access()`.
 - **Suivi** : scores dans Mon espace (`espace.html`) + admin suivi Chart.js (`charts-admin.js`) — type « Fiche aléatoire », libellé DCI · noms, note /10.
 - Fichiers : `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `espace.html`, `admin/suivi.html`, `js/charts-admin.js`, `index.html`, `sql/008_scores_fiche_aleatoire.sql`.
 
+## Priorité 3 — Expérience joueur
+- **Mes points faibles** : agrégation client des échecs déjà stockés — quiz (`details_reponses[].correct === false`), trous (tableau auto ou manuel `ligne`/`case`), fiche aléatoire (note ≤ 8/10). Score trous « général » sans détail par fiche : ignoré. Zéro IA, **pas de migration**.
+  - API : `js/points-faibles.js` (`JpPointsFaibles.agreger`, `poolRevision`, `progressionParSecteur`).
+  - Session : `points-faibles/index.html` (liste + révision type fiche aléatoire) ; entrée depuis `espace.html`.
+- **Progression par secteur** (`espace.html`) : pour le niveau courant, fiches éligibles vs acquises (3 notes > 8/10) groupées par secteur (jonction multi).
+- **Mobile** : `css/app.css` — grille `.jp-trous-table` scrollable (`min-width` + `.jp-table-wrap`), modal score en feuille bas / plein écran ≤480px, actions trous en colonne.
+- Fichiers : `js/points-faibles.js`, `points-faibles/index.html`, `espace.html`, `fiche-aleatoire/index.html`, `js/fiche-aleatoire.js`, `css/app.css`, architecture.
+
+## Test E2E navigateur authentifié (p1-e2e — 2026-10-08)
+
+### Verdict
+**Non abouti en UI authentifiée.** Aucun credential de test dans le repo, STATE, stores agent, ni README. `protect.js` redirige toute surface `jeu-pharma/` non authentifiée vers le portail (`https://jessy1590.github.io/Application/`). Shell local indisponible dans la session agent (pas de serveur file:// alternatif). Pas de modification de code suite à ce test (aucun bug bloquant trivial observé côté chemins critiques).
+
+### Smoke non-auth (navigateur MCP)
+- [x] Portail login affiché (`Email` / `Mot de passe` / Se connecter).
+- [x] `…/jeu-pharma/` et `…/fiche-aleatoire/` → redirect portail (gate OK).
+- [x] Assets Pages : `admin/catalogue.html` et `admin/jeux.html` servis (texte structure visible hors auth via fetch).
+- [!] Pages **en retard** sur le worktree P3 : `js/points-faibles.js` → **404** ; `js/fiche-aleatoire.js` déployé **sans** `filtrerTaxonomie` / `optionsFiltres` (présents en local). Re-test UI P3/P4 nécessite commit + déploiement Pages (ou serveur local + session).
+
+### Vérifs SQL remote (projet `kpjflntnotftpzffjbud`) — substitut data
+- Publie : **161** ; hospitalier : **10** ; complexe : **0** ; ordinaires : **151**.
+- `_matrice_disponible_niveau` : **apprenti** → 151 dispo / **0** hosp / **0** complexe ; **pharmacien** → 161 / 10 hosp / 0 complexe. Aligné client `visiblePourNiveau` + `JpNiveaux.filtrerMedicaments`.
+- Config `niveau_*` peuplée : champs 81, secteurs 47, CT 179, CP 808 ; lookup `niveaux` = 7.
+- Validation fiches : **0 / 161** validées (compteur UI à exercer une fois auth).
+- Quiz en base : **2** ; parties trous : **4** ; DCI hosp ex. Altéplase, Ténectéplase, Urokinase, Idarucizumab…
+
+### Revue code ciblée (worktree) — OK structurel
+- Catalogue : boutons Valider fiches, Remettre à 0, compteur `#jpValidationCount`, panneau Complétude, scanner quasi-doublons `#jpFusionScanQuasi`.
+- Paramétrage niveau : panneau catalogue + RPC `enregistrer_configuration_niveau` (016).
+- Jeux : `renderResultQr` + Historique audit snapshots (`snapshots-audit.js`).
+- Fiche aléatoire : `listerEligibles` → `filtrerMedicaments` / `visiblePourNiveau` ; filtres secteur/classe locaux.
+- Mon espace : `progressionParSecteur` + lien `points-faibles/`.
+- Admin suivi : section « Tableau de bord classe » si activité sélectionnée.
+- Mobile CSS : `.jp-trous-table` min-width + scroll ; modal score feuille bas ≤720px / plein ≤480px.
+
+### Non vérifié (besoin session admin + joueur)
+Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, enregistrement `niveau_*`, wizard quiz/trous jusqu’au QR, Historique snapshots UI, bascule profil apprenti→pharmacien en FA, filtres FA live, progression / points faibles live, dashboard classe live, smoke responsive trous sur device.
+
+### Pour rejouer l’E2E
+1. Fournir un compte portail **admin** (et idéalement un joueur non-admin avec `site_access` Jeu Pharma) — ou se connecter manuellement dans le navigateur MCP.
+2. Préférer le **worktree local** (ou Pages à jour) pour P2–P4.
+3. Parcourir le périmètre listé dans le plan Priorité 1.
+
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).
-- [ ] (Optionnel) Regénérer les snapshots quiz / grilles trous créés **avant** les merges (matrice_id archivés éventuels dans JSON).
+- [ ] (Optionnel) Sur les parties listées par l’audit Historique / `ops_audit_snapshots_archives.sql` : régénérer les quiz ou recréer les trous concernés.
+- [ ] Rejouer E2E authentifié (voir section p1-e2e) après credentials + déploiement worktree.
 
 ## Ne pas
 - Inventer UI / flux / IA hors demande.

@@ -71,7 +71,7 @@
 
   /**
    * Une valeur (id + libellé) pour un champ — miroir léger de `_valeur_champ_matrice`.
-   * Multi : tire une entité au hasard ; singulier : contrôle `*_niveaux` si présent.
+   * Multi : tire une entité au hasard filtrée via `JpNiveaux` ; singulier : valeur FK.
    */
   function pickValeurChamp(med, champ, niveau) {
     if (!med || !champ) return null;
