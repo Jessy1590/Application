@@ -201,7 +201,9 @@
         }
         return { valeur: null, entite_id: null, valeurs: null };
       }
-      const valeurs = arr.map((x) => x.valeur).filter(Boolean);
+      const valeurs = global.JpMedicaments?.labelsOf
+        ? global.JpMedicaments.labelsOf(arr)
+        : arr.map((x) => x && x.valeur).filter(Boolean);
       return {
         valeur: valeurs.length ? valeurs.join('; ') : null,
         entite_id: arr[0]?.id || null,
@@ -283,15 +285,24 @@
       .eq('statut', 'publie');
     if (opts.matriceIds?.length) {
       q = q.in('id', opts.matriceIds);
-    } else {
-      const secteurIds = opts.secteurIds?.length
-        ? opts.secteurIds
-        : (opts.secteurId ? [opts.secteurId] : null);
-      if (secteurIds?.length) q = q.in('secteur_therapeutique_id', secteurIds);
     }
     const { data, error } = await q.order('dci');
     if (error) throw error;
     let rows = data || [];
+    if (global.JpNiveaux?.load) {
+      await global.JpNiveaux.load();
+    }
+    if (!opts.matriceIds?.length) {
+      const secteurIds = opts.secteurIds?.length
+        ? opts.secteurIds
+        : (opts.secteurId ? [opts.secteurId] : null);
+      if (secteurIds?.length) {
+        const wantSec = new Set(secteurIds.map(String));
+        rows = rows.filter((r) =>
+          global.JpMedicaments.idsOf(r, 'secteur_therapeutique').some((id) => wantSec.has(String(id)))
+        );
+      }
+    }
     if (!opts.matriceIds?.length && opts.classeTherIds?.length) {
       const want = new Set(opts.classeTherIds.map(String));
       rows = rows.filter((r) =>
@@ -305,9 +316,9 @@
       );
     }
     if (!opts.admin) {
-      const visible = global.JpMedicaments?.visiblePourNiveau;
-      if (typeof visible === 'function') {
-        rows = rows.filter((r) => visible(r, opts.niveau, opts));
+      const filterLevel = global.JpNiveaux?.filtrerMedicaments;
+      if (typeof filterLevel === 'function') {
+        rows = filterLevel(rows, opts.niveau);
       } else if (opts.niveau === 'hospitalier') {
         rows = rows.filter((r) => !!r.hospitalier);
       } else {

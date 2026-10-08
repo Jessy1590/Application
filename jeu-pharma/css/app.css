@@ -1099,6 +1099,16 @@ body > a[title="Retour au portail"] {
   color: #3a5a7a;
 }
 
+.jp-badge-validee {
+  background: #e3f2e8;
+  color: #1f6b3a;
+}
+
+.jp-badge-a-valider {
+  background: #f5efe3;
+  color: #7a5a1f;
+}
+
 .jp-med-editor-body {
   overflow: auto;
   padding: 1rem 1.1rem 1.25rem;
@@ -2228,6 +2238,173 @@ body > a[title="Retour au portail"] {
   width: 2.5rem;
   text-align: center;
   vertical-align: middle;
+}
+
+/* —— Revue validation fiches —— */
+.jp-validation-modal[hidden] {
+  display: none;
+}
+
+.jp-validation-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.jp-validation-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 32, 28, 0.5);
+}
+
+.jp-validation-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(40rem, 100%);
+  max-height: min(90dvh, 48rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--jp-bg-elevated);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  box-shadow: 0 12px 40px rgba(20, 32, 28, 0.2);
+  color: var(--jp-text);
+}
+
+.jp-validation-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--jp-line);
+  background: var(--jp-bg);
+}
+
+.jp-validation-progress {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--jp-accent);
+  white-space: nowrap;
+}
+
+.jp-validation-body {
+  overflow: auto;
+  padding: 1rem 1.15rem 1.25rem;
+  flex: 1;
+}
+
+.jp-validation-identity {
+  margin-bottom: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.jp-validation-dci {
+  margin: 0;
+  font-family: var(--jp-font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.jp-validation-noms {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--jp-muted, #5a6b64);
+  font-size: 0.95rem;
+}
+
+.jp-validation-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.jp-validation-fields {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.jp-validation-field {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg);
+  border: 1px solid transparent;
+}
+
+.jp-validation-field.is-empty {
+  opacity: 0.65;
+  border-style: dashed;
+  border-color: var(--jp-line);
+}
+
+.jp-validation-field-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--jp-accent);
+}
+
+.jp-validation-field-value {
+  font-size: 0.9rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.jp-validation-done {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.jp-validation-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1.15rem;
+  border-top: 1px solid var(--jp-line);
+  background: var(--jp-bg);
+}
+
+.jp-validation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jp-validation-btn-ok {
+  min-width: 7.5rem;
+}
+
+.jp-validation-btn-edit {
+  min-width: 7.5rem;
+}
+
+@media (max-width: 520px) {
+  .jp-validation-foot {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .jp-validation-actions {
+    flex-direction: column;
+  }
+
+  .jp-validation-btn-ok,
+  .jp-validation-btn-edit {
+    width: 100%;
+  }
 }
 
 .jp-icon-btn {

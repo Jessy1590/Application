@@ -98,6 +98,7 @@
   <script src="js/print.js"></script>
   <script src="js/profil.js"></script>
   <script src="js/medicaments.js"></script>
+  <script src="js/niveaux.js"></script>
   <script>
     (function () {
       const PREFS_KEY = 'jp-catalogue-prefs';
@@ -141,9 +142,12 @@
           return {
             q: typeof parsed.q === 'string' ? parsed.q : '',
             sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(parsed.sort) ? parsed.sort : 'dci',
-            secteur: typeof parsed.secteur === 'string' ? parsed.secteur : '',
-            classeTh: typeof parsed.classeTh === 'string' ? parsed.classeTh : '',
-            classePh: typeof parsed.classePh === 'string' ? parsed.classePh : '',
+            secteur: typeof parsed.secteur === 'string' && parsed.secteur !== '[object Object]'
+              ? parsed.secteur : '',
+            classeTh: typeof parsed.classeTh === 'string' && parsed.classeTh !== '[object Object]'
+              ? parsed.classeTh : '',
+            classePh: typeof parsed.classePh === 'string' && parsed.classePh !== '[object Object]'
+              ? parsed.classePh : '',
             niveau: typeof parsed.niveau === 'string' ? parsed.niveau : '',
             columns: cols.length ? cols : base.columns,
           };
@@ -164,22 +168,17 @@
         );
       }
 
-      function formatMulti(arr) {
-        if (!Array.isArray(arr) || !arr.length) return '—';
-        return arr.map((x) => x.valeur || x).filter(Boolean).join(', ') || '—';
-      }
-
       function cellValue(row, code) {
         const champ = CHAMPS.find((c) => c.code === code);
         if (!champ) return '—';
         if (code === 'nom_commercial') {
           return JpMedicaments.formatNoms(row) || '—';
         }
-        if (champ.card === 'N') {
-          return formatMulti(row[code]);
+        const raw = row[code];
+        if (champ.card === 'N' || Array.isArray(raw) || (raw && typeof raw === 'object')) {
+          return JpMedicaments.formatLabels(raw);
         }
-        const v = row[code];
-        return v ? String(v) : '—';
+        return raw ? String(raw) : '—';
       }
 
       function fillSelect(sel, values, allLabel, current) {
@@ -192,7 +191,7 @@
       function syncFilterOptions() {
         fillSelect(
           document.getElementById('jpSecteur'),
-          uniqueSorted(all.map((r) => r.secteur_therapeutique)),
+          uniqueSorted(all.flatMap((r) => JpMedicaments.labelsOf(r.secteur_therapeutique))),
           'Tous les secteurs',
           prefs.secteur
         );
@@ -242,7 +241,8 @@
 
       function visibleColumns() {
         const set = new Set(prefs.columns);
-        return CHAMPS.filter((c) => set.has(c.code));
+        return JpNiveaux.champsPourNiveau(prefs.niveau || null, CHAMPS)
+          .filter((c) => set.has(c.code));
       }
 
       function sortRows(rows) {
@@ -260,8 +260,8 @@
             va = JpMedicaments.formatNoms(a) || '';
             vb = JpMedicaments.formatNoms(b) || '';
           } else if (key === 'secteur') {
-            va = a.secteur_therapeutique || '';
-            vb = b.secteur_therapeutique || '';
+            va = JpMedicaments.labelsOf(a.secteur_therapeutique).join(', ');
+            vb = JpMedicaments.labelsOf(b.secteur_therapeutique).join(', ');
           } else {
             va = a.dci || '';
             vb = b.dci || '';
@@ -274,19 +274,16 @@
       function filtered() {
         const q = String(prefs.q || '').trim().toLowerCase();
         return sortRows(all.filter((r) => {
-          if (prefs.secteur && r.secteur_therapeutique !== prefs.secteur) return false;
+          if (prefs.secteur && !JpMedicaments.labelsOf(r.secteur_therapeutique).includes(prefs.secteur)) return false;
           if (prefs.classeTh && !JpMedicaments.labelsOf(r.classe_therapeutique).includes(prefs.classeTh)) return false;
           if (prefs.classePh && !JpMedicaments.labelsOf(r.classe_pharmacologique).includes(prefs.classePh)) return false;
-          if (prefs.niveau) {
-            const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
-            if (!nivs.includes(prefs.niveau)) return false;
-          }
           if (!JpMedicaments.visiblePourNiveau(r, prefs.niveau || null)) return false;
+          if (!JpNiveaux.ficheDisponible(r, prefs.niveau || null)) return false;
           if (!q) return true;
           const blob = [
             JpMedicaments.formatNoms(r),
             r.dci,
-            r.secteur_therapeutique,
+            JpMedicaments.labelsOf(r.secteur_therapeutique).join(' '),
             JpMedicaments.labelsOf(r.classe_therapeutique).join(' '),
             JpMedicaments.labelsOf(r.classe_pharmacologique).join(' '),
             r.detail_pharmacologie,
@@ -409,7 +406,10 @@
 
       async function load() {
         try {
-          all = await JpMedicaments.list({ publieOnly: true });
+          [all] = await Promise.all([
+            JpMedicaments.list({ publieOnly: true }),
+            JpNiveaux.load(),
+          ]);
           if (!prefs.niveau) {
             try {
               const niv = await JpProfil.getNiveauCode();

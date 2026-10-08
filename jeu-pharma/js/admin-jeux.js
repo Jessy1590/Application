@@ -349,6 +349,8 @@
   async function refreshQuizMeds(q) {
     const niveau = $('quizNiveau').value || null;
     q.niveau = niveau;
+    syncControlesNiveau('quiz', niveau);
+    syncQuizChamps(q);
     syncQuizFiltresFromDom(q);
     q.allMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
     const allowed = new Set(q.allMeds.map(function (m) { return m.id; }));
@@ -566,7 +568,8 @@
 
   function medMatchesFiltres(med, filtres) {
     if (filtres.secteurs.length) {
-      if (!med.secteur_therapeutique_id || filtres.secteurs.indexOf(med.secteur_therapeutique_id) < 0) {
+      const idsSec = global.JpMedicaments.idsOf(med, 'secteur_therapeutique');
+      if (!idsSec.some(function (id) { return filtres.secteurs.indexOf(id) >= 0; })) {
         return false;
       }
     }
@@ -1039,6 +1042,29 @@
     });
   }
 
+  function syncControlesNiveau(prefix, niveau) {
+    const taxonomies = [
+      [prefix + 'FiltreSecteur', 'secteur_therapeutique'],
+      [prefix + 'FiltreClasseTher', 'classe_therapeutique'],
+      [prefix + 'FiltreClassePharma', 'classe_pharmacologique'],
+    ];
+    taxonomies.forEach(function (pair) {
+      document.querySelectorAll('input[name="' + pair[0] + '"]').forEach(function (input) {
+        const visible = global.JpNiveaux.entiteDisponible(niveau, pair[1], input.value);
+        const label = input.closest('label');
+        if (label) label.hidden = !visible;
+        if (!visible) input.checked = false;
+      });
+    });
+    const champName = prefix === 'quiz' ? 'quizChamp' : 'trousCol';
+    document.querySelectorAll('input[name="' + champName + '"]').forEach(function (input) {
+      const visible = global.JpNiveaux.champDisponible(niveau, input.value);
+      const label = input.closest('label');
+      if (label) label.hidden = !visible;
+      if (!visible) input.checked = false;
+    });
+  }
+
   function syncFiltresFromDom(t) {
     t.filtres.secteurs = readFiltreIds('trousFiltreSecteur');
     t.filtres.classesTher = readFiltreIds('trousFiltreClasseTher');
@@ -1131,6 +1157,8 @@
   async function refreshTrousMeds(t) {
     const niveau = $('trousNiveau').value || null;
     t.niveau = niveau;
+    syncControlesNiveau('trous', niveau);
+    syncColonnes(t);
     syncFiltresFromDom(t);
     // Toutes les fiches du niveau ; filtres multi appliqués côté client (OR intra / AND inter).
     t.allMeds = await global.JpTrous.fetchMedicaments({ niveau: niveau });
@@ -1607,6 +1635,7 @@
     await Promise.all([
       fillNiveaux($('quizNiveau')),
       fillNiveaux($('trousNiveau')),
+      global.JpNiveaux.load(),
     ]);
 
     initQuizForm(state);

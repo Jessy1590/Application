@@ -49,13 +49,37 @@
     return arr.some((x) => x && String(x.id) === String(entityId));
   }
 
+  /** Extrait un libellé texte depuis une entité jsonb / scalaire (jamais un objet). */
+  function labelFrom(x) {
+    if (x == null || x === '') return '';
+    if (typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean') {
+      const text = String(x);
+      if (text === '[object Object]') return '';
+      if (/^\s*[\[{]/.test(text)) {
+        try {
+          return labelsOf(JSON.parse(text)).join(', ');
+        } catch (_) { /* texte normal */ }
+      }
+      return text;
+    }
+    if (Array.isArray(x)) return labelsOf(x).join(', ');
+    if (typeof x === 'object') {
+      const v = x.valeur ?? x.label ?? x.libelle ?? x.nom ?? x.name;
+      return v == null ? '' : labelFrom(v);
+    }
+    return '';
+  }
+
   /** Liste des libellés noms commerciaux (vue array ou fallback déprécié). */
   function nomsList(row) {
     if (!row) return [];
     if (Array.isArray(row.noms_commerciaux) && row.noms_commerciaux.length) {
-      return row.noms_commerciaux.map((x) => x?.valeur || x).filter(Boolean);
+      return row.noms_commerciaux.map(labelFrom).filter(Boolean);
     }
-    if (row.nom_commercial) return [row.nom_commercial];
+    if (row.nom_commercial) {
+      const n = labelFrom(row.nom_commercial);
+      return n ? [n] : [];
+    }
     return [];
   }
 
@@ -66,13 +90,20 @@
   /** Libellés d'un champ scalaire ou jsonb[] {valeur}. */
   function labelsOf(value) {
     if (Array.isArray(value)) {
-      return value
-        .map((x) => (x && typeof x === 'object' ? x.valeur : x))
-        .filter(Boolean)
-        .map(String);
+      return value.flatMap((x) => {
+        if (Array.isArray(x)) return labelsOf(x);
+        const label = labelFrom(x);
+        return label ? [label] : [];
+      });
     }
-    if (value && typeof value === 'object') return value.valeur ? [String(value.valeur)] : [];
-    return value ? [String(value)] : [];
+    const one = labelFrom(value);
+    return one ? [one] : [];
+  }
+
+  /** Affichage cellule : libellés joints, ou tiret. */
+  function formatLabels(value, sep) {
+    const labs = labelsOf(value);
+    return labs.length ? labs.join(sep != null ? sep : ', ') : '—';
   }
 
   /** Ids d'un champ multi (jonction) plus la FK legacy si elle n'y est pas. */
@@ -88,14 +119,11 @@
   }
 
   /**
-   * Fiche hospitalière (bool legacy ou DCI à niveaux_connus = hospitalier exclusif).
+   * Fiche hospitalière : booléen porté par la matrice.
    * @param {object} row
    */
   function isHospitaliere(row) {
-    if (!row) return false;
-    if (row.hospitalier) return true;
-    const nivs = Array.isArray(row.dci_niveaux) ? row.dci_niveaux : [];
-    return nivs.length === 1 && nivs[0] === 'hospitalier';
+    return !!row?.hospitalier;
   }
 
   /**
@@ -107,34 +135,8 @@
    */
   function visiblePourNiveau(row, niveauCode, opts = {}) {
     if (opts.admin) return true;
-    if (!isHospitaliere(row)) return true;
-    return niveauCode === 'hospitalier';
-  }
-
-  /**
-   * Si DCI ou noms portent le niveau hospitalier → force `['hospitalier']` exclusif
-   * sur DCI + noms commerciaux ; dérive le bool matrice.
-   * @param {object} payload
-   * @returns {boolean}
-   */
-  function applyHospitalierExclusif(payload) {
-    if (!payload) return false;
-    const dci = payload.singular?.dci;
-    const noms = Array.isArray(payload.multi?.nom_commercial)
-      ? payload.multi.nom_commercial
-      : [];
-    const fromDci =
-      Array.isArray(dci?.niveaux_connus) && dci.niveaux_connus.includes('hospitalier');
-    const fromNom = noms.some(
-      (n) => Array.isArray(n?.niveaux_connus) && n.niveaux_connus.includes('hospitalier')
-    );
-    const hospitalier = !!(fromDci || fromNom || payload.hospitalier);
-    if (!hospitalier) return false;
-    if (dci) dci.niveaux_connus = ['hospitalier'];
-    for (const n of noms) {
-      if (n) n.niveaux_connus = ['hospitalier'];
-    }
-    return true;
+    if (niveauCode === 'hospitalier') return isHospitaliere(row);
+    return !isHospitaliere(row);
   }
 
   /**
@@ -151,19 +153,20 @@
     } else if (opts.statut) {
       query = query.eq('statut', opts.statut);
     }
-    if (opts.secteurId) {
-      query = query.eq('secteur_therapeutique_id', opts.secteurId);
-    }
     const { data, error } = await query;
     if (error) throw error;
     let rows = data || [];
+    if (opts.secteurId) {
+      const want = String(opts.secteurId);
+      rows = rows.filter((r) => idsOf(r, 'secteur_therapeutique').indexOf(want) >= 0);
+    }
     const q = String(opts.q || '').trim().toLowerCase();
     if (q) {
       rows = rows.filter((r) => {
         const blob = [
           formatNoms(r, ' '),
           r.dci,
-          r.secteur_therapeutique,
+          labelsOf(r.secteur_therapeutique).join(' '),
           labelsOf(r.classe_therapeutique).join(' '),
           labelsOf(r.classe_pharmacologique).join(' '),
         ]
@@ -207,18 +210,15 @@
    * scope:
    *  - `all` (défaut) : met à jour la ligne d’entité partagée (id) → toutes les fiches liées
    *  - `molecule` : détache — ne touche pas l’ancienne entité ; find/create pour cette fiche
-   * @param {{ valeur?: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean, scope?: 'all'|'molecule' }} field
+   * @param {{ valeur?: string, id?: string, scope?: 'all'|'molecule' }} field
    * @param {string} table
    */
   async function resolveSingular(field, table) {
     if (!field) return null;
     const scope = field.scope === 'molecule' ? 'molecule' : 'all';
     const v = field.valeur != null ? String(field.valeur).trim() : '';
-    const niveaux = Array.isArray(field.niveaux_connus) ? field.niveaux_connus : null;
-
     if (field.id && scope === 'all') {
       const patch = {};
-      if (niveaux) patch.niveaux_connus = niveaux;
       if (v) patch.valeur = v;
       if (Object.keys(patch).length) {
         await global.JpEntites.update(table, field.id, patch);
@@ -242,7 +242,6 @@
       if (found) return found.id;
       const created = await global.JpEntites.create(table, {
         valeur: v,
-        niveaux_connus: niveaux || [],
       });
       return created?.id || null;
     }
@@ -250,14 +249,13 @@
     const ent = await global.JpEntites.findOrCreate(
       table,
       v,
-      niveaux || [],
-      { mergeNiveaux: !!field.mergeNiveaux }
+      []
     );
     return ent?.id || null;
   }
 
   /**
-   * @param {{ valeur: string, id?: string, niveaux_connus?: string[], mergeNiveaux?: boolean, scope?: 'all'|'molecule' }[]} items
+   * @param {{ valeur: string, id?: string, scope?: 'all'|'molecule' }[]} items
    * @param {string} table
    */
   async function resolveMulti(items, table) {
@@ -267,12 +265,9 @@
       if (!item) continue;
       const scope = item.scope === 'molecule' ? 'molecule' : 'all';
       const v = item.valeur != null ? String(item.valeur).trim() : '';
-      const niveaux = Array.isArray(item.niveaux_connus) ? item.niveaux_connus : null;
-
       // Id forcé (picker) : prioriser le lien ; n’update la valeur que si fournie et scope all
       if (item.id && scope === 'all') {
         const patch = {};
-        if (niveaux) patch.niveaux_connus = niveaux;
         if (v) patch.valeur = v;
         if (Object.keys(patch).length) {
           await global.JpEntites.update(table, item.id, patch);
@@ -309,7 +304,6 @@
         }
         const created = await global.JpEntites.create(table, {
           valeur: v,
-          niveaux_connus: niveaux || [],
         });
         if (created?.id) {
           ids.push(created.id);
@@ -332,7 +326,6 @@
           }
           const created = await global.JpEntites.create(table, {
             valeur: v,
-            niveaux_connus: niveaux || [],
           });
           if (created?.id) {
             ids.push(created.id);
@@ -344,8 +337,7 @@
         const ent = await global.JpEntites.findOrCreate(
           table,
           v,
-          niveaux || [],
-          { mergeNiveaux: !!item.mergeNiveaux }
+          []
         );
         if (ent?.id) {
           ids.push(ent.id);
@@ -407,20 +399,64 @@
    * Payload admin :
    * {
    *   statut,
-   *   singular: { [code]: { valeur?, id?, niveaux_connus?, mergeNiveaux?, scope? } },
-   *   multi: { [code]: [{ valeur?, id?, niveaux_connus?, mergeNiveaux?, scope? }] }
+   *   singular: { [code]: { valeur?, id?, scope? } },
+   *   multi: { [code]: [{ valeur?, id?, scope? }] }
    * }
    * scope `all` | `molecule` — voir resolveSingular / resolveMulti.
    * Si DCI déjà associée à une autre fiche active → fusionne vers cette fiche.
    */
+  /**
+   * Marque une fiche comme validée (ou non) côté admin catalogue.
+   * @param {string} id
+   * @param {boolean} validee
+   */
+  async function setFicheValidee(id, validee) {
+    const user = await global.JpApp.getUser();
+    const { error } = await sb()
+      .from('matrice_medicaments')
+      .update({
+        fiche_validee: !!validee,
+        updated_by: user?.id || null,
+      })
+      .eq('id', id);
+    if (error) throw error;
+    void global.JpLogs?.action?.('medicament_fiche_validee', {
+      id,
+      fiche_validee: !!validee,
+    });
+  }
+
+  /**
+   * Remet fiche_validee à false pour une liste d’ids (filtre courant).
+   * @param {string[]} ids
+   */
+  async function resetFicheValidee(ids) {
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) return 0;
+    const user = await global.JpApp.getUser();
+    const { error } = await sb()
+      .from('matrice_medicaments')
+      .update({
+        fiche_validee: false,
+        updated_by: user?.id || null,
+      })
+      .in('id', list);
+    if (error) throw error;
+    void global.JpLogs?.action?.('medicament_fiche_validee_reset', {
+      count: list.length,
+    });
+    return list.length;
+  }
+
   async function save(payload, existingId) {
     const user = await global.JpApp.getUser();
-    const hospitalier = applyHospitalierExclusif(payload);
     const row = {
       statut: payload.statut || 'brouillon',
-      hospitalier,
+      hospitalier: !!payload.hospitalier,
       updated_by: user?.id || null,
     };
+    // Toute modification depuis l’éditeur invalide la validation précédente.
+    if (existingId) row.fiche_validee = false;
 
     for (const c of singularChamps()) {
       row[c.fk] = await resolveSingular(payload.singular?.[c.code], c.table);
@@ -558,6 +594,10 @@
     nomsList,
     formatNoms,
     labelsOf,
+    formatLabels,
+    labelFrom,
+    setFicheValidee,
+    resetFicheValidee,
     idsOf,
     isHospitaliere,
     visiblePourNiveau,

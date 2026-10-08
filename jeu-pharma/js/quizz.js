@@ -9,14 +9,6 @@
   const PREFIX = 'PH';
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-  const NIVEAUX_KEYS = {
-    dci: 'dci_niveaux',
-    secteur_therapeutique: 'secteur_niveaux',
-    classe_therapeutique: 'classe_therapeutique_niveaux',
-    classe_pharmacologique: 'classe_pharmacologique_niveaux',
-    nom_commercial: 'nom_commercial_niveaux',
-  };
-
   const LIBELLES_CHAMP_ENONCE = {
     nom_commercial: 'nom commercial',
     dci: 'DCI',
@@ -77,12 +69,6 @@
     return global.JpMedicaments?.formatNoms?.(med) || med?.nom_commercial || '';
   }
 
-  function niveauOk(niveaux, niveau) {
-    if (!niveau) return true;
-    if (!Array.isArray(niveaux) || !niveaux.length) return true;
-    return niveaux.indexOf(niveau) >= 0;
-  }
-
   /**
    * Une valeur (id + libellé) pour un champ — miroir léger de `_valeur_champ_matrice`.
    * Multi : tire une entité au hasard ; singulier : contrôle `*_niveaux` si présent.
@@ -91,20 +77,19 @@
     if (!med || !champ) return null;
     const meta = champMeta(champ);
     if (!meta) return null;
+    if (global.JpNiveaux && !global.JpNiveaux.champDisponible(niveau, champ)) return null;
 
     if (meta.card === 'N') {
       const arr = champ === 'nom_commercial' ? med.noms_commerciaux : med[champ];
       if (!Array.isArray(arr) || !arr.length) return null;
       const candidats = arr.filter(function (x) {
-        return x && x.id && x.valeur && niveauOk(x.niveaux_connus, niveau);
+        return x && x.id && global.JpMedicaments?.labelFrom?.(x)
+          && (!global.JpNiveaux || global.JpNiveaux.entiteDisponible(niveau, champ, x.id));
       });
       if (!candidats.length) return null;
       const pick = candidats[Math.floor(Math.random() * candidats.length)];
-      return { entite_id: pick.id, valeur: pick.valeur };
+      return { entite_id: pick.id, valeur: global.JpMedicaments.labelFrom(pick) };
     }
-
-    const nivKey = NIVEAUX_KEYS[champ];
-    if (nivKey && !niveauOk(med[nivKey], niveau)) return null;
 
     if (global.JpTrous?.cellValeurFromMed) {
       const cv = global.JpTrous.cellValeurFromMed(med, champ, null);

@@ -7,16 +7,19 @@
   const SEUIL_ACQUIS = 8;
   const NB_SCORES_ACQUIS = 3;
   const PAGE = 1000;
+  let niveauCourant = null;
 
   function sb() {
     return global.JpApp.sbJeu();
   }
 
   function champsActifs() {
-    if (typeof global.JpConstants?.champsActifs === 'function') {
-      return global.JpConstants.champsActifs();
-    }
-    return (global.JpConstants?.CHAMP_CODES || []).filter((c) => c.actif !== false);
+    const champs = typeof global.JpConstants?.champsActifs === 'function'
+      ? global.JpConstants.champsActifs()
+      : (global.JpConstants?.CHAMP_CODES || []).filter((c) => c.actif !== false);
+    return global.JpNiveaux?.champsPourNiveau
+      ? global.JpNiveaux.champsPourNiveau(niveauCourant, champs)
+      : champs;
   }
 
   /** Noms commerciaux + DCI : toujours visibles. */
@@ -29,13 +32,12 @@
     if (champ.code === 'nom_commercial') {
       return global.JpMedicaments?.formatNoms?.(row) || '';
     }
-    if (champ.card === 'N') {
-      const arr = row[champ.code];
-      if (!Array.isArray(arr) || !arr.length) return '';
-      return arr.map((x) => (x && x.valeur) || x).filter(Boolean).join(', ');
+    if (champ.card === 'N' || Array.isArray(row[champ.code]) || (row[champ.code] && typeof row[champ.code] === 'object')) {
+      const labs = global.JpMedicaments?.labelsOf?.(row[champ.code]) || [];
+      return labs.join(', ');
     }
     const v = row[champ.code];
-    return v ? String(v) : '';
+    return v != null && typeof v !== 'object' ? String(v) : '';
   }
 
   /**
@@ -87,6 +89,11 @@
       niveau = await global.JpProfil?.getNiveauCode?.();
     } catch (_) {
       niveau = null;
+    }
+    niveauCourant = niveau;
+    if (global.JpNiveaux?.load) await global.JpNiveaux.load();
+    if (global.JpNiveaux?.filtrerMedicaments) {
+      return global.JpNiveaux.filtrerMedicaments(rows, niveau);
     }
     const visible = global.JpMedicaments?.visiblePourNiveau;
     if (typeof visible !== 'function') return rows;

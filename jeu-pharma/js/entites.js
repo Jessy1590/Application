@@ -1,5 +1,5 @@
 /**
- * CRUD générique entités jeupharma + niveaux_connus + fusion.
+ * CRUD générique entités jeupharma + fusion.
  */
 (function (global) {
   function sb() {
@@ -36,7 +36,7 @@
     assertTable(table);
     let query = sb()
       .from(table)
-      .select('id, valeur, valeur_norm, niveaux_connus, actif, created_at, updated_at')
+      .select('id, valeur, valeur_norm, actif, created_at, updated_at')
       .order('valeur', { ascending: true })
       .limit(opts.limit || 500);
     if (opts.actif === true) query = query.eq('actif', true);
@@ -53,7 +53,7 @@
     assertTable(table);
     const { data, error } = await sb()
       .from(table)
-      .select('id, valeur, valeur_norm, niveaux_connus, actif, created_at, updated_at')
+      .select('id, valeur, valeur_norm, actif, created_at, updated_at')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -82,7 +82,7 @@
     for (const norm of candidates) {
       const { data, error } = await sb()
         .from(table)
-        .select('id, valeur, valeur_norm, niveaux_connus, actif')
+        .select('id, valeur, valeur_norm, actif')
         .eq('valeur_norm', norm)
         .eq('actif', true)
         .maybeSingle();
@@ -94,26 +94,13 @@
     if (!v) return null;
     const { data, error } = await sb()
       .from(table)
-      .select('id, valeur, valeur_norm, niveaux_connus, actif')
+      .select('id, valeur, valeur_norm, actif')
       .ilike('valeur', v)
       .eq('actif', true)
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     return data || null;
-  }
-
-  async function applyNiveaux(table, existing, niveaux, opts) {
-    if (!Array.isArray(niveaux)) return existing;
-    const next = opts.mergeNiveaux
-      ? Array.from(new Set([...(existing.niveaux_connus || []), ...niveaux]))
-      : niveaux;
-    const prev = [...(existing.niveaux_connus || [])].sort().join('|');
-    const nxt = [...next].sort().join('|');
-    if (prev !== nxt) {
-      return update(table, existing.id, { niveaux_connus: next });
-    }
-    return existing;
   }
 
   /**
@@ -123,39 +110,35 @@
    * @param {string[]} [niveaux]
    * @param {{ mergeNiveaux?: boolean }} [opts] — merge = union (CSV) ; sinon remplacement
    */
-  async function findOrCreate(table, valeur, niveaux, opts = {}) {
+  async function findOrCreate(table, valeur) {
     assertTable(table);
     const v = String(valeur || '').trim();
     if (!v) return null;
 
     const existing = await findActiveByValeur(table, v);
-    if (existing) {
-      return applyNiveaux(table, existing, niveaux, opts);
-    }
+    if (existing) return existing;
 
     try {
       return await create(table, {
         valeur: v,
-        niveaux_connus: Array.isArray(niveaux) ? niveaux : [],
       });
     } catch (err) {
       // Course / mismatch norm → réutiliser la ligne déjà présente
       if (!isUniqueViolation(err)) throw err;
       const again = await findActiveByValeur(table, v);
       if (!again) throw err;
-      return applyNiveaux(table, again, niveaux, opts);
+      return again;
     }
   }
 
   /**
    * @param {string} table
-   * @param {{ valeur: string, niveaux_connus?: string[], actif?: boolean }} payload
+   * @param {{ valeur: string, actif?: boolean }} payload
    */
   async function create(table, payload) {
     assertTable(table);
     const row = {
       valeur: String(payload.valeur || '').trim(),
-      niveaux_connus: Array.isArray(payload.niveaux_connus) ? payload.niveaux_connus : [],
       actif: payload.actif !== false,
     };
     if (!row.valeur) throw new Error('Valeur obligatoire');
@@ -167,13 +150,12 @@
   /**
    * @param {string} table
    * @param {string} id
-   * @param {{ valeur?: string, niveaux_connus?: string[], actif?: boolean }} patch
+   * @param {{ valeur?: string, actif?: boolean }} patch
    */
   async function update(table, id, patch) {
     assertTable(table);
     const row = {};
     if (patch.valeur != null) row.valeur = String(patch.valeur).trim();
-    if (patch.niveaux_connus != null) row.niveaux_connus = patch.niveaux_connus;
     if (patch.actif != null) row.actif = !!patch.actif;
     const { data, error } = await sb().from(table).update(row).eq('id', id).select('*').single();
     if (error) throw error;
@@ -183,24 +165,6 @@
   /** Soft-delete (actif=false) — pas de hard-delete si référencé. */
   async function softDelete(table, id) {
     return update(table, id, { actif: false });
-  }
-
-  /**
-   * Met à jour niveaux_connus pour plusieurs ids.
-   * @param {string} table
-   * @param {string[]} ids
-   * @param {string[]} niveaux
-   */
-  async function updateNiveauxBulk(table, ids, niveaux) {
-    assertTable(table);
-    if (!ids?.length) return [];
-    const { data, error } = await sb()
-      .from(table)
-      .update({ niveaux_connus: niveaux || [] })
-      .in('id', ids)
-      .select('id, valeur, niveaux_connus');
-    if (error) throw error;
-    return data || [];
   }
 
   /** RPC fusionner_entites(table, id_keep, id_drop) */
@@ -224,7 +188,6 @@
     create,
     update,
     softDelete,
-    updateNiveauxBulk,
     fusionner,
   };
 })(window);

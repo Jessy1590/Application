@@ -19,25 +19,27 @@ alwaysApply: true
 
 ## Données
 - Schéma métier : **`jeupharma`** (minuscules).
-- Entités (valeur + `valeur_norm` + `niveaux_connus[]` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ legacy en base : posologies, grossesse/allaitement, voies).
+- Entités (valeur + `valeur_norm` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ colonnes legacy `niveaux_connus[]` conservées en base mais non pilotées par l’UI ; posologies, grossesse/allaitement, voies masquées).
 - Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
 - Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, indications, CI, EI, précautions, interactions, surveillances — **pas** posologie / grossesse / voies (legacy, pas de DROP).
-- Niveau pédagogique **`hospitalier`** (lookup `niveaux` + `JpConstants.NIVEAUX`) : exclusif sur **DCI** + **noms commerciaux** (`niveaux_connus = ['hospitalier']`) ; bool `matrice_medicaments.hospitalier` dérivé / sync au save (compat vue + RPC). Visible seulement si filtre / `niveau_cible` = `hospitalier` (pas `portail.profiles.role`).
+- Paramétrage pédagogique centralisé par niveau : `niveau_secteurs_therapeutiques`, `niveau_classes_therapeutiques`, `niveau_classes_pharmacologiques`, `niveau_champs`. Lecture par les joueurs autorisés, écriture via RPC/RLS admin portail. Quiz, trous, catalogue et fiche aléatoire appliquent cette configuration.
+- Niveau pédagogique **`hospitalier`** (lookup `niveaux` + `JpConstants.NIVEAUX`) : `matrice_medicaments.hospitalier` est l’unique source pour la fiche ; visible dans le pool hospitalier uniquement (pas `portail.profiles.role`).
 - Noms commerciaux : liaison multi `matrice_noms_commerciaux` (plus de FK singulière `nom_commercial_id`).
-- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier`.
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier` + `fiche_validee`.
+- **`fiche_validee`** (bool, défaut false) : revue admin catalogue (`Valider fiches` / filtre / Remettre à 0) ; invalidée à chaque save éditeur.
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
 - Quiz / trous : `quizz` (snapshot + mode), réponses ; `parties_tableau_trous` + réponses.
 - Fiche aléatoire (joueur, pas d’admin) : `scores_fiche_aleatoire` — `sql/008_scores_fiche_aleatoire.sql`.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `011_cours_sang_cv_hta` ; ne pas réappliquer sans check (voir STATE.md).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `016_configuration_niveaux` ; ne pas réappliquer sans check (voir STATE.md).
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
 - BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI…) reste saisie cours. Pas d’OCR ni d’IA en v1.
-- Admin contenu : une page `admin/catalogue.html` — table + modal fiche (picker chips / ids), filtre « Lié à », import CSV champs actifs, fusion + scanner doublons `valeur_norm`, niveaux bulk. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
+- Admin contenu : une page `admin/catalogue.html` — table + modal fiche (picker chips / ids), filtre « Lié à », import CSV champs actifs, fusion + scanner doublons `valeur_norm`, panneau « Paramétrage des niveaux » centralisé. Aucun contrôle `niveaux_connus` par entité. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
 - Admin jeux : une page `admin/jeux.html` (« Création jeu ») — onglets Historique | Quiz | Tableau à trous (`?type=historique|quiz|trous`) ; Historique = parties filtrées ; Quiz/Trous = création guidée en étapes ; scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
 - Quiz (création admin) : 4 étapes (médicaments/filtres multi → paramètres → questions éditables → titre) ; génération QCM **client** (`JpQuizz.genererQuestions`) + insert snapshot fidèle (`createWithSnapshot`) ; delete / régénérer une question ; RPC `generer_et_geler_quiz` = legacy / regénération globale. Zéro IA.
 

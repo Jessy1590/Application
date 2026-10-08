@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-08 — cours Sang / CV / HTA vers le catalogue (`010` classes N-N, `011` compléments). Aucune fiche DCI nouvelle : les molécules des cours étaient déjà publiées.
+Dernière mise à jour : 2026-10-08 — `016` configuration pédagogique centralisée par niveau + suppression staging ATC.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -15,8 +15,8 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
 - **1 `matrice_medicaments` = 1 DCI** (`dci_id` ; index unique partiel hors `archive`).
 - **N noms commerciaux** via `jeupharma.matrice_noms_commerciaux` (plus de colonne `nom_commercial_id`).
 - Champs pédagogiques (secteur, classes, indications, CI, EI…) partagés sur la fiche DCI.
-- Classes théra / pharma : plusieurs par fiche (`matrice_classes_*`). La FK `classe_*_id` = classe d’ordre 0.
-- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié). `classe_therapeutique` / `classe_pharmacologique` = jsonb[].
+- Secteur + classes théra / pharma : plusieurs par fiche (`matrice_secteurs_therapeutiques`, `matrice_classes_*`). La FK `*_id` = ordre 0.
+- Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié). `secteur_therapeutique` / `classe_therapeutique` / `classe_pharmacologique` = jsonb[].
 - Save / CSV / BDPM : fusion par DCI (append noms, soft-archive doublons).
 
 ### Règles DCI / noms (catalogue RCP)
@@ -69,9 +69,36 @@ App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. A
   - `_valeur_champ_matrice` tire une classe au hasard dans la jonction ; `fusionner_entites` réécrit les jonctions
   - UI : `card: 'N'` (chips), filtres catalogue / jeux sur tous les ids
 - [x] Import cours **`011_cours_sang_cv_hta.sql`** (MCP, idempotent) — voir section dédiée. Pas de fiche DCI créée.
+- [x] Migration **`012_atc_secteurs_classes`** (MCP `jeupharma_012_atc_*`, fichier `sql/012_atc_secteurs_classes.sql`) :
+  - jonction `matrice_secteurs_therapeutiques` + trigger sync FK ; secteurs renommés Sang→B, Cardiovasculaire→C
+  - staging DCI→ATC + libellés ; mapping appliqué aux fiches `publie` (remplace secteurs/CT/CP)
+  - décisions : dapagliflozine A+C ; piribedil N ; filgrastim/Ig/idarucizumab/BB/anti-angoreux suivent ATC ; associations multi-ATC
+  - vue : `secteur_therapeutique` = jsonb[] ; UI `card: 'N'` + filtres `idsOf`
+  - vérif : Furosémide C/C03/C03C ; Dapagliflozine A+C ; Piribedil N ; Bisoprolol C07 ; **0** `publie` hors staging
+- [x] Migration **`013_atc_labels_cp_niveau`** (MCP, strip codes déjà fait + staging CP + DO) :
+  - libellés secteur/CT/CP sans préfixe « CODE - » ; CP remplacés par libellés simples (Acénocoumarol → Antivitamines K ; Furosémide → Diurétiques de l'anse) ; extras multi-CP
+  - UI : `admin/catalogue.html` + joueur `labelsOf` sur secteur (filtres/tri/recherche/incomplet) — plus de `[object Object]`
 - [x] Notes **`006_catalogue_champs_actifs_notes.sql`** (pas de DDL) + audit dédup remote (2026-10-07) :
   - **0** groupe actif en doublon exact `valeur_norm` (tables entités actives) — index unique `_valeur_norm_actif_uidx` respecté ; aucune fusion RPC nécessaire
   - Pas de fusion sémantique (« AVC » vs « AVC ischémique ») — uniquement panneau Fusion / scanner doublons exacts
+- [x] Migration **`014_fiche_validee`** (MCP + `sql/014_fiche_validee.sql`) :
+  - `matrice_medicaments.fiche_validee boolean NOT NULL DEFAULT false` + colonne exposée dans `v_medicaments_complet`
+  - Admin catalogue : bouton **Valider fiches** (file des fiches non validées du filtre courant) → **Validé** (écrit en base) ou **Modifier** (ouvre l’éditeur, reprend la file au fermeture)
+  - Filtre toolbar « À valider / Validées » + badge tableau ; **Remettre à 0** remet `fiche_validee=false` sur les fiches du filtre actuel
+  - Toute sauvegarde éditeur remet `fiche_validee` à `false` ; API `JpMedicaments.setFicheValidee` / `resetFicheValidee`
+- [x] Migration **`015_simplifier_securite_cours`** (MCP + `sql/015_simplifier_securite_cours.sql`) :
+  - Indications / CI / EI / précautions / interactions / surveillances : libellés courts isolables (ex. toutes variantes IDM → `IDM` ; angor → `Angor` ; IC ; FA ; SCA ; TVP ; MTEV…)
+  - Fusion des doublons après renommage (jonctions réaffectées, anciennes entités soft-désactivées)
+  - Source = vocabulaire cours Sang / CV / HTA (extraits ppt) — **pas de RCP** ; précautions longues (Natispray, patchs) raccourcies
+- [x] Migration **`016_configuration_niveaux`** (MCP `jeupharma_016_configuration_niveaux` + `jeupharma_016_configuration_niveaux_hardening`, fichier `sql/016_configuration_niveaux.sql`) :
+  - configuration centralisée : `niveau_secteurs_therapeutiques`, `niveau_classes_therapeutiques`, `niveau_classes_pharmacologiques`, `niveau_champs`
+  - seed depuis l’ancien comportement `niveaux_connus` (tableau vide = disponible à tous) ; 12 champs actifs initialement disponibles pour chaque niveau
+  - RLS : lecture `has_jeupharma_access()` ; écriture admin portail ; RPC atomique `enregistrer_configuration_niveau`
+  - éditeur catalogue / CSV : aucun contrôle ni colonne de niveaux par valeur ; panneau admin unique par niveau
+  - `matrice_medicaments.hospitalier` devient la source de vérité de la fiche hospitalière, distincte du rôle portail
+  - quiz / trous / catalogue joueur / fiche aléatoire lisent taxonomies + champs du niveau
+  - tables supprimées après contrôle des libellés migrés : `atc_map_staging`, `atc_labels_staging`, `atc_cp_fix_staging`, `atc_cp_extra_staging`
+  - tables conservées : `secteurs_therapeutiques`, `classes_therapeutiques`, `classes_pharmacologiques` et leurs trois jonctions `matrice_*`
 
 ## Import cours Sang / CV / HTA (2026-10-08)
 
@@ -107,7 +134,8 @@ Extraits texte : `jeu-pharma/.cursor/docs/cours-extract/`.
 
 ## Catalogue — champs actifs & entités liées
 - Flag `actif` sur `JpConstants.CHAMP_CODES` + `champsActifs()` / `isChampActif()`.
-- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut, niveaux dont `hospitalier` exclusif DCI/noms).
+- **Actifs** : noms commerciaux, DCI, secteur, classes théra/pharma, détail pharmacologie, indications, CI, EI, précautions, interactions, surveillances (+ statut et booléen fiche hospitalière).
+- Disponibilité par niveau : panneau admin centralisé (taxonomies + champs), sans `niveaux_connus` sur chaque valeur.
 - **Legacy masqués** (tables/données conservées) : posologie générale, grossesse & allaitement, voies d’administration — absents UI admin/joueur, CSV modèle, cases quiz/trous ; `JpMedicaments.save` ne touche plus ces FK/jonctions.
 - **Picker fiche** : chips multi `{ id, valeur }` + recherche ; « Créer … » seulement si pas de match exact `valeur_norm` ; singuliers id forcé (`data-entity-id`) + Effacer ; save priorise les ids.
 - **Filtre Paramètres → Lié à** : type d’entité + sélection entité → fiches via jonction / FK (`JpMedicaments.lieAEntite`).

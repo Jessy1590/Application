@@ -1,10 +1,9 @@
 /**
  * Import / export CSV catalogue (sans IA).
- * Multi-valeurs séparées par `;` ; niveaux par `|`.
+ * Multi-valeurs séparées par `;`.
  */
 (function (global) {
   const VALUE_SEP = ';';
-  const NIVEAUX_SEP = '|';
 
   /** En-têtes / import : champs actifs uniquement (legacy ignorés). */
   function champs() {
@@ -24,16 +23,11 @@
     'voies_administration',
   ]);
 
-  function niveauCodes() {
-    return (global.JpConstants?.NIVEAUX || []).map((n) => n.code);
-  }
-
   /** En-têtes du modèle téléchargeable */
   function templateHeaders() {
     const headers = ['statut'];
     for (const c of champs()) {
       headers.push(c.code);
-      headers.push(c.code + '_niveaux');
     }
     return headers;
   }
@@ -68,13 +62,8 @@
     for (const c of champs()) {
       if (c.card === 1) {
         example[c.code] = c.code === 'dci' ? 'ExempleDCI' : '';
-        example[c.code + '_niveaux'] = 'apprenti|pharmacien|preparatrice|etu_3a|etu_4a|etu_6a';
       } else {
         example[c.code] = c.code === 'nom_commercial' ? 'ExempleMed;AutreNom' : '';
-        example[c.code + '_niveaux'] =
-          c.code === 'nom_commercial'
-            ? 'apprenti|pharmacien|preparatrice|etu_3a|etu_4a|etu_6a'
-            : 'apprenti|pharmacien';
       }
     }
     const csv = toCsv([example], headers);
@@ -145,15 +134,6 @@
     return { headers, records };
   }
 
-  function parseNiveaux(str) {
-    if (!str || !String(str).trim()) return [];
-    const allowed = new Set(niveauCodes());
-    return String(str)
-      .split(NIVEAUX_SEP)
-      .map((s) => s.trim())
-      .filter((s) => s && allowed.has(s));
-  }
-
   function parseMultiValues(str) {
     if (!str || !String(str).trim()) return [];
     return String(str)
@@ -176,6 +156,7 @@
       if (!h) continue;
       if (expected.has(h) || h === 'statut') continue;
       const base = h.endsWith('_niveaux') ? h.slice(0, -'_niveaux'.length) : h;
+      if (h.endsWith('_niveaux') && knownBase.has(base)) continue;
       if (LEGACY_CODES.has(base)) continue;
       if (!knownBase.has(base) && h !== 'statut') {
         errors.push({
@@ -206,22 +187,6 @@
       if (!noms.length && !dci) {
         errors.push({ line, message: 'Au moins nom_commercial ou dci requis' });
       }
-      for (const c of champs()) {
-        const nivKey = c.code + '_niveaux';
-        if (rec[nivKey]) {
-          const rawParts = String(rec[nivKey])
-            .split(NIVEAUX_SEP)
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const bad = rawParts.filter((p) => !niveauCodes().includes(p));
-          if (bad.length) {
-            errors.push({
-              line,
-              message: 'Niveaux inconnus (' + c.code + '): ' + bad.join(', '),
-            });
-          }
-        }
-      }
       preview.push({
         line,
         statut,
@@ -243,23 +208,14 @@
         const singular = {};
         const multi = {};
         for (const c of champs()) {
-          const niveaux = parseNiveaux(rec[c.code + '_niveaux']);
           if (c.card === 1) {
             const v = rec[c.code];
             if (v) {
-              singular[c.code] = {
-                valeur: v,
-                niveaux_connus: niveaux,
-                mergeNiveaux: true,
-              };
+              singular[c.code] = { valeur: v };
             }
           } else {
             const vals = parseMultiValues(rec[c.code]);
-            multi[c.code] = vals.map((valeur) => ({
-              valeur,
-              niveaux_connus: niveaux,
-              mergeNiveaux: true,
-            }));
+            multi[c.code] = vals.map((valeur) => ({ valeur }));
           }
         }
         // save() fusionne par DCI si une fiche active existe déjà
@@ -284,16 +240,14 @@
   }
 
   function formatMulti(arr) {
+    if (global.JpMedicaments?.labelsOf) {
+      return global.JpMedicaments.labelsOf(arr).join(VALUE_SEP);
+    }
     if (!Array.isArray(arr)) return '';
     return arr
       .map((x) => (typeof x === 'string' ? x : x?.valeur))
       .filter(Boolean)
       .join(VALUE_SEP);
-  }
-
-  function formatNiveaux(arr) {
-    if (!Array.isArray(arr)) return '';
-    return arr.join(NIVEAUX_SEP);
   }
 
   async function exportCatalogue(opts = {}) {
@@ -307,23 +261,10 @@
       for (const c of champs()) {
         if (c.card === 1) {
           obj[c.code] = r[c.code] || '';
-          const nivKey =
-            c.code === 'dci'
-              ? 'dci_niveaux'
-              : c.code === 'secteur_therapeutique'
-                ? 'secteur_niveaux'
-                : c.code === 'classe_therapeutique'
-                  ? 'classe_therapeutique_niveaux'
-                  : c.code === 'classe_pharmacologique'
-                    ? 'classe_pharmacologique_niveaux'
-                    : null;
-          obj[c.code + '_niveaux'] = nivKey ? formatNiveaux(r[nivKey]) : '';
         } else if (c.code === 'nom_commercial') {
           obj[c.code] = formatMulti(r.noms_commerciaux);
-          obj[c.code + '_niveaux'] = formatNiveaux(r.nom_commercial_niveaux || []);
         } else {
           obj[c.code] = formatMulti(r[c.code]);
-          obj[c.code + '_niveaux'] = '';
         }
       }
       return obj;
@@ -336,7 +277,6 @@
 
   global.JpCsv = {
     VALUE_SEP,
-    NIVEAUX_SEP,
     templateHeaders,
     downloadTemplate,
     parseCsv,

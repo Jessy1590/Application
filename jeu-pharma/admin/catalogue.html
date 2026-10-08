@@ -27,14 +27,15 @@
 
     <div class="jp-admin-cat-actions">
       <button type="button" class="jp-btn jp-btn-primary" id="jpBtnNew">Nouvelle fiche</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnValider" title="Parcourir les fiches à valider (filtre courant)">Valider fiches</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnImport" aria-expanded="false" aria-controls="jpPanelImport">Import CSV</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnFusion" aria-expanded="false" aria-controls="jpPanelFusion">Fusion</button>
-      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnNiveaux" aria-expanded="false" aria-controls="jpPanelNiveaux">Niveaux d’entités</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnNiveaux" aria-expanded="false" aria-controls="jpPanelNiveaux">Paramétrage des niveaux</button>
     </div>
 
     <section class="jp-admin-cat-panel" id="jpPanelImport" hidden>
       <h2 class="jp-admin-cat-panel-title">Import / export CSV</h2>
-      <p class="jp-muted">En-têtes = champs actifs uniquement. Multi-valeurs séparées par <code>;</code> — niveaux par <code>|</code> (ex. <code>apprenti|pharmacien</code>). Résolution <code>findOrCreate</code> par texte (<code>valeur_norm</code>). Colonnes legacy (posologie, grossesse, voies) ignorées si présentes ; colonnes inconnues refusées au dry-run.</p>
+      <p class="jp-muted">En-têtes = champs actifs uniquement. Multi-valeurs séparées par <code>;</code>. Résolution <code>findOrCreate</code> par texte (<code>valeur_norm</code>). Les anciennes colonnes <code>*_niveaux</code> et les colonnes legacy sont ignorées à l’import.</p>
       <div class="jp-toolbar" style="margin-top:0.75rem">
         <button type="button" class="jp-btn jp-btn-primary" id="jpTpl">Télécharger le modèle</button>
         <button type="button" class="jp-btn jp-btn-ghost" id="jpExport">Exporter le catalogue</button>
@@ -68,7 +69,6 @@
             <select id="jpFusionDrop" required><option value="">—</option></select>
           </div>
         </div>
-        <p class="jp-muted">Les niveaux connus des deux valeurs sont unis sur la valeur conservée.</p>
         <div class="jp-field-actions">
           <button type="submit" class="jp-btn jp-btn-primary">Fusionner</button>
         </div>
@@ -82,24 +82,15 @@
     </section>
 
     <section class="jp-admin-cat-panel" id="jpPanelNiveaux" hidden>
-      <h2 class="jp-admin-cat-panel-title">Gérer les niveaux d’entités</h2>
-      <p class="jp-muted">Ajuster les niveaux connus en masse pour un type d’entité.</p>
-      <div class="jp-toolbar">
-        <select id="jpEntType" aria-label="Type d’entité"></select>
-        <input type="search" id="jpEntQ" placeholder="Filtrer…" aria-label="Filtrer les entités">
-        <button type="button" class="jp-btn jp-btn-ghost" id="jpEntRefresh">Actualiser</button>
+      <h2 class="jp-admin-cat-panel-title">Paramétrage pédagogique par niveau</h2>
+      <p class="jp-muted">Choisissez les taxonomies disponibles à l’apprentissage et les champs à connaître. Le niveau hospitalier est pédagogique et indépendant des rôles portail.</p>
+      <label class="jp-field">Niveau
+        <select id="jpConfigNiveau" aria-label="Niveau pédagogique"></select>
+      </label>
+      <div id="jpConfigNiveauBody"></div>
+      <div class="jp-field-actions">
+        <button type="button" class="jp-btn jp-btn-primary" id="jpConfigNiveauSave">Enregistrer ce niveau</button>
       </div>
-      <div class="jp-panel" style="margin-top:0;padding-top:0;border:0">
-        <p class="jp-field-label">Niveaux à appliquer à la sélection</p>
-        <div class="jp-niveaux" id="jpBulkNiv"></div>
-        <div class="jp-field-actions">
-          <button type="button" class="jp-link-btn" id="jpNivAll">Tous</button>
-          <button type="button" class="jp-link-btn" id="jpNivNone">Aucun</button>
-          <button type="button" class="jp-btn jp-btn-primary" id="jpBtnApplyNiv">Appliquer aux cases cochées</button>
-        </div>
-        <p class="jp-niveaux-warn" id="jpWarnEmpty" hidden>Aucun profil coché — les valeurs sélectionnées seront invisibles aux quiz filtrés.</p>
-      </div>
-      <div id="jpEntList" class="jp-table-wrap"></div>
     </section>
 
     <div class="jp-catalogue-toolbar" id="jpToolbar" hidden>
@@ -115,6 +106,15 @@
             <option value="archive">Archivé</option>
           </select>
         </label>
+        <label class="jp-admin-cat-statut">
+          <span class="jp-sr-only">Validation</span>
+          <select id="jpValidationFilter" aria-label="Filtrer par validation">
+            <option value="">Validation : toutes</option>
+            <option value="a_valider">À valider</option>
+            <option value="validee">Validées</option>
+          </select>
+        </label>
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpBtnResetValidation" title="Remettre fiche_validee à faux pour les fiches du filtre actuel" disabled>Remettre à 0</button>
         <div class="jp-catalogue-prefs-wrap">
           <button type="button" class="jp-btn jp-btn-ghost jp-catalogue-icon-btn" id="jpPrefsBtn" aria-expanded="false" aria-controls="jpPrefsPanel" title="Paramètres">
             <svg class="jp-catalogue-gear" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -162,7 +162,7 @@
                   <option value="">Toutes</option>
                 </select>
               </label>
-              <label class="jp-catalogue-field">Niveau (DCI)
+              <label class="jp-catalogue-field">Niveau pédagogique
                 <select id="jpNiveau" aria-label="Niveau">
                   <option value="">Tous les niveaux</option>
                 </select>
@@ -218,6 +218,10 @@
               <option value="archive">Archivé</option>
             </select>
           </div>
+          <label class="jp-catalogue-col">
+            <input type="checkbox" id="jpHospitalier">
+            <span>Fiche hospitalière</span>
+          </label>
         </div>
       </div>
       <div class="jp-med-editor-body">
@@ -269,6 +273,27 @@
     </div>
   </div>
 
+  <div id="jpValidationModal" class="jp-validation-modal" hidden role="dialog" aria-modal="true" aria-labelledby="jpValidationTitle">
+    <div class="jp-validation-modal-backdrop" data-close-validation></div>
+    <section class="jp-validation-modal-panel" aria-labelledby="jpValidationTitle">
+      <header class="jp-validation-head">
+        <div>
+          <p class="jp-kicker" style="margin:0">Revue catalogue</p>
+          <h2 class="jp-title" id="jpValidationTitle" style="margin:0.15rem 0 0">Valider la fiche</h2>
+        </div>
+        <p class="jp-validation-progress" id="jpValidationProgress" aria-live="polite">—</p>
+      </header>
+      <div class="jp-validation-body" id="jpValidationBody"></div>
+      <footer class="jp-validation-foot">
+        <button type="button" class="jp-btn jp-btn-ghost" id="jpValidationClose" data-close-validation>Fermer</button>
+        <div class="jp-validation-actions">
+          <button type="button" class="jp-btn jp-btn-ghost jp-validation-btn-edit" id="jpValidationEdit">Modifier</button>
+          <button type="button" class="jp-btn jp-btn-primary jp-validation-btn-ok" id="jpValidationOk">Validé</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
   <script src="../js/logs.js"></script>
@@ -278,6 +303,7 @@
   <script src="../js/bdm.js"></script>
   <script src="../js/entites.js"></script>
   <script src="../js/medicaments.js"></script>
+  <script src="../js/niveaux.js"></script>
   <script src="../js/csv.js"></script>
   <script>
     (function () {
@@ -293,16 +319,6 @@
       const CHAMPS = typeof JpConstants.champsActifs === 'function'
         ? JpConstants.champsActifs()
         : (JpConstants.CHAMP_CODES || []).filter((c) => c.actif !== false);
-
-      const NIVEAU_SHORT = {
-        apprenti: 'App',
-        pharmacien: 'Ph',
-        preparatrice: 'Prép',
-        etu_3a: '3A',
-        etu_4a: '4A',
-        etu_6a: '6A',
-        hospitalier: 'Hosp',
-      };
 
       const SECTIONS = [
         {
@@ -332,7 +348,6 @@
       let editingId = null;
       let baseline = null;
       let fusionRows = [];
-      let entRows = [];
       let bdmRows = [];
       let bdmReq = 0;
       let csvText = '';
@@ -348,6 +363,11 @@
       let lieAcHighlight = -1;
       let lieBlurTimer = null;
       const AC_MAX = 12;
+      /** File d’attente revue « Valider fiches ». */
+      let validationQueue = [];
+      let validationIndex = 0;
+      let validationActive = false;
+      let validationResumeAfterEdit = false;
 
       function defaultPrefs() {
         return {
@@ -358,6 +378,7 @@
           classePh: '',
           niveau: '',
           statut: '',
+          validation: '',
           incomplet: false,
           incompletChamp: '',
           lieType: '',
@@ -385,14 +406,21 @@
             CHAMPS.some((c) => c.code === parsed.lieType)
             ? parsed.lieType
             : '';
+          const validation = ['a_valider', 'validee'].includes(parsed.validation)
+            ? parsed.validation
+            : '';
           return {
             q: typeof parsed.q === 'string' ? parsed.q : '',
             sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(parsed.sort) ? parsed.sort : 'dci',
-            secteur: typeof parsed.secteur === 'string' ? parsed.secteur : '',
-            classeTh: typeof parsed.classeTh === 'string' ? parsed.classeTh : '',
-            classePh: typeof parsed.classePh === 'string' ? parsed.classePh : '',
+            secteur: typeof parsed.secteur === 'string' && parsed.secteur !== '[object Object]'
+              ? parsed.secteur : '',
+            classeTh: typeof parsed.classeTh === 'string' && parsed.classeTh !== '[object Object]'
+              ? parsed.classeTh : '',
+            classePh: typeof parsed.classePh === 'string' && parsed.classePh !== '[object Object]'
+              ? parsed.classePh : '',
             niveau: typeof parsed.niveau === 'string' ? parsed.niveau : '',
             statut: typeof parsed.statut === 'string' ? parsed.statut : '',
+            validation,
             incomplet: !!parsed.incomplet,
             incompletChamp,
             lieType,
@@ -411,16 +439,6 @@
         } catch (_) { /* ignore */ }
       }
 
-      /** Niveaux standards (hors hospitalier exclusif) — défaut nouvelle fiche / « Tous ». */
-      function allNiveauxCodes() {
-        if (typeof JpConstants.niveauxStandards === 'function') {
-          return JpConstants.niveauxStandards();
-        }
-        return (JpConstants.NIVEAUX || [])
-          .map((n) => n.code)
-          .filter((c) => c !== 'hospitalier');
-      }
-
       function champByCode(code) {
         return CHAMPS.find((c) => c.code === code);
       }
@@ -431,7 +449,7 @@
 
       /** Identité minimale (comportement historique). */
       function isIncompletGlobal(r) {
-        return !nomsOf(r) || !r.dci || !r.secteur_therapeutique;
+        return !nomsOf(r) || !r.dci || !JpMedicaments.labelsOf(r.secteur_therapeutique).length;
       }
 
       /** Champ ciblé vide / manquant (card 1 = scalaire, card N = tableau vide). */
@@ -477,18 +495,16 @@
         );
       }
 
-      function formatMulti(arr) {
-        if (!Array.isArray(arr) || !arr.length) return '—';
-        return arr.map((x) => x.valeur || x).filter(Boolean).join(', ') || '—';
-      }
-
       function cellValue(row, code) {
         const champ = champByCode(code);
         if (!champ) return '—';
         if (code === 'nom_commercial') return nomsOf(row) || '—';
-        if (champ.card === 'N') return formatMulti(row[code]);
-        const v = row[code];
-        return v ? String(v) : '—';
+        const raw = row[code];
+        // jsonb[] / objet → labelsOf (évite [object Object] via String(array))
+        if (champ.card === 'N' || Array.isArray(raw) || (raw && typeof raw === 'object')) {
+          return JpMedicaments.formatLabels(raw);
+        }
+        return raw ? String(raw) : '—';
       }
 
       function fillSelect(sel, values, allLabel, current) {
@@ -501,7 +517,7 @@
       function syncFilterOptions() {
         fillSelect(
           document.getElementById('jpSecteur'),
-          uniqueSorted(all.map((r) => r.secteur_therapeutique)),
+          uniqueSorted(all.flatMap((r) => JpMedicaments.labelsOf(r.secteur_therapeutique))),
           'Tous les secteurs',
           prefs.secteur
         );
@@ -565,8 +581,8 @@
             va = nomsOf(a) || '';
             vb = nomsOf(b) || '';
           } else if (key === 'secteur') {
-            va = a.secteur_therapeutique || '';
-            vb = b.secteur_therapeutique || '';
+            va = JpMedicaments.labelsOf(a.secteur_therapeutique).join(', ');
+            vb = JpMedicaments.labelsOf(b.secteur_therapeutique).join(', ');
           } else {
             va = a.dci || '';
             vb = b.dci || '';
@@ -576,18 +592,21 @@
         return sorted;
       }
 
+      function isFicheValidee(r) {
+        return !!r?.fiche_validee;
+      }
+
       function filtered() {
         const q = String(prefs.q || '').trim().toLowerCase();
         return sortRows(all.filter((r) => {
           if (prefs.statut && r.statut !== prefs.statut) return false;
+          if (prefs.validation === 'a_valider' && isFicheValidee(r)) return false;
+          if (prefs.validation === 'validee' && !isFicheValidee(r)) return false;
           if (prefs.incomplet && !isIncomplet(r)) return false;
-          if (prefs.secteur && r.secteur_therapeutique !== prefs.secteur) return false;
+          if (prefs.secteur && !JpMedicaments.labelsOf(r.secteur_therapeutique).includes(prefs.secteur)) return false;
           if (prefs.classeTh && !JpMedicaments.labelsOf(r.classe_therapeutique).includes(prefs.classeTh)) return false;
           if (prefs.classePh && !JpMedicaments.labelsOf(r.classe_pharmacologique).includes(prefs.classePh)) return false;
-          if (prefs.niveau) {
-            const nivs = Array.isArray(r.dci_niveaux) ? r.dci_niveaux : [];
-            if (!nivs.includes(prefs.niveau)) return false;
-          }
+          if (prefs.niveau && !JpNiveaux.ficheDisponible(r, prefs.niveau)) return false;
           if (prefs.lieType && prefs.lieEntityId) {
             if (!JpMedicaments.lieAEntite(r, prefs.lieType, prefs.lieEntityId)) return false;
           }
@@ -595,13 +614,23 @@
           const blob = [
             nomsOf(r),
             r.dci,
-            r.secteur_therapeutique,
+            JpMedicaments.labelsOf(r.secteur_therapeutique).join(' '),
             JpMedicaments.labelsOf(r.classe_therapeutique).join(' '),
             JpMedicaments.labelsOf(r.classe_pharmacologique).join(' '),
             r.detail_pharmacologie,
           ].filter(Boolean).join(' ').toLowerCase();
           return blob.includes(q);
         }));
+      }
+
+      function syncResetValidationBtn() {
+        const btn = document.getElementById('jpBtnResetValidation');
+        if (!btn) return;
+        const n = filtered().length;
+        btn.disabled = !n;
+        btn.title = n
+          ? `Remettre à non validé les ${n} fiche${n > 1 ? 's' : ''} du filtre actuel`
+          : 'Aucune fiche dans le filtre actuel';
       }
 
       function fillLieTypeSelect() {
@@ -776,6 +805,7 @@
         prefs.classePh = document.getElementById('jpClassePh').value || '';
         prefs.niveau = document.getElementById('jpNiveau').value || '';
         prefs.statut = document.getElementById('jpStatutFilter').value || '';
+        prefs.validation = document.getElementById('jpValidationFilter').value || '';
         prefs.incomplet = document.getElementById('jpIncomplet').checked;
         prefs.incompletChamp = document.getElementById('jpIncompletChamp').value || '';
         prefs.lieType = document.getElementById('jpLieType').value || '';
@@ -798,6 +828,7 @@
         document.getElementById('jpQ').value = prefs.q || '';
         document.getElementById('jpSort').value = prefs.sort || 'dci';
         document.getElementById('jpStatutFilter').value = prefs.statut || '';
+        document.getElementById('jpValidationFilter').value = prefs.validation || '';
         document.getElementById('jpIncomplet').checked = !!prefs.incomplet;
         fillIncompletChampSelect();
         fillLieTypeSelect();
@@ -830,7 +861,7 @@
           setPanel(pid, willOpen && pid === id);
         });
         if (willOpen && id === 'jpPanelFusion') loadFusionEntities();
-        if (willOpen && id === 'jpPanelNiveaux') loadEntites();
+        if (willOpen && id === 'jpPanelNiveaux') loadConfigNiveau();
       }
 
       function pencilSvg() {
@@ -852,6 +883,7 @@
             title: 'Aucune fiche',
             text: 'Ajoutez une fiche ou importez un CSV.',
           });
+          syncResetValidationBtn();
           return;
         }
 
@@ -866,6 +898,7 @@
             title: 'Aucun résultat',
             text: 'Modifiez la recherche ou les filtres (Paramètres).',
           });
+          syncResetValidationBtn();
           return;
         }
 
@@ -874,6 +907,7 @@
             title: 'Aucune colonne visible',
             text: 'Activez au moins une colonne dans Paramètres.',
           });
+          syncResetValidationBtn();
           return;
         }
 
@@ -898,12 +932,16 @@
                   <td>
                     <span class="jp-badge jp-badge-${esc(r.statut)}">${esc(r.statut)}</span>
                     ${JpMedicaments.isHospitaliere?.(r) || r.hospitalier ? ' <span class="jp-badge jp-badge-hospitalier">Hosp.</span>' : ''}
+                    ${isFicheValidee(r)
+                      ? ' <span class="jp-badge jp-badge-validee">Validée</span>'
+                      : ' <span class="jp-badge jp-badge-a-valider">À valider</span>'}
                   </td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
         `;
+        syncResetValidationBtn();
       }
 
       function onPrefsChange() {
@@ -911,28 +949,180 @@
         render();
       }
 
-      /* —— Éditeur fiche —— */
-      function niveauxHtml(name, selected) {
-        const sel = new Set(selected || []);
-        const boxes = JpConstants.NIVEAUX.map((n) => {
-          const short = NIVEAU_SHORT[n.code] || n.code;
+      /* —— Revue validation fiches —— */
+      function isValidationOpen() {
+        return !document.getElementById('jpValidationModal').hidden;
+      }
+
+      function currentValidationRow() {
+        const id = validationQueue[validationIndex];
+        if (!id) return null;
+        return all.find((r) => r.id === id) || null;
+      }
+
+      function validationSummaryHtml(row) {
+        if (!row) return '<p class="jp-muted">Fiche introuvable.</p>';
+        const lines = CHAMPS.map((c) => {
+          let val = '';
+          if (c.code === 'nom_commercial') val = nomsOf(row);
+          else if (c.card === 'N' || Array.isArray(row[c.code]) || (row[c.code] && typeof row[c.code] === 'object')) {
+            val = JpMedicaments.labelsOf(row[c.code]).join(' · ');
+          } else {
+            val = row[c.code] != null && typeof row[c.code] !== 'object' ? String(row[c.code]) : '';
+          }
+          const empty = !String(val || '').trim();
           return `
-            <label title="${esc(n.libelle)}">
-              <input type="checkbox" name="${esc(name)}" value="${esc(n.code)}" ${sel.has(n.code) ? 'checked' : ''}>
-              ${esc(short)}
-            </label>
+            <div class="jp-validation-field${empty ? ' is-empty' : ''}">
+              <span class="jp-validation-field-label">${esc(c.libelle)}</span>
+              <span class="jp-validation-field-value">${empty ? '—' : esc(val)}</span>
+            </div>
           `;
         }).join('');
+        const statutBadge = `<span class="jp-badge jp-badge-${esc(row.statut)}">${esc(row.statut)}</span>`;
+        const valBadge = isFicheValidee(row)
+          ? '<span class="jp-badge jp-badge-validee">Validée</span>'
+          : '<span class="jp-badge jp-badge-a-valider">À valider</span>';
         return `
-          <div class="jp-med-niveaux-compact" data-niveaux="${esc(name)}">${boxes}</div>
-          <div class="jp-field-actions">
-            <button type="button" class="jp-link-btn" data-niv-all="${esc(name)}">Tous</button>
-            <button type="button" class="jp-link-btn" data-niv-none="${esc(name)}">Aucun</button>
+          <div class="jp-validation-identity">
+            <p class="jp-validation-dci">${esc(row.dci || 'Sans DCI')}</p>
+            <p class="jp-validation-noms">${esc(nomsOf(row) || 'Sans nom commercial')}</p>
+            <div class="jp-validation-badges">${statutBadge} ${valBadge}</div>
           </div>
-          <p class="jp-niveaux-warn" hidden data-warn="${esc(name)}">Aucun profil — invisible aux quiz filtrés.</p>
+          <div class="jp-validation-fields">${lines}</div>
         `;
       }
 
+      function renderValidationCard() {
+        const progress = document.getElementById('jpValidationProgress');
+        const body = document.getElementById('jpValidationBody');
+        const okBtn = document.getElementById('jpValidationOk');
+        const editBtn = document.getElementById('jpValidationEdit');
+        const total = validationQueue.length;
+        if (!total || validationIndex >= total) {
+          progress.textContent = 'Terminé';
+          body.innerHTML = `
+            <div class="jp-validation-done">
+              <p class="jp-title" style="font-size:1.25rem;margin:0">Revue terminée</p>
+              <p class="jp-muted" style="margin:0.35rem 0 0">Toutes les fiches de cette file ont été traitées.</p>
+            </div>
+          `;
+          okBtn.disabled = true;
+          editBtn.disabled = true;
+          return;
+        }
+        const row = currentValidationRow();
+        progress.textContent = `${validationIndex + 1} / ${total}`;
+        body.innerHTML = validationSummaryHtml(row);
+        okBtn.disabled = !row;
+        editBtn.disabled = !row;
+        if (row && isFicheValidee(row)) {
+          okBtn.textContent = 'Déjà validée — suivant';
+        } else {
+          okBtn.textContent = 'Validé';
+        }
+      }
+
+      function openValidationModal() {
+        const base = filtered().filter((r) => !isFicheValidee(r));
+        if (!base.length) {
+          JpToast.warn('Aucune fiche à valider avec le filtre actuel.');
+          return;
+        }
+        validationQueue = base.map((r) => r.id);
+        validationIndex = 0;
+        validationActive = true;
+        validationResumeAfterEdit = false;
+        document.getElementById('jpValidationModal').hidden = false;
+        renderValidationCard();
+        document.getElementById('jpValidationOk').focus();
+      }
+
+      function closeValidationModal() {
+        document.getElementById('jpValidationModal').hidden = true;
+        validationActive = false;
+        validationResumeAfterEdit = false;
+        validationQueue = [];
+        validationIndex = 0;
+      }
+
+      function resumeValidationAfterEdit() {
+        if (!validationActive || !validationResumeAfterEdit) return;
+        validationResumeAfterEdit = false;
+        // Rafraîchir la file : retirer les fiches désormais validées, garder la position
+        const still = validationQueue.filter((id) => {
+          const r = all.find((x) => x.id === id);
+          return r && !isFicheValidee(r);
+        });
+        const currentId = validationQueue[validationIndex];
+        validationQueue = still;
+        let idx = still.indexOf(currentId);
+        if (idx < 0) idx = Math.min(validationIndex, Math.max(0, still.length - 1));
+        validationIndex = still.length ? Math.max(0, idx) : 0;
+        if (!still.length) {
+          document.getElementById('jpValidationModal').hidden = false;
+          renderValidationCard();
+          JpToast.ok('Plus aucune fiche à valider dans cette file.');
+          return;
+        }
+        document.getElementById('jpValidationModal').hidden = false;
+        renderValidationCard();
+      }
+
+      async function markCurrentValidee() {
+        const row = currentValidationRow();
+        if (!row) {
+          renderValidationCard();
+          return;
+        }
+        const btn = document.getElementById('jpValidationOk');
+        btn.disabled = true;
+        try {
+          if (!isFicheValidee(row)) {
+            await JpMedicaments.setFicheValidee(row.id, true);
+            const local = all.find((r) => r.id === row.id);
+            if (local) local.fiche_validee = true;
+            JpToast.ok('Fiche validée');
+          }
+          validationIndex += 1;
+          render();
+          renderValidationCard();
+        } catch (err) {
+          JpToast.fromError(err);
+          void JpLogs.error('medicament_fiche_validee', { message: err?.message });
+          btn.disabled = false;
+        }
+      }
+
+      function editCurrentFromValidation() {
+        const row = currentValidationRow();
+        if (!row) return;
+        validationResumeAfterEdit = true;
+        document.getElementById('jpValidationModal').hidden = true;
+        openEditor(row);
+      }
+
+      async function resetValidationForFilter() {
+        const rows = filtered();
+        if (!rows.length) {
+          JpToast.warn('Aucune fiche dans le filtre actuel.');
+          return;
+        }
+        const n = rows.length;
+        const ok = window.confirm(
+          `Remettre à « non validé » les ${n} fiche${n > 1 ? 's' : ''} du filtre actuel ?`
+        );
+        if (!ok) return;
+        try {
+          await JpMedicaments.resetFicheValidee(rows.map((r) => r.id));
+          JpToast.ok(`${n} fiche${n > 1 ? 's' : ''} remises à non validé`);
+          await refreshAll();
+        } catch (err) {
+          JpToast.fromError(err);
+          void JpLogs.error('medicament_fiche_validee_reset', { message: err?.message });
+        }
+      }
+
+      /* —— Éditeur fiche —— */
       function fieldCardHtml(c) {
         const span = c.card === 'N' || c.code === 'detail_pharmacologie' ? ' jp-field-span-2' : '';
         const sugId = 'sug_' + c.code;
@@ -947,8 +1137,6 @@
                 </div>
                 <button type="button" class="jp-link-btn jp-entity-clear" data-clear-singular="${esc(c.code)}" title="Effacer" hidden>Effacer</button>
               </div>
-              <span class="jp-field-label">Niveaux</span>
-              ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
             </div>
           `;
         }
@@ -962,8 +1150,6 @@
                 <ul id="${esc(sugId)}" class="jp-ac-list" hidden role="listbox" aria-label="Suggestions ${esc(c.libelle)}"></ul>
               </div>
             </div>
-            <span class="jp-field-label">Niveaux (toutes les valeurs)</span>
-            ${niveauxHtml('niv_' + c.code, allNiveauxCodes())}
           </div>
         `;
       }
@@ -998,8 +1184,6 @@
           `);
         }
         host.innerHTML = parts.join('');
-        host.addEventListener('click', onNivClick);
-        host.addEventListener('change', onNiveauxChange);
         bindFieldAutocomplete(host);
         // Conserver data-entity-id (baseline) pour proposer le choix de portée à l’enregistrement.
       }
@@ -1125,9 +1309,8 @@
         let entId = id || '';
         let entVal = valeur || '';
         if (isCreate) {
-          const niveaux = readNiveaux('niv_' + c.code);
           try {
-            const ent = await JpEntites.findOrCreate(c.table, entVal, niveaux, { mergeNiveaux: true });
+            const ent = await JpEntites.findOrCreate(c.table, entVal, []);
             if (!ent?.id) throw new Error('Création impossible');
             entId = ent.id;
             entVal = ent.valeur || entVal;
@@ -1154,7 +1337,6 @@
         }
         hideSuggestions(code);
         input.focus();
-        refreshWarns();
       }
 
       function moveAcHighlight(delta) {
@@ -1265,80 +1447,6 @@
         });
       }
 
-      function onNivClick(e) {
-        const allBtn = e.target.getAttribute('data-niv-all');
-        const none = e.target.getAttribute('data-niv-none');
-        const name = allBtn || none;
-        if (!name) return;
-        e.preventDefault();
-        if (allBtn) {
-          // « Tous » = standards uniquement (hospitalier reste exclusif, coché à part)
-          setNiveaux(allBtn, allNiveauxCodes());
-        } else {
-          setNiveaux(name, []);
-        }
-        if (name === 'niv_dci' || name === 'niv_nom_commercial') {
-          syncHospitalierExclusif(name);
-        }
-        refreshWarns();
-      }
-
-      function refreshWarns() {
-        document.querySelectorAll('[data-warn]').forEach((el) => {
-          const name = el.getAttribute('data-warn');
-          const any = [...document.querySelectorAll(`input[name="${name}"]:checked`)].length > 0;
-          el.hidden = any;
-        });
-      }
-
-      function readNiveaux(name) {
-        return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((c) => c.value);
-      }
-
-      function setNiveaux(name, codes) {
-        const set = new Set(codes || []);
-        document.querySelectorAll(`input[name="${name}"]`).forEach((cb) => {
-          cb.checked = set.has(cb.value);
-        });
-      }
-
-      /**
-       * Niveau hospitalier exclusif sur DCI + noms commerciaux :
-       * cocher Hosp → uniquement hospitalier sur les deux ;
-       * ajouter un autre niveau → retire Hosp et aligne le couple.
-       */
-      function syncHospitalierExclusif(sourceName) {
-        if (sourceName !== 'niv_dci' && sourceName !== 'niv_nom_commercial') return;
-        const codes = readNiveaux(sourceName);
-        const hasHosp = codes.includes('hospitalier');
-        const others = codes.filter((c) => c !== 'hospitalier');
-        if (hasHosp && !others.length) {
-          setNiveaux('niv_dci', ['hospitalier']);
-          setNiveaux('niv_nom_commercial', ['hospitalier']);
-          return;
-        }
-        if (hasHosp && others.length) {
-          setNiveaux(sourceName, others);
-          const otherName = sourceName === 'niv_dci' ? 'niv_nom_commercial' : 'niv_dci';
-          const otherCodes = readNiveaux(otherName);
-          if (otherCodes.length === 1 && otherCodes[0] === 'hospitalier') {
-            setNiveaux(otherName, others);
-          }
-        }
-      }
-
-      function onNiveauxChange(e) {
-        const t = e.target;
-        if (!t || t.type !== 'checkbox' || !t.name) {
-          refreshWarns();
-          return;
-        }
-        if (t.name === 'niv_dci' || t.name === 'niv_nom_commercial') {
-          syncHospitalierExclusif(t.name);
-        }
-        refreshWarns();
-      }
-
       function multiFieldArr(row, code) {
         if (code === 'nom_commercial') {
           return Array.isArray(row.noms_commerciaux) ? row.noms_commerciaux : [];
@@ -1375,7 +1483,7 @@
           } else {
             multi[c.code] = multiFieldArr(row, c.code).map((x) => ({
               id: x.id || null,
-              valeur: x.valeur || x || '',
+              valeur: JpMedicaments.labelFrom(x),
             }));
           }
         }
@@ -1388,6 +1496,7 @@
         pickerMulti = {};
         document.getElementById('jpEditorTitle').textContent = 'Nouvelle fiche';
         document.getElementById('jpStatut').value = 'brouillon';
+        document.getElementById('jpHospitalier').checked = false;
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (input) {
@@ -1398,9 +1507,7 @@
             }
           }
           if (c.card === 'N') setMultiItems(c.code, []);
-          setNiveaux('niv_' + c.code, allNiveauxCodes());
         }
-        refreshWarns();
       }
 
       function openEditor(row) {
@@ -1417,6 +1524,7 @@
           nomsOf(row) || row.dci || 'Modifier la fiche';
         document.getElementById('jpStatut').value = row.statut || 'brouillon';
         const hospOnly = !!(JpMedicaments.isHospitaliere?.(row) || row.hospitalier);
+        document.getElementById('jpHospitalier').checked = hospOnly;
         for (const c of CHAMPS) {
           const input = document.getElementById('val_' + c.code);
           if (!input) continue;
@@ -1424,36 +1532,17 @@
             input.value = row[c.code] || '';
             input.dataset.entityId = row[c.fk] || '';
             syncSingularClear(c.code);
-            if (c.code === 'dci' && hospOnly) {
-              setNiveaux('niv_dci', ['hospitalier']);
-            } else {
-              const nivKey =
-                c.code === 'dci' ? 'dci_niveaux'
-                : c.code === 'secteur_therapeutique' ? 'secteur_niveaux'
-                : c.code === 'classe_therapeutique' ? 'classe_therapeutique_niveaux'
-                : c.code === 'classe_pharmacologique' ? 'classe_pharmacologique_niveaux'
-                : null;
-              setNiveaux('niv_' + c.code, nivKey ? (row[nivKey] || []) : allNiveauxCodes());
-            }
           } else {
             const arr = multiFieldArr(row, c.code);
             setMultiItems(
               c.code,
               arr
                 .filter((x) => x && x.id)
-                .map((x) => ({ id: x.id, valeur: x.valeur || '' }))
+                .map((x) => ({ id: x.id, valeur: JpMedicaments.labelFrom(x) }))
             );
             input.value = '';
-            if (c.code === 'nom_commercial' && hospOnly) {
-              setNiveaux('niv_nom_commercial', ['hospitalier']);
-            } else if (c.code === 'nom_commercial' && row.nom_commercial_niveaux) {
-              setNiveaux('niv_' + c.code, row.nom_commercial_niveaux || allNiveauxCodes());
-            } else {
-              setNiveaux('niv_' + c.code, allNiveauxCodes());
-            }
           }
         }
-        refreshWarns();
         highlightRow(row.id);
       }
 
@@ -1463,6 +1552,9 @@
         editingId = null;
         baseline = null;
         highlightRow(null);
+        if (validationActive && validationResumeAfterEdit) {
+          resumeValidationAfterEdit();
+        }
       }
 
       function highlightRow(id) {
@@ -1471,11 +1563,10 @@
         });
       }
 
-      function collectMultiItems(code, niveaux) {
+      function collectMultiItems(code) {
         const items = getMultiItems(code).map((it) => ({
           id: it.id,
           valeur: it.valeur,
-          niveaux_connus: niveaux,
         }));
         const base = baseline?.multi?.[code] || [];
         const renamed = [];
@@ -1503,7 +1594,6 @@
         const changes = [];
 
         for (const c of CHAMPS) {
-          const niveaux = readNiveaux('niv_' + c.code);
           const input = document.getElementById('val_' + c.code);
           if (!input) continue;
 
@@ -1529,7 +1619,6 @@
             if (v && id) {
               singular[c.code] = {
                 valeur: v,
-                niveaux_connus: niveaux,
                 id,
                 scope: scope || 'all',
               };
@@ -1539,32 +1628,20 @@
               throw new Error('Sélectionnez ou créez « ' + c.libelle + ' » via la liste');
             }
           } else {
-            const { items, renamed } = collectMultiItems(c.code, niveaux);
+            const { items, renamed } = collectMultiItems(c.code);
             for (const r of renamed) changes.push(r);
             multi[c.code] = items.map((it) => ({
               valeur: it.valeur,
               id: it.id,
-              niveaux_connus: it.niveaux_connus,
               scope: scope || 'all',
             }));
           }
         }
 
-        // Hospitalier exclusif DCI + noms (save dérive aussi le bool matrice)
-        const dciNiv = singular.dci?.niveaux_connus || [];
-        const nomItems = multi.nom_commercial || [];
-        const hosp =
-          dciNiv.includes('hospitalier') ||
-          nomItems.some((it) => (it.niveaux_connus || []).includes('hospitalier'));
-        if (hosp) {
-          if (singular.dci) singular.dci.niveaux_connus = ['hospitalier'];
-          for (const it of nomItems) it.niveaux_connus = ['hospitalier'];
-        }
-
         return {
           payload: {
             statut: document.getElementById('jpStatut').value,
-            hospitalier: hosp,
+            hospitalier: document.getElementById('jpHospitalier').checked,
             singular,
             multi,
           },
@@ -1668,9 +1745,7 @@
       async function addNomCommercialChip(valeur) {
         const v = String(valeur || '').trim();
         if (!v) return;
-        const ent = await JpEntites.findOrCreate('noms_commerciaux', v, allNiveauxCodes(), {
-          mergeNiveaux: true,
-        });
+        const ent = await JpEntites.findOrCreate('noms_commerciaux', v, []);
         if (!ent?.id) return;
         if (!entityCache.noms_commerciaux) entityCache.noms_commerciaux = [];
         if (!entityCache.noms_commerciaux.some((r) => r.id === ent.id)) {
@@ -1688,9 +1763,7 @@
         document.getElementById('jpBdmQ').value = '';
         if (pre.dci) {
           try {
-            const ent = await JpEntites.findOrCreate('dcis', pre.dci, allNiveauxCodes(), {
-              mergeNiveaux: true,
-            });
+            const ent = await JpEntites.findOrCreate('dcis', pre.dci, []);
             if (ent?.id) {
               if (!entityCache.dcis) entityCache.dcis = [];
               if (!entityCache.dcis.some((r) => r.id === ent.id)) entityCache.dcis.push(ent);
@@ -1725,9 +1798,7 @@
         const dci = document.getElementById('val_dci');
         if (dci && pre.dci) {
           try {
-            const ent = await JpEntites.findOrCreate('dcis', pre.dci, allNiveauxCodes(), {
-              mergeNiveaux: true,
-            });
+            const ent = await JpEntites.findOrCreate('dcis', pre.dci, []);
             if (ent?.id) {
               dci.value = ent.valeur || pre.dci;
               dci.dataset.entityId = ent.id;
@@ -2031,116 +2102,65 @@
         });
       }
 
-      /* —— Niveaux bulk —— */
-      function currentEntTable() {
-        return document.getElementById('jpEntType').value;
+      /* —— Configuration pédagogique centralisée —— */
+      function configChecks(title, name, items, selected) {
+        const set = selected || new Set();
+        return `<fieldset class="jp-panel"><legend class="jp-field-label">${esc(title)}</legend>
+          <div class="jp-niveaux">${items.map((item) => `
+            <label><input type="checkbox" name="${esc(name)}" value="${esc(item.id || item.code)}"
+              ${set.has(String(item.id || item.code)) ? 'checked' : ''}> ${esc(item.valeur || item.libelle)}</label>
+          `).join('')}</div>
+        </fieldset>`;
       }
 
-      function readBulkNiveaux() {
-        return [...document.querySelectorAll('#jpBulkNiv input:checked')].map((c) => c.value);
+      function renderConfigNiveau() {
+        const niveau = document.getElementById('jpConfigNiveau').value;
+        const cfg = JpNiveaux.cache;
+        if (!cfg) return;
+        document.getElementById('jpConfigNiveauBody').innerHTML =
+          configChecks('Secteurs thérapeutiques', 'cfgSecteurs',
+            entityCache.secteurs_therapeutiques || [], cfg.secteurs[niveau]) +
+          configChecks('Classes thérapeutiques', 'cfgClassesTher',
+            entityCache.classes_therapeutiques || [], cfg.classesTherapeutiques[niveau]) +
+          configChecks('Classes pharmacologiques', 'cfgClassesPharma',
+            entityCache.classes_pharmacologiques || [], cfg.classesPharmacologiques[niveau]) +
+          configChecks('Champs à connaître', 'cfgChamps',
+            CHAMPS.map((c) => ({ id: c.code, valeur: c.libelle })), cfg.champs[niveau]);
       }
 
-      function refreshEntWarn() {
-        document.getElementById('jpWarnEmpty').hidden = readBulkNiveaux().length > 0;
+      function checkedValues(name) {
+        return [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((x) => x.value);
       }
 
-      function renderEntList() {
-        const host = document.getElementById('jpEntList');
-        const q = String(document.getElementById('jpEntQ').value || '').trim().toLowerCase();
-        const filteredEnt = q
-          ? entRows.filter((r) => String(r.valeur || '').toLowerCase().includes(q))
-          : entRows;
-        if (!filteredEnt.length) {
-          JpUi.emptyState(host, {
-            title: 'Aucune entité',
-            text: 'Créez des valeurs via les fiches ou l’import CSV.',
-          });
-          return;
-        }
-        const nivLib = Object.fromEntries(JpConstants.NIVEAUX.map((n) => [n.code, n.libelle]));
-        host.innerHTML = `
-          <table class="jp-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" id="jpCheckAll" aria-label="Tout sélectionner"></th>
-                <th>Valeur</th>
-                <th>Niveaux</th>
-                <th>Actif</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredEnt.map((r) => `
-                <tr>
-                  <td><input type="checkbox" class="jp-row-check" value="${esc(r.id)}"></td>
-                  <td>${esc(r.valeur)}</td>
-                  <td>${esc((r.niveaux_connus || []).map((c) => nivLib[c] || c).join(', ') || '—')}</td>
-                  <td>${r.actif ? 'oui' : 'non'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-        document.getElementById('jpCheckAll')?.addEventListener('change', (e) => {
-          document.querySelectorAll('.jp-row-check').forEach((cb) => {
-            cb.checked = e.target.checked;
-          });
-        });
-      }
-
-      async function loadEntites() {
+      async function loadConfigNiveau() {
         try {
-          entRows = await JpEntites.list(currentEntTable(), { actif: null, limit: 500 });
-          renderEntList();
+          await JpNiveaux.load();
+          renderConfigNiveau();
         } catch (e) {
           JpToast.fromError(e);
-          void JpLogs.error('entites_list', { message: e?.message });
         }
       }
 
       function bindNiveaux() {
-        document.getElementById('jpEntType').innerHTML = JpConstants.ENTITY_TABLES.map((t) =>
-          `<option value="${esc(t.table)}">${esc(t.libelle)}</option>`
+        const select = document.getElementById('jpConfigNiveau');
+        select.innerHTML = JpConstants.NIVEAUX.map((n) =>
+          `<option value="${esc(n.code)}">${esc(n.libelle)}</option>`
         ).join('');
-        document.getElementById('jpBulkNiv').innerHTML = JpConstants.NIVEAUX.map((n) => `
-          <label>
-            <input type="checkbox" value="${esc(n.code)}" checked>
-            ${esc(n.libelle)}
-          </label>
-        `).join('');
-        refreshEntWarn();
-        document.getElementById('jpEntType').addEventListener('change', loadEntites);
-        document.getElementById('jpEntRefresh').addEventListener('click', loadEntites);
-        document.getElementById('jpEntQ').addEventListener('input', () => {
-          clearTimeout(window.__jpEntT);
-          window.__jpEntT = setTimeout(renderEntList, 180);
-        });
-        document.getElementById('jpBulkNiv').addEventListener('change', refreshEntWarn);
-        document.getElementById('jpNivAll').addEventListener('click', () => {
-          document.querySelectorAll('#jpBulkNiv input').forEach((c) => { c.checked = true; });
-          refreshEntWarn();
-        });
-        document.getElementById('jpNivNone').addEventListener('click', () => {
-          document.querySelectorAll('#jpBulkNiv input').forEach((c) => { c.checked = false; });
-          refreshEntWarn();
-        });
-        document.getElementById('jpBtnApplyNiv').addEventListener('click', async () => {
-          const ids = [...document.querySelectorAll('.jp-row-check:checked')].map((c) => c.value);
-          if (!ids.length) {
-            JpToast.warn('Cochez au moins une ligne');
-            return;
-          }
-          const niveaux = readBulkNiveaux();
+        select.addEventListener('change', renderConfigNiveau);
+        document.getElementById('jpConfigNiveauSave').addEventListener('click', async () => {
+          const niveau = select.value;
           try {
-            await JpEntites.updateNiveauxBulk(currentEntTable(), ids, niveaux);
-            void JpLogs.action('entites_niveaux_bulk', {
-              table: currentEntTable(),
-              count: ids.length,
+            await JpNiveaux.enregistrer(niveau, {
+              secteurs: checkedValues('cfgSecteurs'),
+              classesTherapeutiques: checkedValues('cfgClassesTher'),
+              classesPharmacologiques: checkedValues('cfgClassesPharma'),
+              champs: checkedValues('cfgChamps'),
             });
-            JpToast.ok('Niveaux mis à jour (' + ids.length + ')');
-            await loadEntites();
+            void JpLogs.action('configuration_niveau_save', { niveau });
+            JpToast.ok('Paramétrage enregistré');
+            renderConfigNiveau();
           } catch (e) {
             JpToast.fromError(e);
-            void JpLogs.error('entites_niveaux_bulk', { message: e?.message });
           }
         });
       }
@@ -2153,10 +2173,21 @@
         bindFusion();
         bindNiveaux();
         bindLieFilter();
-        await loadEntityCache();
+        await Promise.all([loadEntityCache(), JpNiveaux.load()]);
         await refreshAll();
 
         document.getElementById('jpBtnNew').addEventListener('click', () => openEditor(null));
+        document.getElementById('jpBtnValider').addEventListener('click', () => openValidationModal());
+        document.getElementById('jpBtnResetValidation').addEventListener('click', () => {
+          void resetValidationForFilter();
+        });
+        document.getElementById('jpValidationOk').addEventListener('click', () => {
+          void markCurrentValidee();
+        });
+        document.getElementById('jpValidationEdit').addEventListener('click', () => editCurrentFromValidation());
+        document.querySelectorAll('[data-close-validation]').forEach((el) => {
+          el.addEventListener('click', () => closeValidationModal());
+        });
         document.getElementById('jpBtnCancel').addEventListener('click', closeEditor);
         document.querySelectorAll('[data-close-fiche-modal]').forEach((el) => {
           el.addEventListener('click', closeEditor);
@@ -2183,7 +2214,7 @@
           clearTimeout(window.__jpAdminCatT);
           window.__jpAdminCatT = setTimeout(onPrefsChange, 180);
         });
-        ['jpSort', 'jpSecteur', 'jpClasseTh', 'jpClassePh', 'jpNiveau', 'jpStatutFilter', 'jpIncompletChamp'].forEach((id) => {
+        ['jpSort', 'jpSecteur', 'jpClasseTh', 'jpClassePh', 'jpNiveau', 'jpStatutFilter', 'jpValidationFilter', 'jpIncompletChamp'].forEach((id) => {
           document.getElementById(id).addEventListener('change', onPrefsChange);
         });
         document.getElementById('jpIncomplet').addEventListener('change', onPrefsChange);
@@ -2233,6 +2264,10 @@
             if (isEditorOpen()) {
               if (hideSuggestions()) return;
               closeEditor();
+              return;
+            }
+            if (isValidationOpen()) {
+              closeValidationModal();
               return;
             }
             setPrefsOpen(false);
