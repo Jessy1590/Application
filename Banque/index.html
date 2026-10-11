@@ -1359,9 +1359,12 @@
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if (!acc) return null;
         const txs = this.getWalletTx(acc.id, exp.id, mKey);
-        const spent = txs.reduce((s,t)=>s+Number(t.amount),0);
+        // Solde enveloppe : crédits d'apports externes inclus
+        const spent = this.walletSpent(acc.id, exp.id, mKey);
+        // Stats haut de page : seules les sorties du compte propriétaire
+        const ownSpent = this.walletOwnSpent(acc.id, exp.id, mKey);
         totalDue += Math.max(0, Number(exp.amount) - spent);
-        totalPaid += Math.min(spent, Number(exp.amount));
+        totalPaid += Math.max(0, Math.min(ownSpent, Number(exp.amount)));
         return { exp, acc, txs, spent };
       }).filter(Boolean);
 
@@ -1601,13 +1604,19 @@
         const netExp = Math.max(0, tExp - accTInc);
         const cMode = myMem.contribution_mode || 'fixed';
         let amt = 0;
-        if (cMode === 'prorata') {
+        // Effectif : si l'apport a été validé dans Aujourd'hui, utiliser le montant réellement versé
+        const paidApport = mode === 'effective'
+          ? this.state.months[mainAccId + '_' + mKey]?.[this.apportExpenseId(acc.id)]
+          : null;
+        if (paidApport) {
+          amt = Number(paidApport.amount) || 0;
+        } else if (cMode === 'prorata') {
           amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
         } else if (cMode === 'percent') {
           amt = netExp * (Number(myMem.contribution_target) || 0) / 100;
         } else {
-          // Fixe : en théorique = cible ; en effectif = min(cible, net validé) pour ne pas
-          // compter tout l'apport en début de mois si rien n'est encore passé sur le compte
+          // Fixe : en théorique = cible ; en effectif (non validé) = min(cible, net validé)
+          // pour ne pas compter tout l'apport en début de mois si rien n'est encore passé
           const target = Number(myMem.contribution_target) || 0;
           amt = mode === 'effective' ? Math.min(target, netExp) : target;
         }
@@ -1631,11 +1640,13 @@
         this.openInfo('Capacité d\'épargne', `<div style="font-size:13px; color:var(--ink-soft);">Définissez votre compte principal dans les Réglages pour calculer cette valeur.</div>`);
         return;
       }
+      const wOut = Number(info.walletApportsOut) || 0;
       const rows = `
         <div class="bh-info-row"><span>Compte principal</span><span>${this.esc(info.mainAccName)}</span></div>
         <div class="bh-info-row"><span>Revenus (compte principal)</span><span class="num">${this.fmt(info.mainInc)}</span></div>
         <div class="bh-info-row"><span>− Dépenses (compte principal, toutes)</span><span class="num">${this.fmt(info.mainExpAll)}</span></div>
         <div class="bh-info-row"><span>− Apports vers les autres comptes</span><span class="num">${this.fmt(info.contribsAll)}</span></div>
+        ${wOut > 0 ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(wOut)}</span></div>` : ''}
         <div class="bh-info-row"><span>+ Montants déjà mis en épargne (catégorie "Épargne", compte principal)</span><span class="num">${this.fmt(info.epargneCategorisee)}</span></div>
         <div class="bh-info-row"><span>= Capacité d'épargne</span><span class="num">${this.fmt(info.capaciteEpargne)}</span></div>
         <div class="bh-info-row"><span>Taux d'épargne (capacité / revenus)</span><span class="num">${info.tauxEpargne !== null ? info.tauxEpargne.toFixed(1) + ' %' : '—'}</span></div>
@@ -1665,7 +1676,7 @@
           ${(info.walletApportsOut > 0) ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(info.walletApportsOut)}</span></div>` : ''}
           <div class="bh-info-row"><span>= Reste à date</span><span class="num">${this.fmt(info.resteEnDate)}</span></div>`;
       }
-      rows += `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px;">Déjà réglé ce mois-ci (informatif, non inclus dans le calcul ci-dessus) : ${this.fmt(info.paidSum)}${info.hasWallet ? '<br>👛 Les portefeuilles sont inclus : "dépenses à date" utilise leurs dépenses internes réellement saisies à date, et "déjà réglé" leur montant dépensé ce mois-ci.' : ''}</div>`;
+      rows += `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px;">Déjà réglé ce mois-ci (informatif, non inclus dans le calcul ci-dessus) : ${this.fmt(info.paidSum)}${info.hasWallet ? '<br>👛 Les portefeuilles sont inclus : "dépenses à date" et "déjà réglé" ne comptent que les sorties de ce compte (remboursements inclus). Un apport reçu depuis un autre compte crédite l’enveloppe mais est déduit du compte source.' : ''}</div>`;
       this.openInfo(`${info.accName} — détail`, rows);
     },
 
@@ -1687,22 +1698,25 @@
     showResteTheoInfo(accId) {
       const info = this.resteTheoInfo && this.resteTheoInfo[accId];
       if (!info) return;
+      const wOut = Number(info.walletApportsOut) || 0;
       let rows;
       if (info.isMain) {
         rows = `
           <div class="bh-info-row"><span>Revenus (compte principal)</span><span class="num">${this.fmt(info.tInc)}</span></div>
           <div class="bh-info-row"><span>− Dépenses (toutes, budget complet)</span><span class="num">${this.fmt(info.tExp)}</span></div>
           <div class="bh-info-row"><span>− Apports versés vers les autres comptes</span><span class="num">${this.fmt(info.totalOutboundContributions)}</span></div>
+          ${wOut > 0 ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(wOut)}</span></div>` : ''}
           <div class="bh-info-row"><span>= Reste théorique</span><span class="num">${this.fmt(info.resteTheorique)}</span></div>`;
       } else {
         rows = `
           <div class="bh-info-row"><span>Apports (montant plein du mois, tous membres)</span><span class="num">${this.fmt(info.totalAllocated)}</span></div>
           <div class="bh-info-row"><span>+ Revenus propres au compte (remboursements, rendement…)</span><span class="num">${this.fmt(info.tInc)}</span></div>
           <div class="bh-info-row"><span>− Dépenses (toutes, budget complet)</span><span class="num">${this.fmt(info.tExp)}</span></div>
+          ${wOut > 0 ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(wOut)}</span></div>` : ''}
           <div class="bh-info-row"><span>= Reste théorique</span><span class="num">${this.fmt(info.resteTheorique)}</span></div>`;
       }
       if (info.hasWallet) {
-        rows += `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px;">👛 Les portefeuilles sont inclus dans "Dépenses" pour leur budget mensuel complet (pas seulement ce qui a déjà été dépensé), comme n'importe quelle autre dépense de ce compte.</div>`;
+        rows += `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px;">👛 Les portefeuilles sont inclus dans "Dépenses" pour leur budget mensuel complet (pas seulement ce qui a déjà été dépensé), comme n'importe quelle autre dépense de ce compte. Un apport reçu depuis un autre compte crédite l'enveloppe sans augmenter le reste de ce compte.</div>`;
       }
       this.openInfo(`${info.accName} — Reste théorique`, rows);
     },
@@ -1867,7 +1881,8 @@
         let tExp = 0, tInc = 0, paidSum = 0;
         exps.forEach(e => {
           tExp += Number(e.amount);
-          if (e.is_wallet) paidSum += this.walletSpent(acc.id, e.id, mKey);
+          // Déjà réglé portefeuille = sorties de CE compte (pas les crédits apportés par un autre)
+          if (e.is_wallet) paidSum += this.walletOwnSpent(acc.id, e.id, mKey);
           else if (paidMap[e.id]) paidSum += Number(paidMap[e.id].amount);
         });
         incs.forEach(i => { tInc += Number(i.amount); });
@@ -1880,11 +1895,15 @@
             if (rec) paidSum += Number(rec.amount) || 0;
           });
         }
+        // Apports de CE compte vers des portefeuilles d'autres comptes
+        const walletApportsOutMonth = this.outboundWalletApports(acc.id, mKey);
 
         // Répartition (apports) et reste théorique — communs à tous les comptes
         const shares = this.computeFairShares(acc, mems, tExp, tInc);
         const totalAllocated = Object.values(shares).reduce((a,b)=>a+b,0);
-        const resteTheorique = isMain ? (tInc - tExp - totalOutboundContributions) : (totalAllocated + tInc - tExp);
+        const resteTheorique = isMain
+          ? (tInc - tExp - totalOutboundContributions - walletApportsOutMonth)
+          : (totalAllocated + tInc - tExp - walletApportsOutMonth);
         
         let contribHtml = '';
         let alertHtml = '';
@@ -1984,7 +2003,10 @@
         const selDay = Number((resteDate.split('-')[2]) || 31);
         const expsToDate = exps.reduce((s,e) => {
           if (e.is_wallet) {
-            return s + this.getWalletTx(acc.id, e.id, mKey).filter(t => Number(t.day) <= selDay).reduce((a,t)=>a+Number(t.amount),0);
+            // Hors apports externes : ils sont déduits du compte source via walletApportsOut
+            return s + this.getWalletTx(acc.id, e.id, mKey)
+              .filter(t => Number(t.day) <= selDay && !this.isExternalWalletApport(t))
+              .reduce((a,t)=>a+(Number(t.amount)||0), 0);
           }
           return Number(e.day) <= selDay ? s + Number(e.amount) : s;
         }, 0);
@@ -2022,7 +2044,8 @@
         this.acctIncomesList[acc.id] = { accName: acc.name, incs: incs.slice() };
         if (!this.resteTheoInfo) this.resteTheoInfo = {};
         this.resteTheoInfo[acc.id] = {
-          accName: acc.name, isMain, tInc, tExp, totalOutboundContributions, totalAllocated, resteTheorique, hasWallet
+          accName: acc.name, isMain, tInc, tExp, totalOutboundContributions, totalAllocated, resteTheorique, hasWallet,
+          walletApportsOut: walletApportsOutMonth
         };
 
         html += `<div class="bh-card bh-acct-card">
@@ -2084,8 +2107,22 @@
       if (raw && Array.isArray(raw.transactions)) return raw.transactions;
       return [];
     },
-    walletSpent(accId, expId, mKey) {
-      return this.getWalletTx(accId, expId, mKey).reduce((s,t)=>s+Number(t.amount||0),0);
+    // Apport financé par un autre compte (crédite le portefeuille sans sortir de l'argent du compte propriétaire)
+    isExternalWalletApport(t) {
+      return !!(t && (t.from_account_id || t.kind === 'apport'));
+    },
+    // Somme des txs portefeuille. includeExternalApports=false → ignore les apports d'un autre compte
+    // (pour les stats / reste du compte propriétaire). true → solde enveloppe affiché (crédits inclus).
+    walletSpent(accId, expId, mKey, opts = {}) {
+      const includeExternal = opts.includeExternalApports !== false;
+      return this.getWalletTx(accId, expId, mKey).reduce((s, t) => {
+        if (!includeExternal && this.isExternalWalletApport(t)) return s;
+        return s + (Number(t.amount) || 0);
+      }, 0);
+    },
+    // Dépenses réellement sorties de CE compte (hors apports externes)
+    walletOwnSpent(accId, expId, mKey) {
+      return this.walletSpent(accId, expId, mKey, { includeExternalApports: false });
     },
     toggleWalletExpand(expId) {
       if (!this.walletExpanded) this.walletExpanded = {};
@@ -2724,10 +2761,11 @@
           const mainInc = this.state.incomes.filter(i => i.account_id === epargneStatAccId).reduce((s,i)=>s+Number(i.amount),0);
           const mainExpAll = this.state.expenses.filter(e => e.account_id === epargneStatAccId).reduce((s,e)=>s+Number(e.amount),0);
           const contribsAll = this.outboundContributionsBreakdown(epargneStatAccId).total;
+          const walletApportsOut = this.outboundWalletApports(epargneStatAccId, this.monthKey(new Date()));
           const epargneCategorisee = this.state.expenses
              .filter(e => e.account_id === epargneStatAccId && /(é|e)pargne/i.test(e.category || ''))
              .reduce((s,e)=>s+Number(e.amount),0);
-          const capaciteEpargne = mainInc - mainExpAll - contribsAll + epargneCategorisee;
+          const capaciteEpargne = mainInc - mainExpAll - contribsAll - walletApportsOut + epargneCategorisee;
           document.getElementById('stat-epargne').textContent = this.fmt(capaciteEpargne);
           const tauxEpargne = mainInc > 0 ? (capaciteEpargne / mainInc) * 100 : null;
           document.getElementById('stat-epargne-rate').textContent = tauxEpargne !== null
@@ -2735,7 +2773,7 @@
              : "Taux d'épargne : — (revenus du compte principal non renseignés)";
           this.epargneInfo = {
              mainAccName: mainAcc ? mainAcc.name : '—',
-             mainInc, mainExpAll, contribsAll, epargneCategorisee, capaciteEpargne, tauxEpargne
+             mainInc, mainExpAll, contribsAll, walletApportsOut, epargneCategorisee, capaciteEpargne, tauxEpargne
           };
        } else {
           document.getElementById('stat-epargne').textContent = '—';
@@ -2779,10 +2817,10 @@
        return exp.end_date.slice(0, 7) >= mKey;
     },
 
-    // Montant effectif d'une dépense sur un mois (validé, ou total des txs portefeuille)
+    // Montant effectif d'une dépense sur un mois (validé, ou txs portefeuille hors apports externes)
     effectiveExpenseAmount(exp, mKey) {
        if (!exp) return 0;
-       if (exp.is_wallet) return this.walletSpent(exp.account_id, exp.id, mKey);
+       if (exp.is_wallet) return this.walletOwnSpent(exp.account_id, exp.id, mKey);
        const paid = this.state.months[exp.account_id + '_' + mKey]?.[exp.id];
        return paid ? Number(paid.amount || 0) : 0;
     },
@@ -2802,7 +2840,8 @@
           }
           return Number(exp.amount) || 0;
        }
-       if (exp.is_wallet) return this.walletSpent(exp.account_id, exp.id, mKey);
+       // Effectif portefeuille : uniquement l'argent sorti de CE compte
+       if (exp.is_wallet) return this.walletOwnSpent(exp.account_id, exp.id, mKey);
        return this.effectiveExpenseAmount(exp, mKey);
     },
 
@@ -2916,6 +2955,11 @@
                 else depenses += amt;
              });
           }
+
+          // Apports de ce compte vers des portefeuilles d'autres comptes
+          // (stockés chez le destinataire : à compter côté source pour ne pas les perdre)
+          const wOut = this.outboundWalletApports(accId, mKey);
+          if (wOut > 0) depenses += wOut;
        });
 
        // Apports sortants : vision perso (compte principal filtré uniquement)
