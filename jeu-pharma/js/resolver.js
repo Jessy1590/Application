@@ -43,9 +43,30 @@
     return data || [];
   }
 
+  async function mesInscriptions() {
+    const { data, error } = await sb().rpc('v2_lister_mes_inscriptions');
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  async function demanderParcours(parcoursId) {
+    const { data, error } = await sb().rpc('v2_demander_parcours', {
+      p_parcours_id: parcoursId,
+    });
+    if (error) throw error;
+    void global.JpLogs?.action?.('v2_demande_parcours', { parcours_id: parcoursId });
+    return data;
+  }
+
+  /** Active un parcours déjà accepté (pas d’auto-inscription). */
   async function setParcoursActif(parcoursId) {
     const user = await global.JpApp.getUser();
     if (!user) throw new Error('Non connecté');
+    if (parcoursId) {
+      const insc = await mesInscriptions();
+      const ok = insc.find((i) => i.parcours_id === parcoursId && i.statut === 'accepte');
+      if (!ok) throw new Error('Parcours non autorisé');
+    }
     const { data, error } = await sb()
       .from('profil_apprentissage')
       .upsert(
@@ -59,13 +80,6 @@
       .select('user_id, niveau_id, parcours_id')
       .single();
     if (error) throw error;
-
-    if (parcoursId) {
-      await sb().from('inscriptions_parcours').upsert(
-        { user_id: user.id, parcours_id: parcoursId, actif: true },
-        { onConflict: 'user_id,parcours_id' }
-      );
-    }
     void global.JpLogs?.action?.('v2_parcours_actif', { parcours_id: parcoursId });
     return data;
   }
@@ -82,14 +96,22 @@
     return data;
   }
 
-  /** Si aucun parcours actif : active Introduction (sinon le premier actif). */
+  /** Parcours actif si accepté ; sinon premier accepté. */
   async function ensureParcoursActif() {
     const profil = await getProfilV2();
-    if (profil?.parcours_id) return profil;
-    const list = await listParcours();
-    if (!list.length) return profil;
-    const intro = list.find((p) => p.code === 'introduction') || list[0];
-    return setParcoursActif(intro.id);
+    const insc = await mesInscriptions();
+    const accepted = insc.filter((i) => i.statut === 'accepte');
+    if (profil?.parcours_id && accepted.some((i) => i.parcours_id === profil.parcours_id)) {
+      return profil;
+    }
+    if (!accepted.length) return profil;
+    return setParcoursActif(accepted[0].parcours_id);
+  }
+
+  async function monEspace() {
+    const { data, error } = await sb().rpc('v2_mon_espace');
+    if (error) throw error;
+    return data;
   }
 
   global.JpV2Resolver = {
@@ -97,8 +119,11 @@
     ficheResolue,
     progression,
     listParcours,
+    mesInscriptions,
+    demanderParcours,
     setParcoursActif,
     getProfilV2,
     ensureParcoursActif,
+    monEspace,
   };
 })(window);

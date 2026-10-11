@@ -7,10 +7,10 @@ alwaysApply: true
 
 ## Produit
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
-- Entrée : `index.html` — Mon parcours | Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Ordonnance type | Admin (si admin).
-- Surfaces : `espace.html` (arborescence thèmes), `catalogue.html`, `jeux/`, `ordonnances/`, `admin/` — pas d’import croisé depuis `PhieEvreux/`.
-- **Legacy V1** : `legacy-v1/` (ancien hub, catalogue éditeur, quiz/trous V1, points-faibles). Chemins partagés `../js/`, `../css/`, `../shared/`, `../protect.js`.
-- Partagé : `js/` (clients, résolveur, admin, FAB, bugs, logs, toast) + `css/` (tokens, app, print, v2).
+- Entrée joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux (+ Admin si admin).
+- Surfaces joueur : `parcours.html`, `espace.html`, `lecon.html`, `mon-espace.html`, `catalogue.html`, `jeux/`, `ordonnances/`.
+- Admin desktop : `admin/parcours.html` (studio), `acces-parcours.html`, `catalogue.html`/`fiche.html`, `jeux.html` — **aucun lien vers `legacy-v1/`**.
+- Partagé : `js/` + `css/` (tokens, app, print, v2, player, studio).
 
 ## Chemins monorepo
 - Config Supabase : `Application/shared/supabase-config.js` → `../shared/…`.
@@ -34,23 +34,22 @@ alwaysApply: true
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`023` pédagogie parcours (appliqués remote) ; `sql/ops/` lecture seule ; ne pas réappliquer sans check (voir STATE.md).
-- Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours` (`parent_id`, `est_groupe`), `publications_connaissances`, `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`027` pédagogie + studio (appliqués remote) ; `sql/ops/` lecture seule.
+- Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours` (`parent_id`, `est_groupe`, perso visuelle), `module_blocs`, `publications_connaissances`, `inscriptions_parcours` (`statut` demande|accepte|refuse), `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
 - Parcours démo `introduction` (ordre 1) : prise en main + Sang intro + révision + 4 jeux `JP-INT*`.
 - Arborescence DEUST : Sang (anémie, anticoagulation) · Cœur (angor, IDM, arythmies, IC) · Veine et artère (artérite, insuffisance veineuse) · Urgence (OAP, urgences CV) · HTA. Pubs héritées des ancêtres si feuille débloquée. Feuille sans prérequis = ouverte.
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique
-- Source : **cours physiques / supports** — saisie admin ou CSV manuel.
-- BDPM **lecture seule** pour préremplir noms/DCI via catalogue legacy (`legacy-v1/admin/catalogue.html` + `js/bdm.js`). Pas d’OCR ni d’IA en v1.
-- Admin actuel : `admin/` — catalogue (accueil + lien éditeur complet), parcours (création simple + publication molécules/champs), jeux (4 types), référentiel, sources, import RCP.
-- Anti-surapprentissage : mode `publications` = seules molécules/champs publiés dans les modules débloqués (RPC `v2_*`) ; le catalogue général reste complet côté admin.
-- Admin jeux : `admin/jeux.html` — création Quiz | Trous | Fiche aléatoire | Ordonnance avec panneaux de paramètres par type ; pause/reprise ; codes `JP-*****`.
-- Legacy V1 (création quiz/trous figés) : `legacy-v1/admin/jeux.html` + RPC `generer_et_geler_quiz`.
+- Source : **cours physiques / supports** — saisie admin ou CSV (`admin/import-export.html`).
+- BDPM **lecture seule** via `js/bdm.js` dans `admin/fiche.html`. Pas d’OCR ni d’IA.
+- Studio : blocs texte / vidéo embed / molécule / conseil / jeu ; pubs **connaissance par connaissance** par leçon.
+- Anti-surapprentissage : mode `publications` = pubs des modules débloqués (+ héritage ancêtres) ; jeux pool = modules liés.
+- Admin jeux : studio (principal) + `admin/jeux.html` (hub) ; codes `JP-*****`.
 
 ## Droits
 - Admin métier = `portail.profiles.role === 'admin'` uniquement.
-- Joueurs = tout utilisateur avec `site_access` sur le site Jeu Pharma.
+- Joueurs = `site_access` Jeu Pharma ; **parcours** uniquement si inscription `accepte`.
 - Lecture logs UI + RLS : admin portail uniquement.
 - Ne pas confondre avec les rôles hub PhieEvreux / Location.
 
@@ -58,6 +57,6 @@ alwaysApply: true
 - Accueil portail + Bug via `js/fab.js` + `js/bugs.js` (code isolé dans `jeu-pharma/`, pas d’import `PhieEvreux/shared/*`).
 
 ## Fiche aléatoire
-- Hub → `jeux/?type=fiche_aleatoire` (modèles `modeles_jeu`) ; legacy joueur encore sous `legacy-v1/fiche-aleatoire/`.
-- Params admin par modèle : seuil exclusion + nb notes (`configuration_json`).
-- Règle métier historique : 3 notes > 8/10 → exclusion ; filtre niveau via `profil_apprentissage` (pas le rôle portail).
+- Hub → `jeux/?type=fiche_aleatoire` (modèles `modeles_jeu` des parcours acceptés).
+- Params admin : seuil exclusion + nb notes (`configuration_json`).
+- Filtre niveau via `profil_apprentissage` (pas le rôle portail).

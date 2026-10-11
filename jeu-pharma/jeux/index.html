@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Jeux — Jeu Pharma</title>
+<title>Jeux</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
-<meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
 <script src="../../shared/supabase-config.js"></script>
@@ -16,21 +15,26 @@
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="../css/app.css">
 <link rel="stylesheet" href="../css/v2.css">
+<link rel="stylesheet" href="../css/player.css">
 </head>
 <body>
-  <main class="jp-page">
-    <a class="jp-back" href="../index.html">← Hub</a>
-    <p class="jp-kicker">Jeux</p>
-    <h1 class="jp-title" id="pageTitle">Activités</h1>
-    <p class="jp-sub" id="pageSub">Les jeux en pause n’apparaissent pas.</p>
-    <nav class="jp-toolbar" aria-label="Types de jeu" style="flex-wrap:wrap;gap:0.5rem;margin-bottom:1.25rem">
+  <main class="jp-player-shell">
+    <a class="jp-back" href="../index.html">←</a>
+    <h1 class="jp-player-brand">Jeux</h1>
+    <nav class="jp-toolbar" style="flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem">
       <a class="jp-btn jp-btn-ghost" data-type="quiz" href="?type=quiz">Quiz</a>
       <a class="jp-btn jp-btn-ghost" data-type="trous" href="?type=trous">Trous</a>
-      <a class="jp-btn jp-btn-ghost" data-type="fiche_aleatoire" href="?type=fiche_aleatoire">Fiche aléatoire</a>
-      <a class="jp-btn jp-btn-ghost" data-type="ordonnance" href="../ordonnances/index.html">Ordonnance</a>
+      <a class="jp-btn jp-btn-ghost" data-type="fiche_aleatoire" href="?type=fiche_aleatoire">Fiche</a>
+      <a class="jp-btn jp-btn-ghost" data-type="ordonnance" href="?type=ordonnance">Ordo</a>
     </nav>
-    <div id="list"><p class="jp-muted">Chargement…</p></div>
+    <ul class="jp-list-clean" id="list"></ul>
   </main>
+  <nav class="jp-bottom-nav" aria-label="Navigation">
+    <a href="../parcours.html">Parcours</a>
+    <a href="../mon-espace.html">Espace</a>
+    <a href="../catalogue.html">Catalogue</a>
+    <a href="index.html" aria-current="page">Jeux</a>
+  </nav>
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
   <script src="../js/logs.js"></script>
@@ -41,59 +45,40 @@
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'jeux', homeHref: JpFab.PORTAIL_URL });
-      const params = new URLSearchParams(location.search);
-      const type = params.get('type') || 'quiz';
-      const labels = {
-        quiz: ['Quiz', 'QCM liés à vos modules débloqués.'],
-        trous: ['Tableau à trous', 'Compléter les champs manquants d’une fiche.'],
-        fiche_aleatoire: ['Fiche aléatoire', 'Restituer puis se noter /10.'],
-        ordonnance: ['Ordonnance type', 'Restituer les infos par molécule.']
-      };
-      const meta = labels[type] || labels.quiz;
-      document.getElementById('pageTitle').textContent = meta[0];
-      document.getElementById('pageSub').textContent = meta[1];
+      const type = new URLSearchParams(location.search).get('type') || 'quiz';
       document.querySelectorAll('[data-type]').forEach(function (a) {
         if (a.getAttribute('data-type') === type) a.classList.add('jp-btn-primary');
       });
-
       const list = document.getElementById('list');
       try {
+        const insc = (await JpV2Resolver.mesInscriptions()).filter(function (i) { return i.statut === 'accepte'; });
+        const parcoursIds = insc.map(function (i) { return i.parcours_id; });
+        if (!parcoursIds.length) {
+          list.innerHTML = '<li class="jp-muted"><a href="../parcours.html">Demander un parcours</a></li>';
+          return;
+        }
         await JpV2Resolver.ensureParcoursActif();
         let q = JpApp.sbJeu()
           .from('modeles_jeu')
-          .select('id, code_unique, type_jeu, titre, mode, created_at')
+          .select('id, code_unique, type_jeu, titre, mode, parcours_id')
           .eq('actif', true)
           .eq('en_pause', false)
+          .in('parcours_id', parcoursIds)
           .order('created_at', { ascending: false });
         if (type !== 'all') q = q.eq('type_jeu', type);
         const { data, error } = await q;
         if (error) throw error;
         const rows = data || [];
-        if (!rows.length) {
-          JpUi.emptyState(list, {
-            title: 'Aucun ' + meta[0].toLowerCase(),
-            text: 'Un administrateur peut en créer depuis Admin → Jeux.'
-          });
-          return;
-        }
-        list.innerHTML = '<div class="jp-hub-grid">' + rows.map(function (r) {
-          let href = '#';
-          if (r.type_jeu === 'ordonnance') {
-            href = '../ordonnances/jouer.html?code=' + encodeURIComponent(r.code_unique);
-          } else if (r.type_jeu === 'quiz') {
-            href = 'jouer.html?code=' + encodeURIComponent(r.code_unique);
-          } else if (r.type_jeu === 'trous') {
-            href = 'jouer.html?code=' + encodeURIComponent(r.code_unique) + '&type=trous';
-          } else if (r.type_jeu === 'fiche_aleatoire') {
-            href = 'jouer.html?code=' + encodeURIComponent(r.code_unique) + '&type=fiche_aleatoire';
-          }
-          return '<a class="jp-tile" href="' + href + '"><h2>' + JpUi.escapeHtml(r.titre) + '</h2>'
-            + '<p><code>' + JpUi.escapeHtml(r.code_unique) + '</code> · '
-            + JpUi.escapeHtml(r.mode) + '</p></a>';
-        }).join('') + '</div>';
+        list.innerHTML = rows.map(function (r) {
+          const href = r.type_jeu === 'ordonnance'
+            ? '../ordonnances/jouer.html?code=' + encodeURIComponent(r.code_unique)
+            : 'jouer.html?code=' + encodeURIComponent(r.code_unique);
+          return '<li class="jp-list-row"><strong>' + JpUi.escapeHtml(r.titre) + '</strong>'
+            + '<a class="jp-btn jp-btn-primary jp-btn-touch" href="' + href + '">Jouer</a></li>';
+        }).join('') || '<li class="jp-muted">—</li>';
       } catch (e) {
         JpToast.fromError(e);
-        list.innerHTML = '<p class="jp-muted">Erreur de chargement.</p>';
+        list.innerHTML = '<li class="jp-muted">Erreur</li>';
       }
     });
   </script>

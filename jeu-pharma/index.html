@@ -5,10 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Jeu Pharma</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
-<meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
 <script src="../shared/supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -18,75 +15,37 @@
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/v2.css">
+<link rel="stylesheet" href="css/player.css">
 </head>
 <body>
-  <main class="jp-page">
-    <p class="jp-kicker">Parcours</p>
-    <h1 class="jp-brand">Jeu Pharma</h1>
-    <p class="jp-sub">Choisissez un parcours (ex. Introduction), explorez les thèmes, puis jouez aux 4 types d’activités.</p>
-    <div class="jp-v2-banner" id="parcoursBanner">Chargement du parcours…</div>
-    <nav class="jp-hub-grid" aria-label="Applications">
-      <a class="jp-tile" href="espace.html">
-        <h2>Mon parcours</h2>
-        <p>Thèmes, sous-parcours, progression</p>
-      </a>
-      <a class="jp-tile" href="catalogue.html">
-        <h2>Catalogue</h2>
-        <p>Fiches résolues selon votre cours</p>
-      </a>
-      <a class="jp-tile" href="jeux/index.html?type=quiz">
-        <h2>Quiz</h2>
-        <p>QCM sur les modules débloqués</p>
-      </a>
-      <a class="jp-tile" href="jeux/index.html?type=trous">
-        <h2>Tableau à trous</h2>
-        <p>Compléter les champs manquants</p>
-      </a>
-      <a class="jp-tile" href="jeux/index.html?type=fiche_aleatoire">
-        <h2>Fiche aléatoire</h2>
-        <p>Restituer puis se noter /10</p>
-      </a>
-      <a class="jp-tile" href="ordonnances/index.html">
-        <h2>Ordonnance type</h2>
-        <p>Restituer les infos par molécule</p>
-      </a>
-      <a class="jp-tile" href="admin/index.html" id="hubTileAdmin" hidden>
-        <h2>Admin</h2>
-        <p>Parcours, publications, paramètres jeux</p>
-      </a>
+  <main class="jp-player-shell">
+    <h1 class="jp-player-brand">Jeu Pharma</h1>
+    <nav class="jp-tile-grid" aria-label="Hub">
+      <a class="jp-tile-min" href="parcours.html"><span class="jp-tile-ico">P</span><h2>Parcours</h2></a>
+      <a class="jp-tile-min" href="mon-espace.html"><span class="jp-tile-ico">E</span><h2>Mon espace</h2></a>
+      <a class="jp-tile-min" href="catalogue.html"><span class="jp-tile-ico">C</span><h2>Catalogue</h2></a>
+      <a class="jp-tile-min" href="jeux/index.html"><span class="jp-tile-ico">J</span><h2>Jeux</h2></a>
+      <a class="jp-tile-min" href="admin/index.html" id="hubTileAdmin" hidden><span class="jp-tile-ico">A</span><h2>Admin</h2></a>
     </nav>
   </main>
+  <nav class="jp-bottom-nav" aria-label="Navigation">
+    <a href="parcours.html">Parcours</a>
+    <a href="mon-espace.html">Espace</a>
+    <a href="catalogue.html">Catalogue</a>
+    <a href="jeux/index.html">Jeux</a>
+  </nav>
   <script src="js/constants.js"></script>
   <script src="js/toast.js"></script>
   <script src="js/logs.js"></script>
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
-  <script src="js/resolver.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'hub', homeHref: JpFab.PORTAIL_URL });
       try {
         if (await JpApp.isAdmin()) document.getElementById('hubTileAdmin').hidden = false;
       } catch (_) {}
-      try {
-        await JpV2Resolver.ensureParcoursActif();
-        const prog = await JpV2Resolver.progression();
-        const el = document.getElementById('parcoursBanner');
-        if (!prog?.parcours) {
-          el.innerHTML = 'Aucun parcours actif — <a href="espace.html">choisir Introduction</a>.';
-        } else {
-          const leaves = (prog.modules || []).filter(function (m) { return !m.est_groupe; });
-          const open = leaves.filter(function (m) { return m.statut !== 'verrouille'; }).length;
-          el.innerHTML = 'Parcours : <strong>' + JpUi.escapeHtml(prog.parcours.libelle)
-            + '</strong> · ' + open + '/' + leaves.length + ' sous-parcours accessibles'
-            + (prog.parcours.code === 'introduction'
-              ? ' · testez les jeux Intro dans Quiz / Trous / Fiche / Ordonnance'
-              : '');
-        }
-      } catch (e) {
-        document.getElementById('parcoursBanner').textContent = e.message || String(e);
-      }
     });
   </script>
 </body>

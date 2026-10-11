@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-11 — **App parcours** à la racine `jeu-pharma/` ; V1 déplacée dans `legacy-v1/` ; arborescence Sang/Cœur/Veine-artère/Urgence/HTA (`023`).
+Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -278,9 +278,10 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 
 ### Décision
 - Surface principale = app parcours à la racine `jeu-pharma/`.
-- Ancienne app = [`legacy-v1/`](../legacy-v1/) (catalogue éditeur, jeux V1, points-faibles).
-- Source de vérité joueur = publications par module (héritage ancêtres) ; parcours pharmacien = `referentiel_valide`.
+- Source de vérité joueur = publications par module (héritage ancêtres) + `module_blocs` ; parcours pharmacien = `referentiel_valide`.
+- Accès parcours : `inscriptions_parcours.statut` (`demande` → admin `accepte`/`refuse`).
 - Import RCP → sas `a_valider` uniquement (pas de publication auto).
+- `legacy-v1/` hors dépendance produit (dossier archivable).
 
 ### Arborescence (`023`)
 - `modules_cours.parent_id` + `est_groupe`
@@ -302,14 +303,14 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] `023` DDL/resolver + seed arborescence + pubs feuilles
 - [x] `024` parcours Introduction + 4 jeux démo
 - [x] `025` RPC `v2_creer_parcours` / `v2_creer_module` / `v2_publier_module_matrices` ; jeux jouables (`js/jeux-play.js`) ; admin parcours simplifié
-- [x] `026` fix pool quiz (`matrice_ids` non vide) + ordonnance `DISTINCT`/`ORDER BY random()` + repli `matrice_ids` ; jeux intro `JP-INT*` ont 8 matrices figées ; `JP-INTO1` règles `matrice` explicites
+- [x] `026` fix pool quiz / ordonnance
+- [x] `027` studio : `module_blocs`, pubs par `connaissance_id`, accès demande/accepte, `v2_lecon_joueur`, `v2_mon_espace`
 - [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
 
 ### Surfaces
-- Hub : `index.html` — parcours + 4 jeux + admin
-- Joueur : `espace.html`, `catalogue.html`, `jeux/`, `ordonnances/`
-- Admin : `admin/` (sources, référentiel, parcours, jeux 4 types, import-rcp) + lien catalogue legacy
-- Legacy : `legacy-v1/`
+- Hub joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux
+- Joueur : `parcours.html`, `espace.html`, `lecon.html`, `mon-espace.html`, `catalogue.html`, `jeux/`
+- Admin desktop : studio `admin/parcours.html`, `acces-parcours.html`, catalogue/`fiche.html`, jeux, référentiel, CSV
 
 ### Correctifs legacy conservés
 - `JpQuizz.listQuiz` sans snapshot joueur ; pause quiz ; nouveau tirage entraînement

@@ -713,8 +713,8 @@
           ? '<table class="jp-table"><thead><tr><th>DCI</th><th>Nom</th><th></th></tr></thead><tbody>'
             + rows.map((r) => '<tr><td>' + global.JpUi.escapeHtml(r.dci || '')
               + '</td><td>' + global.JpUi.escapeHtml(r.nom_commercial || '')
-              + '</td><td><a class="jp-link-btn" href="../legacy-v1/admin/catalogue.html?focus='
-              + encodeURIComponent(r.id) + '">Éditer la fiche</a></td></tr>').join('')
+              + '</td><td><a class="jp-link-btn" href="fiche.html?id='
+              + encodeURIComponent(r.id) + '">Éditer</a></td></tr>').join('')
             + '</tbody></table>'
           : '<p class="jp-muted">Aucune fiche.</p>';
       } catch (e) {

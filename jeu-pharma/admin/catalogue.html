@@ -20,19 +20,12 @@
 <body>
   <main class="jp-page jp-page-wide">
     <a class="jp-back" href="index.html">← Admin</a>
-    <p class="jp-kicker">Catalogue général</p>
-    <h1 class="jp-title">Fiches médicaments</h1>
-    <p class="jp-sub">Référentiel complet. Pour limiter ce que voit un apprenant, publiez les fiches dans un parcours (Admin → Parcours).</p>
-
-    <div class="jp-scope-note">
-      <strong>Deux niveaux :</strong> ici vous gérez les fiches (contenu métier).
-      Dans <a href="parcours.html">Parcours</a>, vous choisissez quelles molécules et quels champs sont visibles selon le cursus (Introduction, DEUST…).
-    </div>
+    <h1 class="jp-title">Catalogue<span id="helpCat"></span></h1>
 
     <div class="jp-toolbar" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
-      <a class="jp-btn jp-btn-primary" href="../legacy-v1/admin/catalogue.html">Éditeur complet (création, CSV, fusion)</a>
-      <a class="jp-btn jp-btn-ghost" href="parcours.html">Publier dans un parcours</a>
-      <a class="jp-btn jp-btn-ghost" href="referentiel.html">Valider des connaissances</a>
+      <a class="jp-btn jp-btn-ghost" href="parcours.html">Studio</a>
+      <a class="jp-btn jp-btn-ghost" href="referentiel.html">Référentiel</a>
+      <a class="jp-btn jp-btn-ghost" href="import-export.html">CSV</a>
     </div>
 
     <div class="jp-field">
@@ -47,7 +40,15 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/ui-modal.js"></script>
   <script src="../js/admin.js"></script>
-  <script>document.addEventListener('DOMContentLoaded', function () { void JpV2Admin.bootCatalogue(); });</script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById('helpCat')?.appendChild(
+        JpModal.helpButton('Catalogue', ['Éditez les fiches ici.', 'Le studio parcours choisit ce qui est visible par leçon.'])
+      );
+      void JpV2Admin.bootCatalogue();
+    });
+  </script>
 </body>
 </html>
