@@ -36,6 +36,9 @@
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
   <script src="../js/profil.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script src="../js/niveaux.js"></script>
+  <script src="../js/trous.js"></script>
   <script src="../js/quizz.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
@@ -73,87 +76,157 @@
       document.getElementById('quizMeta').textContent =
         quiz.code_unique + ' · ' + JpQuizz.modeLibelle(quiz.mode) + ' · ' + (quiz.niveau_cible || '');
 
-      const questions = quiz.questions || [];
+      let questions = quiz.questions || [];
       if (!questions.length) {
         JpUi.emptyState(root, { title: 'Aucune question', text: 'Snapshot vide.' });
         return;
       }
 
       const isTrain = quiz.mode === 'entrainement';
-      let html = '<form id="playForm" class="jp-quiz-form">';
-      questions.forEach(function (q, idx) {
-        const ordre = q.ordre != null ? q.ordre : idx + 1;
-        html += '<fieldset class="jp-q" data-ordre="' + ordre + '">';
-        html += '<legend>' + JpUi.escapeHtml(ordre) + '. ' + JpUi.escapeHtml(q.enonce || '') + '</legend>';
-        (q.propositions || []).forEach(function (p) {
-          const pid = String(p.id);
-          const id = 'q' + ordre + '_' + pid;
-          html += '<label class="jp-q-opt"><input type="radio" name="q_' + ordre + '" value="' + JpUi.escapeHtml(pid) + '" id="' + id + '" required> '
-            + '<span>' + JpUi.escapeHtml(p.valeur || '') + '</span></label>';
-        });
-        if (isTrain) html += '<p class="jp-q-feedback jp-muted" hidden></p>';
-        html += '</fieldset>';
-      });
-      html += '<div class="jp-field-actions"><button type="submit" class="jp-btn jp-btn-primary">Soumettre</button>';
-      html += ' <a class="jp-btn jp-btn-ghost" href="imprimer.html?code=' + encodeURIComponent(quiz.code_unique) + '">Imprimer</a></div>';
-      html += '</form><div id="scoreBox" class="jp-panel" hidden></div>';
-      root.innerHTML = html;
+      /** Snapshot partagé figé — les retakes entraînement jouent en local puis soumettent au même quiz. */
+      const themeKeys = {
+        matriceIds: [...new Set(questions.map(function (q) { return q.matrice_id; }).filter(Boolean))],
+        champs: [...new Set(questions.map(function (q) { return q.champ_code; }).filter(Boolean))],
+        nb: questions.length,
+        nbProp: Math.max(2, (questions[0] && questions[0].propositions || []).length || 3),
+      };
 
-      if (isTrain) {
-        root.querySelectorAll('input[type="radio"]').forEach(function (inp) {
-          inp.addEventListener('change', function () {
-            const fs = inp.closest('fieldset');
-            const ordre = Number(fs.dataset.ordre);
-            const q = questions.find(function (x) { return Number(x.ordre) === ordre; });
-            const fb = fs.querySelector('.jp-q-feedback');
-            if (!q || !fb) return;
-            const chosen = (q.propositions || []).find(function (p) { return String(p.id) === inp.value; });
-            const correct = chosen && chosen.correct === true;
-            fb.hidden = false;
-            fb.textContent = correct ? 'Correct' : 'Incorrect — continuez, le score final sera calculé à la soumission.';
-            fb.className = 'jp-q-feedback ' + (correct ? 'jp-ok' : 'jp-warn');
+      function renderPlay() {
+        let html = '<form id="playForm" class="jp-quiz-form">';
+        questions.forEach(function (q, idx) {
+          const ordre = q.ordre != null ? q.ordre : idx + 1;
+          html += '<fieldset class="jp-q" data-ordre="' + ordre + '">';
+          html += '<legend>' + JpUi.escapeHtml(ordre) + '. ' + JpUi.escapeHtml(q.enonce || '') + '</legend>';
+          (q.propositions || []).forEach(function (p) {
+            const pid = String(p.id);
+            const id = 'q' + ordre + '_' + pid;
+            html += '<label class="jp-q-opt"><input type="radio" name="q_' + ordre + '" value="' + JpUi.escapeHtml(pid) + '" id="' + id + '" required> '
+              + '<span>' + JpUi.escapeHtml(p.valeur || '') + '</span></label>';
           });
+          if (isTrain) html += '<p class="jp-q-feedback jp-muted" hidden></p>';
+          html += '</fieldset>';
+        });
+        html += '<div class="jp-field-actions"><button type="submit" class="jp-btn jp-btn-primary">Soumettre</button>';
+        html += ' <a class="jp-btn jp-btn-ghost" href="imprimer.html?code=' + encodeURIComponent(quiz.code_unique) + '">Imprimer</a></div>';
+        html += '</form><div id="scoreBox" class="jp-panel" hidden></div>';
+        root.innerHTML = html;
+
+        if (isTrain) {
+          root.querySelectorAll('input[type="radio"]').forEach(function (inp) {
+            inp.addEventListener('change', function () {
+              const fs = inp.closest('fieldset');
+              const ordre = Number(fs.dataset.ordre);
+              const q = questions.find(function (x) { return Number(x.ordre) === ordre; });
+              const fb = fs.querySelector('.jp-q-feedback');
+              if (!q || !fb) return;
+              const chosen = (q.propositions || []).find(function (p) { return String(p.id) === inp.value; });
+              const correct = chosen && chosen.correct === true;
+              fb.hidden = false;
+              fb.textContent = correct ? 'Correct' : 'Incorrect — continuez, le score final sera calculé à la soumission.';
+              fb.className = 'jp-q-feedback ' + (correct ? 'jp-ok' : 'jp-warn');
+            });
+          });
+        }
+
+        document.getElementById('playForm').addEventListener('submit', async function (ev) {
+          ev.preventDefault();
+          const reponses = [];
+          questions.forEach(function (q, idx) {
+            const ordre = q.ordre != null ? q.ordre : idx + 1;
+            const checked = document.querySelector('input[name="q_' + ordre + '"]:checked');
+            if (checked) {
+              reponses.push({
+                ordre: ordre,
+                matrice_id: q.matrice_id,
+                proposition_id: checked.value,
+              });
+            }
+          });
+          const btn = ev.target.querySelector('button[type="submit"]');
+          btn.disabled = true;
+          try {
+            // Nouveau tirage local : score client (entraînement uniquement)
+            if (questions._localRetake) {
+              let score = 0;
+              const details = [];
+              questions.forEach(function (q, idx) {
+                const ordre = q.ordre != null ? q.ordre : idx + 1;
+                const checked = document.querySelector('input[name="q_' + ordre + '"]:checked');
+                const chosen = (q.propositions || []).find(function (p) { return String(p.id) === (checked && checked.value); });
+                const ok = !!(chosen && chosen.correct);
+                if (ok) score += 1;
+                details.push({ ordre: ordre, correct: ok });
+                const fs = document.querySelector('fieldset[data-ordre="' + ordre + '"]');
+                if (fs) fs.classList.add(ok ? 'jp-q-ok' : 'jp-q-ko');
+              });
+              const box = document.getElementById('scoreBox');
+              box.hidden = false;
+              box.innerHTML = '<p class="jp-kicker">Résultat (nouveau tirage)</p>'
+                + '<p class="jp-brand" style="font-size:1.5rem">' + score + ' / ' + questions.length + '</p>'
+                + '<p class="jp-muted">Score local — le snapshot partagé n’a pas été modifié.</p>'
+                + '<p><button type="button" class="jp-btn jp-btn-primary" id="btnRetake">Nouveau tirage</button></p>';
+              JpToast.ok('Score : ' + score + '/' + questions.length);
+              btn.textContent = 'Déjà soumis';
+              document.getElementById('btnRetake')?.addEventListener('click', function () { void doRetake(); });
+              return;
+            }
+
+            const result = await JpQuizz.soumettre(quiz.id, reponses);
+            const box = document.getElementById('scoreBox');
+            box.hidden = false;
+            box.innerHTML = '<p class="jp-kicker">Résultat</p>'
+              + '<p class="jp-brand" style="font-size:1.5rem">' + result.score_obtenu + ' / ' + result.score_max + '</p>'
+              + '<p class="jp-muted"><a href="../espace.html">Voir mon espace</a></p>'
+              + (isTrain
+                ? '<p style="margin-top:0.75rem"><button type="button" class="jp-btn jp-btn-primary" id="btnRetake">Nouveau tirage (même thème)</button></p>'
+                : '');
+            JpToast.ok('Score enregistré : ' + result.score_obtenu + '/' + result.score_max);
+
+            if (isTrain && Array.isArray(result.details)) {
+              result.details.forEach(function (d) {
+                const fs = document.querySelector('fieldset[data-ordre="' + d.ordre + '"]');
+                if (!fs) return;
+                fs.classList.add(d.correct ? 'jp-q-ok' : 'jp-q-ko');
+              });
+            }
+            btn.textContent = 'Déjà soumis';
+            document.getElementById('btnRetake')?.addEventListener('click', function () { void doRetake(); });
+          } catch (e) {
+            JpToast.fromError(e);
+            btn.disabled = false;
+          }
         });
       }
 
-      document.getElementById('playForm').addEventListener('submit', async function (ev) {
-        ev.preventDefault();
-        const reponses = [];
-        questions.forEach(function (q, idx) {
-          const ordre = q.ordre != null ? q.ordre : idx + 1;
-          const checked = document.querySelector('input[name="q_' + ordre + '"]:checked');
-          if (checked) {
-            reponses.push({
-              ordre: ordre,
-              matrice_id: q.matrice_id,
-              proposition_id: checked.value,
-            });
-          }
-        });
-        const btn = ev.target.querySelector('button[type="submit"]');
-        btn.disabled = true;
+      async function doRetake() {
+        if (!isTrain) {
+          JpToast.warn('Nouveau tirage réservé à l’entraînement');
+          return;
+        }
         try {
-          const result = await JpQuizz.soumettre(quiz.id, reponses);
-          const box = document.getElementById('scoreBox');
-          box.hidden = false;
-          box.innerHTML = '<p class="jp-kicker">Résultat</p>'
-            + '<p class="jp-brand" style="font-size:1.5rem">' + result.score_obtenu + ' / ' + result.score_max + '</p>'
-            + '<p class="jp-muted"><a href="../espace.html">Voir mon espace</a></p>';
-          JpToast.ok('Score enregistré : ' + result.score_obtenu + '/' + result.score_max);
-
-          if (isTrain && Array.isArray(result.details)) {
-            result.details.forEach(function (d) {
-              const fs = document.querySelector('fieldset[data-ordre="' + d.ordre + '"]');
-              if (!fs) return;
-              fs.classList.add(d.correct ? 'jp-q-ok' : 'jp-q-ko');
-            });
-          }
-          btn.textContent = 'Déjà soumis';
+          await JpNiveaux.load();
+          const all = await JpTrous.fetchMedicaments({ niveau: quiz.niveau_cible || null });
+          const set = new Set(themeKeys.matriceIds.map(String));
+          const meds = all.filter(function (m) { return set.has(String(m.id)); });
+          if (!meds.length) throw new Error('Pool thématique indisponible');
+          const gen = JpQuizz.renumeroter(JpQuizz.genererQuestions({
+            meds: meds,
+            champs: themeKeys.champs,
+            niveau: quiz.niveau_cible || null,
+            nb_questions: themeKeys.nb,
+            nb_propositions: themeKeys.nbProp,
+          }));
+          questions = gen;
+          questions._localRetake = true;
+          renderPlay();
+          JpToast.ok('Nouveau tirage généré (thème identique)');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (e) {
           JpToast.fromError(e);
-          btn.disabled = false;
         }
-      });
+      }
+
+      renderPlay();
     });
   </script>
 </body>

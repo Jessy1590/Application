@@ -7,8 +7,9 @@ alwaysApply: true
 
 ## Produit
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
-- Entrée : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Mon espace | Admin (si admin).
-- Surfaces : `catalogue.html`, `espace.html` (profil + suivi + progression secteur + points faibles), `quiz/`, `trous/`, `fiche-aleatoire/`, `points-faibles/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps. `profil.html` et `quiz/suivi.html` redirigent vers `espace.html`.
+- Entrée V1 : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Mon espace | **Parcours V2** | Admin (si admin).
+- Surfaces V1 : `catalogue.html`, `espace.html`, `quiz/`, `trous/`, `fiche-aleatoire/`, `points-faibles/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps.
+- **V2** (parallèle) : `v2/` — parcours/modules/publications, catalogue résolu (`v2_lister_medicaments` / `v2_fiche_resolue`), ordonnances type, admin sources/référentiel/parcours/jeux/import RCP. Réutilise `../js/supabase.js`, `protect.js`, CSS V1 + `v2/css/v2.css`.
 - Partagé local : `js/` (clients, métier, FAB, bugs, logs, toast) + `css/` (tokens, app, print).
 
 ## Chemins monorepo
@@ -33,7 +34,8 @@ alwaysApply: true
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017_classifications_fiches` ; `018_vue_sans_niveaux_entite` (local, non appliqué remote) + `ops_audit_snapshots_archives.sql` (lecture seule) ; ne pas réappliquer sans check (voir STATE.md).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018_vue_sans_niveaux_entite` (local, **non appliqué**) ; `019`–`022` V2 + pause quiz (appliqués remote) ; `sql/ops/` lecture seule ; ne pas réappliquer sans check (voir STATE.md).
+- V2 tables clés : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours`, `publications_connaissances`, `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu pédagogique V2.
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique

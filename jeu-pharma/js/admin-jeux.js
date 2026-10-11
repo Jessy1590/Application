@@ -1533,6 +1533,18 @@
         }
       });
     });
+    wrap.querySelectorAll('[data-pause]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const pause = btn.getAttribute('data-val') === '1';
+        try {
+          await global.JpQuizz.setPause(btn.getAttribute('data-pause'), pause);
+          global.JpToast.ok(pause ? 'Quiz en pause' : 'Quiz repris');
+          await refreshList(state);
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+    });
     wrap.querySelectorAll('[data-scores]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         void openScoresModal({
@@ -1557,7 +1569,12 @@
             + '" data-kind="' + r.kind + '">Archiver</button>'
           : '<button type="button" class="jp-link-btn" data-desarchiver="' + global.JpUi.escapeHtml(r.id)
             + '" data-kind="' + r.kind + '">Désarchiver</button>';
-        const playLinks = r.actif
+        const pauseBtn = (r.kind === 'quiz' && r.actif)
+          ? ' · <button type="button" class="jp-link-btn" data-pause="' + global.JpUi.escapeHtml(r.id)
+            + '" data-val="' + (r.en_pause ? '0' : '1') + '">'
+            + (r.en_pause ? 'Reprendre' : 'Pause') + '</button>'
+          : '';
+        const playLinks = r.actif && !r.en_pause
           ? '<a href="' + playBase + 'jouer.html?code=' + encodeURIComponent(r.code) + '">Jouer</a>'
             + (r.snapOk
               ? ' · <a href="' + playBase + 'imprimer.html?code=' + encodeURIComponent(r.code) + '">Imprimer</a>'
@@ -1566,8 +1583,10 @@
           : '';
         const scoreBtn = '<button type="button" class="jp-link-btn" data-scores="' + global.JpUi.escapeHtml(r.id)
           + '" data-kind="' + r.kind + '" data-code="' + global.JpUi.escapeHtml(r.code) + '">Score</button>';
+        const pauseBadge = r.en_pause ? ' <span class="jp-badge">pause</span>' : '';
         return '<tr>'
-          + '<td><span class="' + statusBadgeClass(status) + '">' + statusLibelle(status) + '</span></td>'
+          + '<td><span class="' + statusBadgeClass(status) + '">' + statusLibelle(status) + '</span>'
+          + pauseBadge + '</td>'
           + '<td>' + typeLabel + '</td>'
           + '<td><code>' + global.JpUi.escapeHtml(r.code) + '</code></td>'
           + '<td>' + global.JpUi.escapeHtml(r.titre) + '</td>'
@@ -1577,7 +1596,7 @@
           + '<td>' + global.JpUi.escapeHtml(r.niveau || '—') + '</td>'
           + '<td>' + global.JpUi.escapeHtml(formatDate(r.created_at)) + '</td>'
           + '<td>' + (r.nbScores || 0) + '</td>'
-          + '<td class="jp-jeux-histo-actions">' + playLinks + scoreBtn + ' · ' + archiveBtn + '</td>'
+          + '<td class="jp-jeux-histo-actions">' + playLinks + scoreBtn + pauseBtn + ' · ' + archiveBtn + '</td>'
           + '</tr>';
       }).join('')
       + '</tbody></table>';
@@ -1591,7 +1610,7 @@
     void refreshSnapshotsAudit();
     try {
       const [quizzes, parties, counts] = await Promise.all([
-        global.JpQuizz.listQuiz({ actifsOnly: false }),
+        global.JpQuizz.listQuiz({ actifsOnly: false, includeSnapshot: true, includePaused: true }),
         global.JpTrous.listParties({ actifsOnly: false }),
         loadResponseCounts(),
       ]);
@@ -1604,6 +1623,7 @@
           mode: r.mode,
           niveau: r.niveau_cible,
           actif: r.actif,
+          en_pause: !!r.en_pause,
           created_at: r.created_at,
           snapOk: Array.isArray(r.snapshot_questions) && r.snapshot_questions.length,
           nbScores: counts.quizCounts[r.id] || 0,
@@ -1617,6 +1637,7 @@
           mode: r.mode,
           niveau: r.niveau_cible,
           actif: r.actif,
+          en_pause: false,
           created_at: r.created_at,
           snapOk: true,
           nbScores: counts.trousCounts[r.id] || 0,

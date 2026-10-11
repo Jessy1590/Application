@@ -11,7 +11,7 @@
     if (!user) return null;
     const { data, error } = await sb()
       .from('profil_apprentissage')
-      .select('user_id, niveau_id, updated_at')
+      .select('user_id, niveau_id, parcours_id, updated_at')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) throw error;
@@ -29,17 +29,22 @@
       const known = (global.JpConstants?.NIVEAUX || []).some((n) => n.code === code);
       if (!known) throw new Error('Niveau invalide');
     }
+    // Préserver parcours_id V2 si déjà renseigné (upsert partiel via select puis merge).
+    let parcoursId = null;
+    try {
+      const cur = await getProfil();
+      parcoursId = cur?.parcours_id || null;
+    } catch (_) { /* ignore */ }
+    const row = {
+      user_id: user.id,
+      niveau_id: code,
+      updated_at: new Date().toISOString(),
+    };
+    if (parcoursId) row.parcours_id = parcoursId;
     const { data, error } = await sb()
       .from('profil_apprentissage')
-      .upsert(
-        {
-          user_id: user.id,
-          niveau_id: code,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id' },
-      )
-      .select('user_id, niveau_id, updated_at')
+      .upsert(row, { onConflict: 'user_id' })
+      .select('user_id, niveau_id, parcours_id, updated_at')
       .single();
     if (error) throw error;
     void global.JpLogs?.action?.('profil_niveau', { niveau_id: code });

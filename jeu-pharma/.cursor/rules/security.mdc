@@ -25,3 +25,5 @@ alwaysApply: true
 - Bugs : insert soi ; admin lit tout + met à jour le statut.
 - Impression : iframe caché same-document uniquement — pas de pop-up / `window.open`.
 - Snapshot quiz : en mode évaluation, ne pas exposer le flag correct / corrigé avant soumission RPC.
+- Liste quiz joueur : ne jamais `select` `snapshot_questions` (utiliser `JpQuizz.listQuiz` sans `includeSnapshot`).
+- V2 : les apprenants ne lisent pas `connaissances` / `publications_connaissances` en direct — uniquement les RPC `v2_*` (security definer). Import RCP → statut `a_valider` uniquement.

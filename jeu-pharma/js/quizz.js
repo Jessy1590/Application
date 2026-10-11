@@ -255,14 +255,36 @@
   }
 
   async function listQuiz(opts = {}) {
+    // Liste joueur : jamais snapshot_questions (corrigé / évaluation).
+    // Admin (includeSnapshot) : snapshot pour historique / audit uniquement.
+    const cols = opts.includeSnapshot
+      ? 'id, code_unique, titre, niveau_cible, mode, secteur_therapeutique_id, created_at, actif, en_pause, snapshot_questions'
+      : 'id, code_unique, titre, niveau_cible, mode, secteur_therapeutique_id, created_at, actif, en_pause';
     let q = sb()
       .from('quizz')
-      .select('id, code_unique, titre, niveau_cible, mode, secteur_therapeutique_id, created_at, actif, snapshot_questions')
+      .select(cols)
       .order('created_at', { ascending: false });
     if (opts.actifsOnly !== false) q = q.eq('actif', true);
+    // Joueurs : masquer les quiz en pause (admin liste avec includePaused)
+    if (!opts.includePaused && opts.actifsOnly !== false) q = q.eq('en_pause', false);
     const { data, error } = await q;
     if (error) throw error;
     return data || [];
+  }
+
+  async function setPause(id, pause) {
+    const { data, error } = await sb()
+      .from('quizz')
+      .update({ en_pause: !!pause })
+      .eq('id', id)
+      .select('id, code_unique, en_pause')
+      .single();
+    if (error) throw error;
+    void global.JpLogs?.action?.(pause ? 'quiz_pause' : 'quiz_reprise', {
+      quizz_id: id,
+      code: data?.code_unique,
+    });
+    return data;
   }
 
   /**
@@ -526,5 +548,6 @@
     setActif,
     archive,
     desarchiver,
+    setPause,
   };
 })(window);
