@@ -14,7 +14,7 @@
   function esc(s) { return global.JpUi.escapeHtml(String(s ?? '')); }
 
   const AUTOSAVE_MS = 900;
-  const TYPE_LABELS = { texte: 'Texte', video: 'Vidéo', molecule: 'Molécules', conseil: 'Conseil', jeu: 'Jeu' };
+  const TYPE_LABELS = { texte: 'Texte', video: 'Vidéo', photo: 'Photo', molecule: 'Molécules', conseil: 'Conseil', jeu: 'Jeu' };
 
   const state = {
     parcoursId: null,
@@ -369,7 +369,7 @@
     pane.innerHTML = '<div class="jp-studio-canvas-head">'
       + '<h2 class="jp-studio-h2">' + esc(m.titre) + '</h2></div>'
       + '<div class="jp-add-blocks" id="addBlocks"><span class="jp-add-blocks-label">Ajouter</span>'
-      + ['texte', 'video', 'molecule', 'conseil', 'jeu'].map((t) =>
+      + ['texte', 'video', 'photo', 'molecule', 'conseil', 'jeu'].map((t) =>
         '<button type="button" class="jp-btn jp-btn-ghost" data-add="' + t + '">+ ' + TYPE_LABELS[t] + '</button>'
       ).join('')
       + '</div><p class="jp-studio-autosave-hint">Les modifications sont enregistrées automatiquement en brouillon. '
@@ -433,6 +433,20 @@
         body = '<div class="jp-field jp-field-tight"><label>Lien de la vidéo</label>'
           + '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="URL YouTube / Vimeo / .mp4"></div>'
           + (p.url ? videoEmbed(p.url) : '');
+      } else if (b.type_bloc === 'photo') {
+        body = '<input type="hidden" data-field="path" data-id="' + b.id + '" value="' + esc(p.path || '') + '">'
+          + '<div class="jp-photo-prev" data-photo-prev="' + b.id + '"></div>'
+          + '<div class="jp-photo-actions">'
+          + '<label class="jp-btn jp-btn-ghost jp-photo-pick">Téléverser une photo'
+          + '<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-photo-file="' + b.id + '" hidden></label>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-photo-clear="' + b.id + '">Retirer la photo</button>'
+          + '<small class="jp-field-hint">JPEG, PNG, WebP ou GIF — 5 Mo max.</small></div>'
+          + '<div class="jp-field jp-field-tight"><label>… ou lien de l’image (https)</label>'
+          + '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="https://…/photo.jpg"></div>'
+          + '<div class="jp-field jp-field-tight"><label>Texte alternatif (accessibilité)</label>'
+          + '<input data-field="alt" data-id="' + b.id + '" value="' + esc(p.alt || '') + '" placeholder="Décrivez l’image"></div>'
+          + '<div class="jp-field jp-field-tight"><label>Légende (facultatif)</label>'
+          + '<input data-field="legende" data-id="' + b.id + '" value="' + esc(p.legende || '') + '" placeholder="Ex. Frottis sanguin"></div>';
       } else if (b.type_bloc === 'molecule') {
         body = '<div class="jp-field jp-field-tight"><label>Molécules de ce bloc</label>'
           + '<div class="jp-mol-multi" data-mol-multi="' + b.id + '"></div>'
@@ -489,8 +503,20 @@
     list.querySelectorAll('.jp-block-card').forEach((card) => {
       const id = card.getAttribute('data-bloc');
       card.querySelectorAll('input[data-field]').forEach((inp) => {
-        inp.addEventListener('input', () => scheduleSave(id));
+        inp.addEventListener('input', () => {
+          if (card.querySelector('[data-photo-prev]')) paintPhotoPreview(card);
+          scheduleSave(id);
+        });
       });
+      if (card.querySelector('[data-photo-prev]')) {
+        paintPhotoPreview(card);
+        card.querySelector('[data-photo-file]')?.addEventListener('change', (ev) => void pickPhoto(card, id, ev.target));
+        card.querySelector('[data-photo-clear]')?.addEventListener('click', () => {
+          ['path', 'url'].forEach((f) => { const el = card.querySelector('[data-field="' + f + '"]'); if (el) el.value = ''; });
+          paintPhotoPreview(card);
+          scheduleSave(id);
+        });
+      }
     });
 
     list.querySelectorAll('[data-del]').forEach((btn) => {
@@ -517,6 +543,38 @@
     updateStatus();
   }
 
+  /* ——— Bloc photo ——— */
+
+  function paintPhotoPreview(card) {
+    const host = card.querySelector('[data-photo-prev]');
+    if (!host) return;
+    const v = (f) => card.querySelector('[data-field="' + f + '"]')?.value || '';
+    const p = { path: v('path'), url: v('url'), alt: v('alt'), legende: v('legende') };
+    const hasImg = global.JpBlocPhoto.safePath(p.path) || global.JpBlocPhoto.safeUrl(p.url);
+    host.innerHTML = hasImg
+      ? global.JpBlocPhoto.figureHtml(p)
+      : '<p class="jp-muted jp-photo-empty">Aucune photo — téléversez un fichier ou collez un lien https.</p>';
+    global.JpBlocPhoto.hydrate(host);
+  }
+
+  async function pickPhoto(card, blocId, input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    const m = selectedModule();
+    try {
+      const path = await global.JpBlocPhoto.upload(file, m && m.id);
+      const pathEl = card.querySelector('[data-field="path"]');
+      const urlEl = card.querySelector('[data-field="url"]');
+      if (pathEl) pathEl.value = path;
+      if (urlEl) urlEl.value = '';
+      paintPhotoPreview(card);
+      scheduleSave(blocId);
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    }
+  }
+
   /* ——— Collecte + auto-enregistrement du brouillon ——— */
 
   function collectPayload(blocId, type) {
@@ -527,6 +585,7 @@
     const rte = (field) => state.editors[blocId + ':' + field]?.getHtml?.() || '';
     if (type === 'texte') return { html: rte('html') };
     if (type === 'video') return { url: val('url') };
+    if (type === 'photo') return { path: val('path'), url: val('url'), alt: val('alt'), legende: val('legende') };
     if (type === 'molecule') {
       const ids = state.molChips[blocId]?.getIds?.() || matriceIdsOf(effPayload(b));
       return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };

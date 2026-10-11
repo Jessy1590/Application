@@ -395,6 +395,22 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 .jp-bloc--video .jp-bloc-body { padding: 0 0.75rem 0.85rem; }
 .jp-bloc--video .jp-video-wrap { border-radius: 0.8rem; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 
+/* Photo : cadre teal, légende sous l’image */
+.jp-bloc--photo {
+  --bloc-c: #14806f;
+  --bloc-soft: rgba(20, 128, 111, 0.1);
+  border-color: rgba(15, 107, 92, 0.32);
+  border-top: 4px solid #14806f;
+  box-shadow: 0 8px 24px rgba(15, 107, 92, 0.12);
+}
+.jp-bloc--photo .jp-bloc-head { border-bottom-color: rgba(15, 107, 92, 0.12); }
+.jp-bloc--photo .jp-bloc-body { padding: 0.8rem; }
+
+/* Texte : sans pastille de type ; titre éventuel discret */
+.jp-bloc--texte .jp-bloc-head h2 { font-size: 1.05rem; color: var(--jp-accent, #0f6b5c); }
+.jp-bloc--texte .jp-bloc-head { padding-bottom: 0.2rem; }
+.jp-bloc--texte .jp-bloc-head + .jp-bloc-body { padding-top: 0.6rem; }
+
 /* Conseil : encart chaleureux */
 .jp-bloc--conseil {
   --bloc-c: #9a6700;

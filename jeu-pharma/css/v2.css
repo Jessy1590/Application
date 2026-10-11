@@ -765,3 +765,67 @@
 @media (prefers-reduced-motion: reduce) {
   .jp-score-card, .jp-pbar > i, .jp-ring-fg { animation: none; transition: none; }
 }
+
+/* Bloc photo (leçon joueur + aperçu studio) : cadre teal, image bornée en hauteur, agrandissement */
+.jp-photo { margin: 0; display: grid; gap: 0.6rem; justify-items: center; }
+.jp-photo-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid rgba(15, 107, 92, 0.22);
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #eef7f5, #fff);
+  box-shadow: inset 0 0 0 4px #fff, 0 6px 18px rgba(15, 46, 40, 0.08);
+  cursor: zoom-in;
+}
+.jp-photo-frame:focus-visible { outline: 3px solid #0f6b5c; outline-offset: 2px; }
+.jp-photo-img {
+  display: block;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: min(65vh, 480px);
+  object-fit: contain;
+  border-radius: 0.6rem;
+}
+.jp-photo-cap {
+  max-width: 46rem;
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #3d6b62;
+  font-style: italic;
+}
+.jp-photo-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(7, 30, 26, 0.88);
+  cursor: zoom-out;
+}
+.jp-photo-zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0.6rem; background: #fff; }
+.jp-photo-zoom-x {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 0;
+  border-radius: 50%;
+  background: #0f6b5c;
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Studio : zone d’aperçu + actions */
+.jp-photo-prev { margin: 0 0 0.8rem; }
+.jp-photo-prev .jp-photo-img { max-height: 220px; }
+.jp-photo-empty { margin: 0; padding: 1rem; border: 1px dashed rgba(15, 107, 92, 0.3); border-radius: 0.8rem; text-align: center; }
+.jp-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0 0 0.9rem; }
+.jp-photo-pick { cursor: pointer; }

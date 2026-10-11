@@ -2,6 +2,12 @@
 
 Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
+## Bloc « photo » (029 — appliquée remote, 2026-10-11)
+- `module_blocs.type_bloc` accepte `photo` (check recréé). `payload_json` = `{ path?, url?, alt?, legende? }` (`path` prioritaire ; `url` = https uniquement). RPC `v2_*` inchangées (génériques).
+- Storage : bucket **privé** `jeupharma-lecons` (5 Mo, jpeg/png/webp/gif) ; écriture/suppression = `is_portail_admin()`, lecture = accès Jeu Pharma ; affichage via URL signées (1 h). Chemin `modules/<module_id>/<uuid>.<ext>`. Les fichiers remplacés restent en bucket (le publié peut encore les référencer).
+- Client : `js/bloc-photo.js` (`JpBlocPhoto`, partagé studio + lecteur), styles `.jp-photo*` dans `css/v2.css`, cadre `.jp-bloc--photo` dans `css/player.css`. Agrandissement en overlay même document (pas de pop-up).
+- Lecteur : le bloc **texte** n’affiche plus la pastille « Texte » (cadre seul, titre s’il existe). Cache-bust `?v=029`.
+
 ## Critères de déblocage (028 — appliquée remote, 2026-10-11)
 - **Modèle** : chaque leçon / chapitre / parcours a `criteres_json` = comment il est **validé** : `{ lecture?: bool (leçon, défaut true), jeux: [{ modele_id, score_min_pct }], logique: 'et'|'ou', progression_min_pct (parcours, défaut 100) }`. Les **verrous** sont des pointeurs : `modules_cours.prerequis_module_id` (leçon ou chapitre) et `parcours_apprentissage.prerequis_parcours_id`. L’élément s’ouvre quand son prérequis est **validé** ; prérequis non publié = ignoré ; parcours verrouillé = toutes ses leçons verrouillées ; chapitre validé = toutes ses leçons publiées validées.
 - **Validité calculée en direct** (fonctions internes non exposées) : lecture = `progression_modules.lu_at` (posé par `v2_enregistrer_lecture(p_module_id, p_pct)` quand pct ≥ 95) + meilleur score % de `tentatives_jeu` (terminées). `progression_modules.statut` n’est qu’un miroir (`v2__sync_progression`). % d’une leçon = moyenne des crédits partiels (lecture + ratio de chaque jeu ; `ou` = max) ; validée → 100.

@@ -72,6 +72,7 @@
   const BLOC_META = {
     texte: { label: 'Texte', ico: '¶' },
     video: { label: 'Vidéo', ico: '▶' },
+    photo: { label: 'Photo', ico: '▣' },
     conseil: { label: 'Conseil', ico: '✦' },
     molecule: { label: 'Molécules', ico: '⬡' },
     jeu: { label: 'Jeu', ico: '◆' },
@@ -350,6 +351,8 @@
         inner = '<div class="jp-rich">' + sanitizeHtml(p.html || '') + '</div>';
       } else if (b.type_bloc === 'video') {
         inner = videoEmbed(p.url) || '<p class="jp-muted">Vidéo indisponible.</p>';
+      } else if (b.type_bloc === 'photo') {
+        inner = global.JpBlocPhoto.figureHtml(p);
       } else if (b.type_bloc === 'conseil') {
         inner = (p.pathologie ? '<p class="jp-conseil-patho">' + esc(p.pathologie) + '</p>' : '')
           + '<div class="jp-rich">' + sanitizeHtml(p.corps_html || '') + '</div>';
@@ -375,14 +378,22 @@
           + '<a class="jp-btn jp-btn-touch jp-jeu-play" href="' + esc(href) + '">' + esc(p.libelle_cta || 'Jouer') + ' →</a></div>'
           + (code ? '<p class="jp-jeu-code"><code>' + esc(code) + '</code></p>' : '');
       }
+      // Texte : pas de pastille « Texte » — seulement le cadre (et le titre s’il existe).
+      let head;
+      if (type === 'texte') {
+        head = b.titre ? '<header class="jp-bloc-head"><h2>' + esc(b.titre) + '</h2></header>' : '';
+      } else {
+        head = '<header class="jp-bloc-head"><span class="jp-bloc-ico" aria-hidden="true">' + meta.ico + '</span>'
+          + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
+          + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>';
+      }
       html += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '">'
-        + '<header class="jp-bloc-head"><span class="jp-bloc-ico" aria-hidden="true">' + meta.ico + '</span>'
-        + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
-        + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>'
+        + head
         + '<div class="jp-bloc-body">' + inner + '</div></article>';
     }
     html += '<div id="jpReadEnd" aria-hidden="true"></div><footer class="jp-lecon-foot" id="leconFoot"></footer>';
     root.innerHTML = html;
+    global.JpBlocPhoto.hydrate(root);
 
     const ctx = { module, detail, preview: !!preview, footer: document.getElementById('leconFoot') };
     const carousels = Array.from(root.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
