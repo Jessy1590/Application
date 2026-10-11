@@ -17,51 +17,73 @@
 <script src="../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/v2.css">
 </head>
 <body>
   <main class="jp-page">
-    <p class="jp-kicker">Pharmacie · formation</p>
+    <p class="jp-kicker">Parcours</p>
     <h1 class="jp-brand">Jeu Pharma</h1>
-    <p class="jp-sub">Catalogue, quiz, tableaux à trous et fiche aléatoire — contenu issu des cours.</p>
-
+    <p class="jp-sub">Sang, Cœur, Veine et artère, Urgence, HTA — uniquement les connaissances publiées de votre parcours.</p>
+    <div class="jp-v2-banner" id="parcoursBanner">Chargement du parcours…</div>
     <nav class="jp-hub-grid" aria-label="Applications">
+      <a class="jp-tile" href="espace.html">
+        <h2>Mon parcours</h2>
+        <p>Thèmes, sous-parcours, progression</p>
+      </a>
       <a class="jp-tile" href="catalogue.html">
         <h2>Catalogue</h2>
-        <p>Fiches médicaments publiées</p>
+        <p>Fiches résolues selon votre cours</p>
       </a>
-      <a class="jp-tile" href="quiz/index.html">
+      <a class="jp-tile" href="jeux/index.html?type=quiz">
         <h2>Quiz</h2>
-        <p>QCM d’entraînement ou d’évaluation</p>
+        <p>QCM sur les modules débloqués</p>
       </a>
-      <a class="jp-tile" href="trous/index.html">
+      <a class="jp-tile" href="jeux/index.html?type=trous">
         <h2>Tableau à trous</h2>
-        <p>Compléter les cases manquantes</p>
+        <p>Compléter les champs manquants</p>
       </a>
-      <a class="jp-tile" href="fiche-aleatoire/index.html">
+      <a class="jp-tile" href="jeux/index.html?type=fiche_aleatoire">
         <h2>Fiche aléatoire</h2>
-        <p>Noms et DCI, réponses au clic</p>
+        <p>Restituer puis se noter /10</p>
       </a>
-      <a class="jp-tile" href="espace.html">
-        <h2>Mon espace</h2>
-        <p>Niveau pédagogique et scores</p>
-      </a>
-      <a class="jp-tile" href="v2/index.html">
-        <h2>Parcours V2</h2>
-        <p>Modules progressifs, catalogue résolu, ordonnances</p>
+      <a class="jp-tile" href="ordonnances/index.html">
+        <h2>Ordonnance type</h2>
+        <p>Restituer les infos par molécule</p>
       </a>
       <a class="jp-tile" href="admin/index.html" id="hubTileAdmin" hidden>
         <h2>Admin</h2>
-        <p>Catalogue, quiz, suivi, logs</p>
+        <p>Parcours, publications, paramètres jeux</p>
       </a>
     </nav>
   </main>
-
   <script src="js/constants.js"></script>
   <script src="js/toast.js"></script>
   <script src="js/logs.js"></script>
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
-  <script src="hub.js"></script>
+  <script src="js/resolver.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'hub', homeHref: JpFab.PORTAIL_URL });
+      try {
+        if (await JpApp.isAdmin()) document.getElementById('hubTileAdmin').hidden = false;
+      } catch (_) {}
+      try {
+        const prog = await JpV2Resolver.progression();
+        const el = document.getElementById('parcoursBanner');
+        if (!prog?.parcours) {
+          el.innerHTML = 'Aucun parcours actif — <a href="espace.html">choisir un parcours</a>.';
+        } else {
+          const leaves = (prog.modules || []).filter(function (m) { return !m.est_groupe; });
+          const open = leaves.filter(function (m) { return m.statut !== 'verrouille'; }).length;
+          el.innerHTML = 'Parcours : <strong>' + JpUi.escapeHtml(prog.parcours.libelle)
+            + '</strong> · ' + open + '/' + leaves.length + ' sous-parcours accessibles';
+        }
+      } catch (e) {
+        document.getElementById('parcoursBanner').textContent = e.message || String(e);
+      }
+    });
+  </script>
 </body>
 </html>

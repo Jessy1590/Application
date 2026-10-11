@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Jouer — Ordonnance</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID);</script>
+<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/v2.css">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">← Ordonnances</a>
+    <p class="jp-kicker">Ordonnance type</p>
+    <h1 class="jp-title" id="title">Jouer</h1>
+    <p class="jp-sub" id="meta"></p>
+    <div id="root"><p class="jp-muted">Chargement…</p></div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js"></script>
+  <script src="../js/fab.js"></script>
+  <script src="../js/ui.js"></script>
+  <script src="../js/ordonnances.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'ordonnance-jouer', homeHref: JpFab.PORTAIL_URL });
+      const code = (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+      const root = document.getElementById('root');
+      if (!code) {
+        JpUi.emptyState(root, { title: 'Code manquant', actionHref: 'index.html', actionLabel: 'Retour' });
+        return;
+      }
+
+      let session = null;
+      try {
+        session = await JpV2Ordonnances.demarrer(code);
+      } catch (e) {
+        JpToast.fromError(e);
+        JpUi.emptyState(root, { title: 'Impossible de démarrer', text: e.message || String(e), actionHref: 'index.html', actionLabel: 'Retour' });
+        return;
+      }
+
+      document.getElementById('title').textContent = session.titre || 'Ordonnance';
+      document.getElementById('meta').textContent = session.code_unique + ' · ' + (session.mode || '');
+
+      let revele = false;
+      function paint() {
+        let html = '<div id="mols">'
+          + (revele
+            ? JpV2Ordonnances.renderMoleculesRevelees(session._fullMolecules || session.molecules, session.champs)
+            : JpV2Ordonnances.renderMoleculesMasquees(session.molecules, session.champs))
+          + '</div>';
+        html += '<div class="jp-v2-actions" style="margin-top:1.25rem">';
+        if (!revele) {
+          html += '<button type="button" class="jp-btn jp-btn-primary" id="btnReveal">Voir les réponses</button>';
+        } else {
+          html += '<div class="jp-field"><label for="scoreObtenu">Score obtenu</label>'
+            + '<input id="scoreObtenu" type="number" min="0" step="1" value="0"></div>'
+            + '<div class="jp-field"><label for="scoreMax">Score max</label>'
+            + '<input id="scoreMax" type="number" min="1" step="1" value="10"></div>'
+            + '<button type="button" class="jp-btn jp-btn-primary" id="btnScore">Enregistrer le score</button>';
+        }
+        html += '<a class="jp-btn jp-btn-ghost" href="jouer.html?code=' + encodeURIComponent(code) + '">Nouveau tirage</a>';
+        html += '</div><div id="scoreBox" class="jp-panel" hidden></div>';
+        root.innerHTML = html;
+
+        document.getElementById('btnReveal')?.addEventListener('click', async function () {
+          try {
+            const full = await JpV2Ordonnances.reveler(session.tentative_id);
+            session._fullMolecules = full.molecules;
+            session.champs = full.champs || session.champs;
+            revele = true;
+            paint();
+            JpToast.ok('Réponses affichées');
+          } catch (e) {
+            JpToast.fromError(e);
+          }
+        });
+        document.getElementById('btnScore')?.addEventListener('click', async function () {
+          try {
+            const obt = Number(document.getElementById('scoreObtenu').value);
+            const max = Number(document.getElementById('scoreMax').value);
+            const res = await JpV2Ordonnances.noter(session.tentative_id, obt, max, [{ mode: 'general' }]);
+            const box = document.getElementById('scoreBox');
+            box.hidden = false;
+            box.innerHTML = '<p class="jp-kicker">Résultat</p><p class="jp-brand" style="font-size:1.5rem">'
+              + res.score_obtenu + ' / ' + res.score_max + '</p>'
+              + '<p class="jp-muted"><a href="../espace.html">Mon parcours</a></p>';
+            JpToast.ok('Score enregistré');
+          } catch (e) {
+            JpToast.fromError(e);
+          }
+        });
+      }
+      paint();
+    });
+  </script>
+</body>
+</html>

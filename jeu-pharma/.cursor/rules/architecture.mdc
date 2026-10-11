@@ -7,10 +7,10 @@ alwaysApply: true
 
 ## Produit
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
-- Entrée V1 : `index.html` + `hub.js` — tuiles Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Mon espace | **Parcours V2** | Admin (si admin).
-- Surfaces V1 : `catalogue.html`, `espace.html`, `quiz/`, `trous/`, `fiche-aleatoire/`, `points-faibles/`, `admin/` — pas d’import croisé depuis `PhieEvreux/` ou autres apps.
-- **V2** (parallèle) : `v2/` — parcours/modules/publications, catalogue résolu (`v2_lister_medicaments` / `v2_fiche_resolue`), ordonnances type, admin sources/référentiel/parcours/jeux/import RCP. Réutilise `../js/supabase.js`, `protect.js`, CSS V1 + `v2/css/v2.css`.
-- Partagé local : `js/` (clients, métier, FAB, bugs, logs, toast) + `css/` (tokens, app, print).
+- Entrée : `index.html` — Mon parcours | Catalogue | Quiz | Tableau à trous | Fiche aléatoire | Ordonnance type | Admin (si admin).
+- Surfaces : `espace.html` (arborescence thèmes), `catalogue.html`, `jeux/`, `ordonnances/`, `admin/` — pas d’import croisé depuis `PhieEvreux/`.
+- **Legacy V1** : `legacy-v1/` (ancien hub, catalogue éditeur, quiz/trous V1, points-faibles). Chemins partagés `../js/`, `../css/`, `../shared/`, `../protect.js`.
+- Partagé : `js/` (clients, résolveur, admin, FAB, bugs, logs, toast) + `css/` (tokens, app, print, v2).
 
 ## Chemins monorepo
 - Config Supabase : `Application/shared/supabase-config.js` → `../shared/…`.
@@ -34,16 +34,17 @@ alwaysApply: true
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018_vue_sans_niveaux_entite` (local, **non appliqué**) ; `019`–`022` V2 + pause quiz (appliqués remote) ; `sql/ops/` lecture seule ; ne pas réappliquer sans check (voir STATE.md).
-- V2 tables clés : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours`, `publications_connaissances`, `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu pédagogique V2.
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`023` pédagogie parcours (appliqués remote) ; `sql/ops/` lecture seule ; ne pas réappliquer sans check (voir STATE.md).
+- Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours` (`parent_id`, `est_groupe`), `publications_connaissances`, `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
+- Arborescence seed : Sang (anémie, anticoagulation) · Cœur (angor, IDM, arythmies, IC) · Veine et artère (artérite, insuffisance veineuse) · Urgence (OAP, urgences CV) · HTA. Pubs héritées des ancêtres si feuille débloquée.
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
-- BDPM **lecture seule** autorisée pour **préremplir noms commerciaux + DCI** (`admin/catalogue.html` + `js/bdm.js`) ; le reste (CI, EI…) reste saisie cours. Pas d’OCR ni d’IA en v1.
-- Admin contenu : une page `admin/catalogue.html` — table + modal fiche (picker chips / ids), filtre « Lié à », import CSV champs actifs, fusion + scanner doublons `valeur_norm`, panneau « Paramétrage des niveaux » centralisé. Aucun contrôle `niveaux_connus` par entité. Anciennes pages `medicaments` / `import-export` / `fusion` / `entites` → redirections.
-- Admin jeux : une page `admin/jeux.html` (« Création jeu ») — onglets Historique | Quiz | Tableau à trous (`?type=historique|quiz|trous`) ; Historique = parties filtrées + audit snapshots (matrices archivées, régénération quiz optionnelle) ; Quiz/Trous = création guidée en étapes ; scores admin, archive. Anciennes pages `quizz` / `trous` → redirections. Routes joueur `quiz/` et `trous/` inchangées.
-- Quiz (création admin) : 4 étapes (médicaments/filtres multi → paramètres → questions éditables → titre) ; génération QCM **client** (`JpQuizz.genererQuestions`) + insert snapshot fidèle (`createWithSnapshot`) ; delete / régénérer une question ; RPC `generer_et_geler_quiz` = legacy / regénération globale. Zéro IA.
+- BDPM **lecture seule** pour préremplir noms/DCI via catalogue legacy (`legacy-v1/admin/catalogue.html` + `js/bdm.js`). Pas d’OCR ni d’IA en v1.
+- Admin actuel : `admin/` — sources, référentiel, parcours/publications, jeux (4 types + params), import RCP.
+- Admin jeux : `admin/jeux.html` — création Quiz | Trous | Fiche aléatoire | Ordonnance avec panneaux de paramètres par type ; pause/reprise ; codes `JP-*****`.
+- Legacy V1 (création quiz/trous figés) : `legacy-v1/admin/jeux.html` + RPC `generer_et_geler_quiz`.
 
 ## Droits
 - Admin métier = `portail.profiles.role === 'admin'` uniquement.
@@ -55,8 +56,6 @@ alwaysApply: true
 - Accueil portail + Bug via `js/fab.js` + `js/bugs.js` (code isolé dans `jeu-pharma/`, pas d’import `PhieEvreux/shared/*`).
 
 ## Fiche aléatoire
-- Route joueur : `fiche-aleatoire/index.html` (tuile hub). Pas de paramètres admin.
-- Fiche publiée tirée au hasard. Noms commerciaux + DCI visibles ; autres champs actifs vides jusqu’à « Voir les réponses » (aucun score).
-- « Mettre un score » : note manuelle /10, insert seulement après validation. « Passer » : fiche suivante, sans score.
-- 3 notes > 8/10 pour l’utilisateur connecté → la fiche n’est plus proposée.
-- Filtre joueur : `visiblePourNiveau` + niveau du `profil_apprentissage` (pas le bypass admin du catalogue).
+- Hub → `jeux/?type=fiche_aleatoire` (modèles `modeles_jeu`) ; legacy joueur encore sous `legacy-v1/fiche-aleatoire/`.
+- Params admin par modèle : seuil exclusion + nb notes (`configuration_json`).
+- Règle métier historique : 3 notes > 8/10 → exclusion ; filtre niveau via `profil_apprentissage` (pas le rôle portail).

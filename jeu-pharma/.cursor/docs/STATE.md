@@ -1,6 +1,6 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-11 — **V2 pédagogique** (schéma additif + app `v2/`) ; pause quiz V1 ; liste quiz sans snapshot joueur.
+Dernière mise à jour : 2026-10-11 — **App parcours** à la racine `jeu-pharma/` ; V1 déplacée dans `legacy-v1/` ; arborescence Sang/Cœur/Veine-artère/Urgence/HTA (`023`).
 
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
@@ -274,40 +274,33 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 2. Préférer le **worktree local** (ou Pages à jour) pour P2–P4.
 3. Parcourir le périmètre listé dans le plan Priorité 1.
 
-## V2 pédagogique (2026-10-11)
+## App parcours (2026-10-11)
 
 ### Décision
-- V1 conservée intacte sous `jeu-pharma/` (hors correctifs pause / fuite snapshot liste).
-- App parallèle [`v2/`](../v2/) + tables additives dans le même schéma `jeupharma`.
-- Source de vérité joueur V2 = publications par module (ou `referentiel_valide` pour parcours pharmacien).
+- Surface principale = app parcours à la racine `jeu-pharma/`.
+- Ancienne app = [`legacy-v1/`](../legacy-v1/) (catalogue éditeur, jeux V1, points-faibles).
+- Source de vérité joueur = publications par module (héritage ancêtres) ; parcours pharmacien = `referentiel_valide`.
 - Import RCP → sas `a_valider` uniquement (pas de publication auto).
 
+### Arborescence (`023`)
+- `modules_cours.parent_id` + `est_groupe`
+- DEUST / etu_3a : Sang → anémie, anticoagulation ; Cœur → angor, IDM, arythmies, IC ; Veine et artère → artérite, insuffisance veineuse ; Urgence → OAP, urgences_cv ; HTA
+- Ancien module plat `cv` dépublié ; pubs migrées vers groupes Cœur / Veine / Urgence + pubs fines par indications/classes sur les feuilles
+- RPC : `v2_module_ancetres`, `v2_publier_module_par_indications`, `v2_publier_module_par_classes_ther` ; résolveur / progression mis à jour
+
 ### Migrations remote (`kpjflntnotftpzffjbud`)
-- [x] `019_v2_pedagogie_core` — sources, connaissances, parcours, modules, publications, modeles_jeu, tentatives, `profil.parcours_id`
-- [x] `020_v2_resolver_rls` — RPC `v2_*` + RLS
-- [x] `021_v2_seed_backfill_rpc_jeux` — seed parcours/modules + RPC jeux/ordonnance + backfill
-- [x] `022_quiz_en_pause` — `quizz.en_pause` + `ouvrir_quiz` refuse pause
+- [x] `019` … `022` (pédagogie + pause quiz)
+- [x] `023` DDL/resolver + seed arborescence + pubs feuilles
 - [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
 
-### Données pilote (après backfill)
-- ~3034 connaissances `valide` (migration V1)
-- Parcours : `deust_apprenti`, `pharmacien`, `etu_3a`
-- Modules DEUST sang/cv/hta publiés ; publications par secteur (sang / système cardiovasculaire)
-- Ops compare : [`sql/ops/v2_baseline_compare.sql`](../sql/ops/v2_baseline_compare.sql)
+### Surfaces
+- Hub : `index.html` — parcours + 4 jeux + admin
+- Joueur : `espace.html`, `catalogue.html`, `jeux/`, `ordonnances/`
+- Admin : `admin/` (sources, référentiel, parcours, jeux 4 types, import-rcp) + lien catalogue legacy
+- Legacy : `legacy-v1/`
 
-### Surfaces V2
-- Joueur : `v2/index.html`, `espace.html`, `catalogue.html`, `ordonnances/`, `jeux/`
-- Admin : `v2/admin/` (sources, référentiel, parcours, jeux, import-rcp)
-- Tuile hub V1 → V2 ; tuile Admin V1 → Admin V2
-
-### Correctifs V1 livrés avec V2
-- `JpQuizz.listQuiz` : pas de `snapshot_questions` pour les joueurs (`includeSnapshot` admin)
-- Pause / reprise quiz dans historique `admin/jeux.html`
-- « Nouveau tirage (même thème) » en entraînement sur `quiz/jouer.html` (score local, snapshot partagé inchangé)
-
-### Bascule
-- Portail peut pointer vers `v2/` après recette ; V1 reste accessible.
-- Valider assertion par assertion le contenu DEUST avant usage réel en formation.
+### Correctifs legacy conservés
+- `JpQuizz.listQuiz` sans snapshot joueur ; pause quiz ; nouveau tirage entraînement
 
 ## Manuel restant (ops — pas code)
 - [ ] Attribuer `site_access` aux joueurs (admins portail passent le gate sans ligne).

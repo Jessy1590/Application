@@ -1,0 +1,116 @@
+/* Compléments UI V2 — s’appuie sur ../css/app.css */
+
+.jp-v2-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--jp-accent-soft);
+  color: var(--jp-accent);
+}
+
+.jp-v2-badge.is-lock {
+  background: rgba(120, 80, 40, 0.12);
+  color: #8a5a20;
+}
+
+.jp-v2-badge.is-done {
+  background: rgba(20, 120, 80, 0.12);
+  color: #0f6b5c;
+}
+
+.jp-v2-modules {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.jp-v2-module {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  background: var(--jp-bg-elevated);
+}
+
+.jp-v2-module.is-locked {
+  opacity: 0.55;
+}
+
+.jp-v2-parcours-btn {
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  border: 1px solid var(--jp-line);
+  background: var(--jp-bg-elevated);
+}
+
+.jp-v2-mol-card {
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  background: var(--jp-bg-elevated);
+  margin-bottom: 0.75rem;
+}
+
+.jp-v2-mol-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.jp-v2-champs-revealed dt {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+.jp-v2-champs-revealed dd {
+  margin: 0.15rem 0 0;
+  color: var(--jp-text-muted);
+}
+
+.jp-v2-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--jp-radius);
+  border: 1px solid rgba(15, 107, 92, 0.25);
+  background: var(--jp-accent-soft);
+  margin-bottom: 1.25rem;
+}
+
+.jp-v2-tree {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.jp-v2-module.is-group {
+  background: linear-gradient(135deg, var(--jp-accent-soft), transparent);
+  border-color: rgba(15, 107, 92, 0.35);
+}
+
+.jp-v2-module.is-group h3 {
+  font-family: "Source Serif 4", Georgia, serif;
+}
+
+@media (max-width: 720px) {
+  .jp-page {
+    width: min(100% - 1.25rem, var(--jp-max));
+    padding-bottom: 5rem;
+  }
+
+  .jp-v2-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .jp-v2-actions .jp-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-height: 640px) {
+  .jp-quiz-admin-panel-body,
+  .jp-med-editor-body {
+    max-height: min(55dvh, 22rem);
+    overflow: auto;
+  }
+}
