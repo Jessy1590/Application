@@ -36,7 +36,8 @@ alwaysApply: true
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
 - SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`023` pédagogie parcours (appliqués remote) ; `sql/ops/` lecture seule ; ne pas réappliquer sans check (voir STATE.md).
 - Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours` (`parent_id`, `est_groupe`), `publications_connaissances`, `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
-- Arborescence seed : Sang (anémie, anticoagulation) · Cœur (angor, IDM, arythmies, IC) · Veine et artère (artérite, insuffisance veineuse) · Urgence (OAP, urgences CV) · HTA. Pubs héritées des ancêtres si feuille débloquée.
+- Parcours démo `introduction` (ordre 1) : prise en main + Sang intro + révision + 4 jeux `JP-INT*`.
+- Arborescence DEUST : Sang (anémie, anticoagulation) · Cœur (angor, IDM, arythmies, IC) · Veine et artère (artérite, insuffisance veineuse) · Urgence (OAP, urgences CV) · HTA. Pubs héritées des ancêtres si feuille débloquée. Feuille sans prérequis = ouverte.
 - Classes théra / pharma : jonctions `matrice_classes_*` (plusieurs classes par fiche). La FK `classe_*_id` reste la classe d’ordre 0.
 
 ## Contenu pédagogique

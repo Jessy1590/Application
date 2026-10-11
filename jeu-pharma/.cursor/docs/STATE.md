@@ -288,9 +288,19 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - Ancien module plat `cv` dépublié ; pubs migrées vers groupes Cœur / Veine / Urgence + pubs fines par indications/classes sur les feuilles
 - RPC : `v2_module_ancetres`, `v2_publier_module_par_indications`, `v2_publier_module_par_classes_ther` ; résolveur / progression mis à jour
 
+### Parcours démo Introduction (`024`)
+- Parcours `introduction` (ordre 1, `publications`, niveau apprenti) — prise en main admin complète
+- Thèmes : Prise en main → Sang premiers pas → Mise en pratique
+- Feuilles : Lire une fiche (fer + énoxaparine) · Anémie · Anticoagulation · Révision guidée — **sans prérequis** (toutes ouvertes)
+- Pubs : corpus réduit (~7 DCI) depuis connaissances `valide`
+- Jeux démo actifs :
+  - `JP-INTQ1` Quiz · `JP-INTT1` Trous · `JP-INTF1` Fiche aléatoire · `JP-INTO1` Ordonnance
+- Déblocage : feuille sans `prerequis_module_id` = accessible (DEUST garde sa chaîne)
+
 ### Migrations remote (`kpjflntnotftpzffjbud`)
 - [x] `019` … `022` (pédagogie + pause quiz)
 - [x] `023` DDL/resolver + seed arborescence + pubs feuilles
+- [x] `024` parcours Introduction + 4 jeux démo
 - [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
 
 ### Surfaces

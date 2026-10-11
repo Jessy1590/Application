@@ -36,7 +36,7 @@
   async function listParcours() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, description, niveau_lie, mode_contenu, ordre')
+      .select('id, code, libelle, description, niveau_lie, mode_contenu, ordre, actif')
       .eq('actif', true)
       .order('ordre');
     if (error) throw error;

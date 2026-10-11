@@ -23,7 +23,7 @@
   <main class="jp-page">
     <p class="jp-kicker">Parcours</p>
     <h1 class="jp-brand">Jeu Pharma</h1>
-    <p class="jp-sub">Sang, Cœur, Veine et artère, Urgence, HTA — uniquement les connaissances publiées de votre parcours.</p>
+    <p class="jp-sub">Choisissez un parcours (ex. Introduction), explorez les thèmes, puis jouez aux 4 types d’activités.</p>
     <div class="jp-v2-banner" id="parcoursBanner">Chargement du parcours…</div>
     <nav class="jp-hub-grid" aria-label="Applications">
       <a class="jp-tile" href="espace.html">
@@ -73,12 +73,15 @@
         const prog = await JpV2Resolver.progression();
         const el = document.getElementById('parcoursBanner');
         if (!prog?.parcours) {
-          el.innerHTML = 'Aucun parcours actif — <a href="espace.html">choisir un parcours</a>.';
+          el.innerHTML = 'Aucun parcours actif — commencez par <a href="espace.html">Introduction</a>.';
         } else {
           const leaves = (prog.modules || []).filter(function (m) { return !m.est_groupe; });
           const open = leaves.filter(function (m) { return m.statut !== 'verrouille'; }).length;
           el.innerHTML = 'Parcours : <strong>' + JpUi.escapeHtml(prog.parcours.libelle)
-            + '</strong> · ' + open + '/' + leaves.length + ' sous-parcours accessibles';
+            + '</strong> · ' + open + '/' + leaves.length + ' sous-parcours accessibles'
+            + (prog.parcours.code === 'introduction'
+              ? ' · jeux démo <code>JP-INTQ1</code> / <code>JP-INTT1</code> / <code>JP-INTF1</code> / <code>JP-INTO1</code>'
+              : '');
         }
       } catch (e) {
         document.getElementById('parcoursBanner').textContent = e.message || String(e);

@@ -30,6 +30,7 @@
       <label for="selParcours">Parcours actif</label>
       <select id="selParcours"></select>
     </div>
+    <p id="parcoursDesc" class="jp-muted" style="margin:0.5rem 0 1rem"></p>
     <button type="button" class="jp-btn jp-btn-primary" id="btnSaveParcours">Enregistrer</button>
 
     <section style="margin-top:2rem" aria-labelledby="modTitle">
@@ -96,22 +97,34 @@
         modsEl.innerHTML = roots.map(function (r) { return renderNode(r, 0); }).join('');
       }
 
+      let parcoursList = [];
+
+      function syncDesc() {
+        const p = parcoursList.find(function (x) { return x.id === sel.value; });
+        const el = document.getElementById('parcoursDesc');
+        el.textContent = p?.description || '';
+      }
+
       async function refresh() {
+        syncDesc();
         const prog = await JpV2Resolver.progression(sel.value || null);
         renderTree(prog.modules || []);
       }
 
       try {
-        const list = await JpV2Resolver.listParcours();
+        parcoursList = await JpV2Resolver.listParcours();
         const profil = await JpV2Resolver.getProfilV2();
-        list.forEach(function (p) {
+        parcoursList.forEach(function (p) {
           const o = document.createElement('option');
           o.value = p.id;
-          o.textContent = p.libelle + ' (' + p.code + ')';
+          o.textContent = p.libelle + (p.code === 'introduction' ? ' · recommandé' : '');
           sel.appendChild(o);
         });
         if (profil?.parcours_id) sel.value = profil.parcours_id;
-        else if (list[0]) sel.value = list[0].id;
+        else {
+          const intro = parcoursList.find(function (p) { return p.code === 'introduction'; });
+          sel.value = (intro || parcoursList[0] || {}).id || '';
+        }
         await refresh();
       } catch (e) {
         JpToast.fromError(e);

@@ -9,7 +9,15 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 3. **Résolveur** : lecture joueur uniquement via RPC `v2_*` (pubs des modules débloqués + ancêtres).
 4. **Jeux** : Quiz, Tableau à trous, Fiche aléatoire, Ordonnance type (`modeles_jeu` + `tentatives_jeu`).
 
-## Arborescence pédagogique (DEUST / etu_3a)
+## Parcours Introduction (démo admin)
+
+Choisissez **Introduction** dans Mon parcours pour tester le flux complet :
+
+1. Thèmes / feuilles publiés (lire une fiche → Sang → révision)  
+2. Catalogue résolu limité au corpus intro  
+3. Quatre jeux : `JP-INTQ1` (quiz), `JP-INTT1` (trous), `JP-INTF1` (fiche), `JP-INTO1` (ordonnance)
+
+## Arborescence DEUST / etu_3a
 
 - **Sang** → Anémie, Anticoagulation  
 - **Cœur** → Angor, IDM, Arythmies, Insuffisance cardiaque  
@@ -31,4 +39,4 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 
 ## SQL
 
-`sql/019` … `023` (arborescence thématique). `018` non appliqué sans décision explicite.
+`sql/019` … `024` (arborescence + démo Introduction). `018` non appliqué sans décision explicite.
