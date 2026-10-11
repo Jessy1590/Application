@@ -121,6 +121,27 @@
   .bh-due-actions .bh-btn{ padding:9px 12px; font-size:13px; border-radius:9px; }
   .bh-due-actions .bh-btn-primary{ flex:1.3; }
   .bh-due-actions .bh-btn-ghost{ flex:1; }
+  .bh-due.selected{ border-color:var(--sage); background:var(--sage-pale); }
+  .bh-due-check{
+    width:22px; height:22px; border-radius:7px; border:2px solid var(--line);
+    background:var(--card); flex-shrink:0; display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; margin-top:1px; color:#fff; font-size:12px; font-weight:700; padding:0; line-height:1;
+  }
+  .bh-due.selected .bh-due-check{ background:var(--sage); border-color:var(--sage); }
+  .bh-group-bar{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:76px; z-index:24; width:min(520px, calc(100% - 24px));
+    background:var(--sage-deep); color:#fff; border-radius:14px; padding:12px 14px;
+    box-shadow:0 8px 24px -6px rgba(40,69,58,0.45);
+    display:none; align-items:center; gap:10px;
+  }
+  .bh-group-bar.open{ display:flex; }
+  .bh-group-bar-info{ flex:1; min-width:0; font-size:12.5px; line-height:1.35; }
+  .bh-group-bar-info strong{ font-size:13.5px; display:block; }
+  .bh-group-bar .bh-btn{ padding:9px 12px; font-size:12.5px; border-radius:9px; flex:0 0 auto; }
+  .bh-group-bar .bh-btn-ghost{ background:rgba(255,255,255,0.14); color:#fff; }
+  .bh-group-bar .bh-btn-primary{ background:#fff; color:var(--sage-deep); }
+  .bh-group-bar .bh-btn-primary:disabled{ opacity:0.45; cursor:default; }
   .bh-section-count{ display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:20px; background:var(--line-soft); color:var(--ink-soft); font-size:11px; font-weight:700; }
   
   /* ACCOUNT CARDS */
@@ -354,6 +375,7 @@
     </div>
     <div id="bh-wallets-section"></div>
     <div id="bh-due-section"></div>
+    <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
     <div class="bh-section-label">Dépenses validées</div>
     <div class="bh-card" id="bh-paid-list-wrap">
       <div id="bh-paid-list"></div>
@@ -551,6 +573,26 @@
     <div class="bh-sheet-actions" style="margin-top:16px;">
       <button class="bh-btn bh-btn-ghost" onclick="BH.closeDifferentAmount()">Annuler</button>
       <button class="bh-btn bh-btn-primary" onclick="BH.confirmDifferentAmount()">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- VALIDATION GROUPÉE SHEET -->
+<div class="bh-sheet-overlay" id="bh-group-overlay" onclick="if(event.target===this) BH.closeGroupValidate()">
+  <div class="bh-sheet">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Valider ensemble</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="gv-desc"></p>
+    <div id="gv-list" style="margin-bottom:12px;"></div>
+    <div class="bh-field-label">Montant global réellement prélevé (€) — 0€ accepté</div>
+    <input type="number" step="0.01" id="gv-amount" placeholder="0.00" oninput="BH.refreshGroupValidatePreview()">
+    <p style="font-size:11.5px; color:var(--ink-faint); margin:6px 2px 0;">
+      Le montant est réparti au prorata des montants prévus de chaque dépense (ce mois-ci uniquement).
+    </p>
+    <div id="gv-preview" style="margin-top:12px;"></div>
+    <div class="bh-sheet-actions" style="margin-top:16px;">
+      <button class="bh-btn bh-btn-ghost" onclick="BH.closeGroupValidate()">Annuler</button>
+      <button class="bh-btn bh-btn-primary" onclick="BH.confirmGroupValidate()">Valider le groupe</button>
     </div>
   </div>
 </div>
@@ -799,6 +841,8 @@
     comptesMonth: new Date(),
     sheetMode: 'expense',
     sheetEditId: null,
+    groupSelect: {}, // expId -> accId
+    groupValidateItems: [],
 
     async init() {
       await this.fetchData();
@@ -1161,6 +1205,10 @@
     render() {
       document.getElementById('bh-header-sub').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
       if(this.activeTab === 'today') this.renderToday();
+      else {
+        const bar = document.getElementById('bh-group-bar');
+        if (bar) { bar.classList.remove('open'); bar.innerHTML = ''; }
+      }
       if(this.activeTab === 'comptes') this.renderComptes();
       if(this.activeTab === 'saisies') this.renderSaisies();
       if(this.activeTab === 'stats') this.renderStats();
@@ -1266,15 +1314,19 @@
         const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
         const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
+        const selected = !!(this.groupSelect && this.groupSelect[exp.id]);
         return `
-          <div class="bh-due${expiredCls}">
+          <div class="bh-due${expiredCls}${selected ? ' selected' : ''}">
             <div class="bh-due-top">
-              <div>
-                <div class="bh-due-desc">${this.esc(exp.description)}</div>
-                <div class="bh-due-meta">
-                  <span class="bh-pill ${cls}">${lbl}</span>
-                  <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
-                  ${this.isExpired(exp) ? `<span class="bh-pill" style="background:var(--clay-pale); color:var(--clay);">⚠️ Expirée le ${this.fmtDate(exp.end_date)}</span>` : ''}
+              <div style="display:flex; gap:10px; min-width:0; flex:1;">
+                <button type="button" class="bh-due-check" onclick="BH.toggleGroupSelect('${exp.id}','${acc.id}')" aria-label="Sélectionner pour validation groupée" title="Sélectionner pour valider ensemble">${selected ? '✓' : ''}</button>
+                <div style="min-width:0;">
+                  <div class="bh-due-desc">${this.esc(exp.description)}</div>
+                  <div class="bh-due-meta">
+                    <span class="bh-pill ${cls}">${lbl}</span>
+                    <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
+                    ${this.isExpired(exp) ? `<span class="bh-pill" style="background:var(--clay-pale); color:var(--clay);">⚠️ Expirée le ${this.fmtDate(exp.end_date)}</span>` : ''}
+                  </div>
                 </div>
               </div>
               <div class="bh-due-amount num">${this.fmt(exp.amount)}</div>
@@ -1318,6 +1370,8 @@
       document.getElementById('bh-paid-list').innerHTML = paidExpHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
       const paidIncEl = document.getElementById('bh-paid-incomes-list');
       if (paidIncEl) paidIncEl.innerHTML = paidIncHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
+      this.pruneGroupSelect(mKey);
+      this.renderGroupBar();
     },
 
     fmtDate(d) {
@@ -1325,12 +1379,38 @@
       return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR');
     },
 
+    walletTxDateLabel(t) {
+      if (t?.date) {
+        const d = new Date(t.date + 'T00:00:00');
+        if (!isNaN(d.getTime())) return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+      }
+      return 'le ' + (t?.day ?? '?');
+    },
+
+    walletTxKindPill(t) {
+      if (t?.from_account_id || t?.kind === 'apport') {
+        const src = this.state.accounts.find(a => a.id === t.from_account_id);
+        return `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep); font-size:10px;">Apport${src ? ' · ' + this.esc(src.name) : ''}</span>`;
+      }
+      if (Number(t?.amount) < 0 || t?.kind === 'refund') {
+        return `<span class="bh-pill" style="background:var(--gold-pale); color:var(--gold); font-size:10px;">Remboursement</span>`;
+      }
+      return '';
+    },
+
     walletCardHtml({ exp, acc, txs, spent }) {
       const remaining = Number(exp.amount) - spent;
-      const pct = Math.min(100, (spent / Number(exp.amount)) * 100 || 0);
+      const pct = Math.max(0, Math.min(100, (spent / Number(exp.amount)) * 100 || 0));
       const expanded = !!(this.walletExpanded && this.walletExpanded[exp.id]);
       const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
       const sortedTxs = txs.slice().sort((a,b)=>Number(b.day)-Number(a.day));
+      const todayISO = this._todayISO();
+      const monthStart = todayISO.slice(0, 8) + '01';
+      const monthEnd = this.monthKey(new Date()) + '-' + String(new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()).padStart(2,'0');
+      const otherAccOpts = this.state.accounts
+        .filter(a => a.id !== acc.id)
+        .map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`)
+        .join('');
       return `<div class="bh-card${expiredCls}" style="margin-bottom:10px; padding:14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; gap:10px;" onclick="BH.toggleWalletExpand('${exp.id}')">
           <div style="min-width:0;">
@@ -1347,17 +1427,27 @@
           <div style="margin-top:12px; border-top:1px dashed var(--line); padding-top:10px;">
             ${sortedTxs.length ? sortedTxs.map(t => `
               <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:5px 0;">
-                <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· le ${t.day}</span></span>
+                <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· ${this.walletTxDateLabel(t)}</span> ${this.walletTxKindPill(t)}</span>
                 <span style="display:flex; align-items:center; gap:8px;">
-                  <span class="num">${this.fmt(t.amount)}</span>
+                  <span class="num" style="color:${Number(t.amount) < 0 ? 'var(--sage-deep)' : 'inherit'};">${Number(t.amount) < 0 ? '+' + this.fmt(Math.abs(Number(t.amount))) : this.fmt(t.amount)}</span>
                   <button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}')" title="Supprimer">✕</button>
                 </span>
               </div>`).join('') : '<div style="font-size:12px; color:var(--ink-faint); padding:6px 0;">Aucune dépense saisie ce mois-ci.</div>'}
-            <div style="display:flex; gap:6px; margin-top:10px;" onclick="event.stopPropagation()">
-              <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc">
-              <input type="number" id="wtx-amount-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:70px;" placeholder="€" step="0.01">
-              <button class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}')">+</button>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;" onclick="event.stopPropagation()">
+              <div style="display:flex; gap:6px;">
+                <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc / remboursement / apport">
+                <input type="number" id="wtx-amount-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:70px;" placeholder="+/- €" step="0.01">
+                <button class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}')">+</button>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <input type="date" id="wtx-date-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:140px;" value="${todayISO}" min="${monthStart}" max="${monthEnd}">
+                <select id="wtx-from-${exp.id}" class="bh-input" style="margin:0; flex:1.2; min-width:140px;">
+                  <option value="">Compte source : aucun</option>
+                  ${otherAccOpts}
+                </select>
+              </div>
             </div>
+            <p style="font-size:11px; color:var(--ink-faint); margin:6px 0 0;">Négatif = remboursement. Compte source = apport depuis un autre compte (ex. Swile → ce portefeuille).</p>
           </div>
         ` : ''}
       </div>`;
@@ -1474,12 +1564,14 @@
           <div class="bh-info-row"><span>Revenus (compte principal)</span><span class="num">${this.fmt(info.tInc)}</span></div>
           <div class="bh-info-row"><span>− Dépenses à date (jour ≤ ${dateFr})</span><span class="num">${this.fmt(info.expsToDate)}</span></div>
           <div class="bh-info-row"><span>− Apports versés vers les autres comptes</span><span class="num">${this.fmt(info.totalOutboundContributions)}</span></div>
+          ${(info.walletApportsOut > 0) ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(info.walletApportsOut)}</span></div>` : ''}
           <div class="bh-info-row"><span>= Reste à date</span><span class="num">${this.fmt(info.resteEnDate)}</span></div>`;
       } else {
         rows = `
           <div class="bh-info-row"><span>Apports reçus (montant plein du mois, tous membres)</span><span class="num">${this.fmt(info.totalApportsRecus)}</span></div>
           <div class="bh-info-row"><span>+ Revenus propres au compte (remboursements, rendement…)</span><span class="num">${this.fmt(info.tInc)}</span></div>
           <div class="bh-info-row"><span>− Dépenses à date (jour ≤ ${dateFr})</span><span class="num">${this.fmt(info.expsToDate)}</span></div>
+          ${(info.walletApportsOut > 0) ? `<div class="bh-info-row"><span>− Apports vers des portefeuilles</span><span class="num">${this.fmt(info.walletApportsOut)}</span></div>` : ''}
           <div class="bh-info-row"><span>= Reste à date</span><span class="num">${this.fmt(info.resteEnDate)}</span></div>`;
       }
       rows += `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px;">Déjà réglé ce mois-ci (informatif, non inclus dans le calcul ci-dessus) : ${this.fmt(info.paidSum)}${info.hasWallet ? '<br>👛 Les portefeuilles sont inclus : "dépenses à date" utilise leurs dépenses internes réellement saisies à date, et "déjà réglé" leur montant dépensé ce mois-ci.' : ''}</div>`;
@@ -1798,18 +1890,19 @@
           }
           return Number(e.day) <= selDay ? s + Number(e.amount) : s;
         }, 0);
+        const walletApportsOut = this.outboundWalletApports(acc.id, mKey, selDay);
         let resteEnDate, totalApportsRecus = 0;
         if (isMain) {
-          resteEnDate = tInc - expsToDate - totalOutboundContributions;
+          resteEnDate = tInc - expsToDate - totalOutboundContributions - walletApportsOut;
         } else {
           totalApportsRecus = totalAllocated;
-          resteEnDate = totalApportsRecus + tInc - expsToDate;
+          resteEnDate = totalApportsRecus + tInc - expsToDate - walletApportsOut;
         }
         const hasWallet = exps.some(e => e.is_wallet);
         if (!this.resteInfo) this.resteInfo = {};
         this.resteInfo[acc.id] = {
           accName: acc.name, isMain, resteDate, paidSum, expsToDate, resteEnDate,
-          tInc, totalOutboundContributions, totalApportsRecus, hasWallet
+          tInc, totalOutboundContributions, totalApportsRecus, hasWallet, walletApportsOut
         };
         const resteEnDateColor = resteEnDate >= 0 ? 'var(--sage-deep)' : 'var(--clay)';
         const resteEnDateHtml = `<div class="bh-reste-date">
@@ -1902,20 +1995,59 @@
       this.renderToday();
     },
 
+    // Apports sortants d'un compte vers des portefeuilles d'autres comptes (stockés en JSONB côté destinataire)
+    outboundWalletApports(sourceAccId, mKey, maxDay = 31) {
+      let total = 0;
+      (this.state.expenses || []).filter(e => e.is_wallet).forEach(exp => {
+        this.getWalletTx(exp.account_id, exp.id, mKey).forEach(t => {
+          if (t.from_account_id !== sourceAccId) return;
+          if (Number(t.day) > maxDay) return;
+          total += Math.abs(Number(t.amount) || 0);
+        });
+      });
+      return total;
+    },
+
     async addWalletTx(expId, accId) {
       const desc = (document.getElementById(`wtx-desc-${expId}`)?.value || '').trim();
-      const amount = Number(document.getElementById(`wtx-amount-${expId}`)?.value);
-      if (!desc || !amount || amount <= 0) { toast('Renseigne une description et un montant valides.'); return; }
+      const rawAmount = document.getElementById(`wtx-amount-${expId}`)?.value;
+      const dateStr = document.getElementById(`wtx-date-${expId}`)?.value || this._todayISO();
+      const fromAccId = (document.getElementById(`wtx-from-${expId}`)?.value || '').trim();
+      let amount = Number(rawAmount);
+      if (!desc || rawAmount === '' || rawAmount == null || !Number.isFinite(amount) || amount === 0) {
+        toast('Renseigne une description et un montant non nul (négatif pour un remboursement).');
+        return;
+      }
+      if (fromAccId) {
+        if (fromAccId === accId) { toast('Choisis un autre compte source pour l\'apport.'); return; }
+        if (!this.state.accounts.some(a => a.id === fromAccId)) { toast('Compte source invalide.'); return; }
+        if (!(amount > 0)) { toast('Pour un apport, indique un montant positif.'); return; }
+        amount = -Math.abs(amount);
+      }
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) { toast('Date invalide.'); return; }
       const mKey = this.monthKey(new Date());
-      const day = new Date().getDate();
+      const curKey = this.monthKey(d);
+      if (curKey !== mKey) { toast('La date doit être dans le mois en cours.'); return; }
+      const day = d.getDate();
       const bucket = this.state.walletTx?.[accId + '_' + mKey] || {};
       const list = (bucket[expId] || []).slice();
-      list.push({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())), description: desc, amount, day });
+      const kind = fromAccId ? 'apport' : (amount < 0 ? 'refund' : 'expense');
+      const tx = {
+        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+        description: desc,
+        amount,
+        day,
+        date: dateStr,
+        kind
+      };
+      if (fromAccId) tx.from_account_id = fromAccId;
+      list.push(tx);
       const newBucket = { ...bucket, [expId]: list };
 
       await withRetry(async () => {
         await this.upsertMonthRecord(accId, mKey, { wallet_transactions: newBucket });
-        toast('Dépense ajoutée au portefeuille');
+        toast(kind === 'apport' ? 'Apport ajouté au portefeuille' : (kind === 'refund' ? 'Remboursement ajouté au portefeuille' : 'Dépense ajoutée au portefeuille'));
         this.fetchData();
       }, 'ajout dépense portefeuille');
     },
@@ -1928,7 +2060,7 @@
 
       await withRetry(async () => {
         await this.upsertMonthRecord(accId, mKey, { wallet_transactions: newBucket });
-        toast('Dépense retirée du portefeuille');
+        toast('Mouvement retiré du portefeuille');
         this.fetchData();
       }, 'suppression dépense portefeuille');
     },
@@ -2156,6 +2288,12 @@
       const label = kind === 'income' ? 'montant habituel' : 'montant habituel';
       document.getElementById('da-desc').textContent = `${item.description} — ${acc ? acc.name : ''} · ${label} ${this.fmt(item.amount)}`;
       document.getElementById('da-amount').value = item.amount;
+      const amountLabel = document.querySelector('#bh-diffamount-overlay .bh-field-label');
+      if (amountLabel) {
+        amountLabel.textContent = kind === 'income'
+          ? 'Montant réellement encaissé (€)'
+          : 'Montant réellement prélevé (€) — 0€ accepté';
+      }
       this.setDiffAmountMode('temp');
       document.getElementById('bh-diffamount-overlay').classList.add('open');
     },
@@ -2180,8 +2318,16 @@
 
     async confirmDifferentAmount() {
       const { expId, accId, mode, kind } = this.diffAmount;
-      const newAmount = Number(document.getElementById('da-amount').value);
-      if (!newAmount || isNaN(newAmount) || newAmount <= 0) { toast("Le montant doit être un nombre positif."); return; }
+      const rawAmount = document.getElementById('da-amount').value;
+      if (rawAmount === '' || rawAmount == null) { toast('Indique un montant.'); return; }
+      const newAmount = Number(rawAmount);
+      if (!Number.isFinite(newAmount)) { toast('Le montant doit être un nombre.'); return; }
+      if (kind === 'income') {
+        if (newAmount <= 0) { toast('Le montant doit être un nombre positif.'); return; }
+      } else if (newAmount < 0) {
+        toast('Le montant de la dépense ne peut pas être négatif (0€ accepté).');
+        return;
+      }
 
       await withRetry(async () => {
         if (mode === 'perm') {
@@ -2224,6 +2370,173 @@
         this.closeDifferentAmount();
         this.fetchData();
       }, 'montant différent');
+    },
+
+    // --- VALIDATION GROUPÉE (plusieurs dépenses, un montant global) ---
+    pruneGroupSelect(mKey) {
+      if (!this.groupSelect) this.groupSelect = {};
+      Object.keys(this.groupSelect).forEach(expId => {
+        const accId = this.groupSelect[expId];
+        const exp = this.state.expenses.find(e => e.id === expId);
+        if (!exp || exp.is_wallet || this.state.months[accId + '_' + mKey]?.[expId]) {
+          delete this.groupSelect[expId];
+        }
+      });
+    },
+
+    toggleGroupSelect(expId, accId) {
+      if (!this.groupSelect) this.groupSelect = {};
+      if (this.groupSelect[expId]) {
+        delete this.groupSelect[expId];
+      } else {
+        const selectedIds = Object.keys(this.groupSelect);
+        if (selectedIds.length) {
+          const firstAcc = this.groupSelect[selectedIds[0]];
+          if (firstAcc !== accId) {
+            toast('Regroupe uniquement des dépenses du même compte.');
+            return;
+          }
+        }
+        this.groupSelect[expId] = accId;
+      }
+      this.renderToday();
+    },
+
+    clearGroupSelect() {
+      this.groupSelect = {};
+      this.renderToday();
+    },
+
+    getGroupSelection() {
+      const items = [];
+      Object.entries(this.groupSelect || {}).forEach(([expId, accId]) => {
+        const exp = this.state.expenses.find(e => e.id === expId);
+        if (!exp || exp.is_wallet) return;
+        items.push({ expId, accId, exp, amount: Number(exp.amount) || 0 });
+      });
+      return items;
+    },
+
+    renderGroupBar() {
+      const bar = document.getElementById('bh-group-bar');
+      if (!bar) return;
+      const items = this.getGroupSelection();
+      if (!items.length) {
+        bar.classList.remove('open');
+        bar.innerHTML = '';
+        return;
+      }
+      const planned = items.reduce((s, it) => s + it.amount, 0);
+      const canValidate = items.length >= 2;
+      bar.classList.add('open');
+      bar.innerHTML = `
+        <div class="bh-group-bar-info">
+          <strong>${items.length} dépense${items.length > 1 ? 's' : ''} sélectionnée${items.length > 1 ? 's' : ''}</strong>
+          Prévu ${this.fmt(planned)}${canValidate ? '' : ' · sélectionne au moins 2'}
+        </div>
+        <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.clearGroupSelect()">Annuler</button>
+        <button type="button" class="bh-btn bh-btn-primary" ${canValidate ? '' : 'disabled'} onclick="BH.openGroupValidate()">Valider ensemble</button>`;
+    },
+
+    distributeGroupAmounts(items, globalAmount) {
+      const n = items.length;
+      if (!n) return [];
+      const totalCents = Math.round(Number(globalAmount) * 100);
+      const plannedSum = items.reduce((s, it) => s + Math.max(0, Number(it.amount) || 0), 0);
+      if (plannedSum <= 0) {
+        const base = Math.floor(totalCents / n);
+        let rem = totalCents - base * n;
+        return items.map((it, i) => ({
+          expId: it.expId,
+          amount: (base + (i < rem ? 1 : 0)) / 100
+        }));
+      }
+      const shares = items.map(it => {
+        const planned = Math.max(0, Number(it.amount) || 0);
+        const exact = (planned / plannedSum) * totalCents;
+        const floor = Math.floor(exact);
+        return { expId: it.expId, floor, frac: exact - floor };
+      });
+      let assigned = shares.reduce((s, x) => s + x.floor, 0);
+      let rem = totalCents - assigned;
+      shares.sort((a, b) => b.frac - a.frac || a.expId.localeCompare(b.expId));
+      for (let i = 0; i < rem; i++) shares[i].floor += 1;
+      const byId = Object.fromEntries(shares.map(s => [s.expId, s.floor / 100]));
+      return items.map(it => ({ expId: it.expId, amount: byId[it.expId] }));
+    },
+
+    openGroupValidate() {
+      const items = this.getGroupSelection();
+      if (items.length < 2) { toast('Sélectionne au moins 2 dépenses du même compte.'); return; }
+      const accId = items[0].accId;
+      const acc = this.state.accounts.find(a => a.id === accId);
+      const planned = items.reduce((s, it) => s + it.amount, 0);
+      this.groupValidateItems = items;
+      document.getElementById('gv-desc').textContent =
+        `${items.length} dépenses · ${acc ? acc.name : ''} · prévu ${this.fmt(planned)}`;
+      document.getElementById('gv-list').innerHTML = items.map(it => `
+        <div class="bh-info-row">
+          <span>${this.esc(it.exp.description)}</span>
+          <span class="num">${this.fmt(it.amount)}</span>
+        </div>`).join('');
+      document.getElementById('gv-amount').value = (Math.round(planned * 100) / 100).toFixed(2);
+      this.refreshGroupValidatePreview();
+      document.getElementById('bh-group-overlay').classList.add('open');
+    },
+
+    closeGroupValidate() {
+      document.getElementById('bh-group-overlay').classList.remove('open');
+    },
+
+    refreshGroupValidatePreview() {
+      const el = document.getElementById('gv-preview');
+      if (!el) return;
+      const items = this.groupValidateItems || [];
+      const raw = document.getElementById('gv-amount')?.value;
+      const amount = Number(raw);
+      if (!items.length || raw === '' || !Number.isFinite(amount) || amount < 0) {
+        el.innerHTML = '';
+        return;
+      }
+      const dist = this.distributeGroupAmounts(items, amount);
+      el.innerHTML = `<div style="font-size:11.5px; font-weight:700; color:var(--ink-faint); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Répartition</div>`
+        + dist.map(d => {
+          const it = items.find(x => x.expId === d.expId);
+          return `<div class="bh-info-row"><span>${this.esc(it?.exp?.description || '')}</span><span class="num">${this.fmt(d.amount)}</span></div>`;
+        }).join('');
+    },
+
+    async confirmGroupValidate() {
+      const items = this.groupValidateItems || [];
+      if (items.length < 2) { toast('Sélectionne au moins 2 dépenses.'); return; }
+      const rawAmount = document.getElementById('gv-amount').value;
+      if (rawAmount === '' || rawAmount == null) { toast('Indique un montant global.'); return; }
+      const globalAmount = Number(rawAmount);
+      if (!Number.isFinite(globalAmount) || globalAmount < 0) {
+        toast('Le montant global doit être un nombre ≥ 0.');
+        return;
+      }
+      const accId = items[0].accId;
+      if (items.some(it => it.accId !== accId)) {
+        toast('Toutes les dépenses doivent appartenir au même compte.');
+        return;
+      }
+      const dist = this.distributeGroupAmounts(items, globalAmount);
+      const mKey = this.monthKey(new Date());
+      const on = new Date().toISOString();
+
+      await withRetry(async () => {
+        let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
+        dist.forEach(d => {
+          recs[d.expId] = { amount: d.amount, on, grouped: true };
+        });
+        await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
+        this.groupSelect = {};
+        this.groupValidateItems = [];
+        this.closeGroupValidate();
+        toast(`${items.length} dépenses validées ensemble (${this.fmt(globalAmount)})`);
+        this.fetchData();
+      }, 'validation groupée');
     },
 
     renderSaisies() {
