@@ -302,6 +302,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] `023` DDL/resolver + seed arborescence + pubs feuilles
 - [x] `024` parcours Introduction + 4 jeux démo
 - [x] `025` RPC `v2_creer_parcours` / `v2_creer_module` / `v2_publier_module_matrices` ; jeux jouables (`js/jeux-play.js`) ; admin parcours simplifié
+- [x] `026` fix pool quiz (`matrice_ids` non vide) + ordonnance `DISTINCT`/`ORDER BY random()` + repli `matrice_ids` ; jeux intro `JP-INT*` ont 8 matrices figées ; `JP-INTO1` règles `matrice` explicites
 - [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
 
 ### Surfaces

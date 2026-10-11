@@ -220,8 +220,17 @@ DECLARE
   id_anemie uuid;
   id_anticoag uuid;
   id_revision uuid;
-  classe_anticoag uuid := '383c0361-0052-4127-afeb-46db6a987bcc'; -- Anticoagulants
-  classe_anemie uuid := '1995ab12-b0b9-4247-8e5f-5ce630d023d0';   -- Anti-anémiques
+  -- Pool démo Sang (8 matrices) — figé pour jeux intro même si le listing RPC est vide
+  pool_sang uuid[] := ARRAY[
+    'd122d669-2f7c-48ed-a517-aa6e4bd765b8'::uuid,
+    '480be154-0bca-433c-a97d-4e9b23e73729'::uuid,
+    '6062f202-2407-493f-aa22-c26fc374877e'::uuid,
+    'b6b1bcf8-63af-4882-8b5b-0078b271e1e6'::uuid,
+    '7df6b28a-35f6-47a0-aacb-d73d5482e275'::uuid,
+    '4a0382c1-76f8-4e60-8c8c-ea50a644f869'::uuid,
+    'da85c070-cf70-4440-bf0b-9db4bb1995e6'::uuid,
+    'de52a954-d5c1-434a-ab55-df2d6af685d3'::uuid
+  ];
 BEGIN
   SELECT id INTO pid FROM jeupharma.parcours_apprentissage WHERE code = 'introduction';
   SELECT id INTO id_anemie FROM jeupharma.modules_cours WHERE parcours_id = pid AND code = 'anemie_intro';
@@ -244,6 +253,7 @@ BEGIN
       'champs_interroges', jsonb_build_array('indications','contre_indications','effets_indesirables','classe_pharmacologique'),
       'nb_questions', 8,
       'nb_propositions', 3,
+      'matrice_ids', to_jsonb(pool_sang),
       'demo', true,
       'parcours_demo', 'introduction'
     ),
@@ -275,6 +285,7 @@ BEGIN
       'champs_interroges', jsonb_build_array('indications','contre_indications','effets_indesirables','surveillances'),
       'nb_fiches', 4,
       'densite_trous', 3,
+      'matrice_ids', to_jsonb(pool_sang),
       'demo', true
     ),
     false,
@@ -303,6 +314,7 @@ BEGIN
     jsonb_build_object(
       'seuil_exclusion', 8,
       'nb_notes_exclusion', 3,
+      'matrice_ids', to_jsonb(pool_sang),
       'demo', true
     ),
     false,
@@ -331,9 +343,11 @@ BEGIN
     jsonb_build_object(
       'champs', jsonb_build_array('indications','contre_indications','effets_indesirables','surveillances'),
       'champs_interroges', jsonb_build_array('indications','contre_indications','effets_indesirables','surveillances'),
+      'matrice_ids', to_jsonb(pool_sang),
       'regles', jsonb_build_array(
-        jsonb_build_object('type','classe_therapeutique','classe_id', classe_anemie, 'nombre', 1),
-        jsonb_build_object('type','classe_therapeutique','classe_id', classe_anticoag, 'nombre', 2)
+        jsonb_build_object('type','matrice','matrice_id', pool_sang[1]),
+        jsonb_build_object('type','matrice','matrice_id', pool_sang[2]),
+        jsonb_build_object('type','matrice','matrice_id', pool_sang[3])
       ),
       'demo', true
     ),

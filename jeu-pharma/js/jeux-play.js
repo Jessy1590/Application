@@ -51,10 +51,35 @@
   }
 
   async function poolMedicaments(modele) {
-    return global.JpV2Resolver.listerMedicaments({
+    const cfg = modele.configuration_json || {};
+    const fixed = Array.isArray(cfg.matrice_ids) ? cfg.matrice_ids.filter(Boolean) : [];
+    let rows = await global.JpV2Resolver.listerMedicaments({
       parcoursId: modele.parcours_id || null,
       moduleIds: (modele.module_ids && modele.module_ids.length) ? modele.module_ids : null,
     });
+    if ((!rows || !rows.length) && fixed.length) {
+      // Repli : résolution fiche par fiche si le listing est vide
+      const out = [];
+      for (const id of fixed) {
+        try {
+          const f = await fiche(modele, id);
+          if (f) {
+            out.push({
+              id: f.id,
+              dci: f.dci,
+              noms: (f.noms_commerciaux || []).map((n) => n.valeur).join(', '),
+              nb_connaissances: Object.keys(f.champs || {}).length,
+            });
+          }
+        } catch (_) { /* skip */ }
+      }
+      rows = out;
+    } else if (fixed.length && rows.length) {
+      const allow = new Set(fixed);
+      const filtered = rows.filter((r) => allow.has(r.id));
+      if (filtered.length) rows = filtered;
+    }
+    return rows || [];
   }
 
   async function fiche(modele, matriceId) {
