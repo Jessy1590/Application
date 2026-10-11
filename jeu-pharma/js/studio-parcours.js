@@ -281,14 +281,26 @@
   function renderTree() {
     const pane = document.getElementById('treePane');
     function renderNode(parentId, depth) {
-      return childrenOf(parentId).map((m) => {
+      const sibs = childrenOf(parentId);
+      return sibs.map((m, i) => {
         const kids = renderNode(m.id, depth + 1);
+        const kind = m.est_groupe ? 'le chapitre' : 'la leçon';
         return '<div>'
+          + '<div class="jp-tree-row' + (m.id === state.selectedModuleId ? ' is-active' : '') + '">'
           + '<button type="button" class="jp-tree-item' + (m.est_groupe ? ' is-group' : '')
           + (m.id === state.selectedModuleId ? ' is-active' : '') + '" data-id="' + m.id + '" style="padding-left:' + (0.5 + depth * 0.65) + 'rem">'
           + '<span class="jp-tree-label">' + esc(m.titre) + '</span>'
           + (isModuleDraft(m) ? '<span class="jp-tree-badge" title="Non publiée : invisible pour les joueurs">brouillon</span>' : '')
           + '</button>'
+          + '<span class="jp-tree-tools">'
+          + '<button type="button" class="jp-tree-tool" data-move-up="' + m.id + '"' + (i === 0 ? ' disabled' : '')
+          + ' title="Monter" aria-label="Monter ' + kind + '">↑</button>'
+          + '<button type="button" class="jp-tree-tool" data-move-down="' + m.id + '"' + (i === sibs.length - 1 ? ' disabled' : '')
+          + ' title="Descendre" aria-label="Descendre ' + kind + '">↓</button>'
+          + '<button type="button" class="jp-tree-tool jp-tree-tool-del" data-del-module="' + m.id + '"'
+          + ' title="Supprimer" aria-label="Supprimer ' + kind + '">×</button>'
+          + '</span>'
+          + '</div>'
           + (kids ? '<div class="jp-tree-children">' + kids + '</div>' : '')
           + '</div>';
       }).join('');
@@ -301,6 +313,15 @@
 
     pane.querySelectorAll('[data-id]').forEach((btn) => {
       btn.addEventListener('click', () => void selectModule(btn.getAttribute('data-id')));
+    });
+    pane.querySelectorAll('[data-move-up]').forEach((btn) => {
+      btn.addEventListener('click', () => void moveModule(btn.getAttribute('data-move-up'), -1));
+    });
+    pane.querySelectorAll('[data-move-down]').forEach((btn) => {
+      btn.addEventListener('click', () => void moveModule(btn.getAttribute('data-move-down'), 1));
+    });
+    pane.querySelectorAll('[data-del-module]').forEach((btn) => {
+      btn.addEventListener('click', () => confirmDeleteModule(btn.getAttribute('data-del-module')));
     });
     pane.querySelector('#btnAddChapitre')?.addEventListener('click', () => void addModule({ est_groupe: true }));
     pane.querySelector('#btnAddLecon')?.addEventListener('click', () => void addModule({ est_groupe: false }));
@@ -332,6 +353,117 @@
       await selectModule(row.id);
     } catch (e) {
       global.JpToast?.fromError?.(e);
+    }
+  }
+
+  /* ——— Réordonner / supprimer chapitres et leçons ——— */
+
+  let treeBusy = false;
+
+  /** Monte / descend un module parmi ses frères (même parent) ; renumérote tout le niveau (ordre × 10). */
+  async function moveModule(id, dir) {
+    if (treeBusy) return;
+    const m = state.modules.find((x) => x.id === id);
+    if (!m) return;
+    const sibs = childrenOf(m.parent_id || null);
+    const i = sibs.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= sibs.length) return;
+    const arr = sibs.slice();
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    const items = arr.map((x, k) => ({ id: x.id, ordre: (k + 1) * 10 }));
+    treeBusy = true;
+    try {
+      await rpc('v2_reorder_modules', { p_items: items });
+      items.forEach((it) => {
+        const mod = state.modules.find((x) => x.id === it.id);
+        if (mod) mod.ordre = it.ordre;
+      });
+      renderTree();
+      void global.JpLogs?.action?.('studio_reordonner_module', { module_id: id, sens: dir < 0 ? 'haut' : 'bas' });
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      try { state.modules = await loadModules(state.parcoursId); renderTree(); } catch (_) { /* silencieux */ }
+    } finally {
+      treeBusy = false;
+    }
+  }
+
+  function subtreeIds(rootId) {
+    const out = [];
+    const walk = (id) => {
+      if (out.indexOf(id) !== -1) return;
+      out.push(id);
+      state.modules.filter((x) => x.parent_id === id).forEach((x) => walk(x.id));
+    };
+    walk(rootId);
+    return out;
+  }
+
+  function confirmDeleteModule(id) {
+    const m = state.modules.find((x) => x.id === id);
+    if (!m) return;
+    const ids = subtreeIds(id);
+    const subs = state.modules.filter((x) => ids.indexOf(x.id) !== -1 && x.id !== id);
+    const nbLecons = subs.filter((x) => !x.est_groupe).length;
+    const lines = [];
+    if (m.est_groupe) {
+      lines.push('Le chapitre « ' + m.titre + ' » sera supprimé'
+        + (subs.length ? ' avec ses ' + subs.length + ' élément(s) (dont ' + nbLecons + ' leçon(s)).' : '.'));
+    } else {
+      lines.push('La leçon « ' + m.titre + ' » sera supprimée.');
+    }
+    lines.push('Seront aussi supprimés : blocs, programme (molécules publiées) et progression des joueurs sur ces leçons.');
+    lines.push('Les jeux liés perdent ces leçons de leur pool ; un jeu sans aucune leçon restante est archivé (scores conservés).');
+    lines.push('Les éléments qui dépendaient de celui-ci reprennent son prérequis. Cette action est définitive.');
+    global.JpModal.open({
+      title: m.est_groupe ? 'Supprimer ce chapitre ?' : 'Supprimer cette leçon ?',
+      body: lines,
+      confirmLabel: 'Supprimer',
+      onConfirm: async () => { await deleteModule(id); },
+    });
+  }
+
+  async function deleteModule(id) {
+    const m = state.modules.find((x) => x.id === id);
+    if (!m || treeBusy) return;
+    treeBusy = true;
+    try {
+      const ids = subtreeIds(id);
+      if (ids.indexOf(state.selectedModuleId) !== -1) {
+        // Le module affiché disparaît : inutile de sauvegarder ses brouillons de blocs.
+        Object.keys(state.timers).forEach((k) => { clearTimeout(state.timers[k]); delete state.timers[k]; });
+        await Promise.all(Object.values(state.chain));
+      } else {
+        await flushAll();
+      }
+      const res = await rpc('v2_supprimer_module', { p_module_id: id });
+      const parentId = m.parent_id || null;
+      const siblings = childrenOf(parentId).filter((x) => x.id !== id);
+      const wasSelected = ids.indexOf(state.selectedModuleId) !== -1;
+      state.modules = await loadModules(state.parcoursId);
+      if (wasSelected) {
+        const next = (parentId && state.modules.some((x) => x.id === parentId) ? parentId : null)
+          || siblings.find((x) => state.modules.some((y) => y.id === x.id))?.id
+          || childrenOf(null)[0]?.id
+          || state.modules[0]?.id
+          || null;
+        state.selectedModuleId = next;
+        renderTree();
+        await selectModule(next);
+      } else {
+        renderTree();
+        const cur = selectedModule();
+        if (cur) mountDeblocage(cur); // les listes de prérequis ont pu changer
+      }
+      global.JpToast?.ok?.(m.est_groupe ? 'Chapitre supprimé' : 'Leçon supprimée');
+      void global.JpLogs?.action?.('studio_supprimer_module', {
+        module_id: id, est_groupe: !!m.est_groupe, modules: res?.modules, blocs: res?.blocs, jeux_archives: res?.jeux_archives,
+      });
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    } finally {
+      treeBusy = false;
     }
   }
 

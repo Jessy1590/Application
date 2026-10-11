@@ -88,6 +88,17 @@
 
 .jp-tree-children { margin-left: 0.85rem; }
 
+.jp-tree-row { display: flex; align-items: center; gap: 0.15rem; border-radius: 0.55rem; }
+.jp-tree-row .jp-tree-item { flex: 1; min-width: 0; width: auto; }
+.jp-tree-tools { display: none; flex: none; gap: 0.1rem; }
+.jp-tree-row:hover .jp-tree-tools,
+.jp-tree-row:focus-within .jp-tree-tools,
+.jp-tree-row.is-active .jp-tree-tools { display: inline-flex; }
+.jp-tree-tool { width: 1.45rem; height: 1.45rem; padding: 0; border: 0; border-radius: 0.4rem; background: transparent; color: rgba(20, 32, 28, 0.55); font: inherit; font-size: 0.95rem; line-height: 1; cursor: pointer; }
+.jp-tree-tool:hover:not(:disabled) { background: rgba(15, 107, 92, 0.14); color: #0f2e28; }
+.jp-tree-tool:disabled { opacity: 0.3; cursor: default; }
+.jp-tree-tool-del:hover:not(:disabled) { background: #fdecea; color: #b42318; }
+
 .jp-block-card {
   margin-bottom: 0.75rem;
   padding: 0.85rem 1rem;

@@ -2,6 +2,11 @@
 
 Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
+## Modif parcours — supprimer / réordonner chapitres et leçons (030 — **à appliquer remote**)
+- Arbre : boutons ↑ ↓ × par ligne (visibles au survol / sélection). ↑↓ = échange avec le frère voisin (même `parent_id`) et renumérotation du niveau (`ordre` × 10) via `v2_reorder_modules` (027, inchangée). × = confirmation `JpModal` puis `v2_supprimer_module`.
+- `modules_cours` n'a pas de `actif` → suppression **physique** du sous-arbre (blocs / publications / progression en cascade FK). `030` redéfinit `v2_supprimer_module` (ancienne = simple dépublication, jamais appelée) : raccroche les dépendants extérieurs au prérequis du module supprimé ; retire les ids de `modeles_jeu.module_ids` ; jeu à pool vide → **archivé** (`actif=false`, scores conservés) + critères `jeux` nettoyés + blocs jeu extérieurs retirés. Fichiers photo du bucket non purgés.
+- Cache-bust `?v=030` (studio.css, studio-parcours.js).
+
 ## Bloc « photo » (029 — appliquée remote, 2026-10-11)
 - `module_blocs.type_bloc` accepte `photo` (check recréé). `payload_json` = `{ path?, url?, alt?, legende? }` (`path` prioritaire ; `url` = https uniquement). RPC `v2_*` inchangées (génériques).
 - Storage : bucket **privé** `jeupharma-lecons` (5 Mo, jpeg/png/webp/gif) ; écriture/suppression = `is_portail_admin()`, lecture = accès Jeu Pharma ; affichage via URL signées (1 h). Chemin `modules/<module_id>/<uuid>.<ext>`. Les fichiers remplacés restent en bucket (le publié peut encore les référencer).
