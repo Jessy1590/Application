@@ -28,9 +28,10 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 |-----|------|
 | `admin/parcours.html` | Studio constructeur |
 | `admin/acces-parcours.html` | File d’attente des demandes |
-| `admin/catalogue.html` + `fiche.html` | Fiches / BDPM |
-| `admin/jeux.html` | Hub jeux transverse |
-| `admin/import-export.html` | CSV |
+| `admin/referentiel.html` | **Référentiel** : toutes les fiches (recherche, filtres, édition, BDPM, validation) — remplace Catalogue / Référentiel / Sources / Import RCP |
+| `admin/jeux.html` | Scores (jeu / parcours / personne) + pause, relance, archivage des jeux |
+
+`catalogue.html` / `fiche.html?id=` (admin) redirigent vers le Référentiel. `sources.html`, `import-rcp.html`, `import-export.html` restent dans le dépôt mais ne sont plus liés (ajout en masse prévu par IA / DB).
 
 ## SQL
 

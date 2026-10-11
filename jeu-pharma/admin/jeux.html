@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Jeux — Admin</title>
+<title>Jeux — Scores et gestion</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -18,139 +18,21 @@
 <link rel="stylesheet" href="../css/v2.css">
 </head>
 <body>
-  <main class="jp-page jp-page-wide">
+  <main class="jp-page jp-page-wide" id="jxRoot">
     <a class="jp-back" href="index.html">← Admin</a>
     <p class="jp-kicker">Jeux</p>
-    <h1 class="jp-title">Création et paramètres</h1>
-    <p class="jp-sub">Quatre types : Quiz, Tableau à trous, Fiche aléatoire, Ordonnance type — liés au parcours / sous-parcours.</p>
+    <h1 class="jp-title">Scores et gestion<span id="helpJeux"></span></h1>
+    <p class="jp-sub">Suivez les scores par parcours ou par personne, mettez un jeu en pause, relancez-le ou archivez-le. La création des jeux se fait dans le <a href="parcours.html">studio</a>.</p>
 
-    <form class="jp-quiz-admin" id="jeuForm" onsubmit="return false">
-      <section class="jp-quiz-admin-panel">
-        <div class="jp-quiz-admin-panel-body">
-          <div class="jp-split jp-split-2">
-            <div class="jp-field">
-              <label for="jeuType">Type</label>
-              <select id="jeuType">
-                <option value="quiz">Quiz</option>
-                <option value="trous">Tableau à trous</option>
-                <option value="fiche_aleatoire">Fiche aléatoire</option>
-                <option value="ordonnance">Ordonnance type</option>
-              </select>
-            </div>
-            <div class="jp-field">
-              <label for="jeuMode">Mode</label>
-              <select id="jeuMode">
-                <option value="entrainement">Entraînement</option>
-                <option value="evaluation">Évaluation</option>
-              </select>
-            </div>
-          </div>
-          <div class="jp-field">
-            <label for="jeuTitre">Titre</label>
-            <input id="jeuTitre" required maxlength="200" placeholder="Ex. Quiz Anémie">
-          </div>
-          <div class="jp-field">
-            <label for="jeuParcours">Parcours</label>
-            <select id="jeuParcours" required></select>
-          </div>
-          <div class="jp-field">
-            <span class="jp-field-label">Sous-parcours (feuilles — optionnel)</span>
-            <div id="jeuModules" class="jp-quiz-admin-champs-grid"></div>
-          </div>
-          <div class="jp-field" id="champsBlock">
-            <span class="jp-field-label">Champs</span>
-            <div class="jp-quiz-admin-champs-grid" id="champsGrid">
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="indications" checked> <span>Indications</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="contre_indications" checked> <span>Contre-indications</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="effets_indesirables" checked> <span>Effets indésirables</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="precautions_emploi"> <span>Précautions</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="interactions"> <span>Interactions</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="classe_pharmacologique"> <span>Classe pharmacologique</span></label>
-              <label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuChamp" value="surveillances"> <span>Surveillances</span></label>
-            </div>
-          </div>
-        </div>
-      </section>
+    <div class="jp-field">
+      <label for="jxSearchInput" class="jp-field-label">Recherche</label>
+      <div id="jxSearch"></div>
+    </div>
+    <div id="jxPills" class="jp-jx-filters" hidden></div>
 
-      <section class="jp-quiz-admin-panel" id="panelQuiz">
-        <h2 class="jp-quiz-admin-panel-title">Paramètres Quiz</h2>
-        <div class="jp-quiz-admin-panel-body">
-          <div class="jp-split jp-split-2">
-            <div class="jp-field"><label for="jeuNbQ">Nb questions</label><input id="jeuNbQ" type="number" min="1" max="50" value="10"></div>
-            <div class="jp-field"><label for="jeuNbProp">Propositions</label><input id="jeuNbProp" type="number" min="2" max="6" value="3"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="jp-quiz-admin-panel" id="panelTrous" hidden>
-        <h2 class="jp-quiz-admin-panel-title">Paramètres Tableau à trous</h2>
-        <div class="jp-quiz-admin-panel-body">
-          <div class="jp-split jp-split-2">
-            <div class="jp-field"><label for="jeuNbFiches">Nb fiches</label><input id="jeuNbFiches" type="number" min="1" max="30" value="5"></div>
-            <div class="jp-field"><label for="jeuDensite">Densité de trous (1–5)</label><input id="jeuDensite" type="number" min="1" max="5" value="3"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="jp-quiz-admin-panel" id="panelFiche" hidden>
-        <h2 class="jp-quiz-admin-panel-title">Paramètres Fiche aléatoire</h2>
-        <div class="jp-quiz-admin-panel-body">
-          <div class="jp-split jp-split-2">
-            <div class="jp-field"><label for="jeuSeuil">Seuil exclusion (/10)</label><input id="jeuSeuil" type="number" min="1" max="10" value="8"></div>
-            <div class="jp-field"><label for="jeuNbNotes">Nb notes &gt; seuil pour exclure</label><input id="jeuNbNotes" type="number" min="1" max="10" value="3"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="jp-quiz-admin-panel" id="panelOrdo" hidden>
-        <h2 class="jp-quiz-admin-panel-title">Règles d’ordonnance</h2>
-        <div class="jp-quiz-admin-panel-body">
-          <div class="jp-split jp-split-2">
-            <div class="jp-field">
-              <label for="regleKind">Type de règle</label>
-              <select id="regleKind">
-                <option value="classe_therapeutique">Classe thérapeutique × N</option>
-                <option value="classe_pharmacologique">Classe pharmacologique × N</option>
-              </select>
-            </div>
-            <div class="jp-field">
-              <label for="regleNombre">Nombre</label>
-              <input id="regleNombre" type="number" min="1" max="20" value="2">
-            </div>
-          </div>
-          <div class="jp-field">
-            <label for="regleClasseTher">Classe thérapeutique</label>
-            <select id="regleClasseTher"></select>
-          </div>
-          <div class="jp-field">
-            <label for="regleClassePharma">Classe pharmacologique</label>
-            <select id="regleClassePharma"></select>
-          </div>
-          <button type="button" class="jp-btn jp-btn-ghost" id="btnAddRegleClasse">Ajouter règle classe</button>
-          <div class="jp-field" style="margin-top:1rem">
-            <label for="regleMatriceId">Molécule fixe (UUID matrice)</label>
-            <input id="regleMatriceId" placeholder="uuid matrice_medicaments">
-          </div>
-          <button type="button" class="jp-btn jp-btn-ghost" id="btnAddRegleMatrice">Ajouter molécule fixe</button>
-          <div id="reglesList" style="margin-top:1rem"></div>
-        </div>
-      </section>
-
-      <div class="jp-v2-actions">
-        <button type="button" class="jp-btn jp-btn-primary" id="btnCreateJeu">Créer le jeu</button>
-      </div>
-      <div id="resultBox" class="jp-quiz-admin-result" hidden>
-        <p class="jp-kicker">Code</p>
-        <p id="resultCode" class="jp-quiz-admin-result-code"></p>
-        <p id="resultMeta" class="jp-muted"></p>
-        <a id="resultPlay" class="jp-btn jp-btn-primary" href="#">Jouer</a>
-      </div>
-    </form>
-
-    <section style="margin-top:2rem">
-      <h2 class="jp-title">Historique</h2>
-      <div id="jeuxList"></div>
-    </section>
+    <div id="jxTabs" class="jp-jx-tabs" role="tablist" aria-label="Vues"></div>
+    <p id="jxNote" class="jp-muted" hidden></p>
+    <div id="jxBody"><p class="jp-muted">Chargement…</p></div>
   </main>
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
@@ -158,7 +40,18 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
-  <script src="../js/admin.js"></script>
-  <script>document.addEventListener('DOMContentLoaded', function () { void JpV2Admin.bootJeux(); });</script>
+  <script src="../js/ui-modal.js"></script>
+  <script src="../js/typeahead.js"></script>
+  <script src="../js/admin-jeux-scores.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById('helpJeux').appendChild(JpModal.helpButton('Jeux', [
+        'Actif = jouable. En pause = invisible pour les joueurs jusqu’à « Relancer ».',
+        'Archiver désactive le jeu (scores conservés) ; « Relancer » le remet en ligne.',
+        'Éditer ouvre la leçon du studio qui contient le jeu.',
+      ]));
+      void JpAdminJeux.boot();
+    });
+  </script>
 </body>
 </html>

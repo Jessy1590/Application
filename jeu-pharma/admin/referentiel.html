@@ -18,30 +18,176 @@
 <link rel="stylesheet" href="../css/v2.css">
 </head>
 <body>
-  <main class="jp-page jp-page-wide">
+  <main class="jp-page jp-page-wide jp-catalogue jp-admin-catalogue">
     <a class="jp-back" href="index.html">← Admin</a>
-    <p class="jp-kicker">Référentiel</p>
-    <h1 class="jp-title">Connaissances atomiques</h1>
-    <p class="jp-sub">Validation scientifique / sourçage — distincte de la publication pédagogique.</p>
-    <div class="jp-field">
-      <label for="filtreStatut">Statut</label>
-      <select id="filtreStatut">
-        <option value="">Tous (80 récents)</option>
-        <option value="a_valider">À valider</option>
-        <option value="brouillon">Brouillon</option>
-        <option value="valide">Valide</option>
-        <option value="retire">Retiré</option>
-      </select>
+    <h1 class="jp-title">Référentiel<span id="helpRef"></span></h1>
+
+    <div class="jp-admin-cat-actions">
+      <button type="button" class="jp-btn jp-btn-primary" id="btnNew">Nouvelle fiche</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="btnValider">Valider fiches</button>
+      <span class="jp-admin-cat-validation-count jp-muted" id="valCount" aria-live="polite"></span>
     </div>
-    <div id="list" class="jp-table-wrap"></div>
+
+    <div class="jp-catalogue-toolbar" id="toolbar" hidden>
+      <input type="search" id="q" class="jp-catalogue-search" placeholder="Nom, DCI, classe…  ( / )" aria-label="Rechercher" autocomplete="off">
+      <div class="jp-catalogue-actions">
+        <span class="jp-catalogue-count" id="refCount" aria-live="polite"></span>
+        <label class="jp-admin-cat-statut">
+          <span class="jp-sr-only">Statut</span>
+          <select id="fStatut" aria-label="Statut">
+            <option value="">Statut</option>
+            <option value="brouillon">Brouillon</option>
+            <option value="publie">Publié</option>
+            <option value="archive">Archivé</option>
+          </select>
+        </label>
+        <label class="jp-admin-cat-statut">
+          <span class="jp-sr-only">Validation</span>
+          <select id="fValidation" aria-label="Validation">
+            <option value="">Validation</option>
+            <option value="a_valider">À valider</option>
+            <option value="validee">Validées</option>
+          </select>
+        </label>
+        <button type="button" class="jp-btn jp-btn-ghost" id="btnResetVal" title="Remettre à valider (filtre actuel)" disabled>Remettre à 0</button>
+        <div class="jp-catalogue-prefs-wrap">
+          <button type="button" class="jp-btn jp-btn-ghost jp-catalogue-icon-btn" id="prefsBtn" aria-expanded="false" aria-controls="prefsPanel">
+            <span class="jp-catalogue-btn-label">Filtres</span>
+          </button>
+          <div class="jp-catalogue-prefs" id="prefsPanel" hidden role="dialog" aria-label="Filtres">
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Tri</h2>
+              <select id="fSort" aria-label="Trier par">
+                <option value="dci">DCI</option>
+                <option value="nom">Premier nom commercial</option>
+                <option value="secteur">Secteur</option>
+                <option value="updated_at">Dernière modif.</option>
+              </select>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Filtres</h2>
+              <label class="jp-catalogue-col"><input type="checkbox" id="fIncomplet"><span>Incomplètes</span></label>
+              <label class="jp-catalogue-field">Champ vide
+                <select id="fIncompletChamp" disabled></select>
+              </label>
+              <label class="jp-catalogue-field">Secteur <select id="fSecteur"></select></label>
+              <label class="jp-catalogue-field">Classe thérapeutique <select id="fClasseTh"></select></label>
+              <label class="jp-catalogue-field">Classe pharmacologique <select id="fClassePh"></select></label>
+              <label class="jp-catalogue-field">Classification
+                <select id="fClassif">
+                  <option value="">Toutes</option>
+                  <option value="hospitalier">Hospitalière</option>
+                  <option value="complexe">Complexe</option>
+                  <option value="aucune">Aucune</option>
+                </select>
+              </label>
+              <label class="jp-catalogue-field">Lié à (type) <select id="fLieType"></select></label>
+              <label class="jp-catalogue-field">Lié à (valeur)
+                <div class="jp-ac-wrap">
+                  <input type="search" id="fLieEntity" autocomplete="off" placeholder="Rechercher…" disabled>
+                  <ul id="sug_lie" class="jp-ac-list" hidden role="listbox"></ul>
+                </div>
+                <input type="hidden" id="fLieEntityId" value="">
+                <button type="button" class="jp-link-btn" id="fLieClear" hidden>Effacer</button>
+              </label>
+            </div>
+            <div class="jp-catalogue-prefs-section">
+              <h2 class="jp-catalogue-prefs-title">Colonnes</h2>
+              <div class="jp-catalogue-cols" id="cols" role="group"></div>
+            </div>
+            <div class="jp-catalogue-prefs-foot">
+              <button type="button" class="jp-btn jp-btn-ghost" id="prefsReset">Réinitialiser</button>
+              <button type="button" class="jp-btn jp-btn-primary" id="prefsClose">Fermer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="jp-med-workspace">
+      <aside class="jp-med-listpane" aria-label="Fiches">
+        <div id="list" class="jp-table-wrap"><p class="jp-muted">Chargement…</p></div>
+      </aside>
+    </div>
   </main>
+
+  <div id="editorModal" class="jp-catalogue-fiche-modal" hidden>
+    <div class="jp-catalogue-fiche-modal-backdrop" data-close-editor></div>
+    <section id="editor" class="jp-catalogue-fiche-modal-panel jp-med-editor" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <div class="jp-med-editor-head">
+        <h2 class="jp-title" id="editorTitle">Nouvelle fiche</h2>
+        <div class="jp-med-editor-head-meta">
+          <span id="edValBadge"></span>
+          <div class="jp-field jp-med-editor-status">
+            <label class="jp-sr-only" for="fStatutEd">Statut</label>
+            <select id="fStatutEd" aria-label="Statut de la fiche">
+              <option value="brouillon">Brouillon</option>
+              <option value="publie">Publié</option>
+              <option value="archive">Archivé</option>
+            </select>
+          </div>
+          <fieldset class="jp-med-classifications">
+            <legend>Classif.</legend>
+            <label class="jp-med-switch"><input type="checkbox" id="edHosp"><span>Hospitalière</span></label>
+            <label class="jp-med-switch"><input type="checkbox" id="edComplexe"><span>Complexe</span></label>
+            <small>Niveau pharmacien uniquement.</small>
+          </fieldset>
+        </div>
+      </div>
+      <div class="jp-med-editor-body">
+        <div class="jp-bdm-panel" aria-label="BDPM">
+          <p class="jp-bdm-title">BDPM</p>
+          <label class="jp-bdm-search-label" for="bdmQ">Recherche
+            <input type="search" id="bdmQ" placeholder="Nom, DCI, CIP…" autocomplete="off">
+          </label>
+          <div id="bdmResults" class="jp-bdm-results" hidden role="listbox"></div>
+          <p class="jp-bdm-licence">Source BDPM ANSM — Licence Ouverte</p>
+        </div>
+        <form id="form" class="jp-form" novalidate>
+          <div id="fields"></div>
+        </form>
+      </div>
+      <div class="jp-med-editor-foot">
+        <button type="button" class="jp-btn jp-btn-ghost" id="btnCancel">Annuler</button>
+        <button type="button" class="jp-btn jp-btn-ghost" id="btnSaveVal">Enregistrer et valider</button>
+        <button type="submit" form="form" class="jp-btn jp-btn-primary" id="btnSave">Enregistrer</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="valModal" class="jp-validation-modal" hidden role="dialog" aria-modal="true" aria-labelledby="valTitle">
+    <div class="jp-validation-modal-backdrop" data-close-validation></div>
+    <section class="jp-validation-modal-panel">
+      <header class="jp-validation-head">
+        <h2 class="jp-title" id="valTitle" style="margin:0">Valider</h2>
+        <p class="jp-validation-progress" id="valProgress" aria-live="polite">—</p>
+      </header>
+      <div class="jp-validation-body" id="valBody"></div>
+      <footer class="jp-validation-foot">
+        <button type="button" class="jp-btn jp-btn-ghost" data-close-validation>Fermer</button>
+        <div class="jp-validation-actions">
+          <button type="button" class="jp-btn jp-btn-ghost jp-validation-btn-edit" id="valEdit">Modifier</button>
+          <button type="button" class="jp-btn jp-btn-primary jp-validation-btn-ok" id="valOk">Validé</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
   <script src="../js/logs.js"></script>
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
-  <script src="../js/admin.js"></script>
-  <script>document.addEventListener('DOMContentLoaded', function () { void JpV2Admin.bootReferentiel(); });</script>
+  <script src="../js/ui-modal.js"></script>
+  <script src="../js/bdm.js"></script>
+  <script src="../js/entites.js"></script>
+  <script src="../js/medicaments.js"></script>
+  <script src="../js/referentiel-admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      JpReferentielAdmin.boot().catch(function (e) { JpToast.fromError(e); });
+    });
+  </script>
 </body>
 </html>

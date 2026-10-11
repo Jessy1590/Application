@@ -2,6 +2,13 @@
 
 Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
+## Admin Jeux & recherche dynamique (2026-10-11)
+- **Tuile admin « Jeux & scores »** → `admin/jeux.html` : tableau de bord (plus de création, plus de legacy). Vues **Jeux** | **Par parcours** | **Par personne** ; barre de recherche typeahead globale (jeux, parcours, personnes) ; filtres état/type.
+- Actions : **Pause** (RPC existant `v2_set_pause_jeu`), **Relancer** (reprend si en pause ; remet `actif=true` si archivé), **Archiver** (`modeles_jeu.actif=false`, scores conservés) ; **Jouer** (`../jeux/jouer.html?code=` ou `../ordonnances/jouer.html?code=`, seulement si actif et non en pause) ; **Éditer** → `parcours.html?parcours=&module=&bloc=` (le studio ouvre la leçon et met le bloc jeu en évidence).
+- Données : lecture admin (RLS) de `modeles_jeu`, `tentatives_jeu` (10 000 dernières max), `inscriptions_parcours` (accepte), `modules_cours`, `module_blocs` (type `jeu`, lien via `payload_json.modele_id`) ; noms via `portail.profiles`. Score % = `score_obtenu / score_max` sur tentatives terminées. **Aucune migration** : `en_pause` et `actif` existaient déjà (`019`, `021`, policy admin `020`).
+- Fichiers : `admin/jeux.html`, `js/admin-jeux-scores.js` (remplace le hub de création ; `JpV2Admin.bootJeux` retiré).
+- **Typeahead** : `js/typeahead.js` + styles `.jp-ta*` (`css/v2.css`). Appliqué : studio (sélecteur de parcours, pool de leçons du wizard jeu, classes théra/pharma, molécule fixe d’ordonnance, filtres + recherche live du sélecteur molécules — par défaut seules les fiches déjà en leçon sont listées). Reste en `<select>` : petites énumérations (type / mode / règle).
+
 ## Périmètre
 App pédagogique vanilla sous `jeu-pharma/`. Schéma Supabase **`jeupharma`**. Auth portail (`protect.js` + `site_access`). Contenu = cours physiques / CSV. BDPM **lecture seule** (`schéma bdm`, RPC `search_products`) pour préremplir nom(s)/DCI — pas de sync destructive ni d’IA en v1.
 
@@ -310,7 +317,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 ### Surfaces
 - Hub joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux
 - Joueur : `parcours.html`, `espace.html`, `lecon.html`, `mon-espace.html`, `catalogue.html`, `jeux/`
-- Admin desktop : studio `admin/parcours.html`, `acces-parcours.html`, catalogue/`fiche.html`, jeux, référentiel, CSV
+- Admin desktop : tuiles `index.html` = Studio, Accès, **Référentiel** (`admin/referentiel.html` + `js/referentiel-admin.js`, `medicaments.js`, `entites.js`, `bdm.js`), Jeux. `catalogue.html`/`fiche.html` = redirects. Sources / Import RCP / CSV : fichiers conservés, non liés.
 
 ### Correctifs legacy conservés
 - `JpQuizz.listQuiz` sans snapshot joueur ; pause quiz ; nouveau tirage entraînement

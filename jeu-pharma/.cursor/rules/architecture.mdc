@@ -9,7 +9,7 @@ alwaysApply: true
 - App pédagogique vanilla sous `jeu-pharma/` (pas de framework SPA).
 - Entrée joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux (+ Admin si admin).
 - Surfaces joueur : `parcours.html`, `espace.html`, `lecon.html`, `mon-espace.html`, `catalogue.html`, `jeux/`, `ordonnances/`.
-- Admin desktop : `admin/parcours.html` (studio), `acces-parcours.html`, `catalogue.html`/`fiche.html`, `jeux.html` — **aucun lien vers `legacy-v1/`**.
+- Admin desktop : `admin/parcours.html` (studio), `acces-parcours.html`, `referentiel.html` (module unique fiches : liste + édition + BDPM ; remplace catalogue / référentiel / sources / import RCP), `jeux.html` — **aucun lien vers `legacy-v1/`**. `catalogue.html`/`fiche.html` = redirects.
 - Partagé : `js/` + `css/` (tokens, app, print, v2, player, studio).
 
 ## Chemins monorepo
@@ -42,10 +42,11 @@ alwaysApply: true
 
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV (`admin/import-export.html`).
-- BDPM **lecture seule** via `js/bdm.js` dans `admin/fiche.html`. Pas d’OCR ni d’IA.
+- BDPM **lecture seule** via `js/bdm.js` dans `admin/referentiel.html`. Pas d’OCR ni d’IA.
 - Studio : blocs texte / vidéo embed / molécule / conseil / jeu ; pubs **connaissance par connaissance** par leçon.
 - Anti-surapprentissage : mode `publications` = pubs des modules débloqués (+ héritage ancêtres) ; jeux pool = modules liés.
-- Admin jeux : studio (principal) + `admin/jeux.html` (hub) ; codes `JP-*****`.
+- Admin jeux : **création** dans le studio (wizard) ; `admin/jeux.html` = tableau de bord **scores + gestion** (par jeu / parcours / personne ; pause, relancer, archiver via `modeles_jeu.en_pause` / `actif`, lien Jouer + lien Éditer vers le bloc studio `?parcours=&module=&bloc=`) ; codes `JP-*****`.
+- Recherche : `js/typeahead.js` (`JpTypeahead.combo` / `chips` + sources `localSource` / `entiteSource` / `matriceSource`) — pas de `<select>` long ni de liste complète affichée d’office (studio : parcours, pool de leçons, classes, molécules, filtres du sélecteur molécules ; jeux : barre globale).
 
 ## Droits
 - Admin métier = `portail.profiles.role === 'admin'` uniquement.

@@ -547,160 +547,6 @@
     }
   }
 
-  async function bootJeux() {
-    global.JpUi.bootPage({ module: 'admin-jeux', homeHref: 'index.html' });
-    const parcours = await listParcoursAdmin();
-    const selP = $('jeuParcours');
-    parcours.forEach((p) => {
-      const o = document.createElement('option');
-      o.value = p.id;
-      o.textContent = p.libelle;
-      selP.appendChild(o);
-    });
-
-    function syncTypePanels() {
-      const t = $('jeuType').value;
-      if ($('panelQuiz')) $('panelQuiz').hidden = t !== 'quiz';
-      if ($('panelTrous')) $('panelTrous').hidden = t !== 'trous';
-      if ($('panelFiche')) $('panelFiche').hidden = t !== 'fiche_aleatoire';
-      if ($('panelOrdo')) $('panelOrdo').hidden = t !== 'ordonnance';
-      if ($('champsBlock')) $('champsBlock').hidden = t === 'fiche_aleatoire';
-    }
-    $('jeuType')?.addEventListener('change', syncTypePanels);
-    syncTypePanels();
-
-    async function fillModules() {
-      const mods = await listModules(selP.value);
-      const byId = Object.fromEntries(mods.map((m) => [m.id, m]));
-      const leaves = mods.filter((m) => m.publie && !m.est_groupe);
-      const wrap = $('jeuModules');
-      wrap.innerHTML = leaves.map((m) => {
-        const parent = m.parent_id && byId[m.parent_id] ? byId[m.parent_id].titre + ' › ' : '';
-        return '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jeuMod" value="'
-          + m.id + '"> <span>' + global.JpUi.escapeHtml(parent + m.titre) + '</span></label>';
-      }).join('') || '<p class="jp-muted">Aucun sous-parcours publié.</p>';
-    }
-    selP.addEventListener('change', () => void fillModules());
-    await fillModules();
-
-    const classesTher = await listClasses('therapeutique');
-    const classesPharma = await listClasses('pharmacologique');
-    if ($('regleClasseTher')) {
-      $('regleClasseTher').innerHTML = classesTher.map((c) => (
-        '<option value="' + c.id + '">' + global.JpUi.escapeHtml(c.valeur) + '</option>'
-      )).join('');
-    }
-    if ($('regleClassePharma')) {
-      $('regleClassePharma').innerHTML = classesPharma.map((c) => (
-        '<option value="' + c.id + '">' + global.JpUi.escapeHtml(c.valeur) + '</option>'
-      )).join('');
-    }
-
-    const regles = [];
-    $('btnAddRegleClasse')?.addEventListener('click', function () {
-      const kind = $('regleKind').value;
-      const classeId = kind === 'classe_therapeutique'
-        ? $('regleClasseTher').value
-        : $('regleClassePharma').value;
-      const nombre = Number($('regleNombre').value) || 1;
-      regles.push({ type: kind, classe_id: classeId, nombre: nombre });
-      renderRegles();
-    });
-    $('btnAddRegleMatrice')?.addEventListener('click', function () {
-      const mid = ($('regleMatriceId').value || '').trim();
-      if (!mid) return global.JpToast.warn('UUID matrice requis');
-      regles.push({ type: 'matrice', matrice_id: mid });
-      renderRegles();
-    });
-    function renderRegles() {
-      if (!$('reglesList')) return;
-      $('reglesList').innerHTML = regles.length
-        ? '<ul>' + regles.map((r, i) => '<li>' + global.JpUi.escapeHtml(JSON.stringify(r))
-          + ' <button type="button" data-del="' + i + '">×</button></li>').join('') + '</ul>'
-        : '<p class="jp-muted">Aucune règle.</p>';
-      $('reglesList').querySelectorAll('[data-del]').forEach((b) => {
-        b.addEventListener('click', () => {
-          regles.splice(Number(b.getAttribute('data-del')), 1);
-          renderRegles();
-        });
-      });
-    }
-    renderRegles();
-
-    async function refreshList() {
-      const rows = await listModelesJeu({ actifsOnly: false });
-      $('jeuxList').innerHTML = rows.length
-        ? '<table class="jp-table"><thead><tr><th>Code</th><th>Type</th><th>Titre</th><th>Pause</th><th></th></tr></thead><tbody>'
-          + rows.map((r) => '<tr><td><code>' + global.JpUi.escapeHtml(r.code_unique)
-            + '</code></td><td>' + global.JpUi.escapeHtml(r.type_jeu)
-            + '</td><td>' + global.JpUi.escapeHtml(r.titre)
-            + '</td><td>' + (r.en_pause ? 'oui' : 'non')
-            + '</td><td><button type="button" class="jp-link-btn" data-pause="'
-            + r.id + '" data-val="' + (r.en_pause ? '0' : '1') + '">'
-            + (r.en_pause ? 'Reprendre' : 'Pause') + '</button></td></tr>').join('')
-          + '</tbody></table>'
-        : '<p class="jp-muted">Aucun jeu.</p>';
-      $('jeuxList').querySelectorAll('[data-pause]').forEach((b) => {
-        b.addEventListener('click', async () => {
-          try {
-            await setPause(b.getAttribute('data-pause'), b.getAttribute('data-val') === '1');
-            global.JpToast.ok('Mis à jour');
-            await refreshList();
-          } catch (e) { global.JpToast.fromError(e); }
-        });
-      });
-    }
-
-    $('btnCreateJeu')?.addEventListener('click', async function () {
-      try {
-        const type = $('jeuType').value;
-        const moduleIds = Array.from(document.querySelectorAll('input[name="jeuMod"]:checked'))
-          .map((el) => el.value);
-        const champs = Array.from(document.querySelectorAll('input[name="jeuChamp"]:checked'))
-          .map((el) => el.value);
-        if (!$('jeuTitre').value.trim()) throw new Error('Titre requis');
-        if (type === 'ordonnance' && !regles.length) {
-          throw new Error('Ajoutez au moins une règle');
-        }
-        if ((type === 'ordonnance' || type === 'quiz' || type === 'trous') && !champs.length) {
-          throw new Error('Sélectionnez au moins un champ');
-        }
-        const configuration_json = {
-          champs: champs,
-          champs_interroges: champs,
-          regles: type === 'ordonnance' ? regles.slice() : [],
-          nb_questions: Number($('jeuNbQ')?.value) || 10,
-          nb_propositions: Number($('jeuNbProp')?.value) || 3,
-          nb_fiches: Number($('jeuNbFiches')?.value) || 5,
-          densite_trous: Number($('jeuDensite')?.value) || 3,
-          seuil_exclusion: Number($('jeuSeuil')?.value) || 8,
-          nb_notes_exclusion: Number($('jeuNbNotes')?.value) || 3,
-        };
-        const created = await creerModeleJeu({
-          type_jeu: type,
-          titre: $('jeuTitre').value,
-          parcours_id: selP.value,
-          module_ids: moduleIds,
-          mode: $('jeuMode').value,
-          configuration_json,
-        });
-        $('resultBox').hidden = false;
-        $('resultCode').textContent = created.code_unique;
-        $('resultMeta').textContent = created.type_jeu + ' · ' + created.titre;
-        const play = created.type_jeu === 'ordonnance'
-          ? '../ordonnances/jouer.html?code=' + encodeURIComponent(created.code_unique)
-          : '../jeux/jouer.html?code=' + encodeURIComponent(created.code_unique);
-        $('resultPlay').href = play;
-        global.JpToast.ok('Jeu créé : ' + created.code_unique);
-        await refreshList();
-      } catch (e) {
-        global.JpToast.fromError(e);
-      }
-    });
-
-    await refreshList();
-  }
-
   async function bootCatalogue() {
     global.JpUi.bootPage({ module: 'admin-catalogue', homeHref: 'index.html' });
     const list = $('list');
@@ -713,7 +559,7 @@
           ? '<table class="jp-table"><thead><tr><th>DCI</th><th>Nom</th><th></th></tr></thead><tbody>'
             + rows.map((r) => '<tr><td>' + global.JpUi.escapeHtml(r.dci || '')
               + '</td><td>' + global.JpUi.escapeHtml(r.nom_commercial || '')
-              + '</td><td><a class="jp-link-btn" href="fiche.html?id='
+              + '</td><td><a class="jp-link-btn" href="referentiel.html?id='
               + encodeURIComponent(r.id) + '">Éditer</a></td></tr>').join('')
             + '</tbody></table>'
           : '<p class="jp-muted">Aucune fiche.</p>';
@@ -734,7 +580,6 @@
     bootSources,
     bootReferentiel,
     bootParcours,
-    bootJeux,
     bootCatalogue,
     listSources,
     listConnaissances,

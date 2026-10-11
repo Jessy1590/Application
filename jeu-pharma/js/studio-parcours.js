@@ -1,5 +1,5 @@
 /**
- * Studio parcours — arbre + canvas blocs + programme granulaire + jeux.
+ * Studio parcours — arbre + canvas blocs + programme + jeux (modules dédiés).
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -11,7 +11,9 @@
     modules: [],
     selectedModuleId: null,
     blocs: [],
-    programMatrices: [],
+    pending: null, // { moduleId, blocId } depuis l'URL
+    focusBlocId: null,
+    editors: {}, // blocId -> richtext instance
   };
 
   async function rpc(name, args) {
@@ -55,9 +57,9 @@
     return state.modules.find((m) => m.id === state.selectedModuleId) || null;
   }
 
-  function champLibelle(code) {
-    const c = (global.JpConstants?.CHAMP_CODES || []).find((x) => x.code === code);
-    return c?.libelle || code;
+  function clearEditors() {
+    Object.values(state.editors).forEach((ed) => ed?.destroy?.());
+    state.editors = {};
   }
 
   function videoEmbed(url) {
@@ -80,7 +82,7 @@
       + '<div class="jp-studio-app" id="studioApp">'
       + '<header class="jp-studio-top">'
       + '<a class="jp-btn jp-btn-ghost" href="index.html">Admin</a>'
-      + '<select id="parcoursSelect"></select>'
+      + '<div id="parcoursCombo" class="jp-studio-parcours-combo"></div>'
       + '<h1 id="studioTitle">Studio</h1>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Aperçu</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnNewParcours">Nouveau</button>'
@@ -92,13 +94,29 @@
       + '</div></div>';
 
     const list = await loadParcoursList();
-    const sel = root.querySelector('#parcoursSelect');
-    sel.innerHTML = list.map((p) => '<option value="' + p.id + '">' + esc(p.libelle) + '</option>').join('');
-    const qId = new URLSearchParams(location.search).get('parcours');
-    if (qId && list.some((p) => p.id === qId)) sel.value = qId;
-    else if (list[0]) sel.value = list[0].id;
+    const items = list.map((p) => ({ id: p.id, label: p.libelle, sub: p.code }));
+    const qs = new URLSearchParams(location.search);
+    const qId = qs.get('parcours');
+    // Liens profonds depuis admin/jeux.html : ?parcours=…&module=…&bloc=…
+    state.pending = { moduleId: qs.get('module'), blocId: qs.get('bloc') };
+    const initial = items.find((i) => i.id === qId) || items[0] || null;
 
-    sel.addEventListener('change', () => void selectParcours(sel.value));
+    let current = initial;
+    const combo = global.JpTypeahead.combo(root.querySelector('#parcoursCombo'), {
+      search: global.JpTypeahead.localSource(items, { limit: 10 }),
+      placeholder: 'Chercher un parcours…',
+      ariaLabel: 'Parcours',
+      initial,
+      onChange: (it) => {
+        if (!it) return;
+        current = it;
+        void selectParcours(it.id);
+      },
+    });
+    combo.input.addEventListener('blur', () => {
+      // champ laissé sans choix : on réaffiche le parcours courant
+      setTimeout(() => { if (!combo.getItem() && current) combo.setItem(current, true); }, 120);
+    });
     root.querySelector('#btnNewParcours').addEventListener('click', () => void createParcours());
     root.querySelector('#btnPreview').addEventListener('click', () => {
       const m = selectedModule();
@@ -106,10 +124,8 @@
       window.open('../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1', '_blank');
     });
 
-    if (sel.value) await selectParcours(sel.value);
-    else {
-      root.querySelector('#treePane').innerHTML = '<p class="jp-muted">Aucun parcours</p>';
-    }
+    if (initial) await selectParcours(initial.id);
+    else root.querySelector('#treePane').innerHTML = '<p class="jp-muted">Aucun parcours</p>';
   }
 
   async function createParcours() {
@@ -132,7 +148,11 @@
     state.parcours = list.find((p) => p.id === id) || null;
     document.getElementById('studioTitle').textContent = state.parcours?.libelle || 'Studio';
     state.modules = await loadModules(id);
-    state.selectedModuleId = childrenOf(null)[0]?.id || state.modules[0]?.id || null;
+    const pend = state.pending;
+    state.pending = null;
+    const wanted = pend?.moduleId && state.modules.some((m) => m.id === pend.moduleId) ? pend.moduleId : null;
+    state.focusBlocId = wanted ? (pend.blocId || null) : null;
+    state.selectedModuleId = wanted || childrenOf(null)[0]?.id || state.modules[0]?.id || null;
     renderTree();
     await selectModule(state.selectedModuleId);
   }
@@ -169,9 +189,7 @@
     const titre = prompt(est_groupe ? 'Chapitre' : 'Leçon');
     if (!titre) return;
     const parent = selectedModule();
-    const parentId = est_groupe
-      ? (parent?.est_groupe ? parent.id : parent?.parent_id || null)
-      : (parent?.est_groupe ? parent.id : parent?.parent_id || null);
+    const parentId = parent?.est_groupe ? parent.id : (parent?.parent_id || null);
     try {
       const row = await rpc('v2_upsert_module', {
         p_payload: {
@@ -198,13 +216,16 @@
     renderTree();
     const m = selectedModule();
     if (!m) {
+      clearEditors();
       document.getElementById('canvasPane').innerHTML = '';
       document.getElementById('inspectorPane').innerHTML = '';
       return;
     }
     if (m.est_groupe) {
       state.blocs = [];
-      renderCanvasGroup(m);
+      clearEditors();
+      document.getElementById('canvasPane').innerHTML = '<h2 class="jp-title" style="font-size:1.35rem;margin:0 0 0.5rem">'
+        + esc(m.titre) + '</h2><p class="jp-muted">Chapitre — ajoutez des leçons.</p>';
       renderInspectorMeta(m);
       return;
     }
@@ -213,23 +234,15 @@
     await renderInspector(m);
   }
 
-  function renderCanvasGroup(m) {
-    const pane = document.getElementById('canvasPane');
-    pane.innerHTML = '<h2 class="jp-title" style="font-size:1.35rem;margin:0 0 0.5rem">' + esc(m.titre) + '</h2>'
-      + '<p class="jp-muted">Chapitre — ajoutez des leçons dans l’arbre.</p>';
-  }
-
   function renderCanvas(m) {
     const pane = document.getElementById('canvasPane');
-    let html = '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">'
-      + '<h2 class="jp-title" style="font-size:1.35rem;margin:0;flex:1">' + esc(m.titre) + '</h2>'
-      + '</div>'
+    pane.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem">'
+      + '<h2 class="jp-title" style="font-size:1.35rem;margin:0;flex:1">' + esc(m.titre) + '</h2></div>'
       + '<div class="jp-add-blocks" id="addBlocks">'
       + ['texte', 'video', 'molecule', 'conseil', 'jeu'].map((t) =>
         '<button type="button" class="jp-btn jp-btn-ghost" data-add="' + t + '">' + t + '</button>'
       ).join('')
       + '</div><div id="blocksList"></div>';
-    pane.innerHTML = html;
     pane.querySelectorAll('[data-add]').forEach((btn) => {
       btn.addEventListener('click', () => void addBloc(btn.getAttribute('data-add')));
     });
@@ -237,27 +250,34 @@
   }
 
   function paintBlocks() {
+    clearEditors();
     const list = document.getElementById('blocksList');
     if (!list) return;
     if (!state.blocs.length) {
       list.innerHTML = '<p class="jp-muted">Aucun bloc</p>';
       return;
     }
+
     list.innerHTML = state.blocs.map((b) => {
       const p = b.payload_json || {};
       let body = '';
       if (b.type_bloc === 'texte') {
-        body = '<textarea data-field="html" data-id="' + b.id + '" rows="4" style="width:100%">' + esc(p.html || '') + '</textarea>';
+        body = '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html"></div>';
       } else if (b.type_bloc === 'video') {
-        body = '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="URL YouTube / Vimeo" style="width:100%">'
+        body = '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="URL YouTube / Vimeo" style="width:100%;margin-bottom:0.5rem">'
           + (p.url ? videoEmbed(p.url) : '');
       } else if (b.type_bloc === 'molecule') {
-        body = '<input data-field="matrice_id" data-id="' + b.id + '" value="' + esc(p.matrice_id || '') + '" placeholder="matrice_id" style="width:100%">';
+        body = '<p class="jp-muted" style="margin:0 0 0.5rem">' + (p.matrice_id
+          ? ('Fiche : <code>' + esc(p.matrice_id) + '</code>')
+          : 'Aucune molécule') + '</p>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-pick-mol-bloc="' + b.id + '">Choisir une molécule</button>';
       } else if (b.type_bloc === 'conseil') {
-        body = '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Pathologie" style="width:100%;margin-bottom:0.35rem">'
-          + '<textarea data-field="corps_html" data-id="' + b.id + '" rows="3" style="width:100%">' + esc(p.corps_html || '') + '</textarea>';
+        body = '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Pathologie" style="width:100%;margin-bottom:0.5rem">'
+          + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
       } else if (b.type_bloc === 'jeu') {
-        body = '<input data-field="code_unique" data-id="' + b.id + '" value="' + esc(p.code_unique || '') + '" placeholder="JP-*****" style="width:100%">';
+        body = '<p style="margin:0 0 0.35rem"><code>' + esc(p.code_unique || '—') + '</code>'
+          + (p.type_jeu ? ' · ' + esc(p.type_jeu) : '') + '</p>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-edit-jeu="' + b.id + '">Remplacer / nouveau jeu</button>';
       }
       return '<article class="jp-block-card" data-bloc="' + b.id + '">'
         + '<header><span class="jp-block-type">' + esc(b.type_bloc) + '</span>'
@@ -267,31 +287,96 @@
         + body + '</article>';
     }).join('');
 
+    list.querySelectorAll('[data-rte]').forEach((host) => {
+      const id = host.getAttribute('data-rte');
+      const field = host.getAttribute('data-field') || 'html';
+      const b = state.blocs.find((x) => x.id === id);
+      const html = (b?.payload_json || {})[field] || '';
+      state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html);
+    });
+
     list.querySelectorAll('[data-save]').forEach((btn) => {
       btn.addEventListener('click', () => void saveBloc(btn.getAttribute('data-save')));
     });
     list.querySelectorAll('[data-del]').forEach((btn) => {
       btn.addEventListener('click', () => void deleteBloc(btn.getAttribute('data-del')));
     });
+    list.querySelectorAll('[data-pick-mol-bloc]').forEach((btn) => {
+      btn.addEventListener('click', () => void pickMoleculeForBloc(btn.getAttribute('data-pick-mol-bloc')));
+    });
+    list.querySelectorAll('[data-edit-jeu]').forEach((btn) => {
+      btn.addEventListener('click', () => void openJeuWizard());
+    });
+
+    if (state.focusBlocId) {
+      const card = list.querySelector('[data-bloc="' + state.focusBlocId + '"]');
+      state.focusBlocId = null;
+      if (card) {
+        card.classList.add('is-focus');
+        card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
   }
 
   function collectPayload(blocId, type) {
     const card = document.querySelector('[data-bloc="' + blocId + '"]');
     if (!card) return {};
     const val = (field) => card.querySelector('[data-field="' + field + '"]')?.value || '';
-    if (type === 'texte') return { html: val('html') };
+    const rte = (field) => state.editors[blocId + ':' + field]?.getHtml?.() || '';
+    if (type === 'texte') return { html: rte('html') };
     if (type === 'video') return { url: val('url') };
-    if (type === 'molecule') return { matrice_id: val('matrice_id'), mode: 'fiche' };
-    if (type === 'conseil') return { pathologie: val('pathologie'), corps_html: val('corps_html') };
-    if (type === 'jeu') return { code_unique: val('code_unique'), libelle_cta: 'Jouer' };
+    if (type === 'molecule') {
+      const b = state.blocs.find((x) => x.id === blocId);
+      return { matrice_id: b?.payload_json?.matrice_id || '', mode: 'fiche' };
+    }
+    if (type === 'conseil') return { pathologie: val('pathologie'), corps_html: rte('corps_html') };
+    if (type === 'jeu') {
+      const b = state.blocs.find((x) => x.id === blocId);
+      return Object.assign({ libelle_cta: 'Jouer' }, b?.payload_json || {});
+    }
     return {};
+  }
+
+  async function pickMoleculeForBloc(blocId) {
+    const m = selectedModule();
+    if (!m) return;
+    await global.JpStudioMolPicker.open({
+      moduleId: m.id,
+      onApplied: async ({ matriceId }) => {
+        const b = state.blocs.find((x) => x.id === blocId);
+        if (!b) return;
+        const payload = Object.assign({}, b.payload_json || {}, { matrice_id: matriceId, mode: 'fiche' });
+        const row = await rpc('v2_upsert_bloc', { p_payload: { id: blocId, payload_json: payload } });
+        Object.assign(b, row);
+        paintBlocks();
+        global.JpToast?.ok?.('Molécule liée');
+      },
+    });
   }
 
   async function addBloc(type) {
     const m = selectedModule();
     if (!m || m.est_groupe) return;
     if (type === 'jeu') {
-      await openJeuWizard(m);
+      await openJeuWizard();
+      return;
+    }
+    if (type === 'molecule') {
+      try {
+        const row = await rpc('v2_upsert_bloc', {
+          p_payload: {
+            module_id: m.id,
+            type_bloc: 'molecule',
+            ordre: (state.blocs.length + 1) * 10,
+            payload_json: { mode: 'fiche' },
+          },
+        });
+        state.blocs.push(row);
+        paintBlocks();
+        await pickMoleculeForBloc(row.id);
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
       return;
     }
     try {
@@ -300,7 +385,7 @@
           module_id: m.id,
           type_bloc: type,
           ordre: (state.blocs.length + 1) * 10,
-          payload_json: type === 'texte' ? { html: '' } : {},
+          payload_json: type === 'texte' ? { html: '<p></p>' } : (type === 'conseil' ? { pathologie: '', corps_html: '<p></p>' } : {}),
         },
       });
       state.blocs.push(row);
@@ -317,11 +402,7 @@
     const titre = card?.querySelector('[data-field="titre"]')?.value || '';
     try {
       const row = await rpc('v2_upsert_bloc', {
-        p_payload: {
-          id,
-          titre,
-          payload_json: collectPayload(id, b.type_bloc),
-        },
+        p_payload: { id, titre, payload_json: collectPayload(id, b.type_bloc) },
       });
       Object.assign(b, row);
       global.JpToast?.ok?.('Enregistré');
@@ -343,9 +424,8 @@
 
   function renderInspectorMeta(m) {
     const pane = document.getElementById('inspectorPane');
-    pane.innerHTML = '<div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.75rem">'
-      + '<strong>Propriétés</strong></div>'
-      + '<div class="jp-field"><label>Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
+    pane.innerHTML = '<strong>Propriétés</strong>'
+      + '<div class="jp-field" style="margin-top:0.75rem"><label>Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
       + '<div class="jp-field"><label>Résumé</label><textarea id="metaResume" rows="3">' + esc(m.resume || '') + '</textarea></div>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>';
     pane.querySelector('#btnSaveMeta').addEventListener('click', async () => {
@@ -366,288 +446,83 @@
     });
   }
 
+  async function countProgramme(moduleId) {
+    const { data } = await sb()
+      .from('publications_connaissances')
+      .select('connaissance_id, connaissances!inner(matrice_id)')
+      .eq('module_id', moduleId)
+      .eq('actif', true);
+    const mats = new Set();
+    (data || []).forEach((p) => {
+      if (p.connaissances?.matrice_id) mats.add(p.connaissances.matrice_id);
+    });
+    return { connaissances: (data || []).length, molecules: mats.size };
+  }
+
   async function renderInspector(m) {
     const pane = document.getElementById('inspectorPane');
-    pane.innerHTML = '<div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.5rem">'
-      + '<strong>Programme</strong><span id="helpProg"></span></div>'
-      + '<div class="jp-field"><input id="searchMol" placeholder="Recherche molécule"></div>'
-      + '<div class="jp-field"><input id="filterIndication" placeholder="Indication (norm)"></div>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSearchMol">Chercher</button>'
-      + '<div id="searchResults" style="margin:0.5rem 0"></div>'
-      + '<div id="programTree"></div>'
-      + '<hr style="margin:1rem 0;border:0;border-top:1px solid rgba(15,107,92,0.12)">'
-      + '<strong>Jeux liés</strong>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnNewJeu" style="margin-top:0.5rem">Créer un jeu</button>'
-      + '<div id="jeuxLies" style="margin-top:0.65rem"></div>';
+    const stats = await countProgramme(m.id);
+    pane.innerHTML = '<div class="jp-inspector-cta">'
+      + '<div style="display:flex;align-items:center;gap:0.35rem"><strong>Programme</strong><span id="helpProg"></span></div>'
+      + '<p class="jp-muted" id="progStats" style="margin:0">' + stats.molecules + ' molécule(s) · '
+      + stats.connaissances + ' valeur(s)</p>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnOpenMol">Sélectionner les molécules</button>'
+      + '</div>'
+      + '<div class="jp-inspector-cta">'
+      + '<strong>Jeux</strong>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnNewJeu">Créer un jeu</button>'
+      + '<div id="jeuxLies"></div>'
+      + '</div>';
 
     pane.querySelector('#helpProg').appendChild(
       global.JpModal.helpButton('Programme', [
-        'Cochez chaque valeur à afficher dans cette leçon.',
-        'Ex. bisoprolol : seulement IC ici ; angor dans un autre chapitre.',
+        'Ouvrez le sélecteur pour chercher parmi tout le catalogue.',
+        'Pour chaque molécule, affichez ou masquez chaque valeur (ex. une seule indication).',
       ])
     );
 
-    pane.querySelector('#btnSearchMol').addEventListener('click', () => void runSearch());
-    pane.querySelector('#btnNewJeu').addEventListener('click', () => void openJeuWizard(m));
-
-    await refreshProgramTree(m);
+    pane.querySelector('#btnOpenMol').addEventListener('click', () => {
+      void global.JpStudioMolPicker.open({
+        moduleId: m.id,
+        onApplied: async () => {
+          const s = await countProgramme(m.id);
+          const el = document.getElementById('progStats');
+          if (el) el.textContent = s.molecules + ' molécule(s) · ' + s.connaissances + ' valeur(s)';
+        },
+      });
+    });
+    pane.querySelector('#btnNewJeu').addEventListener('click', () => void openJeuWizard());
     await refreshJeuxLies(m);
-  }
-
-  async function runSearch() {
-    const q = document.getElementById('searchMol')?.value || '';
-    const ind = document.getElementById('filterIndication')?.value || '';
-    try {
-      const rows = await rpc('v2_chercher_matrices', {
-        p_q: q || null,
-        p_indication_norm: ind || null,
-        p_secteur_norm: null,
-        p_classe_ther_norm: null,
-        p_classe_pharma_norm: null,
-        p_limit: 30,
-      });
-      const box = document.getElementById('searchResults');
-      const list = Array.isArray(rows) ? rows : [];
-      box.innerHTML = list.map((r) =>
-        '<button type="button" class="jp-btn jp-btn-ghost" data-add-mol="' + r.id + '" style="display:block;width:100%;margin:0.25rem 0;text-align:left">'
-        + esc(r.dci || '') + (r.noms ? ' · ' + esc(r.noms) : '') + '</button>'
-      ).join('') || '<p class="jp-muted">Aucun résultat</p>';
-      box.querySelectorAll('[data-add-mol]').forEach((btn) => {
-        btn.addEventListener('click', () => void openMoleculeProgram(btn.getAttribute('data-add-mol'), btn.textContent));
-      });
-    } catch (e) {
-      global.JpToast?.fromError?.(e);
-    }
-  }
-
-  async function openMoleculeProgram(matriceId, label) {
-    const m = selectedModule();
-    if (!m) return;
-    if (!state.programMatrices.find((x) => x.id === matriceId)) {
-      state.programMatrices.push({ id: matriceId, label: label || matriceId });
-    }
-    await refreshProgramTree(m);
-    const el = document.querySelector('details[data-matrice="' + matriceId + '"]');
-    if (el) el.open = true;
-  }
-
-  async function refreshProgramTree(m) {
-    const box = document.getElementById('programTree');
-    if (!box) return;
-
-    // Matrices déjà publiées sur le module
-    const { data: pubs } = await sb()
-      .from('publications_connaissances')
-      .select('connaissance_id, connaissances!inner(matrice_id)')
-      .eq('module_id', m.id)
-      .eq('actif', true);
-    const publishedMatrices = new Set();
-    (pubs || []).forEach((p) => {
-      const mid = p.connaissances?.matrice_id;
-      if (mid) publishedMatrices.add(mid);
-    });
-    publishedMatrices.forEach((id) => {
-      if (!state.programMatrices.find((x) => x.id === id)) {
-        state.programMatrices.push({ id, label: id.slice(0, 8) });
-      }
-    });
-
-    if (!state.programMatrices.length) {
-      box.innerHTML = '<p class="jp-muted">Ajoutez une molécule</p>';
-      return;
-    }
-
-    const chunks = [];
-    for (const mol of state.programMatrices) {
-      const rows = await rpc('v2_lister_connaissances_matrice', {
-        p_matrice_id: mol.id,
-        p_module_id: m.id,
-      });
-      const list = Array.isArray(rows) ? rows : [];
-      // enrich label from dci if needed
-      const dciRow = list.find((r) => r.champ_code === 'dci');
-      if (dciRow?.texte) mol.label = dciRow.texte;
-
-      const byChamp = {};
-      list.forEach((r) => {
-        if (r.champ_code === 'nom_commercial' || r.champ_code === 'dci') return;
-        (byChamp[r.champ_code] = byChamp[r.champ_code] || []).push(r);
-      });
-
-      let inner = '';
-      Object.keys(byChamp).sort().forEach((code) => {
-        const vals = byChamp[code];
-        const pubN = vals.filter((v) => v.publie).length;
-        inner += '<div class="jp-prog-champ"><h4>'
-          + esc(champLibelle(code)) + ' <span>' + pubN + '/' + vals.length + '</span>'
-          + '<span><button type="button" class="jp-btn jp-btn-ghost" data-all-on="' + mol.id + '" data-champ="' + code + '">Tout</button>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-all-off="' + mol.id + '" data-champ="' + code + '">Rien</button></span></h4>';
-        vals.forEach((v) => {
-          inner += '<label class="jp-prog-val"><input type="checkbox" data-cid="' + v.connaissance_id + '" data-matrice="' + mol.id + '"'
-            + (v.publie ? ' checked' : '') + '> <span>' + esc(v.texte || '—') + '</span></label>';
-        });
-        inner += '</div>';
-      });
-
-      chunks.push('<details class="jp-prog-mol" data-matrice="' + mol.id + '" open>'
-        + '<summary>' + esc(mol.label)
-        + ' <button type="button" class="jp-btn jp-btn-ghost" data-mol-on="' + mol.id + '">Tout</button>'
-        + ' <button type="button" class="jp-btn jp-btn-ghost" data-mol-off="' + mol.id + '">Rien</button>'
-        + ' <button type="button" class="jp-btn jp-btn-primary" data-sync="' + mol.id + '">Appliquer</button></summary>'
-        + inner + '</details>');
-    }
-    box.innerHTML = chunks.join('');
-
-    box.querySelectorAll('[data-all-on]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        const mid = btn.getAttribute('data-all-on');
-        const champ = btn.getAttribute('data-champ');
-        box.querySelectorAll('details[data-matrice="' + mid + '"] .jp-prog-champ').forEach((ch) => {
-          if (ch.querySelector('h4')?.textContent?.startsWith(champLibelle(champ)) || true) {
-            // filter by data-champ via parent structure - check checkboxes in same champ section
-          }
-        });
-        const detail = box.querySelector('details[data-matrice="' + mid + '"]');
-        detail?.querySelectorAll('.jp-prog-champ').forEach((section) => {
-          const h = section.querySelector('h4');
-          if (h && h.childNodes[0] && h.textContent.indexOf(champLibelle(champ)) === 0) {
-            section.querySelectorAll('input[type=checkbox]').forEach((c) => { c.checked = true; });
-          }
-        });
-        // simpler: match data-champ button's section
-        let section = btn.closest('.jp-prog-champ');
-        section?.querySelectorAll('input[type=checkbox]').forEach((c) => { c.checked = true; });
-      });
-    });
-    box.querySelectorAll('[data-all-off]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        btn.closest('.jp-prog-champ')?.querySelectorAll('input[type=checkbox]').forEach((c) => { c.checked = false; });
-      });
-    });
-    box.querySelectorAll('[data-mol-on]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const mid = btn.getAttribute('data-mol-on');
-        box.querySelectorAll('details[data-matrice="' + mid + '"] input[type=checkbox]').forEach((c) => { c.checked = true; });
-      });
-    });
-    box.querySelectorAll('[data-mol-off]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const mid = btn.getAttribute('data-mol-off');
-        box.querySelectorAll('details[data-matrice="' + mid + '"] input[type=checkbox]').forEach((c) => { c.checked = false; });
-      });
-    });
-    box.querySelectorAll('[data-sync]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void syncMoleculePubs(m, btn.getAttribute('data-sync'));
-      });
-    });
-  }
-
-  async function syncMoleculePubs(module, matriceId) {
-    const detail = document.querySelector('details[data-matrice="' + matriceId + '"]');
-    if (!detail) return;
-    const checked = [];
-    const unchecked = [];
-    detail.querySelectorAll('input[type=checkbox][data-cid]').forEach((c) => {
-      if (c.checked) checked.push(c.getAttribute('data-cid'));
-      else unchecked.push(c.getAttribute('data-cid'));
-    });
-    try {
-      if (checked.length) {
-        await rpc('v2_publier_connaissances', {
-          p_module_id: module.id,
-          p_connaissance_ids: checked,
-        });
-      }
-      if (unchecked.length) {
-        await rpc('v2_depublier_connaissances', {
-          p_module_id: module.id,
-          p_connaissance_ids: unchecked,
-        });
-      }
-      global.JpToast?.ok?.('Programme à jour');
-      await refreshProgramTree(module);
-    } catch (e) {
-      global.JpToast?.fromError?.(e);
-    }
   }
 
   async function refreshJeuxLies(m) {
     const box = document.getElementById('jeuxLies');
     if (!box) return;
-    const { data, error } = await sb()
+    const { data } = await sb()
       .from('modeles_jeu')
       .select('id, code_unique, type_jeu, titre, en_pause, actif')
       .eq('parcours_id', state.parcoursId)
       .eq('actif', true)
       .contains('module_ids', [m.id]);
-    if (error) {
-      box.innerHTML = '<p class="jp-muted">—</p>';
-      return;
-    }
     const rows = data || [];
     box.innerHTML = rows.map((r) =>
-      '<div class="jp-list-row"><span><code>' + esc(r.code_unique) + '</code> ' + esc(r.titre) + '</span></div>'
-    ).join('') || '<p class="jp-muted">Aucun</p>';
+      '<div class="jp-list-row" style="margin-top:0.4rem"><span><code>' + esc(r.code_unique)
+      + '</code><br>' + esc(r.titre) + '</span></div>'
+    ).join('') || '<p class="jp-muted" style="margin:0.5rem 0 0">Aucun</p>';
   }
 
-  async function openJeuWizard(m) {
-    const wrap = document.createElement('div');
-    wrap.innerHTML = '<div class="jp-field"><label>Type</label>'
-      + '<select id="wizType"><option value="quiz">Quiz</option><option value="trous">Trous</option>'
-      + '<option value="fiche_aleatoire">Fiche aléatoire</option><option value="ordonnance">Ordonnance</option></select></div>'
-      + '<div class="jp-field"><label>Titre</label><input id="wizTitre" value="Jeu — ' + esc(m.titre) + '"></div>'
-      + '<div class="jp-field"><label>Questions / fiches</label><input id="wizNb" type="number" value="8" min="1"></div>';
-    global.JpModal.open({
-      title: 'Nouveau jeu',
-      body: wrap,
-      confirmLabel: 'Créer',
-      onConfirm: async () => {
-        const type = wrap.querySelector('#wizType').value;
-        const titre = wrap.querySelector('#wizTitre').value;
-        const nb = Number(wrap.querySelector('#wizNb').value) || 8;
-        const configuration_json = type === 'quiz'
-          ? { nb_questions: nb, nb_propositions: 3, champs_interroges: ['indications', 'contre_indications', 'effets_indesirables'] }
-          : type === 'trous'
-            ? { nb_fiches: Math.min(nb, 6), densite_trous: 3, champs_interroges: ['indications', 'contre_indications', 'effets_indesirables'] }
-            : type === 'fiche_aleatoire'
-              ? { seuil_exclusion: 8, nb_notes_exclusion: 3 }
-              : { champs: ['indications', 'contre_indications', 'effets_indesirables'], regles: [] };
-        const created = await rpc('v2_creer_modele_jeu', {
-          p_payload: {
-            type_jeu: type,
-            titre,
-            parcours_id: state.parcoursId,
-            module_ids: [m.id],
-            mode: 'entrainement',
-            configuration_json,
-          },
-        });
-        await rpc('v2_upsert_bloc', {
-          p_payload: {
-            module_id: m.id,
-            type_bloc: 'jeu',
-            titre: created.titre || titre,
-            ordre: (state.blocs.length + 1) * 10,
-            payload_json: {
-              modele_id: created.id,
-              code_unique: created.code_unique,
-              libelle_cta: 'Jouer',
-            },
-          },
-        });
+  async function openJeuWizard() {
+    const m = selectedModule();
+    if (!m || m.est_groupe) return;
+    await global.JpStudioJeuWizard.open({
+      parcoursId: state.parcoursId,
+      moduleId: m.id,
+      modules: state.modules,
+      defaultTitre: 'Jeu — ' + m.titre,
+      onCreated: async () => {
         state.blocs = await loadBlocs(m.id);
         paintBlocks();
         await refreshJeuxLies(m);
-        global.JpToast?.ok?.(created.code_unique || 'Jeu créé');
       },
     });
   }
