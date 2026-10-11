@@ -114,6 +114,26 @@
     return data;
   }
 
+  /** Parcours actifs + état d’inscription, verrou (parcours prérequis), progression et date de mise à jour. */
+  async function parcoursListe() {
+    const { data, error } = await sb().rpc('v2_parcours_liste');
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
+  /**
+   * Enregistre la lecture (0–100 %) d’une leçon ; ≥ 95 % = lue (critère « lecture »).
+   * Renvoie { detail } (état de validation de la leçon).
+   */
+  async function enregistrerLecture(moduleId, pct) {
+    const { data, error } = await sb().rpc('v2_enregistrer_lecture', {
+      p_module_id: moduleId,
+      p_pct: Math.round(Number(pct) || 0),
+    });
+    if (error) throw error;
+    return data;
+  }
+
   global.JpV2Resolver = {
     listerMedicaments,
     ficheResolue,
@@ -125,5 +145,7 @@
     getProfilV2,
     ensureParcoursActif,
     monEspace,
+    parcoursListe,
+    enregistrerLecture,
   };
 })(window);

@@ -622,3 +622,203 @@
 
 .jp-studio-sheet-head, .jp-studio-sheet-foot { padding: 0.75rem 1.2rem; }
 .jp-studio-sheet-head [data-close] { width: 2rem; height: 2rem; padding: 0 !important; font-size: 1.2rem; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Polish des champs (028) — sélecteurs explicites (aucune dépendance à :where / :is),
+   cache-bust ?v= sur le <link> : plus de champ « brut » du navigateur dans le studio.
+   ═══════════════════════════════════════════════════════════════════ */
+.jp-studio-app input:not([type]),
+.jp-studio-app input[type="text"],
+.jp-studio-app input[type="url"],
+.jp-studio-app input[type="number"],
+.jp-studio-app input[type="search"],
+.jp-studio-app input[type="email"],
+.jp-studio-app textarea,
+.jp-studio-app select,
+.jp-studio-app .jp-st-input,
+.jp-studio-overlay input:not([type]),
+.jp-studio-overlay input[type="text"],
+.jp-studio-overlay input[type="url"],
+.jp-studio-overlay input[type="number"],
+.jp-studio-overlay input[type="search"],
+.jp-studio-overlay input[type="email"],
+.jp-studio-overlay textarea,
+.jp-studio-overlay select,
+.jp-studio-overlay .jp-st-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.8rem;
+  font-family: inherit;
+  font-size: 0.93rem;
+  line-height: 1.35;
+  color: var(--jp-text, #14201c);
+  background-color: #fff;
+  border: 1px solid rgba(15, 107, 92, 0.22);
+  border-radius: 0.7rem;
+  box-shadow: inset 0 1px 2px rgba(15, 46, 40, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.jp-studio-app input:not([type]):hover,
+.jp-studio-app input[type="text"]:hover,
+.jp-studio-app input[type="url"]:hover,
+.jp-studio-app input[type="number"]:hover,
+.jp-studio-app input[type="search"]:hover,
+.jp-studio-app textarea:hover,
+.jp-studio-app select:hover,
+.jp-studio-app .jp-st-input:hover,
+.jp-studio-overlay input:not([type]):hover,
+.jp-studio-overlay input[type="text"]:hover,
+.jp-studio-overlay input[type="url"]:hover,
+.jp-studio-overlay input[type="number"]:hover,
+.jp-studio-overlay input[type="search"]:hover,
+.jp-studio-overlay textarea:hover,
+.jp-studio-overlay select:hover,
+.jp-studio-overlay .jp-st-input:hover {
+  border-color: rgba(15, 107, 92, 0.45);
+}
+.jp-studio-app input:not([type]):focus,
+.jp-studio-app input[type="text"]:focus,
+.jp-studio-app input[type="url"]:focus,
+.jp-studio-app input[type="number"]:focus,
+.jp-studio-app input[type="search"]:focus,
+.jp-studio-app textarea:focus,
+.jp-studio-app select:focus,
+.jp-studio-app .jp-st-input:focus,
+.jp-studio-overlay input:not([type]):focus,
+.jp-studio-overlay input[type="text"]:focus,
+.jp-studio-overlay input[type="url"]:focus,
+.jp-studio-overlay input[type="number"]:focus,
+.jp-studio-overlay input[type="search"]:focus,
+.jp-studio-overlay textarea:focus,
+.jp-studio-overlay select:focus,
+.jp-studio-overlay .jp-st-input:focus {
+  outline: none;
+  border-color: var(--jp-accent, #0f6b5c);
+  box-shadow: 0 0 0 3px rgba(15, 107, 92, 0.2);
+  background-color: #fff;
+}
+.jp-studio-app textarea, .jp-studio-overlay textarea { min-height: 5.5rem; resize: vertical; line-height: 1.5; }
+.jp-studio-app select, .jp-studio-overlay select {
+  padding-right: 2.3rem;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, #0f6b5c 50%), linear-gradient(135deg, #0f6b5c 50%, transparent 50%);
+  background-position: calc(100% - 1.1rem) 52%, calc(100% - 0.8rem) 52%;
+  background-size: 0.32rem 0.32rem, 0.32rem 0.32rem;
+  background-repeat: no-repeat;
+}
+.jp-studio-app ::placeholder, .jp-studio-overlay ::placeholder { color: rgba(20, 32, 28, 0.4); opacity: 1; }
+
+/* Bloc conseil / vidéo : label, champ pleine largeur, espacement régulier */
+.jp-block-body .jp-field { display: grid; gap: 0.4rem; margin: 0 0 0.9rem; }
+.jp-block-body .jp-field > label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jp-accent, #0f6b5c);
+}
+.jp-block-body .jp-field input { background: linear-gradient(180deg, #fff, #f8fcfb); }
+.jp-block-body .jp-video-wrap { margin-top: 0.4rem; }
+
+/* En-tête de bloc : pastille de type + titre éditable + bouton supprimer */
+.jp-block-card > header { display: flex; align-items: center; gap: 0.6rem; }
+.jp-block-card .jp-block-type { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; }
+.jp-studio-app .jp-block-card input.jp-block-title {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.1rem;
+  padding: 0.3rem 0.6rem;
+  font-weight: 600;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.jp-studio-app .jp-block-card input.jp-block-title:hover { background: #fff; border-color: rgba(15, 107, 92, 0.28); }
+.jp-studio-app .jp-block-card input.jp-block-title:focus { background: #fff; border-color: var(--jp-accent, #0f6b5c); box-shadow: 0 0 0 3px rgba(15, 107, 92, 0.2); }
+
+/* Cases à cocher */
+.jp-st-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(15, 107, 92, 0.18);
+  border-radius: 0.7rem;
+  background: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.jp-st-check:hover { background: var(--jp-accent-soft, #e6f3f0); border-color: rgba(15, 107, 92, 0.4); }
+.jp-st-check input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--jp-accent, #0f6b5c); flex: none; }
+
+.jp-st-inline { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: rgba(20, 32, 28, 0.65); }
+.jp-studio-app input.jp-st-num, .jp-studio-overlay input.jp-st-num { width: 4.6rem; min-height: 2.1rem; padding: 0.25rem 0.5rem; text-align: center; }
+
+/* Paramètres de jeu (wizard) : grille régulière */
+.jp-jeu-wiz-body .jp-split { gap: 0 1rem; }
+.jp-jeu-wiz-body .jp-field { margin-bottom: 0.9rem; }
+
+/* ═══════════ Déblocage (prérequis + critères) ═══════════ */
+.jp-unlock .jp-inspector-head { margin-bottom: 0.65rem; }
+.jp-unlock .jp-btn-primary { width: 100%; justify-content: center; margin-top: 0.4rem; }
+.jp-crit-ed { display: grid; gap: 0.6rem; }
+.jp-crit-jeux { display: grid; gap: 0.45rem; }
+.jp-crit-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(15, 107, 92, 0.16);
+  border-radius: 0.7rem;
+  background: linear-gradient(180deg, #fff, #f6fbf9);
+}
+.jp-crit-name { grid-column: 1; font-size: 0.88rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-crit-row .jp-st-inline { grid-column: 1; }
+.jp-crit-x {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: rgba(20, 32, 28, 0.5);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.jp-crit-x:hover { background: #fdecea; color: #b42318; }
+.jp-crit-none { margin: 0; font-size: 0.82rem; }
+.jp-ed-seg { display: inline-flex; padding: 0.2rem; border-radius: 0.7rem; background: rgba(15, 107, 92, 0.09); gap: 0.15rem; justify-self: start; }
+.jp-ed-seg button {
+  border: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: rgba(20, 32, 28, 0.7);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.jp-ed-seg button.is-on { background: var(--jp-accent, #0f6b5c); color: #fff; box-shadow: 0 2px 6px rgba(15, 107, 92, 0.25); }
+.jp-crit-sum {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.7rem;
+  background: var(--jp-accent-soft, #e6f3f0);
+  color: #0c574b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+/* Combos typeahead : place pour le bouton « × » */
+.jp-studio-app input.jp-ta-input, .jp-studio-overlay input.jp-ta-input { padding-right: 2.2rem; }
+.jp-studio-app .jp-ta-multi input.jp-ta-input, .jp-studio-overlay .jp-ta-multi input.jp-ta-input { padding: 0.2rem 0.25rem; }

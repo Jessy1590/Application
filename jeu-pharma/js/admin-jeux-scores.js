@@ -531,7 +531,7 @@
           + '<td><div class="jp-jx-actions">'
           + '<button type="button" class="jp-btn jp-btn-ghost" data-act="parcours-jeux" data-id="' + esc(b.id) + '">Jeux et scores</button>'
           + '<button type="button" class="jp-btn jp-btn-ghost" data-act="parcours-pers" data-id="' + esc(b.id) + '">Personnes</button>'
-          + (real ? '<a class="jp-btn jp-btn-ghost" href="parcours.html?parcours=' + encodeURIComponent(b.id) + '">Studio</a>' : '')
+          + (real ? '<a class="jp-btn jp-btn-ghost" href="parcours.html?parcours=' + encodeURIComponent(b.id) + '">Modif parcours</a>' : '')
           + '</div></td></tr>';
       }).join('')
       + '</tbody></table></div>';

@@ -14,17 +14,14 @@
 <script src="../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/v2.css">
-<link rel="stylesheet" href="css/player.css">
+<link rel="stylesheet" href="css/v2.css?v=028">
+<link rel="stylesheet" href="css/player.css?v=028">
 </head>
 <body>
   <main class="jp-player-shell">
     <a class="jp-back" href="index.html">←</a>
     <h1 class="jp-player-brand">Mon espace</h1>
-    <h2 class="jp-title" style="font-size:1.1rem;margin:0 0 0.65rem">Parcours</h2>
-    <ul class="jp-list-clean" id="insc"></ul>
-    <h2 class="jp-title" style="font-size:1.1rem;margin:1.5rem 0 0.65rem">Scores</h2>
-    <ul class="jp-list-clean" id="scores"></ul>
+    <div id="me-root"><p class="jp-muted">…</p></div>
   </main>
   <nav class="jp-bottom-nav" aria-label="Navigation">
     <a href="parcours.html">Parcours</a>
@@ -38,24 +35,17 @@
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
-  <script src="js/resolver.js"></script>
+  <script src="js/resolver.js?v=028"></script>
+  <script src="js/parcours-ui.js?v=028"></script>
+  <script src="js/mon-espace.js?v=028"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'mon-espace', homeHref: JpFab.PORTAIL_URL });
       try {
-        const data = await JpV2Resolver.monEspace();
-        const insc = (data.inscriptions || []).filter(function (i) { return i.statut === 'accepte'; });
-        document.getElementById('insc').innerHTML = insc.map(function (i) {
-          return '<li class="jp-list-row"><strong>' + JpUi.escapeHtml(i.libelle) + '</strong>'
-            + '<a class="jp-btn jp-btn-ghost jp-btn-touch" href="espace.html?parcours=' + encodeURIComponent(i.parcours_id) + '">Ouvrir</a></li>';
-        }).join('') || '<li class="jp-muted">—</li>';
-        const scores = data.scores || [];
-        document.getElementById('scores').innerHTML = scores.map(function (s) {
-          return '<li class="jp-list-row"><strong>' + JpUi.escapeHtml(s.titre || s.code_unique || '') + '</strong>'
-            + '<span class="jp-badge-soft">' + (s.score_obtenu ?? '—') + ' / ' + (s.score_max ?? '—') + '</span></li>';
-        }).join('') || '<li class="jp-muted">—</li>';
+        await JpMonEspace.boot();
       } catch (e) {
         JpToast.fromError(e);
+        document.getElementById('me-root').innerHTML = '<p class="jp-muted">Erreur de chargement.</p>';
       }
     });
   </script>

@@ -43,7 +43,7 @@
   async function loadParcoursList() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, mode_contenu, ordre, actif')
+      .select('id, code, libelle, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json')
       .eq('actif', true)
       .order('ordre');
     if (error) throw error;
@@ -53,7 +53,7 @@
   async function loadModules(parcoursId) {
     const { data, error } = await sb()
       .from('modules_cours')
-      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, icone, couleur_accent, couverture_url, statut')
+      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, criteres_json, icone, couleur_accent, couverture_url, statut')
       .eq('parcours_id', parcoursId)
       .order('ordre');
     if (error) throw error;
@@ -160,9 +160,10 @@
       + '<header class="jp-studio-top">'
       + '<a class="jp-btn jp-btn-ghost" href="index.html">Admin</a>'
       + '<div id="parcoursCombo" class="jp-studio-parcours-combo"></div>'
-      + '<h1 id="studioTitle">Studio</h1>'
+      + '<h1 id="studioTitle">Modif parcours</h1>'
       + '<span id="draftChip" class="jp-draft-chip" role="status" aria-live="polite" hidden></span>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Aperçu</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnParcoursCfg" title="Prérequis et validation du parcours">Réglages du parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnNewParcours">Nouveau parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublish" disabled>Enregistrer et publier</button>'
       + '</header>'
@@ -200,6 +201,7 @@
       setTimeout(() => { if (!combo.getItem() && current) combo.setItem(current, true); }, 120);
     });
     root.querySelector('#btnNewParcours').addEventListener('click', () => void createParcours());
+    root.querySelector('#btnParcoursCfg').addEventListener('click', () => void openParcoursCfg());
     root.querySelector('#btnPublish').addEventListener('click', () => void publishLesson());
     root.querySelector('#btnPreview').addEventListener('click', async () => {
       const m = selectedModule();
@@ -217,6 +219,32 @@
 
     if (initial) await selectParcours(initial.id);
     else root.querySelector('#treePane').innerHTML = '<p class="jp-muted">Aucun parcours</p>';
+  }
+
+  async function openParcoursCfg() {
+    if (!state.parcours) return global.JpToast?.warn?.('Choisir un parcours');
+    await flushAll();
+    await global.JpStudioDeblocage.openParcours({
+      parcours: state.parcours,
+      parcoursList: state.parcoursList || [],
+      onSaved: async () => { state.parcoursList = await loadParcoursList(); },
+    });
+  }
+
+  /** Panneau « Déblocage » (prérequis + critères) dans l’inspecteur ; recharge l’arbre après enregistrement. */
+  function mountDeblocage(m) {
+    const host = document.getElementById('unlockHost');
+    if (!host || !global.JpStudioDeblocage) return;
+    void global.JpStudioDeblocage.mountModule(host, {
+      module: m,
+      modules: state.modules,
+      parcoursId: state.parcoursId,
+      onSaved: async () => {
+        state.modules = await loadModules(state.parcoursId);
+        const fresh = state.modules.find((x) => x.id === m.id);
+        if (fresh) Object.assign(m, fresh);
+      },
+    });
   }
 
   async function createParcours() {
@@ -238,7 +266,8 @@
     state.parcoursId = id;
     const list = await loadParcoursList();
     state.parcours = list.find((p) => p.id === id) || null;
-    document.getElementById('studioTitle').textContent = state.parcours?.libelle || 'Studio';
+    state.parcoursList = list;
+    document.title = (state.parcours?.libelle ? state.parcours.libelle + ' — ' : '') + 'Modif parcours';
     state.modules = await loadModules(id);
     const pend = state.pending;
     state.pending = null;
@@ -726,7 +755,9 @@
     pane.innerHTML = '<strong class="jp-inspector-title">Propriétés</strong>'
       + '<div class="jp-field"><label for="metaTitre">Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
       + '<div class="jp-field"><label for="metaResume">Résumé</label><textarea id="metaResume" rows="3">' + esc(m.resume || '') + '</textarea></div>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>';
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>'
+      + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
+    mountDeblocage(m);
     pane.querySelector('#btnSaveMeta').addEventListener('click', async () => {
       try {
         await rpc('v2_upsert_module', {
@@ -771,7 +802,9 @@
       + '<strong class="jp-inspector-title">Jeux</strong>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnNewJeu">Créer un jeu</button>'
       + '<div id="jeuxLies"></div>'
-      + '</div>';
+      + '</div>'
+      + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
+    mountDeblocage(m);
 
     pane.querySelector('#helpProg').appendChild(
       global.JpModal.helpButton('Programme', [

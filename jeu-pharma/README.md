@@ -5,7 +5,7 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 ## Principe
 
 1. **Référentiel** : connaissances atomiques (`connaissances`).
-2. **Studio parcours** : chapitres / leçons / blocs (texte, vidéo, molécule, conseil, jeu) + publication **valeur par valeur**.
+2. **Modif parcours** (studio) : chapitres / leçons / blocs (texte, vidéo, molécule, conseil, jeu) + publication **valeur par valeur**.
 3. **Accès** : le joueur demande un parcours ; l’admin accorde.
 4. **Résolveur** : lecture joueur via RPC `v2_*` uniquement.
 5. **Jeux** : Quiz, Trous, Fiche aléatoire, Ordonnance (`modeles_jeu`).
@@ -26,7 +26,7 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 
 | URL | Rôle |
 |-----|------|
-| `admin/parcours.html` | Studio constructeur |
+| `admin/parcours.html` | Modif parcours (studio constructeur) |
 | `admin/acces-parcours.html` | File d’attente des demandes |
 | `admin/referentiel.html` | **Référentiel** : toutes les fiches (recherche, filtres, édition, BDPM, validation) — remplace Catalogue / Référentiel / Sources / Import RCP |
 | `admin/jeux.html` | Scores (jeu / parcours / personne) + pause, relance, archivage des jeux |

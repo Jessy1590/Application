@@ -14,14 +14,13 @@
 <script src="../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/v2.css">
-<link rel="stylesheet" href="css/player.css">
+<link rel="stylesheet" href="css/v2.css?v=028">
+<link rel="stylesheet" href="css/player.css?v=028">
 </head>
 <body>
   <main class="jp-player-shell">
     <a class="jp-back" href="parcours.html">←</a>
-    <h1 class="jp-player-brand" id="title">—</h1>
-    <select id="selParcours" class="jp-field" style="margin-bottom:1rem;width:100%"></select>
+    <header class="jp-pc-hero" id="hero" hidden></header>
     <div id="modules"></div>
   </main>
   <nav class="jp-bottom-nav" aria-label="Navigation">
@@ -36,77 +35,97 @@
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
-  <script src="js/resolver.js"></script>
+  <script src="js/resolver.js?v=028"></script>
+  <script src="js/parcours-ui.js?v=028"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'espace', homeHref: JpFab.PORTAIL_URL });
-      const sel = document.getElementById('selParcours');
+      const esc = JpUi.escapeHtml;
+      const P = JpParcoursUi;
       const modsEl = document.getElementById('modules');
+      const hero = document.getElementById('hero');
+
+      function leafRow(m, depth) {
+        const locked = m.statut === 'verrouille';
+        const done = m.statut === 'termine';
+        const pct = P.clampPct(m.pct);
+        const maj = P.majLabel(m.maj_at);
+        let state;
+        if (locked) state = '<span class="jp-lc-state is-lock" aria-hidden="true">🔒</span>';
+        else if (done) state = '<span class="jp-lc-state is-done" aria-hidden="true">✓</span>';
+        else state = '<span class="jp-lc-state is-run" aria-hidden="true">' + pct + '<small>%</small></span>';
+        let body = '<div class="jp-lc-main"><strong>' + esc(m.titre) + '</strong>';
+        if (maj) body += '<small class="jp-lc-maj">' + esc(maj) + '</small>';
+        if (locked && m.bloque_par) body += '<small class="jp-lc-lock">' + esc(P.messageBloque(m.bloque_par)) + '</small>';
+        else if (!done && pct > 0) body += P.progressBar(pct, 'Avancement ' + m.titre);
+        body += '</div>';
+        const action = locked
+          ? '<span class="jp-badge-soft off">Verrouillée</span>'
+          : '<a class="jp-btn ' + (done ? 'jp-btn-ghost' : 'jp-btn-primary') + ' jp-btn-touch" href="lecon.html?module='
+            + encodeURIComponent(m.id) + '">' + (done ? 'Revoir' : (pct > 0 ? 'Continuer' : 'Ouvrir')) + '</a>';
+        return '<div class="jp-lc' + (locked ? ' is-locked' : '') + (done ? ' is-done' : '') + '" data-depth="' + depth + '">'
+          + state + body + action + '</div>';
+      }
 
       function renderTree(mods) {
+        const ids = new Set(mods.map(function (m) { return m.id; }));
         const byParent = {};
-        const roots = [];
         mods.forEach(function (m) {
-          if (m.parent_id) (byParent[m.parent_id] = byParent[m.parent_id] || []).push(m);
-          else roots.push(m);
+          const p = m.parent_id && ids.has(m.parent_id) ? m.parent_id : '';
+          (byParent[p] = byParent[p] || []).push(m);
         });
-        roots.sort(function (a, b) { return a.ordre - b.ordre; });
         function node(m, depth) {
           const kids = (byParent[m.id] || []).slice().sort(function (a, b) { return a.ordre - b.ordre; });
-          const locked = m.statut === 'verrouille';
-          const isGroup = !!m.est_groupe || m.statut === 'groupe';
-          let html = '<div class="jp-list-row" style="margin-left:' + (depth * 0.75) + 'rem;margin-bottom:0.5rem">'
-            + '<strong>' + JpUi.escapeHtml(m.titre) + '</strong>';
-          if (!locked && !isGroup) {
-            html += '<a class="jp-btn jp-btn-primary jp-btn-touch" href="lecon.html?module=' + encodeURIComponent(m.id) + '">Ouvrir</a>';
-          } else if (locked) {
-            html += '<span class="jp-badge-soft off">🔒</span>';
-          }
-          html += '</div>';
-          kids.forEach(function (k) { html += node(k, depth + 1); });
-          return html;
+          if (!m.est_groupe) return leafRow(m, depth);
+          const d = m.detail || {};
+          const locked = m.statut === 'verrouille' || m.verrouille;
+          let head = '<header class="jp-chap-head"><h2>' + esc(m.titre) + '</h2>'
+            + '<span class="jp-chap-count">' + (d.nb_valides || 0) + ' / ' + (d.nb_lecons || 0) + ' · ' + P.clampPct(m.pct) + ' %</span></header>';
+          if (locked && m.bloque_par) head += '<p class="jp-chap-lock">🔒 ' + esc(P.messageBloque(m.bloque_par)) + '</p>';
+          else head += P.progressBar(m.pct, 'Avancement ' + m.titre);
+          return '<section class="jp-chap' + (locked ? ' is-locked' : '') + (m.valide ? ' is-done' : '') + '">'
+            + head + '<div class="jp-chap-body">' + kids.map(function (k) { return node(k, depth + 1); }).join('') + '</div></section>';
         }
+        const roots = (byParent[''] || []).slice().sort(function (a, b) { return a.ordre - b.ordre; });
         modsEl.innerHTML = roots.length ? roots.map(function (r) { return node(r, 0); }).join('') : '<p class="jp-muted">—</p>';
       }
 
-      async function refresh() {
-        const p = (await JpV2Resolver.mesInscriptions()).find(function (x) { return x.parcours_id === sel.value; });
-        document.getElementById('title').textContent = p?.libelle || 'Parcours';
-        const prog = await JpV2Resolver.progression(sel.value || null);
-        renderTree(prog.modules || []);
+      function renderHero(parcours, libelleFallback) {
+        const p = parcours || {};
+        const maj = P.majLabel(p.maj_at);
+        hero.hidden = false;
+        hero.innerHTML = '<div class="jp-pc-hero-main"><h1 class="jp-player-brand">' + esc(p.libelle || libelleFallback || 'Parcours') + '</h1>'
+          + (maj ? '<p class="jp-pc-meta">' + esc(maj) + '</p>' : '')
+          + (p.description ? '<p class="jp-pc-desc">' + esc(p.description) + '</p>' : '')
+          + '<p class="jp-pc-meta">' + (p.nb_valides || 0) + ' / ' + (p.nb_lecons || 0) + ' leçons validées</p></div>'
+          + P.ring(p.pct, { size: 84 });
+        if (p.verrouille && p.bloque_par) {
+          hero.insertAdjacentHTML('afterend', '<p class="jp-lock-banner">🔒 ' + esc(P.messageBloque(p.bloque_par)) + '</p>');
+        }
       }
 
       try {
         const insc = (await JpV2Resolver.mesInscriptions()).filter(function (i) { return i.statut === 'accepte'; });
         if (!insc.length) {
           modsEl.innerHTML = '<p class="jp-muted"><a href="parcours.html">Demander un parcours</a></p>';
-          sel.hidden = true;
           return;
         }
-        insc.forEach(function (i) {
-          const o = document.createElement('option');
-          o.value = i.parcours_id;
-          o.textContent = i.libelle;
-          sel.appendChild(o);
-        });
+        // Le parcours cliqué (?parcours=) est ouvert directement ; sinon parcours actif du profil, sinon le premier
         const q = new URLSearchParams(location.search).get('parcours');
         const profil = await JpV2Resolver.getProfilV2();
-        if (q && insc.some(function (i) { return i.parcours_id === q; })) sel.value = q;
-        else if (profil?.parcours_id && insc.some(function (i) { return i.parcours_id === profil.parcours_id; })) sel.value = profil.parcours_id;
-        else sel.value = insc[0].parcours_id;
-        await JpV2Resolver.setParcoursActif(sel.value);
-        await refresh();
+        let id = insc[0].parcours_id;
+        if (q && insc.some(function (i) { return i.parcours_id === q; })) id = q;
+        else if (profil && profil.parcours_id && insc.some(function (i) { return i.parcours_id === profil.parcours_id; })) id = profil.parcours_id;
+        if (!profil || profil.parcours_id !== id) await JpV2Resolver.setParcoursActif(id);
+        const prog = await JpV2Resolver.progression(id);
+        const meta = insc.find(function (i) { return i.parcours_id === id; });
+        document.title = (meta && meta.libelle ? meta.libelle : 'Parcours') + ' — Jeu Pharma';
+        renderHero(prog.parcours, meta && meta.libelle);
+        renderTree(prog.modules || []);
       } catch (e) {
         JpToast.fromError(e);
         modsEl.innerHTML = '<p class="jp-muted">—</p>';
       }
-
-      sel.addEventListener('change', async function () {
-        try {
-          await JpV2Resolver.setParcoursActif(sel.value);
-          await refresh();
-        } catch (e) { JpToast.fromError(e); }
-      });
     });
   </script>
 </body>

@@ -662,3 +662,106 @@
 .jp-acc-lessons li.is-done { border-color: rgba(15, 107, 92, 0.35); }
 .jp-acc-lessons li.is-done em { color: var(--jp-accent, #0f6b5c); font-weight: 700; }
 @media (max-width: 900px) { .jp-acc-detail-grid { grid-template-columns: 1fr; } }
+
+
+/* ——— Progression partagée (028) : barres, anneaux, carte de score ——— */
+.jp-pbar {
+  height: 0.5rem;
+  min-width: 4rem;
+  border-radius: 999px;
+  background: rgba(15, 107, 92, 0.12);
+  overflow: hidden;
+}
+.jp-pbar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--jp-accent, #0f6b5c);
+  transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.jp-pbar > i.is-low { background: #7fb8ad; }
+.jp-pbar > i.is-mid { background: #3f9c8b; }
+
+.jp-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--jp-ring-size, 72px);
+  height: var(--jp-ring-size, 72px);
+}
+.jp-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.jp-ring-bg, .jp-ring-fg { fill: none; stroke-width: 3.4; }
+.jp-ring-bg { stroke: rgba(15, 107, 92, 0.12); }
+.jp-ring-fg {
+  stroke: var(--jp-accent, #0f6b5c);
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.jp-ring.is-low .jp-ring-fg { stroke: #7fb8ad; }
+.jp-ring.is-mid .jp-ring-fg { stroke: #3f9c8b; }
+.jp-ring b {
+  position: relative;
+  font-size: calc(var(--jp-ring-size, 72px) * 0.27);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-text, #14201c);
+  line-height: 1;
+}
+.jp-ring b small { font-size: 0.55em; font-weight: 600; margin-left: 1px; opacity: 0.7; }
+
+/* Carte de score (fin de jeu) */
+.jp-score-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem 1.25rem;
+  align-items: center;
+  margin: 1rem 0;
+  padding: 1.25rem 1.3rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(160deg, #fff, var(--jp-accent-soft, #e6f3f0));
+  border: 1px solid rgba(15, 107, 92, 0.18);
+  box-shadow: var(--jp-shadow, 0 8px 24px rgba(15, 107, 92, 0.08));
+  animation: jpScoreIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.jp-score-card.is-good { border-color: rgba(15, 107, 92, 0.45); }
+.jp-score-card.is-low { background: linear-gradient(160deg, #fff, #f3f6f5); }
+.jp-score-body { min-width: 0; }
+.jp-score-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jp-accent, #0f6b5c);
+}
+.jp-score-value {
+  margin: 0.15rem 0 0;
+  font-family: var(--jp-font-display, Georgia, serif);
+  font-size: clamp(1.9rem, 7vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.jp-score-value small { font-size: 0.5em; font-weight: 600; color: var(--jp-text-muted, #4a5c56); }
+.jp-score-msg { margin: 0.35rem 0 0; color: var(--jp-text-muted, #4a5c56); font-size: 0.95rem; }
+.jp-score-req {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.jp-score-req.is-ok { background: rgba(15, 107, 92, 0.12); color: #0c574b; font-weight: 600; }
+.jp-score-req.is-todo { background: rgba(154, 103, 0, 0.1); color: #7a5200; border: 1px dashed rgba(154, 103, 0, 0.4); }
+.jp-score-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.jp-score-actions .jp-btn { min-height: 2.75rem; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+@keyframes jpScoreIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jp-score-card, .jp-pbar > i, .jp-ring-fg { animation: none; transition: none; }
+}

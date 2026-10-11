@@ -14,8 +14,8 @@
 <script src="../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css">
-<link rel="stylesheet" href="css/v2.css">
-<link rel="stylesheet" href="css/player.css">
+<link rel="stylesheet" href="css/v2.css?v=028">
+<link rel="stylesheet" href="css/player.css?v=028">
 </head>
 <body>
   <main class="jp-player-shell">
@@ -35,38 +35,65 @@
   <script src="js/bugs.js"></script>
   <script src="js/fab.js"></script>
   <script src="js/ui.js"></script>
-  <script src="js/resolver.js"></script>
+  <script src="js/resolver.js?v=028"></script>
+  <script src="js/parcours-ui.js?v=028"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'parcours-dispo', homeHref: JpFab.PORTAIL_URL });
       const list = document.getElementById('list');
+      const esc = JpUi.escapeHtml;
+
+      function card(p) {
+        const accepte = p.statut === 'accepte';
+        const maj = JpParcoursUi.majLabel(p.maj_at);
+        const meta = [maj, p.nb_lecons ? p.nb_lecons + ' leçon' + (p.nb_lecons > 1 ? 's' : '') : '']
+          .filter(Boolean).join(' · ');
+        let inner = '<div class="jp-pc-head"><strong class="jp-pc-title">' + esc(p.libelle) + '</strong>';
+        let action = '';
+        if (accepte && !p.verrouille) {
+          action = '<span class="jp-pc-go" aria-hidden="true">Ouvrir →</span>';
+        } else if (p.statut === 'demande') {
+          action = '<span class="jp-badge-soft wait">En attente</span>';
+        } else if (p.verrouille) {
+          action = '<span class="jp-badge-soft off">🔒 Verrouillé</span>';
+        } else {
+          action = '<button type="button" class="jp-btn jp-btn-primary jp-btn-touch" data-demande="' + esc(p.id) + '">Demander</button>';
+        }
+        inner += action + '</div>';
+        if (p.description) inner += '<p class="jp-pc-desc">' + esc(p.description) + '</p>';
+        if (accepte) {
+          inner += '<div class="jp-pc-prog">' + JpParcoursUi.progressBar(p.pct, 'Progression ' + p.libelle)
+            + '<span>' + JpParcoursUi.clampPct(p.pct) + ' %'
+            + (p.nb_lecons ? ' · ' + (p.nb_valides || 0) + ' / ' + p.nb_lecons + ' leçons validées' : '') + '</span></div>';
+        }
+        if (p.verrouille && p.bloque_par) {
+          inner += '<p class="jp-pc-lock">🔒 ' + esc(JpParcoursUi.messageBloque(p.bloque_par)) + '</p>';
+        }
+        if (meta) inner += '<p class="jp-pc-meta">' + esc(meta) + '</p>';
+        const cls = 'jp-pc' + (accepte && !p.verrouille ? ' is-open' : '') + (p.verrouille ? ' is-locked' : '');
+        // Clic direct sur le parcours : pas d’écran intermédiaire de choix
+        if (accepte && !p.verrouille) {
+          return '<li><a class="' + cls + '" href="espace.html?parcours=' + encodeURIComponent(p.id) + '">' + inner + '</a></li>';
+        }
+        return '<li><div class="' + cls + '">' + inner + '</div></li>';
+      }
+
       try {
-        const parcours = await JpV2Resolver.listParcours();
-        const insc = await JpV2Resolver.mesInscriptions();
-        const byId = Object.fromEntries(insc.map((i) => [i.parcours_id, i]));
+        const parcours = await JpV2Resolver.parcoursListe();
         if (!parcours.length) {
           list.innerHTML = '<li class="jp-muted">—</li>';
           return;
         }
-        list.innerHTML = parcours.map(function (p) {
-          const i = byId[p.id];
-          let action = '';
-          if (!i || i.statut === 'refuse') {
-            action = '<button type="button" class="jp-btn jp-btn-primary jp-btn-touch" data-demande="' + p.id + '">Demander</button>';
-          } else if (i.statut === 'demande') {
-            action = '<span class="jp-badge-soft wait">En attente</span>';
-          } else {
-            action = '<a class="jp-btn jp-btn-primary jp-btn-touch" href="espace.html?parcours=' + encodeURIComponent(p.id) + '">Ouvrir</a>';
-          }
-          return '<li class="jp-list-row"><strong>' + JpUi.escapeHtml(p.libelle) + '</strong>' + action + '</li>';
-        }).join('');
+        list.innerHTML = parcours.map(card).join('');
         list.querySelectorAll('[data-demande]').forEach(function (btn) {
           btn.addEventListener('click', async function () {
             try {
+              btn.disabled = true;
               await JpV2Resolver.demanderParcours(btn.getAttribute('data-demande'));
               JpToast.ok('Demande envoyée');
               location.reload();
             } catch (e) {
+              btn.disabled = false;
               JpToast.fromError(e);
             }
           });

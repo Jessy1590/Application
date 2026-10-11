@@ -15,14 +15,14 @@
 <script src="../../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
 <link rel="stylesheet" href="../css/app.css">
-<link rel="stylesheet" href="../css/v2.css">
+<link rel="stylesheet" href="../css/v2.css?v=028">
 </head>
 <body>
   <main class="jp-page jp-page-wide" id="jxRoot">
     <a class="jp-back" href="index.html">← Admin</a>
     <p class="jp-kicker">Jeux</p>
     <h1 class="jp-title">Scores et gestion<span id="helpJeux"></span></h1>
-    <p class="jp-sub">Suivez les scores par parcours ou par personne, mettez un jeu en pause, relancez-le ou archivez-le. La création des jeux se fait dans le <a href="parcours.html">studio</a>.</p>
+    <p class="jp-sub">Suivez les scores par parcours ou par personne, mettez un jeu en pause, relancez-le ou archivez-le. La création des jeux se fait dans <a href="parcours.html">Modif parcours</a>.</p>
 
     <div class="jp-field">
       <label for="jxSearchInput" class="jp-field-label">Recherche</label>
@@ -48,7 +48,7 @@
       document.getElementById('helpJeux').appendChild(JpModal.helpButton('Jeux', [
         'Actif = jouable. En pause = invisible pour les joueurs jusqu’à « Relancer ».',
         'Archiver désactive le jeu (scores conservés) ; « Relancer » le remet en ligne.',
-        'Éditer ouvre la leçon du studio qui contient le jeu.',
+        'Éditer ouvre la leçon dans Modif parcours qui contient le jeu.',
       ]));
       void JpAdminJeux.boot();
     });

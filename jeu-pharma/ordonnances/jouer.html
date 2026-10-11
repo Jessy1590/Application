@@ -15,7 +15,7 @@
 <script src="../../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="../css/app.css">
-<link rel="stylesheet" href="../css/v2.css">
+<link rel="stylesheet" href="../css/v2.css?v=028">
 </head>
 <body>
   <main class="jp-page">
@@ -32,10 +32,19 @@
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
   <script src="../js/ordonnances.js?v=026"></script>
+  <script src="../js/resolver.js?v=028"></script>
+  <script src="../js/parcours-ui.js?v=028"></script>
+  <script src="../js/jeux-play.js?v=028"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'ordonnance-jouer', homeHref: JpFab.PORTAIL_URL });
-      const code = (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+      const qs = new URLSearchParams(location.search);
+      const code = (qs.get('code') || '').trim().toUpperCase();
+      if (qs.get('module')) {
+        const back = document.querySelector('.jp-back');
+        back.href = '../lecon.html?module=' + encodeURIComponent(qs.get('module'));
+        back.textContent = '← Retour à la leçon';
+      }
       const root = document.getElementById('root');
       if (!code) {
         JpUi.emptyState(root, { title: 'Code manquant', actionHref: 'index.html', actionLabel: 'Retour' });
@@ -71,7 +80,7 @@
             + '<input id="scoreMax" type="number" min="1" step="1" value="10"></div>'
             + '<button type="button" class="jp-btn jp-btn-primary" id="btnScore">Enregistrer le score</button>';
         }
-        html += '<a class="jp-btn jp-btn-ghost" href="jouer.html?code=' + encodeURIComponent(code) + '">Nouveau tirage</a>';
+        html += '<a class="jp-btn jp-btn-ghost" href="jouer.html' + (location.search || '?code=' + encodeURIComponent(code)) + '">Nouveau tirage</a>';
         html += '</div><div id="scoreBox" class="jp-panel" hidden></div>';
         root.innerHTML = html;
 
@@ -94,9 +103,13 @@
             const res = await JpV2Ordonnances.noter(session.tentative_id, obt, max, [{ mode: 'general' }]);
             const box = document.getElementById('scoreBox');
             box.hidden = false;
-            box.innerHTML = '<p class="jp-kicker">Résultat</p><p class="jp-brand" style="font-size:1.5rem">'
-              + res.score_obtenu + ' / ' + res.score_max + '</p>'
-              + '<p class="jp-muted"><a href="../espace.html">Mon parcours</a></p>';
+            // Carte de score + critère de validation de la leçon (jeux-play.js)
+            try {
+              const modele = await JpJeuxPlay.loadModele(code);
+              await JpJeuxPlay.mountScoreCard(box, modele, res.score_obtenu, res.score_max, { saved: Promise.resolve(), listHref: 'index.html' });
+            } catch (_) {
+              box.innerHTML = '<p class="jp-kicker">Résultat</p><p class="jp-brand" style="font-size:1.5rem">' + res.score_obtenu + ' / ' + res.score_max + '</p><p class="jp-muted"><a href="../parcours.html">Mes parcours</a></p>';
+            }
             JpToast.ok('Score enregistré');
           } catch (e) {
             JpToast.fromError(e);

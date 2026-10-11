@@ -110,6 +110,110 @@
     return data;
   }
 
+  /** ——— Carte de score (partagée quiz / trous / ordonnances) ——— */
+  function pctOf(o, m) {
+    return m > 0 ? Math.max(0, Math.min(100, (Number(o) / Number(m)) * 100)) : 0;
+  }
+
+  function levelMsg(p) {
+    if (p >= 90) return 'Excellent, vous maîtrisez !';
+    if (p >= 75) return 'Très bien, presque parfait.';
+    if (p >= 50) return 'Bien, continuez à vous entraîner.';
+    return 'À retravailler : relisez la leçon puis réessayez.';
+  }
+
+  /** Contexte de navigation : leçon / parcours d’où vient le joueur (paramètres d’URL ?module=&parcours=). */
+  function scoreCtx(modele) {
+    const q = new URLSearchParams(location.search);
+    return { moduleId: q.get('module') || '', parcoursId: q.get('parcours') || modele.parcours_id || '' };
+  }
+
+  /** Critère de validation lié à ce jeu (score minimum) d’après la progression du parcours. */
+  async function findRequirement(modele, ctx) {
+    if (!ctx.parcoursId || !global.JpV2Resolver) return null;
+    try {
+      const prog = await global.JpV2Resolver.progression(ctx.parcoursId);
+      const mods = prog.modules || [];
+      const hits = [];
+      mods.forEach(function (m) {
+        const j = ((m.detail && m.detail.jeux) || []).find(function (x) { return x.modele_id === modele.id; });
+        if (j) hits.push({ m: m, j: j });
+      });
+      if (!hits.length) return null;
+      const pref = hits.find(function (h) { return h.m.id === ctx.moduleId; })
+        || hits.find(function (h) { return !h.m.est_groupe; }) || hits[0];
+      return {
+        ok: !!pref.j.ok,
+        min: pref.j.score_min_pct,
+        moduleId: pref.m.id,
+        groupe: !!pref.m.est_groupe,
+        titre: pref.m.titre,
+        valide: !!pref.m.valide,
+        parcoursId: ctx.parcoursId,
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function scoreCardHtml(obtenu, max) {
+    const p = pctOf(obtenu, max);
+    const PU = global.JpParcoursUi;
+    const tone = p >= 75 ? 'is-good' : (p >= 50 ? 'is-mid' : 'is-low');
+    return '<section class="jp-score-card ' + tone + '" id="jpScore" aria-live="polite">'
+      + (PU ? PU.ring(p, { size: 96, label: Math.round(p) + ' %' }) : '')
+      + '<div class="jp-score-body"><p class="jp-score-label">Votre score</p>'
+      + '<p class="jp-score-value">' + esc(String(obtenu)) + ' <small>/ ' + esc(String(max)) + '</small></p>'
+      + '<p class="jp-score-msg">' + esc(levelMsg(p)) + '</p></div>'
+      + '<p class="jp-score-req" id="jpScoreReq" hidden></p>'
+      + '<div class="jp-score-actions" id="jpScoreActions"></div></section>';
+  }
+
+  function scoreActions(ctx, req, opts) {
+    const o = opts || {};
+    const lessonId = (req && !req.groupe && req.moduleId) || ctx.moduleId;
+    const pid = (req && req.parcoursId) || ctx.parcoursId;
+    let html = '<button type="button" class="jp-btn jp-btn-primary" id="btnReplay">Rejouer</button>';
+    if (lessonId) {
+      html += '<a class="jp-btn jp-btn-ghost" href="../lecon.html?module=' + encodeURIComponent(lessonId) + '">← Retour à la leçon</a>';
+    }
+    html += '<a class="jp-btn jp-btn-ghost" href="../espace.html' + (pid ? '?parcours=' + encodeURIComponent(pid) : '') + '">Mon parcours</a>';
+    html += '<a class="jp-btn jp-btn-ghost" href="' + esc(o.listHref || 'index.html') + '">Liste des jeux</a>';
+    return html;
+  }
+
+  /**
+   * Affiche la carte de score dans `host` ; une fois le score enregistré (`opts.saved`),
+   * indique si le score minimum exigé par la leçon est atteint.
+   */
+  async function mountScoreCard(host, modele, obtenu, max, opts) {
+    const o = opts || {};
+    const ctx = scoreCtx(modele);
+    host.innerHTML = scoreCardHtml(obtenu, max);
+    const actions = host.querySelector('#jpScoreActions');
+    function wire() {
+      actions.querySelector('#btnReplay')?.addEventListener('click', function () { location.reload(); });
+    }
+    actions.innerHTML = scoreActions(ctx, null, o);
+    wire();
+    if (o.saved) { try { await o.saved; } catch (_) { return; } }
+    const req = await findRequirement(modele, ctx);
+    if (!req) return;
+    const PU = global.JpParcoursUi;
+    const reqEl = host.querySelector('#jpScoreReq');
+    const cible = req.groupe ? 'le chapitre « ' + req.titre + ' »' : 'la leçon « ' + req.titre + ' »';
+    if (req.ok) {
+      reqEl.className = 'jp-score-req is-ok';
+      reqEl.textContent = '✓ Score minimum atteint (' + PU.sur10(req.min) + ') : ce jeu est validé pour ' + cible + '.';
+    } else {
+      reqEl.className = 'jp-score-req is-todo';
+      reqEl.textContent = 'Score minimum requis : ' + PU.sur10(req.min) + ' pour valider ' + cible + '. Rejouez pour progresser.';
+    }
+    reqEl.hidden = false;
+    actions.innerHTML = scoreActions(ctx, req, o);
+    wire();
+  }
+
   /** ——— Quiz QCM ——— */
   async function buildQuizQuestions(modele, pool) {
     const cfg = modele.configuration_json || {};
@@ -166,22 +270,19 @@
     function paint() {
       if (idx >= questions.length) {
         const ok = answers.filter((a) => a.ok).length;
-        root.innerHTML = '<div class="jp-v2-banner"><strong>Score : ' + ok + ' / '
-          + questions.length + '</strong></div>'
+        root.innerHTML = '<div id="jpScoreHost"></div>'
+          + '<h3 class="jp-v2-recap-title">Détail des réponses</h3>'
           + '<ol class="jp-v2-quiz-recap">' + answers.map(function (a, i) {
             return '<li class="' + (a.ok ? 'is-ok' : 'is-ko') + '">'
               + esc(questions[i].question) + '<br><span class="jp-muted">Votre réponse : '
               + esc(a.choice) + (a.ok ? '' : ' · Correct : ' + esc(questions[i].correct))
               + '</span></li>';
-          }).join('') + '</ol>'
-          + '<div class="jp-v2-actions"><button type="button" class="jp-btn jp-btn-primary" id="btnReplay">Rejouer</button>'
-          + '<a class="jp-btn jp-btn-ghost" href="index.html?type=quiz">Liste des quiz</a></div>';
-        document.getElementById('btnReplay')?.addEventListener('click', function () {
-          location.reload();
-        });
-        void saveTentative(modele, { type: 'quiz', questions: questions.length }, { answers }, ok, questions.length)
-          .then(function () { global.JpToast?.ok?.('Score enregistré'); })
-          .catch(function () { /* ignore */ });
+          }).join('') + '</ol>';
+        const saved = saveTentative(modele, { type: 'quiz', questions: questions.length }, { answers }, ok, questions.length)
+          .then(function () { global.JpToast?.ok?.('Score enregistré'); });
+        saved.catch(function () { /* ignore */ });
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, questions.length,
+          { saved: saved, listHref: 'index.html?type=quiz' });
         return;
       }
 
@@ -353,8 +454,10 @@
         const o = Number(document.getElementById('score').value);
         const m = Number(document.getElementById('scoreMax').value) || rows.length;
         try {
-          await saveTentative(modele, { type: 'trous', n: rows.length }, { score: o }, o, m);
+          const saved = saveTentative(modele, { type: 'trous', n: rows.length }, { score: o }, o, m);
+          await saved;
           global.JpToast?.ok?.('Score enregistré');
+          void mountScoreCard(root, modele, o, m, { saved: Promise.resolve(), listHref: 'index.html?type=trous' });
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
@@ -366,7 +469,8 @@
   async function boot(root, code) {
     const modele = await loadModele(code);
     if (modele.type_jeu === 'ordonnance') {
-      location.replace('../ordonnances/jouer.html?code=' + encodeURIComponent(modele.code_unique));
+      // Conserve ?module= / ?parcours= pour le retour à la leçon
+      location.replace('../ordonnances/jouer.html' + (location.search || '?code=' + encodeURIComponent(modele.code_unique)));
       return modele;
     }
 
@@ -405,5 +509,5 @@
     throw new Error('Type de jeu non supporté : ' + modele.type_jeu);
   }
 
-  global.JpJeuxPlay = { boot, loadModele, champLibelle };
+  global.JpJeuxPlay = { boot, loadModele, champLibelle, mountScoreCard };
 })(window);

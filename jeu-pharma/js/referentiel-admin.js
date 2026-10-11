@@ -1038,7 +1038,7 @@
       'Clic ou Entrée sur une ligne = éditer. « / » = recherche. Ctrl+S = enregistrer.',
       'Toute modification remet la fiche « à valider » ; « Enregistrer et valider » la valide.',
       'Renommer une valeur (clic sur le libellé) la change pour toutes les fiches liées.',
-      'Ce qui est visible par les apprenants se règle dans le Studio.',
+      'Ce qui est visible par les apprenants se règle dans Modif parcours.',
     ]));
     fillStaticSelects();
     buildFields();

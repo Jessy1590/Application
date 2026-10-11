@@ -15,7 +15,7 @@
 <script src="../../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="../css/app.css">
-<link rel="stylesheet" href="../css/v2.css">
+<link rel="stylesheet" href="../css/v2.css?v=028">
 </head>
 <body>
   <main class="jp-page jp-page-wide">
@@ -32,12 +32,23 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
-  <script src="../js/resolver.js?v=026"></script>
-  <script src="../js/jeux-play.js?v=026"></script>
+  <script src="../js/resolver.js?v=028"></script>
+  <script src="../js/parcours-ui.js?v=028"></script>
+  <script src="../js/jeux-play.js?v=028"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'jeu-jouer', homeHref: JpFab.PORTAIL_URL });
-      const code = new URLSearchParams(location.search).get('code');
+      const params = new URLSearchParams(location.search);
+      const code = params.get('code');
+      const fromModule = params.get('module');
+      const fromParcours = params.get('parcours');
+      // Retour : leçon d’origine si connue, sinon le parcours (jamais un parcours codé en dur)
+      const parcoursHref = fromParcours ? '../espace.html?parcours=' + encodeURIComponent(fromParcours) : '../parcours.html';
+      if (fromModule) {
+        const back = document.querySelector('.jp-back');
+        back.href = '../lecon.html?module=' + encodeURIComponent(fromModule);
+        back.textContent = '← Retour à la leçon';
+      }
       const root = document.getElementById('root');
       if (!code) {
         root.innerHTML = '<p class="jp-muted">Code de jeu manquant. <a href="index.html">Retour</a></p>';
@@ -51,7 +62,7 @@
       } catch (e) {
         JpToast.fromError(e);
         root.innerHTML = '<p class="jp-muted">' + JpUi.escapeHtml(e.message || String(e))
-          + '</p><p><a href="../espace.html">Choisir le parcours Introduction</a></p>';
+          + '</p><p><a href="' + parcoursHref + '">Retour à mon parcours</a></p>';
       }
     });
   </script>
