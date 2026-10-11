@@ -1224,7 +1224,11 @@
       let paidExpHtml = '', paidIncHtml = '';
       const late = [], today = [], soonExp = [], soonInc = [];
 
-      this.state.expenses.forEach(exp => {
+      const todayExpenses = [
+        ...(this.state.expenses || []),
+        ...this.listOutboundApportDues()
+      ];
+      todayExpenses.forEach(exp => {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if(!acc) return;
         if (exp.is_wallet) return;
@@ -1237,7 +1241,7 @@
             <div class="bh-due${expiredCls}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
               <div style="min-width:0;">
                  <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(exp.description)}</div>
-                 <div class="bh-due-meta">${this.esc(acc.name)}${this.isExpired(exp) ? ' · ⚠️ Expirée le '+this.fmtDate(exp.end_date) : ''}</div>
+                 <div class="bh-due-meta">${this.esc(acc.name)}${exp.is_apport ? ' · Apport' : ''}${this.isExpired(exp) ? ' · ⚠️ Expirée le '+this.fmtDate(exp.end_date) : ''}</div>
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
@@ -1246,7 +1250,7 @@
             </div>`;
         } else {
           totalDue += Number(exp.amount);
-          const diff = Math.min(exp.day, dim) - now.getDate();
+          const diff = Math.min(Number(exp.day) || 1, dim) - now.getDate();
           const item = { kind: 'expense', exp, acc, diff };
           if (diff < 0) late.push(item);
           else if (diff === 0) today.push(item);
@@ -1324,6 +1328,7 @@
                   <div class="bh-due-desc">${this.esc(exp.description)}</div>
                   <div class="bh-due-meta">
                     <span class="bh-pill ${cls}">${lbl}</span>
+                    ${exp.is_apport ? `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Apport</span>` : ''}
                     <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
                     ${this.isExpired(exp) ? `<span class="bh-pill" style="background:var(--clay-pale); color:var(--clay);">⚠️ Expirée le ${this.fmtDate(exp.end_date)}</span>` : ''}
                   </div>
@@ -1463,6 +1468,92 @@
     // Un compte est considéré "épargne" si son nom contient "épargne"/"epargne"
     isSavingsAccount(acc) {
       return !!(acc && /(é|e)pargne/i.test(acc.name || ''));
+    },
+
+    // ID synthétique d'un apport mensuel (validé comme une dépense sur le compte principal)
+    apportExpenseId(targetAccId) {
+      return 'apport_' + targetAccId;
+    },
+    isApportExpenseId(id) {
+      return typeof id === 'string' && id.startsWith('apport_');
+    },
+    // Apports configurés → dépenses virtuelles à valider le 1er du mois (compte principal)
+    listOutboundApportDues(opts = {}) {
+      const mainAccId = this.state.profile?.main_account_id;
+      if (!mainAccId) return [];
+      const mode = opts.mode || 'theorique';
+      const mKey = opts.mKey || this.monthKey(new Date());
+      const dues = [];
+      const breakdownByAccounts = [];
+      // Réutilise la même logique de montant que outboundContributionsBreakdown, compte par compte
+      const curKey = this.monthKey(new Date());
+      this.state.accounts.forEach(acc => {
+        if (acc.id === mainAccId) return;
+        const mems = this.state.members.filter(m => m.account_id === acc.id);
+        const myMem = mems.find(m => m.user_id === this.user.id);
+        if (!myMem) return;
+
+        let tExp = 0, accTInc = 0;
+        if (mode === 'theorique' && mKey !== curKey) {
+          const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
+          if (!snap || !Object.keys(snap).length) return;
+          tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
+            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        } else if (mode === 'effective') {
+          this.state.expenses.forEach(e => {
+            if (e.account_id !== acc.id) return;
+            if (!this.isActiveInMonth(e, mKey)) return;
+            tExp += this.expenseAmountForStats(e, mKey, 'effective');
+          });
+          this.state.incomes.forEach(i => {
+            if (i.account_id !== acc.id) return;
+            accTInc += this.effectiveIncomeAmount(i, mKey);
+          });
+        } else {
+          this.state.expenses.forEach(e => {
+            if (e.account_id !== acc.id) return;
+            if (!this.isActiveInMonth(e, mKey)) return;
+            tExp += Number(e.amount) || 0;
+          });
+          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
+            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        }
+
+        const netExp = Math.max(0, tExp - accTInc);
+        const cMode = myMem.contribution_mode || 'fixed';
+        let amt = 0;
+        if (cMode === 'prorata') {
+          amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
+        } else if (cMode === 'percent') {
+          amt = netExp * (Number(myMem.contribution_target) || 0) / 100;
+        } else {
+          const target = Number(myMem.contribution_target) || 0;
+          amt = mode === 'effective' ? Math.min(target, netExp) : target;
+        }
+        if (!(amt > 0)) return;
+        dues.push({
+          id: this.apportExpenseId(acc.id),
+          is_apport: true,
+          is_wallet: false,
+          account_id: mainAccId,
+          target_account_id: acc.id,
+          description: 'Apport → ' + (acc.name || 'Compte'),
+          amount: Math.round(amt * 100) / 100,
+          day: 1,
+          category: 'Apport',
+          contribution_mode: cMode
+        });
+      });
+      return dues;
+    },
+    findExpenseLike(expId) {
+      const real = (this.state.expenses || []).find(e => e.id === expId);
+      if (real) return real;
+      if (this.isApportExpenseId(expId)) {
+        return this.listOutboundApportDues().find(a => a.id === expId) || null;
+      }
+      return null;
     },
 
     // Ventile les apports du user courant vers les autres comptes : total / hors-épargne / épargne uniquement
@@ -1782,6 +1873,13 @@
         incs.forEach(i => { tInc += Number(i.amount); });
 
         const isMain = acc.id === mainAccId;
+        // Apports mensuels validés (dépenses virtuelles jour 1) comptent dans "Déjà réglé"
+        if (isMain) {
+          this.listOutboundApportDues().forEach(ap => {
+            const rec = paidMap[ap.id];
+            if (rec) paidSum += Number(rec.amount) || 0;
+          });
+        }
 
         // Répartition (apports) et reste théorique — communs à tous les comptes
         const shares = this.computeFairShares(acc, mems, tExp, tInc);
@@ -2281,10 +2379,10 @@
     openDifferentAmount(expId, accId, kind = 'expense') {
       const item = kind === 'income'
         ? this.state.incomes.find(i => i.id === expId)
-        : this.state.expenses.find(e => e.id === expId);
+        : this.findExpenseLike(expId);
       if (!item) return;
       const acc = this.state.accounts.find(a => a.id === accId);
-      this.diffAmount = { expId, accId, baseAmount: Number(item.amount), mode: 'temp', kind };
+      this.diffAmount = { expId, accId, baseAmount: Number(item.amount), mode: 'temp', kind, isApport: !!item.is_apport, targetAccId: item.target_account_id || null, contributionMode: item.contribution_mode || 'fixed' };
       const label = kind === 'income' ? 'montant habituel' : 'montant habituel';
       document.getElementById('da-desc').textContent = `${item.description} — ${acc ? acc.name : ''} · ${label} ${this.fmt(item.amount)}`;
       document.getElementById('da-amount').value = item.amount;
@@ -2294,12 +2392,20 @@
           ? 'Montant réellement encaissé (€)'
           : 'Montant réellement prélevé (€) — 0€ accepté';
       }
+      const permBtn = document.getElementById('da-mode-perm');
+      if (permBtn) {
+        // Durable : OK pour apport fixe (met à jour la cible) ; masqué pour % / prorata
+        const showPerm = !(item.is_apport && (item.contribution_mode || 'fixed') !== 'fixed');
+        permBtn.style.display = showPerm ? '' : 'none';
+      }
       this.setDiffAmountMode('temp');
       document.getElementById('bh-diffamount-overlay').classList.add('open');
     },
 
     closeDifferentAmount() {
       document.getElementById('bh-diffamount-overlay').classList.remove('open');
+      const permBtn = document.getElementById('da-mode-perm');
+      if (permBtn) permBtn.style.display = '';
     },
 
     setDiffAmountMode(mode) {
@@ -2307,13 +2413,18 @@
       document.getElementById('da-mode-temp').classList.toggle('active', mode === 'temp');
       document.getElementById('da-mode-perm').classList.toggle('active', mode === 'perm');
       const kind = this.diffAmount.kind || 'expense';
+      const isApport = !!this.diffAmount.isApport;
       document.getElementById('da-mode-explain').textContent = mode === 'temp'
         ? (kind === 'income'
           ? "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile si le salaire varie ce mois-ci."
-          : "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci.")
+          : isApport
+            ? "Ponctuel : seul ce mois est modifié, la cible d'apport reprendra le mois prochain."
+            : "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile pour vérifier s'il restera assez d'argent sur le compte ce mois-ci.")
         : (kind === 'income'
           ? "Durable : le montant habituel de ce revenu est mis à jour définitivement (tous les mois suivants)."
-          : "Durable : le montant habituel de cette dépense est mis à jour définitivement (tous les mois suivants).");
+          : isApport
+            ? "Durable : la cible d'apport mensuel est mise à jour définitivement."
+            : "Durable : le montant habituel de cette dépense est mis à jour définitivement (tous les mois suivants).");
     },
 
     async confirmDifferentAmount() {
@@ -2330,25 +2441,36 @@
       }
 
       await withRetry(async () => {
+        const isApport = !!this.diffAmount.isApport || this.isApportExpenseId(expId);
         if (mode === 'perm') {
-          const table = kind === 'income' ? 'incomes' : 'expenses';
-          const oldExp = kind === 'expense' ? this.state.expenses.find(e => e.id === expId) : null;
-          const oldAmount = oldExp ? Number(oldExp.amount) : (kind === 'income' ? Number(this.state.incomes.find(i => i.id === expId)?.amount) : null);
-          const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
-          if (e1) throw e1;
-          if (kind === 'expense' && oldExp) {
-            await this.logExpenseChange({
-              expenseId: expId,
-              accountId: accId,
-              changeType: 'update_amount',
-              oldAmount,
-              newAmount,
-              oldPayload: this.expenseSnapshotRow(oldExp),
-              newPayload: this.expenseSnapshotRow({ ...oldExp, amount: newAmount }),
-              monthKey: this.monthKey(new Date())
-            });
-            // Mettre à jour l'état local pour le snapshot immédiat
-            oldExp.amount = newAmount;
+          if (isApport) {
+            const targetAccId = this.diffAmount.targetAccId || (expId.startsWith('apport_') ? expId.slice('apport_'.length) : null);
+            if (!targetAccId) throw new Error('Compte cible apport introuvable');
+            const { error: e1 } = await supabaseApp.from('account_members')
+              .update({ contribution_target: newAmount })
+              .eq('account_id', targetAccId)
+              .eq('user_id', this.user.id);
+            if (e1) throw e1;
+          } else {
+            const table = kind === 'income' ? 'incomes' : 'expenses';
+            const oldExp = kind === 'expense' ? this.state.expenses.find(e => e.id === expId) : null;
+            const oldAmount = oldExp ? Number(oldExp.amount) : (kind === 'income' ? Number(this.state.incomes.find(i => i.id === expId)?.amount) : null);
+            const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
+            if (e1) throw e1;
+            if (kind === 'expense' && oldExp) {
+              await this.logExpenseChange({
+                expenseId: expId,
+                accountId: accId,
+                changeType: 'update_amount',
+                oldAmount,
+                newAmount,
+                oldPayload: this.expenseSnapshotRow(oldExp),
+                newPayload: this.expenseSnapshotRow({ ...oldExp, amount: newAmount }),
+                monthKey: this.monthKey(new Date())
+              });
+              // Mettre à jour l'état local pour le snapshot immédiat
+              oldExp.amount = newAmount;
+            }
           }
         }
         const mKey = this.monthKey(new Date());
@@ -2361,11 +2483,13 @@
           let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
           recs[expId] = { amount: newAmount, on: new Date().toISOString() };
           const patch = { paid_expenses: recs };
-          if (mode === 'perm') {
+          if (mode === 'perm' && !isApport) {
             patch.theoretical_expenses = this.buildTheoreticalSnapshot(accId, mKey);
           }
           await this.upsertMonthRecord(accId, mKey, patch);
-          toast(mode === 'perm' ? "Montant mis à jour durablement et validé" : "Validé avec le montant ponctuel");
+          toast(mode === 'perm'
+            ? (isApport ? "Cible d'apport mise à jour et validée" : "Montant mis à jour durablement et validé")
+            : "Validé avec le montant ponctuel");
         }
         this.closeDifferentAmount();
         this.fetchData();
@@ -2377,7 +2501,7 @@
       if (!this.groupSelect) this.groupSelect = {};
       Object.keys(this.groupSelect).forEach(expId => {
         const accId = this.groupSelect[expId];
-        const exp = this.state.expenses.find(e => e.id === expId);
+        const exp = this.findExpenseLike(expId);
         if (!exp || exp.is_wallet || this.state.months[accId + '_' + mKey]?.[expId]) {
           delete this.groupSelect[expId];
         }
@@ -2410,7 +2534,7 @@
     getGroupSelection() {
       const items = [];
       Object.entries(this.groupSelect || {}).forEach(([expId, accId]) => {
-        const exp = this.state.expenses.find(e => e.id === expId);
+        const exp = this.findExpenseLike(expId);
         if (!exp || exp.is_wallet) return;
         items.push({ expId, accId, exp, amount: Number(exp.amount) || 0 });
       });
