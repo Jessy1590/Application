@@ -161,67 +161,7 @@
   font-size: 0.88rem;
 }
 
-.jp-help-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 107, 92, 0.25);
-  background: transparent;
-  color: var(--jp-accent, #0f6b5c);
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-
-.jp-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  background: rgba(10, 30, 26, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
-  animation: jpFade 0.2s ease;
-}
-
-.jp-modal {
-  width: min(420px, 100%);
-  max-height: min(80vh, 560px);
-  overflow: auto;
-  background: #fff;
-  border-radius: 1rem;
-  padding: 1.15rem 1.25rem;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
-}
-
-.jp-modal h2 {
-  margin: 0 0 0.65rem;
-  font-size: 1.1rem;
-  font-family: "Source Serif 4", Georgia, serif;
-}
-
-.jp-modal p {
-  margin: 0 0 0.75rem;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: rgba(15, 46, 40, 0.8);
-}
-
-.jp-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-@keyframes jpFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* .jp-help-btn / .jp-modal* / @keyframes jpFade → css/v2.css (partagés) */
 
 /* Overlays plein écran (molécules / jeux) */
 .jp-studio-overlay {
@@ -471,3 +411,214 @@
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
+
+/* =====================================================================
+   Studio — polish formulaires, panneaux de paramètres, zones d'écriture
+   (tokens teal : --jp-accent, --jp-accent-soft ; pas de violet)
+   ===================================================================== */
+.jp-studio-app,
+.jp-studio-overlay {
+  --st-line: rgba(15, 107, 92, 0.2);
+  --st-line-soft: rgba(15, 107, 92, 0.12);
+  --st-ring: 0 0 0 3px rgba(15, 107, 92, 0.18);
+  font-family: var(--jp-font-ui, "DM Sans", system-ui, sans-serif);
+  color: var(--jp-text, #14201c);
+}
+
+/* Champs (:where = spécificité nulle : les composants .jp-ta-*, .jp-block-title… gardent la main) */
+:where(.jp-studio-app, .jp-studio-overlay) :where(input:not([type="checkbox"], [type="radio"], [type="color"]), textarea, select) {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.93rem;
+  color: var(--jp-text, #14201c);
+  background-color: #fff;
+  border: 1px solid var(--st-line);
+  border-radius: 0.65rem;
+  box-shadow: inset 0 1px 0 rgba(15, 46, 40, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+:where(.jp-studio-app, .jp-studio-overlay) :where(input, textarea, select):hover { border-color: rgba(15, 107, 92, 0.38); }
+:where(.jp-studio-app, .jp-studio-overlay) :where(input, textarea, select):focus {
+  outline: none;
+  border-color: var(--jp-accent, #0f6b5c);
+  box-shadow: var(--st-ring);
+}
+:where(.jp-studio-app, .jp-studio-overlay) ::placeholder { color: rgba(20, 32, 28, 0.38); }
+:where(.jp-studio-app, .jp-studio-overlay) select {
+  appearance: none;
+  padding-right: 2.2rem;
+  background-image: linear-gradient(45deg, transparent 50%, #0f6b5c 50%), linear-gradient(135deg, #0f6b5c 50%, transparent 50%);
+  background-position: calc(100% - 1.1rem) 52%, calc(100% - 0.8rem) 52%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+:where(.jp-studio-app, .jp-studio-overlay) textarea { min-height: 5rem; resize: vertical; line-height: 1.45; }
+:where(.jp-studio-app, .jp-studio-overlay) input[type="checkbox"] { accent-color: var(--jp-accent, #0f6b5c); width: 1rem; height: 1rem; }
+.jp-studio-app .jp-ta-input, .jp-studio-overlay .jp-ta-input { padding-right: 2rem; }
+.jp-studio-app .jp-ta-multi .jp-ta-input, .jp-studio-overlay .jp-ta-multi .jp-ta-input { border: 0; box-shadow: none; background: transparent; padding: 0.2rem 0.25rem; min-height: 1.9rem; width: auto; }
+
+.jp-studio-app .jp-field,
+.jp-studio-overlay .jp-field { display: grid; gap: 0.35rem; margin-bottom: 0.85rem; }
+.jp-studio-app .jp-field > label,
+.jp-studio-app .jp-field-label,
+.jp-studio-overlay .jp-field > label,
+.jp-studio-overlay .jp-field-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(20, 32, 28, 0.58);
+}
+.jp-field-tight { margin-bottom: 0.6rem !important; }
+.jp-field-hint { font-size: 0.78rem; color: rgba(20, 32, 28, 0.55); line-height: 1.4; }
+
+.jp-studio-overlay .jp-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; }
+
+/* Boutons dans le studio */
+.jp-studio-app .jp-btn,
+.jp-studio-overlay .jp-btn { padding: 0.5rem 0.85rem; font-size: 0.88rem; border-radius: 0.6rem; }
+.jp-studio-app .jp-btn-primary,
+.jp-studio-overlay .jp-btn-primary { box-shadow: 0 2px 8px rgba(15, 107, 92, 0.22); }
+.jp-studio-app .jp-btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+/* En-tête : chip de statut brouillon/publié */
+.jp-studio-top .jp-btn { white-space: nowrap; }
+.jp-draft-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 22rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  background: var(--jp-accent-soft, #e6f3f0);
+  color: var(--jp-accent, #0f6b5c);
+  border: 1px solid rgba(15, 107, 92, 0.2);
+}
+.jp-draft-chip::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; flex: none; }
+.jp-draft-chip.is-draft { background: #fff6e0; color: #8a5a00; border-color: rgba(154, 103, 0, 0.3); }
+.jp-draft-chip.is-saving { background: #eef5f3; color: #4a5c56; }
+.jp-draft-chip.is-saving::before { animation: jpPulse 1s ease-in-out infinite; }
+.jp-draft-chip.is-err { background: #fdecea; color: #b42318; border-color: rgba(180, 35, 24, 0.3); }
+@keyframes jpPulse { 50% { opacity: 0.25; } }
+
+/* Arbre */
+.jp-tree-actions { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.jp-tree-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-tree-badge {
+  flex: none;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #fff6e0;
+  color: #8a5a00;
+}
+
+/* Canvas / blocs */
+.jp-studio-h2 { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1.4rem; margin: 0 0 0.5rem; flex: 1; }
+.jp-studio-canvas-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.jp-add-blocks { align-items: center; padding: 0.55rem 0.65rem; background: rgba(255, 255, 255, 0.75); border: 1px dashed var(--st-line); border-radius: 0.8rem; margin-bottom: 0.45rem; }
+.jp-add-blocks-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(20, 32, 28, 0.5); margin-right: 0.2rem; }
+.jp-studio-autosave-hint { margin: 0 0 1rem; font-size: 0.78rem; color: rgba(20, 32, 28, 0.55); }
+.jp-studio-empty { padding: 1.5rem; text-align: center; border: 1px dashed var(--st-line); border-radius: 0.8rem; }
+
+.jp-block-card { padding: 0; overflow: hidden; border-left: 3px solid var(--jp-accent, #0f6b5c); transition: box-shadow 0.2s ease, border-color 0.2s ease; }
+.jp-block-card:focus-within { box-shadow: 0 8px 24px rgba(15, 107, 92, 0.1); }
+.jp-block-card > header { margin: 0; padding: 0.55rem 0.75rem; background: linear-gradient(180deg, rgba(15, 107, 92, 0.07), rgba(15, 107, 92, 0.03)); border-bottom: 1px solid var(--st-line-soft); }
+.jp-block-card .jp-block-type { padding: 0.15rem 0.5rem; border-radius: 0.4rem; background: var(--jp-accent, #0f6b5c); color: #fff; letter-spacing: 0.05em; }
+.jp-block-card .jp-block-title { flex: 1; min-height: 2rem !important; padding: 0.25rem 0.5rem !important; font-weight: 600; background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+.jp-block-card .jp-block-title:hover { border-color: var(--st-line) !important; background: #fff !important; }
+.jp-block-card .jp-block-title:focus { border-color: var(--jp-accent, #0f6b5c) !important; background: #fff !important; box-shadow: var(--st-ring) !important; }
+.jp-block-body { padding: 0.8rem 0.9rem 0.9rem; }
+.jp-block-del { flex: none; width: 1.9rem; height: 1.9rem; border: 0; border-radius: 0.5rem; background: transparent; color: rgba(20, 32, 28, 0.45); font-size: 1.2rem; line-height: 1; cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.jp-block-del:hover { background: #fdecea; color: #b42318; }
+.jp-bloc-tag { flex: none; padding: 0.08rem 0.5rem; border-radius: 999px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; background: #fff6e0; color: #8a5a00; }
+.jp-bloc-jeu-line { display: flex; align-items: center; gap: 0.6rem; margin: 0 0 0.6rem; }
+.jp-bloc-jeu-line code { padding: 0.15rem 0.5rem; border-radius: 0.4rem; background: var(--jp-accent-soft, #e6f3f0); color: var(--jp-accent, #0f6b5c); font-weight: 700; }
+.jp-bloc-jeu-type { font-size: 0.8rem; color: rgba(20, 32, 28, 0.6); }
+
+/* Molécules multiples */
+.jp-mol-multi { position: relative; }
+.jp-mol-multi .jp-ta-box { min-height: 2.8rem; padding: 0.35rem 0.5rem; border-color: var(--st-line); border-radius: 0.65rem; background: #fff; }
+.jp-mol-multi .jp-ta-box:focus-within { border-color: var(--jp-accent, #0f6b5c); box-shadow: var(--st-ring); }
+.jp-mol-multi .jp-ta-input { border: 0 !important; box-shadow: none !important; min-height: 1.9rem !important; padding: 0.2rem 0.3rem !important; background: transparent !important; }
+.jp-mol-multi .jp-ta-chip { padding: 0.25rem 0.3rem 0.25rem 0.65rem; font-size: 0.84rem; }
+.jp-mol-bloc-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* Zone d'écriture riche */
+.jp-rte { border-color: var(--st-line); border-radius: 0.75rem; box-shadow: inset 0 1px 0 rgba(15, 46, 40, 0.03); }
+.jp-rte:focus-within { border-color: var(--jp-accent, #0f6b5c); box-shadow: var(--st-ring); }
+.jp-rte-bar { align-items: center; gap: 0.15rem; padding: 0.35rem 0.5rem; background: linear-gradient(180deg, #f2f9f7, #e9f4f1); }
+.jp-rte-btn { min-width: 1.9rem; height: 1.85rem; padding: 0 0.35rem; border-radius: 0.45rem; color: #14201c; transition: background 0.12s ease; }
+.jp-rte-btn:hover, .jp-rte-btn:focus-visible { background: rgba(15, 107, 92, 0.16); outline: none; }
+.jp-rte-sep { width: 1px; height: 1.15rem; margin: 0 0.25rem; background: rgba(15, 107, 92, 0.22); }
+.jp-rte-surface { min-height: 8rem; padding: 0.85rem 1rem; font-size: 0.97rem; line-height: 1.6; }
+.jp-rte-surface h2 { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1.25rem; margin: 0.6rem 0 0.3rem; }
+.jp-rte-surface h3 { font-size: 1.05rem; margin: 0.5rem 0 0.25rem; }
+.jp-rte-surface p { margin: 0 0 0.5rem; }
+.jp-rte-surface a { color: var(--jp-accent, #0f6b5c); }
+
+.jp-rte-color { position: relative; display: inline-flex; }
+.jp-rte-color-btn { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+.jp-rte-color-a { font-weight: 700; line-height: 1; }
+.jp-rte-color-bar { width: 1rem; height: 3px; border-radius: 2px; background: var(--rte-current, #0f6b5c); }
+.jp-rte-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  width: 12.5rem;
+  padding: 0.55rem;
+  background: #fff;
+  border: 1px solid var(--st-line);
+  border-radius: 0.7rem;
+  box-shadow: 0 12px 28px rgba(15, 46, 40, 0.18);
+}
+.jp-rte-pop[hidden] { display: none; }
+.jp-rte-swatch { width: 1.45rem; height: 1.45rem; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(20, 32, 28, 0.22); cursor: pointer; padding: 0; transition: transform 0.12s ease; }
+.jp-rte-swatch:hover, .jp-rte-swatch:focus-visible { transform: scale(1.15); outline: none; box-shadow: 0 0 0 2px var(--jp-accent, #0f6b5c); }
+.jp-rte-custom { display: inline-flex; align-items: center; gap: 0.35rem; margin-left: auto; font-size: 0.74rem; font-weight: 600; color: rgba(20, 32, 28, 0.6); cursor: pointer; }
+.jp-rte-custom input[type="color"] { width: 1.6rem; height: 1.6rem; padding: 0; border: 0; background: none; cursor: pointer; }
+
+/* Inspecteur */
+.jp-inspector-cta { padding: 0.8rem 0.9rem; background: #fff; border: 1px solid var(--st-line-soft); border-radius: 0.8rem; margin-bottom: 0.85rem !important; }
+.jp-inspector-head { display: flex; align-items: center; gap: 0.35rem; }
+.jp-inspector-title { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1rem; }
+
+/* Panneaux de paramètres de jeu (wizard) */
+.jp-jeu-wiz-body { padding: 1.1rem 1.3rem 1.4rem; }
+.jp-jeu-wiz-body .jp-quiz-admin-champs-grid { padding: 0.65rem 0.75rem; background: #fff; border: 1px solid var(--st-line-soft); border-radius: 0.7rem; }
+.jp-jeu-wiz-body .jp-quiz-admin-champ { padding: 0.25rem 0.45rem; border-radius: 0.5rem; cursor: pointer; transition: background 0.12s ease; }
+.jp-jeu-wiz-body .jp-quiz-admin-champ:hover { background: var(--jp-accent-soft, #e6f3f0); }
+.jp-jeu-wiz-body .jp-quiz-admin-panel {
+  position: relative;
+  margin-top: 1.1rem;
+  padding: 1rem 1.15rem 0.45rem 1.35rem;
+  background: linear-gradient(180deg, #fff, #f6fbf9);
+  border: 1px solid var(--st-line-soft);
+  border-radius: 0.9rem;
+  box-shadow: 0 4px 14px rgba(15, 46, 40, 0.04);
+  overflow: hidden;
+}
+.jp-jeu-wiz-body .jp-quiz-admin-panel::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, #1a8f7a, #0f6b5c); }
+.jp-jeu-wiz-body .jp-quiz-admin-panel[hidden] { display: none; }
+.jp-jeu-wiz-body .jp-quiz-admin-panel-title { margin: 0 0 0.85rem; font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1.02rem; color: var(--jp-accent, #0f6b5c); }
+#jwReglesList ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+#jwReglesList li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0.7rem; background: #fff; border: 1px solid var(--st-line-soft); border-radius: 0.55rem; color: var(--jp-text, #14201c); font-size: 0.88rem; }
+#jwReglesList li button { border: 0; border-radius: 0.4rem; width: 1.6rem; height: 1.6rem; background: transparent; color: rgba(20, 32, 28, 0.5); cursor: pointer; font-size: 1.05rem; }
+#jwReglesList li button:hover { background: #fdecea; color: #b42318; }
+
+.jp-studio-sheet-head, .jp-studio-sheet-foot { padding: 0.75rem 1.2rem; }
+.jp-studio-sheet-head [data-close] { width: 2rem; height: 2rem; padding: 0 !important; font-size: 1.2rem; }

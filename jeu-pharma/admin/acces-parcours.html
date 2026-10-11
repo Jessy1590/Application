@@ -18,10 +18,17 @@
 <link rel="stylesheet" href="../css/studio.css">
 </head>
 <body>
-  <main class="jp-page jp-page-wide">
-    <a class="jp-back" href="index.html">←</a>
+  <main class="jp-page jp-page-wide" id="accRoot">
+    <a class="jp-back" href="index.html">← Admin</a>
     <h1 class="jp-title">Accès<span id="helpAcces"></span></h1>
-    <div id="list"><p class="jp-muted">…</p></div>
+    <p class="jp-sub">Accordez ou refusez les demandes, puis suivez l’avancement de chaque personne dans son parcours.</p>
+
+    <div class="jp-field">
+      <label for="accSearch" class="jp-field-label">Recherche</label>
+      <input type="search" id="accSearch" placeholder="Nom, e-mail ou parcours…" autocomplete="off">
+    </div>
+    <div id="accTabs" class="jp-jx-tabs" role="tablist" aria-label="Accès"></div>
+    <div id="list"><p class="jp-muted">Chargement…</p></div>
   </main>
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
@@ -30,48 +37,17 @@
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
   <script src="../js/ui-modal.js"></script>
+  <script src="../js/typeahead.js"></script>
+  <script src="../js/admin-acces.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', async function () {
+    document.addEventListener('DOMContentLoaded', function () {
       JpUi.bootPage({ module: 'admin-acces', homeHref: JpFab.PORTAIL_URL });
-      document.getElementById('helpAcces').appendChild(
-        JpModal.helpButton('Accès', ['Les joueurs demandent un parcours ; accordez ou refusez ici.'])
-      );
-      async function refresh() {
-        const { data, error } = await JpApp.sbJeu().rpc('v2_lister_demandes_parcours');
-        if (error) throw error;
-        const rows = Array.isArray(data) ? data : [];
-        const list = document.getElementById('list');
-        if (!rows.length) {
-          list.innerHTML = '<p class="jp-muted">Aucune demande</p>';
-          return;
-        }
-        list.innerHTML = '<table class="jp-table"><thead><tr><th>Joueur</th><th>Parcours</th><th></th></tr></thead><tbody>'
-          + rows.map(function (r) {
-            return '<tr><td>' + JpUi.escapeHtml(r.display_name || r.user_id) + '</td><td>'
-              + JpUi.escapeHtml(r.libelle) + '</td><td>'
-              + '<button type="button" class="jp-btn jp-btn-primary" data-ok="' + r.id + '">Accorder</button> '
-              + '<button type="button" class="jp-btn jp-btn-ghost" data-no="' + r.id + '">Refuser</button></td></tr>';
-          }).join('') + '</tbody></table>';
-        list.querySelectorAll('[data-ok]').forEach(function (btn) {
-          btn.addEventListener('click', async function () {
-            try {
-              await JpApp.sbJeu().rpc('v2_traiter_demande_parcours', { p_id: btn.getAttribute('data-ok'), p_statut: 'accepte' });
-              JpToast.ok('Accordé');
-              await refresh();
-            } catch (e) { JpToast.fromError(e); }
-          });
-        });
-        list.querySelectorAll('[data-no]').forEach(function (btn) {
-          btn.addEventListener('click', async function () {
-            try {
-              await JpApp.sbJeu().rpc('v2_traiter_demande_parcours', { p_id: btn.getAttribute('data-no'), p_statut: 'refuse' });
-              JpToast.ok('Refusé');
-              await refresh();
-            } catch (e) { JpToast.fromError(e); }
-          });
-        });
-      }
-      try { await refresh(); } catch (e) { JpToast.fromError(e); }
+      document.getElementById('helpAcces').appendChild(JpModal.helpButton('Accès', [
+        'Demandes : les joueurs demandent un parcours ; accordez ou refusez ici.',
+        'Accès accordés : liste des personnes autorisées avec leur avancement (jeux terminés / jeux actifs, leçons terminées, moyenne).',
+        '« Détail » montre le meilleur score par jeu et l’état de chaque leçon. « Retirer l’accès » conserve les scores.',
+      ]));
+      void JpAdminAcces.boot();
     });
   </script>
 </body>

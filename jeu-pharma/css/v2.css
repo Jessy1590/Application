@@ -485,3 +485,180 @@
     overflow: auto;
   }
 }
+
+/* ——— Aide « ? » + modales (partagées : toutes les pages admin) ——— */
+.jp-help-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-left: 0.45rem;
+  vertical-align: middle;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 92, 0.3);
+  background: #fff;
+  color: var(--jp-accent, #0f6b5c);
+  font: 700 0.75rem/1 var(--jp-font-ui, "DM Sans", system-ui, sans-serif);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.jp-help-btn:hover,
+.jp-help-btn:focus-visible {
+  background: var(--jp-accent, #0f6b5c);
+  color: #fff;
+  outline: none;
+}
+
+.jp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(10, 30, 26, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  animation: jpFade 0.2s ease;
+}
+
+.jp-modal {
+  width: min(460px, 100%);
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.15rem 1.25rem;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
+  font-family: var(--jp-font-ui, "DM Sans", system-ui, sans-serif);
+}
+.jp-modal h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.1rem;
+  font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif);
+}
+.jp-modal p {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: rgba(15, 46, 40, 0.8);
+}
+.jp-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+@keyframes jpFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ——— Graphiques admin Jeux & scores ——— */
+.jp-jx-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 0.9rem;
+  margin: 1rem 0 1.25rem;
+}
+.jp-jx-chart {
+  margin: 0;
+  padding: 0.85rem 1rem 1rem;
+  background: var(--jp-bg-elevated, #fff);
+  border: 1px solid rgba(15, 107, 92, 0.14);
+  border-radius: var(--jp-radius, 12px);
+  box-shadow: 0 6px 18px rgba(15, 46, 40, 0.04);
+  min-width: 0;
+}
+.jp-jx-chart.is-wide { grid-column: 1 / -1; }
+.jp-jx-chart figcaption { display: flex; flex-direction: column; gap: 0.1rem; margin-bottom: 0.7rem; }
+.jp-jx-chart figcaption strong { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1rem; }
+.jp-jx-chart figcaption span { font-size: 0.76rem; color: var(--jp-text-muted, #4a5c56); }
+.jp-jx-chart-empty { margin: 0.5rem 0; font-size: 0.86rem; }
+
+.jp-jx-hbars { display: grid; gap: 0.45rem; }
+.jp-jx-hbar {
+  display: grid;
+  grid-template-columns: minmax(6rem, 11rem) 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.84rem;
+}
+.jp-jx-hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-jx-hbar-label small { display: block; font-size: 0.7rem; color: var(--jp-text-muted, #4a5c56); }
+.jp-jx-hbar-track { height: 0.7rem; border-radius: 999px; background: rgba(15, 107, 92, 0.09); overflow: hidden; }
+.jp-jx-hbar-track i { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.jp-jx-hbar-val { font-variant-numeric: tabular-nums; font-size: 0.78rem; color: var(--jp-text-muted, #4a5c56); white-space: nowrap; }
+
+.jp-jx-hbar-track i.is-good, .jp-jx-vcol-bar i.is-good { background: linear-gradient(90deg, #0f6b5c, #1a8f7a); }
+.jp-jx-hbar-track i.is-mid, .jp-jx-vcol-bar i.is-mid { background: #4fb3a1; }
+.jp-jx-hbar-track i.is-low, .jp-jx-vcol-bar i.is-low { background: #d9a441; }
+.jp-jx-vcol-bar i.is-good { background: linear-gradient(180deg, #1a8f7a, #0f6b5c); }
+
+.jp-jx-vcols {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 9.5rem;
+}
+.jp-jx-vcol { flex: 1; min-width: 0; display: grid; grid-template-rows: 0.9rem 1fr 1rem; justify-items: center; font-size: 0.68rem; }
+.jp-jx-vcol-n { color: var(--jp-text-muted, #4a5c56); }
+.jp-jx-vcol-bar { width: 100%; max-width: 2.6rem; display: flex; align-items: flex-end; background: rgba(15, 107, 92, 0.05); border-radius: 4px 4px 0 0; }
+.jp-jx-vcol-bar i { display: block; width: 100%; border-radius: 4px 4px 0 0; transition: height 0.4s ease; }
+.jp-jx-vcol-l { color: var(--jp-text-muted, #4a5c56); white-space: nowrap; overflow: visible; }
+
+.jp-jx-line { width: 100%; height: auto; max-height: 14rem; display: block; }
+.jp-jx-grid { stroke: rgba(15, 107, 92, 0.14); stroke-dasharray: 3 4; }
+.jp-jx-axis { fill: var(--jp-text-muted, #4a5c56); font-size: 10px; font-family: var(--jp-font-ui, "DM Sans", system-ui, sans-serif); }
+.jp-jx-area { fill: rgba(15, 107, 92, 0.09); }
+.jp-jx-path { fill: none; stroke: #0f6b5c; stroke-width: 2; stroke-linejoin: round; }
+.jp-jx-dot { stroke: #fff; stroke-width: 1.5; }
+.jp-jx-dot.is-good { fill: #0f6b5c; }
+.jp-jx-dot.is-mid { fill: #4fb3a1; }
+.jp-jx-dot.is-low { fill: #d9a441; }
+
+@media (max-width: 720px) {
+  .jp-jx-charts { grid-template-columns: 1fr; }
+  .jp-jx-hbar { grid-template-columns: 1fr auto; }
+  .jp-jx-hbar-track { grid-column: 1 / -1; order: 3; }
+}
+
+/* ——— Admin Accès : avancement ——— */
+.jp-acc-count {
+  display: inline-block;
+  min-width: 1.35rem;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.25rem;
+  border-radius: 999px;
+  background: rgba(15, 107, 92, 0.12);
+  color: var(--jp-accent, #0f6b5c);
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: center;
+}
+.jp-jx-tab.is-active .jp-acc-count { background: var(--jp-accent, #0f6b5c); color: #fff; }
+
+.jp-acc-prog { min-width: 11rem; }
+.jp-acc-prog-bar { height: 0.55rem; border-radius: 999px; background: rgba(15, 107, 92, 0.1); overflow: hidden; }
+.jp-acc-prog-bar i { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.jp-acc-prog-bar i.is-good { background: linear-gradient(90deg, #0f6b5c, #1a8f7a); }
+.jp-acc-prog-bar i.is-mid { background: #4fb3a1; }
+.jp-acc-prog-bar i.is-low { background: #d9a441; }
+.jp-acc-prog-meta { display: flex; flex-wrap: wrap; gap: 0.1rem 0.6rem; margin-top: 0.3rem; font-size: 0.78rem; color: var(--jp-text-muted, #4a5c56); }
+.jp-acc-prog-meta strong { color: var(--jp-text, #14201c); }
+
+.jp-acc-score { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; }
+.jp-acc-score.is-good { background: #e0f2ee; color: #0c574b; }
+.jp-acc-score.is-mid { background: #e6f3f0; color: #2a7a6c; }
+.jp-acc-score.is-low { background: #fff3d6; color: #8a5a00; }
+
+.jp-acc-detail td { background: rgba(15, 107, 92, 0.04); padding: 1rem 1.1rem; }
+.jp-acc-detail-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 1.25rem; }
+.jp-acc-detail-grid h3 { margin: 0 0 0.5rem; font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 0.98rem; }
+.jp-acc-sub { font-size: 0.85rem; }
+.jp-acc-lessons { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.3rem; font-size: 0.86rem; }
+.jp-acc-lessons li { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.35rem 0.6rem; background: #fff; border: 1px solid rgba(15, 107, 92, 0.1); border-radius: 0.5rem; }
+.jp-acc-lessons li em { font-style: normal; color: var(--jp-text-muted, #4a5c56); font-size: 0.78rem; }
+.jp-acc-lessons li.is-done { border-color: rgba(15, 107, 92, 0.35); }
+.jp-acc-lessons li.is-done em { color: var(--jp-accent, #0f6b5c); font-weight: 700; }
+@media (max-width: 900px) { .jp-acc-detail-grid { grid-template-columns: 1fr; } }

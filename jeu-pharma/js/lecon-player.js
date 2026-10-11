@@ -25,14 +25,46 @@
     const tmp = document.createElement('div');
     tmp.innerHTML = html || '';
     tmp.querySelectorAll('script,iframe,object,embed').forEach((n) => n.remove());
+    const SAFE_COLOR = /^(#[0-9a-f]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*[\d.]+\s*)?\)|[a-z]{3,20})$/i;
     tmp.querySelectorAll('*').forEach((el) => {
       [...el.attributes].forEach((a) => {
         if (/^on/i.test(a.name) || (a.name === 'href' && /^javascript:/i.test(a.value))) {
           el.removeAttribute(a.name);
+        } else if (a.name === 'style') {
+          // Seule la couleur du texte est conservée (palette de l’éditeur studio)
+          const m = /(?:^|;)\s*color\s*:\s*([^;]+)/i.exec(a.value);
+          const val = m ? m[1].trim() : '';
+          if (val && SAFE_COLOR.test(val)) el.setAttribute('style', 'color:' + val);
+          else el.removeAttribute('style');
+        } else if (a.name === 'color' && !SAFE_COLOR.test(a.value.trim())) {
+          el.removeAttribute('color');
         }
       });
     });
     return tmp.innerHTML;
+  }
+
+  /** Charge publiée = clés sans « _ » (les clés « _brouillon » / « _nouveau » sont réservées au studio). */
+  function publishedPayload(p) {
+    const out = {};
+    Object.keys(p || {}).forEach((k) => { if (k.charAt(0) !== '_') out[k] = p[k]; });
+    return out;
+  }
+
+  /** Aperçu admin : applique le brouillon par-dessus le contenu publié. */
+  function withDraft(b) {
+    const d = b.payload_json && b.payload_json._brouillon;
+    const base = publishedPayload(b.payload_json);
+    if (!d) return Object.assign({}, b, { payload_json: base });
+    return Object.assign({}, b, {
+      titre: Object.prototype.hasOwnProperty.call(d, 'titre') ? d.titre : b.titre,
+      payload_json: Object.assign(base, d.payload || {}),
+    });
+  }
+
+  function matriceIds(p) {
+    if (Array.isArray(p.matrice_ids) && p.matrice_ids.length) return p.matrice_ids.filter(Boolean);
+    return p.matrice_id ? [p.matrice_id] : [];
   }
 
   async function boot(root, moduleId, preview) {
@@ -42,7 +74,15 @@
     });
     if (error) throw error;
     const module = data.module || {};
-    const blocs = data.blocs || [];
+    let blocs = data.blocs || [];
+    if (preview) {
+      // Aperçu admin : tous les blocs (y compris brouillons) avec le contenu brouillon
+      const all = await sb().rpc('v2_lister_blocs', { p_module_id: moduleId });
+      if (all.error) throw all.error;
+      blocs = (Array.isArray(all.data) ? all.data : []).map(withDraft);
+    } else {
+      blocs = blocs.map((b) => Object.assign({}, b, { payload_json: publishedPayload(b.payload_json) }));
+    }
     document.title = (module.titre || 'Leçon') + ' — Jeu Pharma';
 
     let html = '<h1 class="jp-player-brand">' + esc(module.titre || '') + '</h1>';
@@ -60,8 +100,8 @@
       } else if (b.type_bloc === 'conseil') {
         html += '<p><strong>' + esc(p.pathologie || '') + '</strong></p>'
           + '<div class="jp-rich">' + sanitizeHtml(p.corps_html || '') + '</div>';
-      } else if (b.type_bloc === 'molecule' && p.matrice_id) {
-        html += '<div data-mol="' + esc(p.matrice_id) + '" class="jp-mol-slot">…</div>';
+      } else if (b.type_bloc === 'molecule' && matriceIds(p).length) {
+        html += matriceIds(p).map((id) => '<div data-mol="' + esc(id) + '" class="jp-mol-slot">…</div>').join('');
       } else if (b.type_bloc === 'jeu') {
         const code = p.code_unique || '';
         const href = code

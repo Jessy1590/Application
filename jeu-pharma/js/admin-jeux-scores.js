@@ -212,6 +212,158 @@
     return own ? own.mod.titre : '';
   }
 
+  /* ------------------------------ graphiques (HTML/CSS + SVG, sans librairie) ------------------------------ */
+
+  function tone(p) { return p == null ? 'none' : (p >= 75 ? 'good' : (p >= 50 ? 'mid' : 'low')); }
+
+  function chartCard(title, sub, inner, wide) {
+    return '<figure class="jp-jx-chart' + (wide ? ' is-wide' : '') + '"><figcaption><strong>' + esc(title) + '</strong>'
+      + (sub ? '<span>' + esc(sub) + '</span>' : '') + '</figcaption>' + inner + '</figure>';
+  }
+
+  /** Barres horizontales. items : { label, sub?, pct?|value, max?, text } */
+  function chartBars(title, sub, items, opts) {
+    if (!items.length) return chartCard(title, sub, '<p class="jp-muted jp-jx-chart-empty">Pas encore de données.</p>');
+    const max = (opts && opts.max) || Math.max.apply(null, items.map((i) => i.value)) || 1;
+    return chartCard(title, sub, '<div class="jp-jx-hbars" role="list">' + items.map((i) => {
+      const w = Math.max(2, Math.round((i.value / max) * 100));
+      return '<div class="jp-jx-hbar" role="listitem" title="' + esc(i.label + ' — ' + i.text) + '">'
+        + '<span class="jp-jx-hbar-label">' + esc(i.label) + (i.sub ? '<small>' + esc(i.sub) + '</small>' : '') + '</span>'
+        + '<span class="jp-jx-hbar-track"><i class="is-' + (i.tone || 'good') + '" style="width:' + w + '%"></i></span>'
+        + '<span class="jp-jx-hbar-val">' + esc(i.text) + '</span></div>';
+    }).join('') + '</div>');
+  }
+
+  /** Colonnes verticales. cols : { label, value, tone? } */
+  function chartCols(title, sub, cols, unit) {
+    const max = Math.max.apply(null, cols.map((c) => c.value).concat([1]));
+    if (!cols.some((c) => c.value > 0)) return chartCard(title, sub, '<p class="jp-muted jp-jx-chart-empty">Pas encore de données.</p>');
+    return chartCard(title, sub, '<div class="jp-jx-vcols" role="list">' + cols.map((c) => {
+      const h = c.value ? Math.max(4, Math.round((c.value / max) * 100)) : 0;
+      return '<div class="jp-jx-vcol" role="listitem" title="' + esc((c.title || c.label) + ' : ' + c.value + (unit ? ' ' + unit : '')) + '">'
+        + '<span class="jp-jx-vcol-n">' + (c.value || '') + '</span>'
+        + '<span class="jp-jx-vcol-bar"><i class="is-' + (c.tone || 'good') + '" style="height:' + h + '%"></i></span>'
+        + '<span class="jp-jx-vcol-l">' + esc(c.label) + '</span></div>';
+    }).join('') + '</div>');
+  }
+
+  /** Courbe SVG de scores (%) dans le temps. */
+  function chartLine(title, sub, list) {
+    const pts = list.map((t) => ({ d: Date.parse(t.termine_at || t.created_at), p: pct(t) }))
+      .filter((x) => x.p !== null && !isNaN(x.d)).sort((a, b) => a.d - b.d);
+    if (pts.length < 2) return chartCard(title, sub, '<p class="jp-muted jp-jx-chart-empty">Au moins 2 tentatives terminées sont nécessaires.</p>', true);
+    const W = 640; const H = 180; const L = 34; const R = 12; const T = 10; const B = 22;
+    const d0 = pts[0].d; const d1 = pts[pts.length - 1].d || d0 + 1;
+    const x = (d) => L + ((d - d0) / ((d1 - d0) || 1)) * (W - L - R);
+    const y = (p) => T + (1 - p / 100) * (H - T - B);
+    const grid = [0, 50, 100].map((g) => '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g) + '" y2="' + y(g)
+      + '" class="jp-jx-grid"/><text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" text-anchor="end" class="jp-jx-axis">' + g + '</text>').join('');
+    const fmt = (d) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    const line = pts.map((q) => x(q.d).toFixed(1) + ',' + y(q.p).toFixed(1)).join(' ');
+    const area = L + ',' + y(0) + ' ' + line + ' ' + x(d1).toFixed(1) + ',' + y(0);
+    const dots = pts.map((q) => '<circle cx="' + x(q.d).toFixed(1) + '" cy="' + y(q.p).toFixed(1) + '" r="3.5" class="jp-jx-dot is-'
+      + tone(q.p) + '"><title>' + Math.round(q.p) + ' % — ' + esc(fmt(q.d)) + '</title></circle>').join('');
+    const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="jp-jx-line" role="img" aria-label="' + esc(title) + '">'
+      + grid + '<polygon points="' + area + '" class="jp-jx-area"/><polyline points="' + line + '" class="jp-jx-path"/>' + dots
+      + '<text x="' + L + '" y="' + (H - 4) + '" class="jp-jx-axis">' + esc(fmt(d0)) + '</text>'
+      + '<text x="' + (W - R) + '" y="' + (H - 4) + '" text-anchor="end" class="jp-jx-axis">' + esc(fmt(d1)) + '</text></svg>';
+    return chartCard(title, sub, svg, true);
+  }
+
+  function histogramCols(list) {
+    const b = [0, 0, 0, 0, 0];
+    list.forEach((t) => {
+      const p = pct(t);
+      if (p === null) return;
+      b[Math.min(4, Math.floor(p / 20))] += 1;
+    });
+    return ['0–20 %', '20–40 %', '40–60 %', '60–80 %', '80–100 %'].map((l, i) => ({
+      label: l, value: b[i], tone: i >= 3 ? 'good' : (i === 2 ? 'mid' : 'low'),
+    }));
+  }
+
+  function activityCols(list, days) {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const cols = [];
+    const idx = {};
+    const dayKey = (d) => d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      idx[dayKey(d)] = cols.length;
+      cols.push({ label: (i % 7 === 0) ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '', value: 0, tone: 'good', title: d.toLocaleDateString('fr-FR') });
+    }
+    list.forEach((t) => {
+      const k = new Date(t.created_at);
+      if (isNaN(k)) return;
+      const key = dayKey(k);
+      if (key in idx) cols[idx[key]].value += 1;
+    });
+    return cols;
+  }
+
+  function jeuChartItems(modeles) {
+    return modeles.map((m) => ({ m, s: statsOf(state.byModele[m.id] || []) }))
+      .filter((x) => x.s.avg !== null)
+      .sort((a, b) => b.s.avg - a.s.avg).slice(0, 10)
+      .map((x) => ({
+        label: x.m.titre, sub: x.m.code_unique, value: x.s.avg, tone: tone(x.s.avg),
+        text: Math.round(x.s.avg) + ' % · ' + x.s.done + ' essai(s)',
+      }));
+  }
+
+  function chartsJeux(modeles) {
+    const ids = new Set(modeles.map((m) => m.id));
+    const list = state.tent.filter((t) => ids.has(t.modele_id));
+    return '<div class="jp-jx-charts">'
+      + chartBars('Moyenne par jeu', '10 meilleurs jeux · % de réussite', jeuChartItems(modeles), { max: 100 })
+      + chartCols('Répartition des scores', 'tentatives terminées', histogramCols(list), 'tentative(s)')
+      + chartCols('Activité', 'tentatives par jour · 30 derniers jours', activityCols(list, 30), 'tentative(s)')
+      + '</div>';
+  }
+
+  function chartsParcours(buckets) {
+    const rows = buckets.map((b) => {
+      const ids = new Set(state.modeles.filter((m) => (m.parcours_id || '__none') === b.id).map((m) => m.id));
+      return { b, s: statsOf(state.tent.filter((t) => ids.has(t.modele_id))) };
+    });
+    const avg = rows.filter((r) => r.s.avg !== null).sort((a, c) => c.s.avg - a.s.avg).map((r) => ({
+      label: r.b.label, value: r.s.avg, tone: tone(r.s.avg), text: Math.round(r.s.avg) + ' %',
+    }));
+    const vol = rows.filter((r) => r.s.n > 0).sort((a, c) => c.s.n - a.s.n).map((r) => ({
+      label: r.b.label, value: r.s.n, tone: 'good', text: r.s.n + ' (' + r.s.users + ' joueur' + (r.s.users > 1 ? 's' : '') + ')',
+    }));
+    return '<div class="jp-jx-charts">'
+      + chartBars('Moyenne par parcours', '% de réussite', avg, { max: 100 })
+      + chartBars('Tentatives par parcours', 'volume et joueurs actifs', vol)
+      + '</div>';
+  }
+
+  function chartsPersonnesGlobal() {
+    const rows = Object.keys(state.byUser).map((uid) => ({ uid, s: statsOf(state.byUser[uid]) }));
+    const top = rows.filter((r) => r.s.avg !== null).sort((a, b) => b.s.avg - a.s.avg).slice(0, 10).map((r) => ({
+      label: nameOf(r.uid), value: r.s.avg, tone: tone(r.s.avg), text: Math.round(r.s.avg) + ' % · ' + r.s.done + ' essai(s)',
+    }));
+    const act = rows.sort((a, b) => b.s.n - a.s.n).slice(0, 10).map((r) => ({
+      label: nameOf(r.uid), value: r.s.n, tone: 'good', text: r.s.n + ' tentative(s)',
+    }));
+    return '<div class="jp-jx-charts">'
+      + chartBars('Meilleures moyennes', '10 premières personnes · % de réussite', top, { max: 100 })
+      + chartBars('Personnes les plus actives', 'nombre de tentatives', act)
+      + '</div>';
+  }
+
+  function chartsPersonne(list, perP) {
+    const items = Object.keys(perP).map((k) => ({ k, s: statsOf(perP[k]) })).filter((x) => x.s.avg !== null).map((x) => ({
+      label: x.k === '__none' ? 'Sans parcours' : parcoursName(x.k), value: x.s.avg, tone: tone(x.s.avg),
+      text: Math.round(x.s.avg) + ' % · ' + x.s.done + ' essai(s)',
+    }));
+    return '<div class="jp-jx-charts">'
+      + chartLine('Évolution des scores', '% par tentative terminée', list)
+      + chartBars('Moyenne par parcours', '% de réussite', items, { max: 100 })
+      + chartCols('Répartition des scores', 'tentatives terminées', histogramCols(list), 'tentative(s)')
+      + '</div>';
+  }
+
   /* ------------------------------ filtres ------------------------------ */
 
   function filteredModeles() {
@@ -315,6 +467,7 @@
       bindType();
       return;
     }
+    html += chartsJeux(all);
     html += '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
       + '<th>Jeu</th><th>Parcours</th><th>Joueurs</th><th>Tentatives</th><th>Moyenne</th><th>État</th><th></th>'
       + '</tr></thead><tbody>'
@@ -361,7 +514,7 @@
       $('jxBody').innerHTML = '<p class="jp-muted">Aucun parcours.</p>';
       return;
     }
-    $('jxBody').innerHTML = '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
+    $('jxBody').innerHTML = chartsParcours(shown) + '<div class="jp-table-wrap"><table class="jp-table"><thead><tr>'
       + '<th>Parcours</th><th>Jeux (actifs / total)</th><th>Inscrits</th><th>Joueurs</th><th>Tentatives</th><th>Moyenne</th><th></th>'
       + '</tr></thead><tbody>'
       + shown.map((b) => {
@@ -389,6 +542,7 @@
       const seen = [];
       state.tent.forEach((t) => { if (seen.indexOf(t.utilisateur_id) === -1 && seen.length < 8) seen.push(t.utilisateur_id); });
       $('jxBody').innerHTML = '<p class="jp-muted">Cherchez une personne dans la barre ci-dessus.</p>'
+        + (state.tent.length ? chartsPersonnesGlobal() : '')
         + (seen.length
           ? '<p class="jp-kicker" style="margin-top:1rem">Activité récente</p><div class="jp-jx-actions">'
             + seen.map((uid) => '<button type="button" class="jp-btn jp-btn-ghost" data-act="person" data-id="' + esc(uid) + '">'
@@ -417,7 +571,8 @@
       + '<div class="jp-jx-stat"><strong>' + s.n + '</strong><span>tentatives</span></div>'
       + '<div class="jp-jx-stat"><strong>' + s.done + '</strong><span>terminées</span></div>'
       + '<div class="jp-jx-stat"><strong>' + jeuxJoues + '</strong><span>jeux joués</span></div>'
-      + '<div class="jp-jx-stat"><strong>' + fmtAvg(s.avg) + '</strong><span>moyenne</span></div></div>';
+      + '<div class="jp-jx-stat"><strong>' + fmtAvg(s.avg) + '</strong><span>moyenne</span></div></div>'
+      + chartsPersonne(list, perP);
 
     const pKeys = Object.keys(perP);
     if (pKeys.length > 1) {

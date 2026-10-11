@@ -49,7 +49,7 @@
   /* ——— Préférences ——— */
   function defaultPrefs() {
     return {
-      q: '', sort: 'dci', statut: '', validation: '', classif: '',
+      q: '', sort: 'dci', statut: '', validation: '',
       secteur: '', classeTh: '', classePh: '',
       incomplet: false, incompletChamp: '',
       lieType: '', lieEntityId: '', lieEntityLabel: '',
@@ -70,7 +70,6 @@
         sort: ['dci', 'nom', 'secteur', 'updated_at'].includes(p.sort) ? p.sort : 'dci',
         statut: str(p.statut),
         validation: ['a_valider', 'validee'].includes(p.validation) ? p.validation : '',
-        classif: ['hospitalier', 'complexe', 'aucune'].includes(p.classif) ? p.classif : '',
         secteur: str(p.secteur), classeTh: str(p.classeTh), classePh: str(p.classePh),
         incomplet: !!p.incomplet,
         incompletChamp: has(p.incompletChamp) ? p.incompletChamp : '',
@@ -149,9 +148,6 @@
       if (prefs.statut && r.statut !== prefs.statut) return false;
       if (prefs.validation === 'a_valider' && isValidee(r)) return false;
       if (prefs.validation === 'validee' && !isValidee(r)) return false;
-      if (prefs.classif === 'hospitalier' && !r.hospitalier) return false;
-      if (prefs.classif === 'complexe' && !r.complexe) return false;
-      if (prefs.classif === 'aucune' && (r.hospitalier || r.complexe)) return false;
       if (prefs.incomplet && !isIncomplet(r)) return false;
       if (prefs.secteur && !labs(r.secteur_therapeutique).includes(prefs.secteur)) return false;
       if (prefs.classeTh && !labs(r.classe_therapeutique).includes(prefs.classeTh)) return false;
@@ -166,8 +162,6 @@
 
   function badges(r) {
     return '<span class="jp-badge jp-badge-' + esc(r.statut) + '">' + esc(r.statut) + '</span>'
-      + (r.hospitalier ? ' <span class="jp-badge jp-badge-hospitalier">Hosp.</span>' : '')
-      + (r.complexe ? ' <span class="jp-badge jp-badge-complexe">Complexe</span>' : '')
       + (isValidee(r)
         ? ' <span class="jp-badge jp-badge-validee">Validée</span>'
         : ' <span class="jp-badge jp-badge-a-valider">À valider</span>');
@@ -246,7 +240,6 @@
     $('fSort').value = prefs.sort;
     $('fStatut').value = prefs.statut;
     $('fValidation').value = prefs.validation;
-    $('fClassif').value = prefs.classif;
     $('fIncomplet').checked = prefs.incomplet;
     $('fIncompletChamp').value = prefs.incompletChamp;
     $('fIncompletChamp').disabled = !prefs.incomplet;
@@ -265,7 +258,6 @@
     prefs.sort = $('fSort').value || 'dci';
     prefs.statut = $('fStatut').value || '';
     prefs.validation = $('fValidation').value || '';
-    prefs.classif = $('fClassif').value || '';
     prefs.secteur = $('fSecteur').value || '';
     prefs.classeTh = $('fClasseTh').value || '';
     prefs.classePh = $('fClassePh').value || '';
@@ -666,8 +658,6 @@
     pickerMulti = {};
     $('editorTitle').textContent = 'Nouvelle fiche';
     $('fStatutEd').value = 'brouillon';
-    $('edHosp').checked = false;
-    $('edComplexe').checked = false;
     $('edValBadge').innerHTML = '';
     for (const c of CHAMPS) {
       const input = $('val_' + c.code);
@@ -693,8 +683,6 @@
     editingId = row.id;
     $('editorTitle').textContent = nomsOf(row) || row.dci || 'Fiche';
     $('fStatutEd').value = row.statut || 'brouillon';
-    $('edHosp').checked = !!row.hospitalier;
-    $('edComplexe').checked = !!row.complexe;
     $('edValBadge').innerHTML = isValidee(row)
       ? '<span class="jp-badge jp-badge-validee">Validée</span>'
       : '<span class="jp-badge jp-badge-a-valider">À valider</span>';
@@ -745,8 +733,6 @@
     }
     return {
       statut: $('fStatutEd').value,
-      hospitalier: $('edHosp').checked,
-      complexe: $('edComplexe').checked,
       fiche_validee: !!validee,
       singular,
       multi,
@@ -975,7 +961,7 @@
         e.preventDefault();
       }
     });
-    ['fStatut', 'fValidation', 'fClassif', 'fSort', 'fSecteur', 'fClasseTh', 'fClassePh', 'fIncomplet', 'fIncompletChamp']
+    ['fStatut', 'fValidation', 'fSort', 'fSecteur', 'fClasseTh', 'fClassePh', 'fIncomplet', 'fIncompletChamp']
       .forEach((id) => $(id).addEventListener('change', () => onFilterChange()));
     $('cols').addEventListener('change', () => onFilterChange(false));
     bindLie();
@@ -1018,7 +1004,7 @@
     $('btnSaveVal').addEventListener('click', () => void doSave(true));
     $('btnCancel').addEventListener('click', () => closeEditor());
     document.querySelector('[data-close-editor]').addEventListener('click', () => closeEditor());
-    ['fStatutEd', 'edHosp', 'edComplexe'].forEach((id) => $(id).addEventListener('change', () => { dirty = true; }));
+    ['fStatutEd'].forEach((id) => $(id).addEventListener('change', () => { dirty = true; }));
 
     $('valOk').addEventListener('click', () => void queueValidate());
     $('valEdit').addEventListener('click', () => {

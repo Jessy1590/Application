@@ -2,6 +2,19 @@
 
 Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
+## Studio brouillon / publication + admin (2026-10-11, suite)
+- **Aide « ? »** : `.jp-help-btn` / `.jp-modal*` déplacés de `studio.css` vers `css/v2.css` (la modale n'était pas stylée sur Référentiel / Jeux, qui ne chargent pas `studio.css`). Corrige l'aide sur toutes les pages admin.
+- **Référentiel** : filtre « Classification » et switches Hospitalière / Complexe retirés de l'UI ; colonnes DB et vue conservées ; `JpMedicaments.save` ne touche plus ces flags depuis l'éditeur (valeurs existantes inchangées).
+- **Jeux & scores** : graphiques SVG/CSS sans librairie (moyenne par jeu, répartition, activité 30 j ; par parcours ; par personne : courbe + moyenne par parcours + classement global).
+- **Accès** (`js/admin-acces.js`) : onglets Demandes | Accès accordés | Refusés + recherche ; avancement = jeux terminés / jeux actifs du parcours + leçons `progression_modules.statut='termine'` + moyenne + dernière activité ; détail par jeu / leçon ; « Retirer l'accès » = RPC `v2_traiter_demande_parcours(…, 'refuse')`. `progression_modules` n'est alimentée par aucune surface applicative (seed `024` seulement) : les jeux sont l'indicateur fiable.
+- **Studio — modèle brouillon/publié (aucune migration)** :
+  - Contenu publié = `module_blocs.titre` + `payload_json` (clés sans `_`). Brouillon auto (debounce 900 ms) = `payload_json._brouillon = { titre, payload }`. Nouveau bloc = `visible=false` jusqu'à publication. Leçon neuve = `publie=false, statut='brouillon'`.
+  - **« Enregistrer et publier »** (en-tête) : flush des brouillons → copie vers le publié + `visible=true` + `v2_upsert_module(publie=true, statut='publie')`. Si une molécule d'un bloc n'a aucune valeur au programme de la leçon, tout est publié (`v2_publier_connaissances`).
+  - Programme (`publications_connaissances`) = publication immédiate ; `v2_publier_connaissances` force `modules_cours.publie=true` → le studio rétablit le brouillon si la leçon l'était.
+  - Suppression de bloc = immédiate. Aperçu (`lecon.html?preview=1`) = blocs masqués + brouillons (admin) ; joueurs : `lecon-player.js` ignore les clés `_*`. Limite : `_brouillon` transite dans le JSON de `v2_lecon_joueur` (contenu non sensible, mais une migration `028` avec colonnes dédiées + RPC de publication serait plus propre).
+  - Bloc **molécule** multi : `payload_json.matrice_ids[]` (+ `matrice_id` = 1ʳᵉ, compat) ; lecture joueur : `matrice_ids` sinon `matrice_id`.
+  - Rich text : couleur du texte (palette teal + sélecteur) ; le lecteur ne conserve que `color` dans `style`.
+
 ## Admin Jeux & recherche dynamique (2026-10-11)
 - **Tuile admin « Jeux & scores »** → `admin/jeux.html` : tableau de bord (plus de création, plus de legacy). Vues **Jeux** | **Par parcours** | **Par personne** ; barre de recherche typeahead globale (jeux, parcours, personnes) ; filtres état/type.
 - Actions : **Pause** (RPC existant `v2_set_pause_jeu`), **Relancer** (reprend si en pause ; remet `actif=true` si archivé), **Archiver** (`modeles_jeu.actif=false`, scores conservés) ; **Jouer** (`../jeux/jouer.html?code=` ou `../ordonnances/jouer.html?code=`, seulement si actif et non en pause) ; **Éditer** → `parcours.html?parcours=&module=&bloc=` (le studio ouvre la leçon et met le bloc jeu en évidence).

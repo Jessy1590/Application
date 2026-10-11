@@ -215,3 +215,13 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
+
+/* Plusieurs molécules dans un même bloc */
+.jp-mol-slot + .jp-mol-slot {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed rgba(15, 107, 92, 0.22);
+}
+.jp-mol-slot dl { margin: 0.5rem 0 0; }
+.jp-mol-slot dt { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--jp-accent, #0f6b5c); margin-top: 0.55rem; }
+.jp-mol-slot dd { margin: 0.1rem 0 0; }
