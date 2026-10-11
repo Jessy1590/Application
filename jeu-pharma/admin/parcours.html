@@ -18,12 +18,52 @@
 <link rel="stylesheet" href="../css/v2.css">
 </head>
 <body>
-  <main class="jp-page">
+  <main class="jp-page jp-page-wide">
     <a class="jp-back" href="index.html">← Admin</a>
     <p class="jp-kicker">Parcours</p>
-    <h1 class="jp-title">Parcours et modules</h1>
-    <p class="jp-sub">Publiez explicitement les connaissances d’un secteur dans un module. Comparaison référentiel / publié.</p>
-    <div id="list" class="jp-hub-grid" style="margin-bottom:1.5rem"></div>
+    <h1 class="jp-title">Créer et remplir un parcours</h1>
+    <p class="jp-sub">3 gestes simples : nommer le parcours → ajouter des thèmes / leçons → publier uniquement les molécules et infos du programme.</p>
+
+    <div class="jp-scope-note">
+      Exemple : sur <strong>Introduction</strong> ou <strong>DEUST</strong>, l’apprenant ne voit pas tout le catalogue —
+      seulement ce que vous publiez. Les autres champs de la fiche restent masqués.
+    </div>
+
+    <section class="jp-admin-simple-card" aria-labelledby="createTitle">
+      <h2 id="createTitle" class="jp-title" style="font-size:1.15rem;margin:0 0 0.75rem">1. Nouveau parcours</h2>
+      <div class="jp-split jp-split-2">
+        <div class="jp-field">
+          <label for="newParcoursLibelle">Nom</label>
+          <input id="newParcoursLibelle" placeholder="Ex. Introduction, DEUST année 1…">
+        </div>
+        <div class="jp-field">
+          <label for="newParcoursNiveau">Public</label>
+          <select id="newParcoursNiveau">
+            <option value="apprenti">Apprenti</option>
+            <option value="etu_3a">Étudiant 3A</option>
+            <option value="pharmacien">Pharmacien</option>
+            <option value="preparatrice">Préparatrice</option>
+          </select>
+        </div>
+      </div>
+      <div class="jp-field">
+        <label for="newParcoursDesc">En une phrase</label>
+        <input id="newParcoursDesc" placeholder="Ce que l’apprenant va apprendre">
+      </div>
+      <div class="jp-field">
+        <label for="newParcoursMode">Contenu visible</label>
+        <select id="newParcoursMode">
+          <option value="publications">Uniquement ce que j’ai publié (recommandé)</option>
+          <option value="referentiel_valide">Tout le référentiel validé (pharmacien)</option>
+        </select>
+      </div>
+      <button type="button" class="jp-btn jp-btn-primary" id="btnCreateParcours">Créer le parcours</button>
+    </section>
+
+    <h2 class="jp-title" style="margin-top:1.75rem">2. Mes parcours</h2>
+    <div id="list" class="jp-hub-grid" style="margin-bottom:1.25rem"></div>
+
+    <h2 class="jp-title">3. Thèmes, leçons et publications</h2>
     <div id="detail"></div>
   </main>
   <script src="../js/constants.js"></script>

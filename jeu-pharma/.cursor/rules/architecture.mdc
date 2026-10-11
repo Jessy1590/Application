@@ -43,7 +43,8 @@ alwaysApply: true
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin ou CSV manuel.
 - BDPM **lecture seule** pour préremplir noms/DCI via catalogue legacy (`legacy-v1/admin/catalogue.html` + `js/bdm.js`). Pas d’OCR ni d’IA en v1.
-- Admin actuel : `admin/` — sources, référentiel, parcours/publications, jeux (4 types + params), import RCP.
+- Admin actuel : `admin/` — catalogue (accueil + lien éditeur complet), parcours (création simple + publication molécules/champs), jeux (4 types), référentiel, sources, import RCP.
+- Anti-surapprentissage : mode `publications` = seules molécules/champs publiés dans les modules débloqués (RPC `v2_*`) ; le catalogue général reste complet côté admin.
 - Admin jeux : `admin/jeux.html` — création Quiz | Trous | Fiche aléatoire | Ordonnance avec panneaux de paramètres par type ; pause/reprise ; codes `JP-*****`.
 - Legacy V1 (création quiz/trous figés) : `legacy-v1/admin/jeux.html` + RPC `generer_et_geler_quiz`.
 

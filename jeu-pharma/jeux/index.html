@@ -37,6 +37,7 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/resolver.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'jeux', homeHref: JpFab.PORTAIL_URL });
@@ -57,6 +58,7 @@
 
       const list = document.getElementById('list');
       try {
+        await JpV2Resolver.ensureParcoursActif();
         let q = JpApp.sbJeu()
           .from('modeles_jeu')
           .select('id, code_unique, type_jeu, titre, mode, created_at')

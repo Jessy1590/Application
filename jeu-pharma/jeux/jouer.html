@@ -18,16 +18,13 @@
 <link rel="stylesheet" href="../css/v2.css">
 </head>
 <body>
-  <main class="jp-page">
+  <main class="jp-page jp-page-wide">
     <a class="jp-back" href="index.html">← Jeux</a>
     <p class="jp-kicker">Session</p>
     <h1 class="jp-title" id="titre">Chargement…</h1>
     <p class="jp-sub" id="meta"></p>
-    <div id="panel" class="jp-v2-banner">Préparation de la session…</div>
-    <div class="jp-v2-actions" id="actions" hidden>
-      <button type="button" class="jp-btn jp-btn-primary" id="btnStart">Démarrer / nouveau tirage</button>
-    </div>
-    <pre id="debug" class="jp-muted" style="white-space:pre-wrap;margin-top:1.5rem;font-size:0.85rem"></pre>
+    <p class="jp-muted" id="hintScope">Seules les molécules et informations publiées dans votre parcours sont visibles.</p>
+    <div id="root"><p class="jp-muted">Préparation…</p></div>
   </main>
   <script src="../js/constants.js"></script>
   <script src="../js/toast.js"></script>
@@ -35,62 +32,26 @@
   <script src="../js/bugs.js"></script>
   <script src="../js/fab.js"></script>
   <script src="../js/ui.js"></script>
+  <script src="../js/resolver.js"></script>
+  <script src="../js/jeux-play.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       JpUi.bootPage({ module: 'jeu-jouer', homeHref: JpFab.PORTAIL_URL });
-      const params = new URLSearchParams(location.search);
-      const code = params.get('code');
-      const panel = document.getElementById('panel');
-      const actions = document.getElementById('actions');
-      const debug = document.getElementById('debug');
+      const code = new URLSearchParams(location.search).get('code');
+      const root = document.getElementById('root');
       if (!code) {
-        panel.textContent = 'Code de jeu manquant.';
+        root.innerHTML = '<p class="jp-muted">Code de jeu manquant. <a href="index.html">Retour</a></p>';
         return;
       }
       try {
-        const { data: modele, error } = await JpApp.sbJeu()
-          .from('modeles_jeu')
-          .select('id, code_unique, type_jeu, titre, mode, configuration_json, en_pause, actif')
-          .eq('code_unique', code)
-          .eq('actif', true)
-          .maybeSingle();
-        if (error) throw error;
-        if (!modele) throw new Error('Jeu introuvable');
-        if (modele.en_pause) throw new Error('Ce jeu est en pause');
+        await JpV2Resolver.ensureParcoursActif();
+        const modele = await JpJeuxPlay.boot(root, code);
         document.getElementById('titre').textContent = modele.titre;
         document.getElementById('meta').textContent = modele.type_jeu + ' · ' + modele.mode + ' · ' + modele.code_unique;
-
-        if (modele.type_jeu === 'ordonnance') {
-          location.replace('../ordonnances/jouer.html?code=' + encodeURIComponent(code));
-          return;
-        }
-
-        if (modele.type_jeu === 'quiz') {
-          panel.textContent = 'Quiz d’entraînement : un tirage personnel est créé à partir des connaissances de votre parcours.';
-          actions.hidden = false;
-          document.getElementById('btnStart').addEventListener('click', async function () {
-            try {
-              const { data, error: e2 } = await JpApp.sbJeu().rpc('v2_nouveau_tirage_quiz', {
-                p_modele_id: modele.id
-              });
-              if (e2) throw e2;
-              panel.innerHTML = 'Tirage créé · tentative <code>' + JpUi.escapeHtml(data.tentative_id) + '</code>. '
-                + 'Pool : ' + ((data.snapshot && data.snapshot.matrice_ids) || []).length + ' molécule(s).';
-              debug.textContent = JSON.stringify(data.snapshot, null, 2);
-              JpToast.ok('Tirage prêt');
-            } catch (e) {
-              JpToast.fromError(e);
-            }
-          });
-          return;
-        }
-
-        panel.textContent = 'Type « ' + modele.type_jeu
-          + ' » : modèle enregistré. L’écran de jeu dédié arrive ensuite ; les paramètres admin sont déjà pris en compte.';
-        debug.textContent = JSON.stringify(modele.configuration_json || {}, null, 2);
       } catch (e) {
-        panel.textContent = e.message || String(e);
         JpToast.fromError(e);
+        root.innerHTML = '<p class="jp-muted">' + JpUi.escapeHtml(e.message || String(e))
+          + '</p><p><a href="../espace.html">Choisir le parcours Introduction</a></p>';
       }
     });
   </script>

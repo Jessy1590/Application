@@ -44,6 +44,11 @@
   background: var(--jp-bg-elevated);
 }
 
+.jp-v2-parcours-btn.is-selected {
+  border-color: var(--jp-accent);
+  box-shadow: inset 0 0 0 1px var(--jp-accent);
+}
+
 .jp-v2-mol-card {
   padding: 0.85rem 1rem;
   border: 1px solid var(--jp-line);
@@ -87,6 +92,92 @@
 
 .jp-v2-module.is-group h3 {
   font-family: "Source Serif 4", Georgia, serif;
+}
+
+.jp-v2-props {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.jp-v2-prop {
+  text-align: left;
+  white-space: normal;
+  height: auto;
+  min-height: 2.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.jp-v2-quiz-recap {
+  margin: 1rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.jp-v2-quiz-recap .is-ok {
+  color: #0f6b5c;
+}
+
+.jp-v2-quiz-recap .is-ko {
+  color: #8a3a20;
+}
+
+.jp-admin-simple-card {
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  background: var(--jp-bg-elevated);
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.85rem;
+}
+
+.jp-admin-simple-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.jp-admin-steps {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  counter-reset: step;
+}
+
+.jp-admin-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.jp-admin-step::before {
+  counter-increment: step;
+  content: counter(step);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--jp-accent-soft);
+  color: var(--jp-accent);
+}
+
+.jp-mol-pick {
+  max-height: 14rem;
+  overflow: auto;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius);
+  padding: 0.5rem 0.65rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.jp-scope-note {
+  border-left: 3px solid var(--jp-accent);
+  padding: 0.55rem 0.75rem;
+  background: var(--jp-accent-soft);
+  margin: 0.75rem 0 1rem;
+  font-size: 0.92rem;
 }
 
 @media (max-width: 720px) {

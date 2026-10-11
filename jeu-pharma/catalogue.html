@@ -24,7 +24,8 @@
     <a class="jp-back" href="index.html">← Hub</a>
     <p class="jp-kicker">Catalogue</p>
     <h1 class="jp-title">Catalogue résolu</h1>
-    <p class="jp-sub">Uniquement les médicaments et champs accessibles via vos modules débloqués.</p>
+    <p class="jp-sub">Uniquement les médicaments et champs de votre parcours. Le reste du catalogue est masqué.</p>
+    <div class="jp-scope-note" id="scopeNote">Chargement du parcours…</div>
 
     <div class="jp-field">
       <label for="q">Recherche</label>
@@ -93,7 +94,7 @@
                 html += '<dt>' + JpUi.escapeHtml(champLibelle(code)) + '</dt><dd>'
                   + JpUi.escapeHtml(vals || '—') + '</dd>';
               });
-              html += '</dl>';
+              html += '</dl><p class="jp-muted" style="margin-top:1rem">Les champs non publiés dans votre parcours sont masqués.</p>';
               document.getElementById('ficheBody').innerHTML = html;
               modal.hidden = false;
             } catch (e) {
@@ -113,11 +114,21 @@
       }
 
       try {
+        await JpV2Resolver.ensureParcoursActif();
+        const prog = await JpV2Resolver.progression();
+        const note = document.getElementById('scopeNote');
+        if (prog?.parcours) {
+          note.innerHTML = 'Parcours actif : <strong>' + JpUi.escapeHtml(prog.parcours.libelle)
+            + '</strong> — seules les connaissances publiées y sont affichées. '
+            + '<a href="espace.html">Changer de parcours</a>';
+        } else {
+          note.innerHTML = 'Aucun parcours — <a href="espace.html">choisir Introduction</a>.';
+        }
         all = await JpV2Resolver.listerMedicaments();
         render(all);
       } catch (e) {
         JpToast.fromError(e);
-        list.innerHTML = '<p class="jp-muted">Erreur de chargement. Vérifiez votre parcours actif.</p>';
+        list.innerHTML = '<p class="jp-muted">Erreur de chargement. <a href="espace.html">Choisir un parcours</a>.</p>';
       }
       document.getElementById('q').addEventListener('input', filter);
       document.getElementById('ficheClose').addEventListener('click', function () { modal.hidden = true; });

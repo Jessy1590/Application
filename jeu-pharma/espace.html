@@ -120,10 +120,12 @@
           o.textContent = p.libelle + (p.code === 'introduction' ? ' · recommandé' : '');
           sel.appendChild(o);
         });
-        if (profil?.parcours_id) sel.value = profil.parcours_id;
-        else {
+        if (profil?.parcours_id) {
+          sel.value = profil.parcours_id;
+        } else {
+          const ensured = await JpV2Resolver.ensureParcoursActif();
           const intro = parcoursList.find(function (p) { return p.code === 'introduction'; });
-          sel.value = (intro || parcoursList[0] || {}).id || '';
+          sel.value = ensured?.parcours_id || (intro || parcoursList[0] || {}).id || '';
         }
         await refresh();
       } catch (e) {

@@ -82,6 +82,16 @@
     return data;
   }
 
+  /** Si aucun parcours actif : active Introduction (sinon le premier actif). */
+  async function ensureParcoursActif() {
+    const profil = await getProfilV2();
+    if (profil?.parcours_id) return profil;
+    const list = await listParcours();
+    if (!list.length) return profil;
+    const intro = list.find((p) => p.code === 'introduction') || list[0];
+    return setParcoursActif(intro.id);
+  }
+
   global.JpV2Resolver = {
     listerMedicaments,
     ficheResolue,
@@ -89,5 +99,6 @@
     listParcours,
     setParcoursActif,
     getProfilV2,
+    ensureParcoursActif,
   };
 })(window);

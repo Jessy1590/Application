@@ -70,17 +70,18 @@
         if (await JpApp.isAdmin()) document.getElementById('hubTileAdmin').hidden = false;
       } catch (_) {}
       try {
+        await JpV2Resolver.ensureParcoursActif();
         const prog = await JpV2Resolver.progression();
         const el = document.getElementById('parcoursBanner');
         if (!prog?.parcours) {
-          el.innerHTML = 'Aucun parcours actif — commencez par <a href="espace.html">Introduction</a>.';
+          el.innerHTML = 'Aucun parcours actif — <a href="espace.html">choisir Introduction</a>.';
         } else {
           const leaves = (prog.modules || []).filter(function (m) { return !m.est_groupe; });
           const open = leaves.filter(function (m) { return m.statut !== 'verrouille'; }).length;
           el.innerHTML = 'Parcours : <strong>' + JpUi.escapeHtml(prog.parcours.libelle)
             + '</strong> · ' + open + '/' + leaves.length + ' sous-parcours accessibles'
             + (prog.parcours.code === 'introduction'
-              ? ' · jeux démo <code>JP-INTQ1</code> / <code>JP-INTT1</code> / <code>JP-INTF1</code> / <code>JP-INTO1</code>'
+              ? ' · testez les jeux Intro dans Quiz / Trous / Fiche / Ordonnance'
               : '');
         }
       } catch (e) {

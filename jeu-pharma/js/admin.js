@@ -108,6 +108,44 @@
     return data;
   }
 
+  async function publierMatrices(moduleId, matriceIds, champCodes) {
+    const { data, error } = await sb().rpc('v2_publier_module_matrices', {
+      p_module_id: moduleId,
+      p_matrice_ids: matriceIds,
+      p_champ_codes: champCodes && champCodes.length ? champCodes : null,
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function creerParcours(payload) {
+    const { data, error } = await sb().rpc('v2_creer_parcours', { p_payload: payload });
+    if (error) throw error;
+    return data;
+  }
+
+  async function creerModule(payload) {
+    const { data, error } = await sb().rpc('v2_creer_module', { p_payload: payload });
+    if (error) throw error;
+    return data;
+  }
+
+  async function searchMatrices(q, limit) {
+    let query = sb()
+      .from('v_medicaments_complet')
+      .select('id, dci, nom_commercial, noms_commerciaux, statut')
+      .eq('statut', 'publie')
+      .order('dci')
+      .limit(limit || 40);
+    const term = String(q || '').trim();
+    if (term) {
+      query = query.or('dci.ilike.%' + term + '%,nom_commercial.ilike.%' + term + '%');
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
   async function backfillFromV1() {
     const { data, error } = await sb().rpc('v2_backfill_connaissances_from_v1');
     if (error) throw error;
@@ -282,63 +320,228 @@
     global.JpUi.bootPage({ module: 'admin-parcours', homeHref: 'index.html' });
     const wrap = $('list');
     const detail = $('detail');
-    try {
+    let selectedParcoursId = null;
+    let selectedModuleId = null;
+
+    async function refreshList() {
       const parcours = await listParcoursAdmin();
       wrap.innerHTML = parcours.map((p) => (
-        '<button type="button" class="jp-tile jp-v2-parcours-btn" data-parcours="' + p.id + '">'
+        '<button type="button" class="jp-tile jp-v2-parcours-btn'
+        + (p.id === selectedParcoursId ? ' is-selected' : '') + '" data-parcours="' + p.id + '">'
         + '<h2>' + global.JpUi.escapeHtml(p.libelle) + '</h2>'
-        + '<p><code>' + global.JpUi.escapeHtml(p.code) + '</code> · '
-        + global.JpUi.escapeHtml(p.mode_contenu) + '</p></button>'
+        + '<p>' + global.JpUi.escapeHtml(p.description || 'Sans description') + '</p>'
+        + '<p class="jp-muted"><code>' + global.JpUi.escapeHtml(p.code) + '</code> · '
+        + (p.mode_contenu === 'referentiel_valide' ? 'Tout le référentiel' : 'Contenu publié seulement')
+        + '</p></button>'
       )).join('');
-
       wrap.querySelectorAll('[data-parcours]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
-          const id = btn.getAttribute('data-parcours');
-          const mods = (await listModules(id)).filter((m) => m.publie !== false || m.code === 'cv');
-          const sectors = await listSecteurs();
-          const byId = Object.fromEntries(mods.map((m) => [m.id, m]));
-          let html = '<h2 class="jp-title">Thèmes & sous-parcours</h2>';
-          for (const m of mods) {
-            if (!m.publie) continue;
-            const indent = m.parent_id ? ' style="margin-left:1.25rem"' : '';
-            const parentLabel = m.parent_id && byId[m.parent_id]
-              ? ' · sous ' + byId[m.parent_id].titre
-              : '';
-            const n = await countPublications(m.id);
-            const cmp = await compareRcpVsModule(m.id);
-            html += '<article class="jp-quiz-admin-panel" style="margin-bottom:1rem"' + indent + '>'
-              + '<div class="jp-quiz-admin-panel-body">'
-              + '<h3>' + global.JpUi.escapeHtml(m.titre)
-              + (m.est_groupe ? ' <span class="jp-v2-badge">Thème</span>' : '')
-              + ' <code>' + global.JpUi.escapeHtml(m.code) + '</code></h3>'
-              + '<p class="jp-muted">' + global.JpUi.escapeHtml(m.resume || '')
-              + parentLabel + '</p>'
-              + '<p>Publications actives : <strong>' + n + '</strong> · Référentiel valide : '
-              + cmp.referentiel_valide + ' · Non publiées (estime) : ' + cmp.non_publiees_estime + '</p>'
-              + '<div class="jp-toolbar">'
-              + '<select data-secteur-for="' + m.id + '">'
-              + sectors.map((s) => '<option value="' + global.JpUi.escapeHtml(s.valeur_norm) + '">'
-                + global.JpUi.escapeHtml(s.valeur) + '</option>').join('')
-              + '</select>'
-              + '<button type="button" class="jp-btn jp-btn-ghost" data-pub="' + m.id + '">Publier par secteur</button>'
-              + '</div></div></article>';
-          }
-          detail.innerHTML = html;
-          detail.querySelectorAll('[data-pub]').forEach((b) => {
-            b.addEventListener('click', async () => {
-              const mid = b.getAttribute('data-pub');
-              const sel = detail.querySelector('[data-secteur-for="' + mid + '"]');
-              try {
-                const res = await publierParSecteur(mid, sel.value);
-                global.JpToast.ok('Publié : +' + (res?.inserted || 0));
-                btn.click();
-              } catch (e) {
-                global.JpToast.fromError(e);
-              }
-            });
-          });
+        btn.addEventListener('click', function () {
+          selectedParcoursId = btn.getAttribute('data-parcours');
+          selectedModuleId = null;
+          void openParcours(selectedParcoursId);
+          void refreshList();
         });
       });
+      return parcours;
+    }
+
+    function champsCheckboxes(name) {
+      return (global.JpConstants.champsActifs() || [])
+        .filter((c) => c.code !== 'nom_commercial' && c.code !== 'dci')
+        .map((c) => (
+          '<label class="jp-quiz-admin-champ"><input type="checkbox" name="' + name + '" value="'
+          + c.code + '" checked> <span>' + global.JpUi.escapeHtml(c.libelle) + '</span></label>'
+        )).join('');
+    }
+
+    async function openParcours(id) {
+      const mods = await listModules(id);
+      const published = mods.filter((m) => m.publie);
+      const byId = Object.fromEntries(mods.map((m) => [m.id, m]));
+      const groupes = published.filter((m) => m.est_groupe && !m.parent_id);
+      const racinesFeuilles = published.filter((m) => !m.est_groupe && !m.parent_id);
+
+      let html = '<div class="jp-scope-note">Pour un parcours type DEUST / Introduction : '
+        + 'publiez <strong>seulement</strong> les molécules et champs du programme. '
+        + 'Le reste du catalogue reste masqué pour l’apprenant (anti-surapprentissage).</div>';
+
+      html += '<div class="jp-admin-simple-card"><h3>Ajouter un thème ou un sous-parcours</h3>'
+        + '<div class="jp-split jp-split-2">'
+        + '<div class="jp-field"><label for="modTitre">Titre</label><input id="modTitre" placeholder="Ex. Anémie"></div>'
+        + '<div class="jp-field"><label for="modParent">Sous…</label><select id="modParent">'
+        + '<option value="">— Thème racine —</option>'
+        + groupes.map((g) => '<option value="' + g.id + '">' + global.JpUi.escapeHtml(g.titre) + '</option>').join('')
+        + '</select></div></div>'
+        + '<div class="jp-field"><label for="modResume">Résumé (optionnel)</label>'
+        + '<input id="modResume" placeholder="Ce que l’apprenant va apprendre"></div>'
+        + '<label class="jp-quiz-admin-champ"><input type="checkbox" id="modGroupe"> '
+        + '<span>C’est un thème (conteneur, pas une leçon jouable)</span></label>'
+        + '<div class="jp-v2-actions"><button type="button" class="jp-btn jp-btn-primary" id="btnAddMod">Ajouter</button></div>'
+        + '</div>';
+
+      html += '<h2 class="jp-title">Contenu du parcours</h2><div id="modTree">';
+      function renderLeaf(m, depth) {
+        const nPromise = countPublications(m.id);
+        return nPromise.then((n) => (
+          '<button type="button" class="jp-admin-simple-card" data-mod="' + m.id + '" style="margin-left:'
+          + (depth * 1) + 'rem;width:calc(100% - ' + (depth) + 'rem);text-align:left">'
+          + '<h3>' + global.JpUi.escapeHtml(m.titre)
+          + (m.est_groupe ? ' <span class="jp-v2-badge">Thème</span>' : '')
+          + '</h3>'
+          + '<p class="jp-muted">' + global.JpUi.escapeHtml(m.resume || '') + '</p>'
+          + '<p><strong>' + n + '</strong> connaissance(s) publiée(s)</p></button>'
+        ));
+      }
+
+      const blocks = [];
+      for (const g of groupes.sort((a, b) => a.ordre - b.ordre)) {
+        blocks.push(await renderLeaf(g, 0));
+        const kids = published.filter((m) => m.parent_id === g.id).sort((a, b) => a.ordre - b.ordre);
+        for (const k of kids) blocks.push(await renderLeaf(k, 1));
+      }
+      for (const f of racinesFeuilles.sort((a, b) => a.ordre - b.ordre)) {
+        blocks.push(await renderLeaf(f, 0));
+      }
+      html += blocks.join('') || '<p class="jp-muted">Aucun module. Ajoutez un thème puis un sous-parcours.</p>';
+      html += '</div><div id="modEditor"></div>';
+      detail.innerHTML = html;
+
+      $('btnAddMod')?.addEventListener('click', async function () {
+        try {
+          const titre = ($('modTitre').value || '').trim();
+          if (!titre) throw new Error('Titre requis');
+          await creerModule({
+            parcours_id: id,
+            parent_id: $('modParent').value || null,
+            titre,
+            resume: $('modResume').value || '',
+            est_groupe: !!$('modGroupe').checked,
+            publie: true,
+            ordre: (mods.reduce((m, x) => Math.max(m, x.ordre || 0), 0) || 0) + 10,
+          });
+          global.JpToast.ok('Ajouté');
+          await openParcours(id);
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+
+      detail.querySelectorAll('[data-mod]').forEach((btn) => {
+        btn.addEventListener('click', function () {
+          selectedModuleId = btn.getAttribute('data-mod');
+          void openModuleEditor(id, selectedModuleId, byId);
+        });
+      });
+    }
+
+    async function openModuleEditor(parcoursId, moduleId, byId) {
+      const m = byId[moduleId] || (await listModules(parcoursId)).find((x) => x.id === moduleId);
+      const editor = $('modEditor');
+      if (!m || m.est_groupe) {
+        editor.innerHTML = m?.est_groupe
+          ? '<div class="jp-scope-note">Thème sélectionné : ajoutez des sous-parcours dessous, puis publiez le contenu sur les sous-parcours.</div>'
+          : '';
+        return;
+      }
+      const n = await countPublications(m.id);
+      const sectors = await listSecteurs();
+      editor.innerHTML = '<div class="jp-admin-simple-card">'
+        + '<h3>Publier du contenu — ' + global.JpUi.escapeHtml(m.titre) + '</h3>'
+        + '<p class="jp-muted">Actuellement : <strong>' + n + '</strong> connaissance(s). '
+        + 'Tout ce qui n’est pas publié ici sera masqué pour l’apprenant.</p>'
+        + '<div class="jp-admin-steps">'
+        + '<div class="jp-admin-step"><div><strong>Champs du programme</strong>'
+        + '<div class="jp-quiz-admin-champs-grid" id="pubChamps">' + champsCheckboxes('pubChamp') + '</div></div></div>'
+        + '<div class="jp-admin-step"><div><strong>Molécules à inclure</strong>'
+        + '<div class="jp-field"><label for="molSearch">Recherche</label>'
+        + '<input id="molSearch" placeholder="DCI ou nom commercial"></div>'
+        + '<div id="molPick" class="jp-mol-pick"><p class="jp-muted">Tapez pour chercher…</p></div></div></div>'
+        + '<div class="jp-admin-step"><div><strong>Ou raccourci par secteur ATC</strong>'
+        + '<div class="jp-toolbar"><select id="pubSecteur">'
+        + sectors.map((s) => '<option value="' + global.JpUi.escapeHtml(s.valeur_norm) + '">'
+          + global.JpUi.escapeHtml(s.valeur) + '</option>').join('')
+        + '</select> <button type="button" class="jp-btn jp-btn-ghost" id="btnPubSecteur">Publier le secteur</button></div>'
+        + '<p class="jp-muted">Attention : un secteur entier peut être large. Préférez la sélection molécule par molécule pour Introduction / DEUST.</p>'
+        + '</div></div></div>'
+        + '<div class="jp-v2-actions"><button type="button" class="jp-btn jp-btn-primary" id="btnPubMol">Publier la sélection</button></div>'
+        + '</div>';
+
+      async function fillMols() {
+        const rows = await searchMatrices($('molSearch').value, 50);
+        $('molPick').innerHTML = rows.length
+          ? rows.map((r) => (
+            '<label class="jp-quiz-admin-champ"><input type="checkbox" name="pubMol" value="'
+            + r.id + '"> <span>' + global.JpUi.escapeHtml(r.dci || '')
+            + (r.nom_commercial ? ' · ' + global.JpUi.escapeHtml(r.nom_commercial) : '')
+            + '</span></label>'
+          )).join('')
+          : '<p class="jp-muted">Aucun résultat.</p>';
+      }
+      let t = null;
+      $('molSearch').addEventListener('input', function () {
+        clearTimeout(t);
+        t = setTimeout(function () { void fillMols(); }, 220);
+      });
+      await fillMols();
+
+      $('btnPubMol')?.addEventListener('click', async function () {
+        try {
+          const ids = Array.from(document.querySelectorAll('input[name="pubMol"]:checked')).map((el) => el.value);
+          const champs = Array.from(document.querySelectorAll('input[name="pubChamp"]:checked')).map((el) => el.value);
+          if (!ids.length) throw new Error('Cochez au moins une molécule');
+          if (!champs.length) throw new Error('Cochez au moins un champ');
+          // Toujours publier identité (noms/DCI) + champs cochés
+          const champsFull = Array.from(new Set(champs.concat(['nom_commercial', 'dci'])));
+          const res = await publierMatrices(m.id, ids, champsFull);
+          global.JpToast.ok('Publié : +' + (res?.inserted || 0) + ' connaissance(s)');
+          await openParcours(parcoursId);
+          await openModuleEditor(parcoursId, moduleId, Object.fromEntries((await listModules(parcoursId)).map((x) => [x.id, x])));
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+
+      $('btnPubSecteur')?.addEventListener('click', async function () {
+        try {
+          const res = await publierParSecteur(m.id, $('pubSecteur').value);
+          global.JpToast.ok('Secteur publié : +' + (res?.inserted || 0));
+          await openParcours(parcoursId);
+        } catch (e) {
+          global.JpToast.fromError(e);
+        }
+      });
+    }
+
+    $('btnCreateParcours')?.addEventListener('click', async function () {
+      try {
+        const libelle = ($('newParcoursLibelle').value || '').trim();
+        if (!libelle) throw new Error('Donnez un nom au parcours');
+        const created = await creerParcours({
+          libelle,
+          description: $('newParcoursDesc').value || '',
+          niveau_lie: $('newParcoursNiveau').value || null,
+          mode_contenu: $('newParcoursMode').value || 'publications',
+          ordre: 40,
+        });
+        global.JpToast.ok('Parcours créé');
+        selectedParcoursId = created.id;
+        $('newParcoursLibelle').value = '';
+        $('newParcoursDesc').value = '';
+        await refreshList();
+        await openParcours(created.id);
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    });
+
+    try {
+      const parcours = await refreshList();
+      const intro = parcours.find((p) => p.code === 'introduction') || parcours[0];
+      if (intro) {
+        selectedParcoursId = intro.id;
+        await refreshList();
+        await openParcours(intro.id);
+      }
     } catch (e) {
       global.JpToast.fromError(e);
     }
@@ -498,16 +701,49 @@
     await refreshList();
   }
 
+  async function bootCatalogue() {
+    global.JpUi.bootPage({ module: 'admin-catalogue', homeHref: 'index.html' });
+    const list = $('list');
+    const q = $('q');
+
+    async function refresh() {
+      try {
+        const rows = await searchMatrices(q?.value || '', 80);
+        list.innerHTML = rows.length
+          ? '<table class="jp-table"><thead><tr><th>DCI</th><th>Nom</th><th></th></tr></thead><tbody>'
+            + rows.map((r) => '<tr><td>' + global.JpUi.escapeHtml(r.dci || '')
+              + '</td><td>' + global.JpUi.escapeHtml(r.nom_commercial || '')
+              + '</td><td><a class="jp-link-btn" href="../legacy-v1/admin/catalogue.html?focus='
+              + encodeURIComponent(r.id) + '">Éditer la fiche</a></td></tr>').join('')
+            + '</tbody></table>'
+          : '<p class="jp-muted">Aucune fiche.</p>';
+      } catch (e) {
+        global.JpToast.fromError(e);
+      }
+    }
+
+    let t = null;
+    q?.addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { void refresh(); }, 200);
+    });
+    await refresh();
+  }
+
   global.JpV2Admin = {
     bootSources,
     bootReferentiel,
     bootParcours,
     bootJeux,
+    bootCatalogue,
     listSources,
     listConnaissances,
     listParcoursAdmin,
     listModules,
     creerModeleJeu,
     setPause,
+    creerParcours,
+    creerModule,
+    publierMatrices,
   };
 })(window);
