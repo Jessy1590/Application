@@ -457,7 +457,15 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   letter-spacing: 0.06em;
 }
 .jp-bloc--recommandation .jp-reco-body { line-height: 1.65; font-size: 0.98rem; }
-.jp-reco-lien { margin: 0.85rem 0 0; padding-top: 0.75rem; border-top: 1px dashed rgba(10, 122, 106, 0.22); }
+.jp-reco-liens {
+  margin: 0.85rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px dashed rgba(10, 122, 106, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jp-reco-lien { margin: 0; padding: 0; border: none; }
 .jp-reco-a {
   display: inline-flex;
   align-items: center;

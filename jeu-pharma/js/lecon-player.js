@@ -79,23 +79,65 @@
     jeu: { label: 'Jeu', ico: '◆' },
   };
 
-  /** Lien in-app ou https pour un bloc recommandation (pas de pop-up). */
-  function recoHref(p, module) {
-    const blocId = (p.lien_bloc_id || '').trim();
+  function recoNormalizeRef(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    return {
+      label: String(r.label ?? r.lien_label ?? '').trim(),
+      href: String(r.href ?? r.lien_href ?? '').trim(),
+      module_id: String(r.module_id ?? r.lien_module_id ?? '').trim(),
+      parcours_id: String(r.parcours_id ?? r.lien_parcours_id ?? '').trim(),
+      bloc_id: String(r.bloc_id ?? r.lien_bloc_id ?? '').trim(),
+    };
+  }
+
+  /** Lit `references[]` ou migre les champs legacy `lien_*` (un seul item). */
+  function recoReferencesList(p) {
+    const pay = p && typeof p === 'object' ? p : {};
+    if (Array.isArray(pay.references) && pay.references.length) {
+      return pay.references.map(recoNormalizeRef);
+    }
+    const legacy = recoNormalizeRef({
+      label: pay.lien_label,
+      href: pay.lien_href,
+      module_id: pay.lien_module_id,
+      parcours_id: pay.lien_parcours_id,
+      bloc_id: pay.lien_bloc_id,
+    });
+    const has = legacy.label || legacy.href || legacy.module_id || legacy.bloc_id;
+    return has ? [legacy] : [];
+  }
+
+  /** Lien in-app ou https pour une référence recommandation (pas de pop-up). */
+  function recoHrefForRef(ref, module) {
+    const blocId = (ref.bloc_id || '').trim();
     if (blocId) return '#jp-bloc-' + blocId;
-    const modId = (p.lien_module_id || '').trim();
+    const modId = (ref.module_id || '').trim();
     if (modId) {
       let h = 'lecon.html?module=' + encodeURIComponent(modId);
-      const parc = (p.lien_parcours_id || module.parcours_id || '').trim();
+      const parc = (ref.parcours_id || module.parcours_id || '').trim();
       if (parc) h += '&parcours=' + encodeURIComponent(parc);
       return h;
     }
-    const href = (p.lien_href || '').trim();
+    const href = (ref.href || '').trim();
     if (!href) return '';
     if (href.startsWith('#')) return href;
     if (/^(lecon|espace|parcours|jeux\/|catalogue|mon-espace)\.html/i.test(href) || href.startsWith('/')) return href;
     if (/^https:\/\//i.test(href)) return href;
     return '';
+  }
+
+  function recoLinksHtml(p, module) {
+    const refs = recoReferencesList(p);
+    if (!refs.length) return '';
+    const items = refs.map((ref) => {
+      const rh = recoHrefForRef(ref, module);
+      if (!rh) return '';
+      const lab = ref.label || 'Voir la section indiquée';
+      return '<p class="jp-reco-lien"><a class="jp-reco-a" href="' + esc(rh) + '">'
+        + esc(lab) + ' →</a></p>';
+    }).filter(Boolean);
+    if (!items.length) return '';
+    return '<div class="jp-reco-liens">' + items.join('') + '</div>';
   }
 
   function champLibelle(code) {
@@ -377,12 +419,8 @@
         inner = (p.pathologie ? '<p class="jp-conseil-patho">' + esc(p.pathologie) + '</p>' : '')
           + '<div class="jp-rich">' + sanitizeHtml(p.corps_html || '') + '</div>';
       } else if (b.type_bloc === 'recommandation') {
-        const rh = recoHref(p, module);
-        const link = rh
-          ? '<p class="jp-reco-lien"><a class="jp-reco-a" href="' + esc(rh) + '">'
-            + esc(p.lien_label || 'Voir la section indiquée') + ' →</a></p>'
-          : '';
-        inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(p.corps_html || '') + '</div>' + link;
+        inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(p.corps_html || '') + '</div>'
+          + recoLinksHtml(p, module);
       } else if (b.type_bloc === 'molecule') {
         const ids = matriceIds(p);
         if (!ids.length) continue;

@@ -752,8 +752,15 @@
 }
 .jp-studio-app ::placeholder, .jp-studio-overlay ::placeholder { color: rgba(20, 32, 28, 0.4); opacity: 1; }
 
-/* Bloc recommandation : référence (libellé + URL ou leçon) */
+/* Bloc recommandation : références (libellé + URL ou leçon) */
 .jp-reco-ref { margin-top: 0.75rem; }
+.jp-reco-ref-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+.jp-reco-ref:not(.is-open) .jp-reco-ref-list { display: none; }
 .jp-reco-add { font-size: 0.88rem; }
 .jp-reco-ref-row {
   display: grid;
