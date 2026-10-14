@@ -1,6 +1,15 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Reprise référentiel TERMINÉE** (IA batch + vocabulaire canonique). (Précédent : vocabulaire `047`.)
+Dernière mise à jour : 2026-10-14 — **Bugs UI studio/lecteur** (4 tickets `jeupharma.bugs` → `modifie`) + reprise référentiel TERMINÉE.
+
+## Bugs traités 2026-10-14 (studio / lecteur)
+- **Lien accès recommandation** : toggle/remove branchés sur `.jp-reco-*` (sélecteurs `data-*` morts) ; aperçu conserve `preview=1` vers leçon cible.
+- **Renommer leçon** : titre + résumé dans l’onglet Leçon de l’inspecteur Modif parcours.
+- **Photo / légende** : plus de `paintPhotoPreview` à chaque frappe — seulement path/url.
+- **FAB bug disparu** : `JpUi.bootPage` sur `admin/parcours.html` ; z-index FAB → 120.
+- Tickets DB passés en `modifie`. Restent ouverts / à clarifier : « Revoir le texte », « Ordonnance type », « Modif » (pause/recréer quiz/responsive).
+
+## Reprise référentiel — bilan final (2026-10-14)
 
 ## Reprise référentiel — bilan final (2026-10-14)
 

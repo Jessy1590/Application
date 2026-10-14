@@ -19,3 +19,33 @@
 {"matrice_id":"54501772-19a2-4b29-b041-ea2ca04bb1d1","dci":"Bénazépril + hydrochlorothiazide","status":"ok","cis":"61591226","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:25:30.563Z"}
 {"matrice_id":"285c20ec-04ed-465c-9f24-ef6a68a6b574","dci":"Bisoprolol + hydrochlorothiazide","status":"ok","cis":"67460027","source":"ansm_html","stats":{"reused":46,"created":3},"at":"2026-10-14T15:25:50.400Z"}
 {"matrice_id":"8f314a54-7984-426a-8f26-a1dc622ee99c","dci":"Candésartan + hydrochlorothiazide","status":"ok","cis":"66950291","source":"ansm_html","stats":{"reused":35,"created":3},"at":"2026-10-14T15:26:14.201Z"}
+{"matrice_id":"191cba4a-00b2-4564-acab-abd94e5eed51","dci":"Captopril + hydrochlorothiazide","status":"ok","cis":"60214350","source":"ansm_html","stats":{"reused":50,"created":3},"at":"2026-10-14T15:26:45.831Z"}
+{"matrice_id":"04061350-4766-4925-9f69-09681a21de92","dci":"Clopidogrel + aspirine","status":"ok","cis":"61952274","source":"epar_pdf","stats":{"reused":44,"created":3},"at":"2026-10-14T15:27:11.852Z"}
+{"status":"manual","dci":"Désirudine","reason":"no_cis","at":"2026-10-14T15:27:13.244Z"}
+{"matrice_id":"0acc3e8c-c078-42ba-bf9b-65d271c6cca1","dci":"Énalapril + hydrochlorothiazide","status":"ok","cis":"69155138","source":"ansm_html","stats":{"reused":46,"created":3},"at":"2026-10-14T15:27:40.575Z"}
+{"matrice_id":"43b571eb-f9bd-4290-87e9-89a747d0d10c","dci":"Énalapril + lercanidipine","status":"ok","cis":"69974066","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:27:58.981Z"}
+{"status":"manual","dci":"Éprosartan","reason":"no_cis","at":"2026-10-14T15:28:00.368Z"}
+{"matrice_id":"bb41ff4f-e19a-46dc-ab17-6f0ec5c3eaef","dci":"Félodipine + métoprolol","status":"ok","cis":"61950444","source":"ansm_html","stats":{"reused":48,"created":3},"at":"2026-10-14T15:28:25.564Z"}
+{"matrice_id":"bff4fc50-9f56-41dd-be79-ff0236ff7347","dci":"Fosinopril + hydrochlorothiazide","status":"ok","cis":"67017829","source":"ansm_html","stats":{"reused":46,"created":3},"at":"2026-10-14T15:28:46.979Z"}
+{"matrice_id":"25e0ff36-7a93-4732-a6a6-df534971db4b","dci":"Héparinate de calcium","status":"ok","cis":"69636132","source":"ansm_html","stats":{"reused":42,"created":3},"at":"2026-10-14T15:29:15.601Z"}
+{"matrice_id":"d090e3fa-91c3-4f3b-9bea-507a03582b7e","dci":"Héparinate de sodium","status":"ok","cis":"64395923","source":"ansm_html","stats":{"reused":48,"created":3},"at":"2026-10-14T15:29:37.946Z"}
+{"matrice_id":"dce8ea52-2ab2-4085-b934-321cc2a14eb9","dci":"Immunoglobulines anti-D","status":"ok","cis":"62468162","source":"ansm_html","stats":{"reused":33,"created":3},"at":"2026-10-14T15:29:58.341Z"}
+{"matrice_id":"4f79d030-eaa9-46f9-a92c-9421467414ee","dci":"Irbésartan + amlodipine","status":"ok","cis":"61605035","source":"ansm_html","stats":{"reused":37,"created":3},"at":"2026-10-14T15:30:33.020Z"}
+{"matrice_id":"55e5729b-0ca6-451c-aa6e-139420a86625","dci":"Irbésartan + hydrochlorothiazide","status":"ok","cis":"61547030","source":"epar_pdf","stats":{"reused":44,"created":3},"at":"2026-10-14T15:31:04.846Z"}
+{"matrice_id":"20956c96-a8ae-4180-a821-a0d53718ceba","dci":"Isosorbide dinitrate","status":"ok","cis":"60172339","source":"ansm_html","stats":{"reused":36,"created":3},"at":"2026-10-14T15:31:22.089Z"}
+{"status":"manual","dci":"Lépirudine","reason":"no_cis","at":"2026-10-14T15:31:23.463Z"}
+{"matrice_id":"54c0aadb-db71-41c9-bc07-ff7315efad8e","dci":"Lisinopril + hydrochlorothiazide","status":"ok","cis":"66434780","source":"ansm_html","stats":{"reused":51,"created":3},"at":"2026-10-14T15:31:41.944Z"}
+{"matrice_id":"8b707b55-fb59-4d36-8cd6-64573680aedc","dci":"Losartan + hydrochlorothiazide","status":"ok","cis":"65214977","source":"ansm_html","stats":{"reused":45,"created":3},"at":"2026-10-14T15:32:12.540Z"}
+{"matrice_id":"a6aad096-0a5d-4841-a2e4-77dc1ffbad7a","dci":"Métoprolol + chlortalidone","status":"ok","cis":"68743715","source":"ansm_html","stats":{"reused":48,"created":3},"at":"2026-10-14T15:32:45.224Z"}
+{"matrice_id":"43e31250-8f71-4538-be5f-ba4aa4d47d9c","dci":"Nébivolol + hydrochlorothiazide","status":"ok","cis":"67856966","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:33:12.463Z"}
+{"matrice_id":"06ebcbd7-3411-43a2-abb5-6740db9ee511","dci":"Olmésartan + amlodipine","status":"ok","cis":"67023718","source":"ansm_html","stats":{"reused":48,"created":3},"at":"2026-10-14T15:33:39.982Z"}
+{"matrice_id":"243efc01-b85c-4276-a117-170eea200c06","dci":"Olmésartan + hydrochlorothiazide","status":"ok","cis":"66838901","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:34:11.686Z"}
+{"matrice_id":"e27330ff-c5f5-45da-8835-acac70f04b93","dci":"Périndopril + amlodipine","status":"ok","cis":"65401119","source":"ansm_html","stats":{"reused":46,"created":3},"at":"2026-10-14T15:34:31.541Z"}
+{"matrice_id":"5b7210cc-f828-429e-8eee-eac4122e3e08","dci":"Quinapril + hydrochlorothiazide","status":"ok","cis":"62927128","source":"ansm_html","stats":{"reused":44,"created":3},"at":"2026-10-14T15:34:54.626Z"}
+{"matrice_id":"0e0c9cd8-b224-4ec0-ab92-1e42eaa79434","dci":"Ramipril + amlodipine","status":"ok","cis":"68359312","source":"ansm_html","stats":{"reused":50,"created":3},"at":"2026-10-14T15:35:28.395Z"}
+{"matrice_id":"306e3d9a-7105-4776-ae9a-4e9107b9cf7f","dci":"Ramipril + hydrochlorothiazide","status":"ok","cis":"67103203","source":"ansm_html","stats":{"reused":52,"created":3},"at":"2026-10-14T15:36:09.281Z"}
+{"status":"manual","dci":"Rétéplase","reason":"no_cis","at":"2026-10-14T15:36:10.649Z"}
+{"status":"manual","dci":"Ruscoside","reason":"no_cis","at":"2026-10-14T15:36:10.764Z"}
+{"matrice_id":"0415e982-3813-4b5c-8534-e93933343ce8","dci":"Sacubitril + valsartan","status":"ok","cis":"65122144","source":"epar_pdf","stats":{"reused":52,"created":3},"at":"2026-10-14T15:36:43.873Z"}
+{"matrice_id":"d122d669-2f7c-48ed-a517-aa6e4bd765b8","dci":"Sels ferreux","status":"ok","cis":"61879666","source":"ansm_html","stats":{"reused":38,"created":3},"at":"2026-10-14T15:37:04.101Z"}
+{"matrice_id":"6062f202-2407-493f-aa22-c26fc374877e","dci":"Sels ferreux + acide folique","status":"ok","cis":"64875192","source":"ansm_html","stats":{"reused":37,"created":3},"at":"2026-10-14T15:37:23.088Z"}

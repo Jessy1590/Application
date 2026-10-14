@@ -108,6 +108,16 @@
     return has ? [legacy] : [];
   }
 
+  /** Conserve preview=1 / niveau en aperçu admin (sinon la leçon cible peut être inaccessible). */
+  function recoPreviewQuery() {
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('preview') !== '1') return '';
+    let extra = '&preview=1';
+    const niv = qs.get('niveau');
+    if (niv) extra += '&niveau=' + encodeURIComponent(niv);
+    return extra;
+  }
+
   /** Lien in-app ou https pour une référence recommandation (pas de pop-up). */
   function recoHrefForRef(ref, module) {
     const blocId = (ref.bloc_id || '').trim();
@@ -117,12 +127,17 @@
       let h = 'lecon.html?module=' + encodeURIComponent(modId);
       const parc = (ref.parcours_id || module.parcours_id || '').trim();
       if (parc) h += '&parcours=' + encodeURIComponent(parc);
+      h += recoPreviewQuery();
       return h;
     }
     const href = (ref.href || '').trim();
     if (!href) return '';
     if (href.startsWith('#')) return href;
-    if (/^(lecon|espace|parcours|jeux\/|catalogue|mon-espace)\.html/i.test(href) || href.startsWith('/')) return href;
+    if (/^(lecon|espace|parcours|jeux\/|catalogue|mon-espace)\.html/i.test(href) || href.startsWith('/')) {
+      const extra = recoPreviewQuery();
+      if (!extra || href.indexOf('preview=') >= 0) return href;
+      return href + (href.indexOf('?') >= 0 ? extra : '?' + extra.slice(1));
+    }
     if (/^https:\/\//i.test(href)) return href;
     return '';
   }

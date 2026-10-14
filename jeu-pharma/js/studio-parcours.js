@@ -519,7 +519,8 @@
   }
 
   function bindRecoReferenceRow(card, blocId, rowEl) {
-    rowEl.querySelector('[data-reco-remove]')?.addEventListener('click', () => {
+    // Boutons en classes CSS (pas data-*) — aligner les sélecteurs sur le HTML rendu.
+    rowEl.querySelector('.jp-reco-remove')?.addEventListener('click', () => {
       const rowId = rowEl.getAttribute('data-reco-row-id');
       delete state.recoCombos[rowId];
       rowEl.remove();
@@ -527,7 +528,7 @@
       if (wrap && !wrap.querySelector('.jp-reco-ref-row')) wrap.classList.remove('is-open');
       scheduleSave(blocId);
     });
-    rowEl.querySelector('[data-reco-mode-toggle]')?.addEventListener('click', () => {
+    rowEl.querySelector('.jp-reco-mode-toggle')?.addEventListener('click', () => {
       const cur = rowEl.getAttribute('data-reco-mode') === 'lesson' ? 'lesson' : 'url';
       const next = cur === 'url' ? 'lesson' : 'url';
       rowEl.setAttribute('data-reco-mode', next);
@@ -1568,7 +1569,26 @@
     card.querySelectorAll('input[data-field], select[data-field]').forEach((inp) => {
       const ev = inp.tagName === 'SELECT' ? 'change' : 'input';
       inp.addEventListener(ev, () => {
-        if (card.querySelector('[data-photo-prev]')) paintPhotoPreview(card);
+        // Ne relire l’image que si path/url change — pas à chaque lettre de légende/titre.
+        const field = inp.getAttribute('data-field');
+        if (card.querySelector('[data-photo-prev]') && (field === 'path' || field === 'url')) {
+          paintPhotoPreview(card);
+        } else if (field === 'legende') {
+          const cap = card.querySelector('.jp-photo-cap');
+          const leg = inp.value || '';
+          if (cap) {
+            if (leg) cap.textContent = leg;
+            else cap.remove();
+          } else if (leg) {
+            const fig = card.querySelector('figure.jp-photo');
+            if (fig) {
+              const c = document.createElement('figcaption');
+              c.className = 'jp-photo-cap';
+              c.textContent = leg;
+              fig.appendChild(c);
+            }
+          }
+        }
         scheduleSave(id);
       });
     });
@@ -2185,6 +2205,15 @@
 
     // Onglet Leçon
     body.innerHTML = '<div class="jp-inspector-cta">'
+      + '<strong class="jp-inspector-title">Leçon</strong>'
+      + '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
+      + '<input id="metaTitreLecon" value="' + esc(m.titre || '') + '" placeholder="Titre de la leçon"></div>'
+      + '<div class="jp-field"><label for="metaResumeLecon">Résumé</label>'
+      + '<textarea id="metaResumeLecon" rows="2" placeholder="Court résumé (facultatif)">'
+      + esc(m.resume || '') + '</textarea></div>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMetaLecon">Enregistrer le titre</button>'
+      + '</div>'
+      + '<div class="jp-inspector-cta">'
       + '<strong class="jp-inspector-title">Visibilité ★</strong>'
       + plageControlsHtml(m.niveau_min, m.niveau_max, 'lecon-' + m.id)
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSavePlage" style="margin-top:0.4rem">Enregistrer la plage</button>'
@@ -2198,6 +2227,27 @@
     mountDeblocage(m);
     const leconPlage = body.querySelector('[data-plage="lecon-' + m.id + '"]');
     bindPlage(leconPlage, () => {});
+    body.querySelector('#btnSaveMetaLecon')?.addEventListener('click', async () => {
+      try {
+        const titre = (body.querySelector('#metaTitreLecon')?.value || '').trim();
+        if (!titre) {
+          global.JpToast?.warn?.('Indiquez un titre de leçon');
+          return;
+        }
+        const resume = body.querySelector('#metaResumeLecon')?.value || '';
+        const row = await rpc('v2_upsert_module', {
+          p_payload: { id: m.id, titre, resume },
+        });
+        Object.assign(m, { titre: row.titre, resume: row.resume });
+        state.modules = await loadModules(state.parcoursId);
+        renderTree();
+        const h2 = document.querySelector('#canvasPane .jp-studio-h2');
+        if (h2) h2.textContent = row.titre || titre;
+        global.JpToast?.ok?.('Titre enregistré');
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
+    });
     body.querySelector('#btnSavePlage')?.addEventListener('click', async () => {
       try {
         const plage = readPlage(leconPlage);

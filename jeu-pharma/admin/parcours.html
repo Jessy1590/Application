@@ -13,7 +13,7 @@
 <style>body{display:none;margin:0}</style>
 <script src="../../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
-<link rel="stylesheet" href="../css/app.css">
+<link rel="stylesheet" href="../css/app.css?v=058">
 <link rel="stylesheet" href="../css/v2.css?v=053">
 <link rel="stylesheet" href="../css/studio.css?v=055">
 <link rel="stylesheet" href="../IA/ia.css?v=040">
@@ -35,11 +35,12 @@
   <script src="../js/bloc-photo.js?v=029"></script>
   <script src="../IA/gemini-client.js?v=040"></script>
   <script src="../IA/studio-blocs.js?v=040"></script>
-  <script src="../js/studio-parcours.js?v=057"></script>
+  <script src="../js/studio-parcours.js?v=058"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async function () {
       document.body.style.display = 'block';
       try {
+        await JpUi.bootPage({ module: 'admin-parcours', homeHref: 'index.html' });
         await JpStudioParcours.boot(document.getElementById('root'));
       } catch (e) {
         JpToast.fromError(e);
