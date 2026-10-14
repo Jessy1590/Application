@@ -14,7 +14,10 @@
   function esc(s) { return global.JpUi.escapeHtml(String(s ?? '')); }
 
   const AUTOSAVE_MS = 900;
-  const TYPE_LABELS = { texte: 'Texte', video: 'Vidéo', photo: 'Photo', molecule: 'Molécules', conseil: 'Conseil', jeu: 'Jeu' };
+  const TYPE_LABELS = {
+    texte: 'Texte', video: 'Vidéo', photo: 'Photo', molecule: 'Molécules',
+    conseil: 'Conseil', recommandation: 'Recommandation', jeu: 'Jeu',
+  };
 
   const state = {
     parcoursId: null,
@@ -359,6 +362,8 @@
   /* ——— Réordonner / supprimer chapitres et leçons ——— */
 
   let treeBusy = false;
+  let blocsBusy = false;
+  let dragBlocId = null;
 
   /** Monte / descend un module parmi ses frères (même parent) ; renumérote tout le niveau (ordre × 10). */
   async function moveModule(id, dir) {
@@ -501,7 +506,7 @@
     pane.innerHTML = '<div class="jp-studio-canvas-head">'
       + '<h2 class="jp-studio-h2">' + esc(m.titre) + '</h2></div>'
       + '<div class="jp-add-blocks" id="addBlocks"><span class="jp-add-blocks-label">Ajouter</span>'
-      + ['texte', 'video', 'photo', 'molecule', 'conseil', 'jeu'].map((t) =>
+      + ['texte', 'video', 'photo', 'molecule', 'conseil', 'recommandation', 'jeu'].map((t) =>
         '<button type="button" class="jp-btn jp-btn-ghost" data-add="' + t + '">+ ' + TYPE_LABELS[t] + '</button>'
       ).join('')
       + '</div><p class="jp-studio-autosave-hint">Les modifications sont enregistrées automatiquement en brouillon. '
@@ -544,6 +549,117 @@
     return { id, label: l.label, sub: l.sub };
   }
 
+  function referentielEditHref(matriceId) {
+    return 'referentiel.html?id=' + encodeURIComponent(matriceId);
+  }
+
+  /* ——— Réordonner les blocs d’une leçon ——— */
+
+  function syncBlocMoveButtons(list) {
+    if (!list) return;
+    const cards = [...list.querySelectorAll('.jp-block-card')];
+    cards.forEach((card, i) => {
+      const up = card.querySelector('[data-bloc-up]');
+      const down = card.querySelector('[data-bloc-down]');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === cards.length - 1;
+    });
+  }
+
+  async function applyBlocOrder(ids) {
+    const m = selectedModule();
+    if (!m || blocsBusy) return;
+    blocsBusy = true;
+    try {
+      await rpc('v2_reorder_blocs', { p_module_id: m.id, p_ids: ids });
+      const map = new Map(state.blocs.map((b) => [b.id, b]));
+      state.blocs = ids.map((id, k) => {
+        const b = map.get(id);
+        if (b) b.ordre = (k + 1) * 10;
+        return b;
+      }).filter(Boolean);
+      const list = document.getElementById('blocksList');
+      if (list) {
+        ids.forEach((id) => {
+          const card = list.querySelector('[data-bloc="' + id + '"]');
+          if (card) list.appendChild(card);
+        });
+        syncBlocMoveButtons(list);
+      }
+      void global.JpLogs?.action?.('studio_reordonner_bloc', { module_id: m.id, count: ids.length });
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      try {
+        state.blocs = await loadBlocs(m.id);
+        paintBlocks();
+      } catch (_) { /* silencieux */ }
+    } finally {
+      blocsBusy = false;
+    }
+  }
+
+  async function moveBloc(id, dir) {
+    if (blocsBusy) return;
+    const i = state.blocs.findIndex((x) => x.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= state.blocs.length) return;
+    const ids = state.blocs.map((x) => x.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await applyBlocOrder(ids);
+  }
+
+  async function reorderBlocDrop(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId || blocsBusy) return;
+    const ids = state.blocs.map((x) => x.id);
+    const from = ids.indexOf(sourceId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, sourceId);
+    await applyBlocOrder(ids);
+  }
+
+  function bindBlockReorder(list) {
+    if (!list) return;
+    list.querySelectorAll('[data-bloc-up]').forEach((btn) => {
+      btn.addEventListener('click', () => void moveBloc(btn.getAttribute('data-bloc-up'), -1));
+    });
+    list.querySelectorAll('[data-bloc-down]').forEach((btn) => {
+      btn.addEventListener('click', () => void moveBloc(btn.getAttribute('data-bloc-down'), 1));
+    });
+    list.querySelectorAll('[data-drag-bloc]').forEach((handle) => {
+      handle.addEventListener('dragstart', (ev) => {
+        const id = handle.getAttribute('data-drag-bloc');
+        dragBlocId = id;
+        ev.dataTransfer.effectAllowed = 'move';
+        try { ev.dataTransfer.setData('text/plain', id); } catch (_) { /* IE legacy */ }
+        handle.closest('.jp-block-card')?.classList.add('is-dragging');
+      });
+      handle.addEventListener('dragend', () => {
+        dragBlocId = null;
+        list.querySelectorAll('.jp-block-card').forEach((c) => c.classList.remove('is-dragging', 'is-drop-target'));
+      });
+    });
+    list.querySelectorAll('.jp-block-card').forEach((card) => {
+      card.addEventListener('dragover', (ev) => {
+        if (!dragBlocId) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = 'move';
+        card.classList.add('is-drop-target');
+      });
+      card.addEventListener('dragleave', (ev) => {
+        if (!card.contains(ev.relatedTarget)) card.classList.remove('is-drop-target');
+      });
+      card.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        card.classList.remove('is-drop-target');
+        const targetId = card.getAttribute('data-bloc');
+        const sourceId = ev.dataTransfer.getData('text/plain') || dragBlocId;
+        void reorderBlocDrop(sourceId, targetId);
+      });
+    });
+  }
+
   /* ——— Rendu des blocs ——— */
 
   function paintBlocks() {
@@ -556,7 +672,7 @@
       return;
     }
 
-    list.innerHTML = state.blocs.map((b) => {
+    list.innerHTML = state.blocs.map((b, i) => {
       const p = effPayload(b);
       let body = '';
       if (b.type_bloc === 'texte') {
@@ -592,14 +708,45 @@
         body = '<div class="jp-field jp-field-tight"><label>Pathologie</label>'
           + '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Ex. Anémie ferriprive"></div>'
           + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
+      } else if (b.type_bloc === 'recommandation') {
+        const others = state.blocs.filter((x) => x.id !== b.id);
+        const opts = '<option value="">— Aucun bloc cible —</option>'
+          + others.map((x) => {
+            const lab = effTitre(x) || TYPE_LABELS[x.type_bloc] || x.type_bloc;
+            return '<option value="' + esc(x.id) + '"' + (String(p.lien_bloc_id || '') === String(x.id) ? ' selected' : '') + '>'
+              + esc(lab) + '</option>';
+          }).join('');
+        body = '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
+          + '<fieldset class="jp-reco-link-fieldset"><legend>Lien / contexte (facultatif)</legend>'
+          + '<div class="jp-field jp-field-tight"><label>Pointer vers un bloc de cette leçon</label>'
+          + '<select data-field="lien_bloc_id" data-id="' + b.id + '">' + opts + '</select>'
+          + '<small class="jp-field-hint">Ancre dans le document — le joueur reste sur la leçon.</small></div>'
+          + '<div class="jp-field jp-field-tight"><label>… ou UUID d’une autre leçon</label>'
+          + '<input data-field="lien_module_id" data-id="' + b.id + '" value="' + esc(p.lien_module_id || '') + '" placeholder="module_id"></div>'
+          + '<div class="jp-field jp-field-tight"><label>… ou URL (https ou lecon.html?…)</label>'
+          + '<input data-field="lien_href" data-id="' + b.id + '" value="' + esc(p.lien_href || '') + '" placeholder="lecon.html?module=… ou https://…"></div>'
+          + '<div class="jp-field jp-field-tight"><label>Libellé du lien</label>'
+          + '<input data-field="lien_label" data-id="' + b.id + '" value="' + esc(p.lien_label || '') + '" placeholder="Ex. Reprendre la section hémostase"></div>'
+          + '</fieldset>';
       } else if (b.type_bloc === 'jeu') {
         body = '<p class="jp-bloc-jeu-line"><code>' + esc(p.code_unique || '—') + '</code>'
           + (p.type_jeu ? '<span class="jp-bloc-jeu-type">' + esc(p.type_jeu) + '</span>' : '') + '</p>'
           + '<button type="button" class="jp-btn jp-btn-ghost" data-edit-jeu="' + b.id + '">Remplacer / nouveau jeu</button>';
       }
       const tag = hasPending(b) ? '<span class="jp-bloc-tag" title="Pas encore publié">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>' : '';
+      const upDis = i === 0 ? ' disabled' : '';
+      const downDis = i === state.blocs.length - 1 ? ' disabled' : '';
       return '<article class="jp-block-card" data-bloc="' + b.id + '">'
-        + '<header><span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
+        + '<header>'
+        + '<span class="jp-block-tools" aria-label="Ordre du bloc">'
+        + '<button type="button" class="jp-block-tool jp-block-drag" draggable="true" data-drag-bloc="' + b.id + '"'
+        + ' title="Glisser pour réordonner" aria-label="Glisser pour réordonner">⠿</button>'
+        + '<button type="button" class="jp-block-tool" data-bloc-up="' + b.id + '"' + upDis
+        + ' title="Monter le bloc" aria-label="Monter le bloc">↑</button>'
+        + '<button type="button" class="jp-block-tool" data-bloc-down="' + b.id + '"' + downDis
+        + ' title="Descendre le bloc" aria-label="Descendre le bloc">↓</button>'
+        + '</span>'
+        + '<span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
         + '<input class="jp-block-title" data-field="titre" data-id="' + b.id + '" value="' + esc(effTitre(b)) + '" placeholder="Titre du bloc (facultatif)" aria-label="Titre du bloc">'
         + tag
         + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer le bloc" aria-label="Supprimer le bloc">×</button></header>'
@@ -624,6 +771,7 @@
         placeholder: 'Ajouter une molécule…',
         ariaLabel: 'Ajouter une molécule',
         initial,
+        chipEditHref: referentielEditHref,
         onChange: (items) => {
           items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
           scheduleSave(id);
@@ -634,8 +782,9 @@
     // Auto-enregistrement : saisie dans titre / champs (les éditeurs riches et chips notifient eux-mêmes)
     list.querySelectorAll('.jp-block-card').forEach((card) => {
       const id = card.getAttribute('data-bloc');
-      card.querySelectorAll('input[data-field]').forEach((inp) => {
-        inp.addEventListener('input', () => {
+      card.querySelectorAll('input[data-field], select[data-field]').forEach((inp) => {
+        const ev = inp.tagName === 'SELECT' ? 'change' : 'input';
+        inp.addEventListener(ev, () => {
           if (card.querySelector('[data-photo-prev]')) paintPhotoPreview(card);
           scheduleSave(id);
         });
@@ -663,6 +812,7 @@
     list.querySelectorAll('[data-edit-jeu]').forEach((btn) => {
       btn.addEventListener('click', () => void openJeuWizard());
     });
+    bindBlockReorder(list);
 
     if (state.focusBlocId) {
       const card = list.querySelector('[data-bloc="' + state.focusBlocId + '"]');
@@ -723,6 +873,16 @@
       return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
     }
     if (type === 'conseil') return { pathologie: val('pathologie'), corps_html: rte('corps_html') };
+    if (type === 'recommandation') {
+      return {
+        corps_html: rte('corps_html'),
+        lien_bloc_id: val('lien_bloc_id'),
+        lien_module_id: val('lien_module_id'),
+        lien_parcours_id: val('lien_parcours_id'),
+        lien_href: val('lien_href'),
+        lien_label: val('lien_label'),
+      };
+    }
     return Object.assign({ libelle_cta: 'Jouer' }, effPayload(b));
   }
 
@@ -895,7 +1055,15 @@
       await flushAll();
       const initial = type === 'texte' ? { html: '<p></p>' }
         : (type === 'conseil' ? { pathologie: '', corps_html: '<p></p>' }
-          : (type === 'molecule' ? { matrice_ids: [], mode: 'fiche' } : {}));
+          : (type === 'recommandation' ? {
+            corps_html: '<p></p>',
+            lien_bloc_id: '',
+            lien_module_id: '',
+            lien_parcours_id: '',
+            lien_href: '',
+            lien_label: '',
+          }
+            : (type === 'molecule' ? { matrice_ids: [], mode: 'fiche' } : {})));
       const row = await rpc('v2_upsert_bloc', {
         p_payload: {
           module_id: m.id,

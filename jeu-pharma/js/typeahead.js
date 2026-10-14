@@ -247,10 +247,12 @@
     };
   }
 
+  const CHIP_EDIT_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
   /**
    * Choix multiple (pastilles). Les éléments déjà choisis sont exclus des résultats.
    * @param {HTMLElement} host
-   * @param {object} opts  mêmes options que combo + `initial: item[]`, `onChange(items)`
+   * @param {object} opts  mêmes options que combo + `initial: item[]`, `onChange(items)`, `chipEditHref(id, item)?`
    */
   function chips(host, opts) {
     host.classList.add('jp-ta', 'jp-ta-multi');
@@ -269,7 +271,16 @@
 
     function paintChips() {
       chipsEl.innerHTML = Array.from(sel.values()).map(function (it) {
+        var edit = '';
+        if (opts.chipEditHref) {
+          var href = opts.chipEditHref(it.id, it);
+          if (href) {
+            edit = '<a class="jp-ta-chip-edit" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer" aria-label="Modifier">'
+              + CHIP_EDIT_ICON + '</a>';
+          }
+        }
         return '<span class="jp-ta-chip" title="' + esc(it.sub || '') + '">' + esc(it.label)
+          + edit
           + '<button type="button" class="jp-ta-chip-x" data-id="' + esc(it.id) + '" aria-label="Retirer">×</button></span>';
       }).join('');
     }

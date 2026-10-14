@@ -1,6 +1,12 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Purge V1** : `legacy-v1/` + pages Sources/Import RCP/CSV + JS morts retirés ; `037` drop tables/RPC quiz-trous V1 ; backup manuel `backups/jeupharma-20261014-085552/`.
+Dernière mise à jour : 2026-10-14 — **Bloc recommandation** (`038`) : type `recommandation` studio + lecteur (cadre teal, pastille) ; payload lien ancre / leçon / https. Cache-bust `?v=038` (`lecon.html`, `admin/parcours.html`).
+
+## Bloc « recommandation » (038 — appliquée remote, 2026-10-14)
+- `module_blocs.type_bloc` accepte `recommandation`. Payload : `corps_html`, `lien_bloc_id` | `lien_module_id` (+ `lien_parcours_id` opt.) | `lien_href`, `lien_label`.
+- Studio : bouton « + Recommandation », éditeur riche + contexte (bloc de la leçon, autre leçon, URL in-app/https).
+- Lecteur : pastille « Recommandation », cadre teal (`.jp-bloc--recommandation`), ancres `#jp-bloc-<id>` sur chaque bloc ; liens sans pop-up.
+- Fichiers : `sql/038_bloc_recommandation.sql`, `js/studio-parcours.js`, `js/lecon-player.js`, `css/player.css`.
 
 ## Purge legacy V1 (2026-10-14)
 - **Fichiers** : dossier `legacy-v1/` supprimé ; `admin/sources.html`, `import-rcp.html`, `import-export.html`, `js/import-rcp.js`, `js/admin.js`, `js/profil.js` supprimés.

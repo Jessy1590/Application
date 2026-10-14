@@ -275,6 +275,25 @@
 
 .jp-ta-chip-x:hover { background: rgba(15, 107, 92, 0.18); }
 
+.jp-ta-chip-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  color: var(--jp-accent);
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.jp-ta-chip-edit:hover { background: rgba(15, 107, 92, 0.18); }
+
+.jp-ta-chip-edit:focus-visible {
+  outline: 2px solid var(--jp-accent);
+  outline-offset: 1px;
+}
+
 .jp-ta-list {
   position: absolute;
   left: 0;

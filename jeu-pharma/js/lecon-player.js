@@ -74,9 +74,29 @@
     video: { label: 'Vidéo', ico: '▶' },
     photo: { label: 'Photo', ico: '▣' },
     conseil: { label: 'Conseil', ico: '✦' },
+    recommandation: { label: 'Recommandation', ico: '→' },
     molecule: { label: 'Molécules', ico: '⬡' },
     jeu: { label: 'Jeu', ico: '◆' },
   };
+
+  /** Lien in-app ou https pour un bloc recommandation (pas de pop-up). */
+  function recoHref(p, module) {
+    const blocId = (p.lien_bloc_id || '').trim();
+    if (blocId) return '#jp-bloc-' + blocId;
+    const modId = (p.lien_module_id || '').trim();
+    if (modId) {
+      let h = 'lecon.html?module=' + encodeURIComponent(modId);
+      const parc = (p.lien_parcours_id || module.parcours_id || '').trim();
+      if (parc) h += '&parcours=' + encodeURIComponent(parc);
+      return h;
+    }
+    const href = (p.lien_href || '').trim();
+    if (!href) return '';
+    if (href.startsWith('#')) return href;
+    if (/^(lecon|espace|parcours|jeux\/|catalogue|mon-espace)\.html/i.test(href) || href.startsWith('/')) return href;
+    if (/^https:\/\//i.test(href)) return href;
+    return '';
+  }
 
   function champLibelle(code) {
     const c = (global.JpConstants?.CHAMP_CODES || []).find((x) => x.code === code);
@@ -356,6 +376,13 @@
       } else if (b.type_bloc === 'conseil') {
         inner = (p.pathologie ? '<p class="jp-conseil-patho">' + esc(p.pathologie) + '</p>' : '')
           + '<div class="jp-rich">' + sanitizeHtml(p.corps_html || '') + '</div>';
+      } else if (b.type_bloc === 'recommandation') {
+        const rh = recoHref(p, module);
+        const link = rh
+          ? '<p class="jp-reco-lien"><a class="jp-reco-a" href="' + esc(rh) + '">'
+            + esc(p.lien_label || 'Voir la section indiquée') + ' →</a></p>'
+          : '';
+        inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(p.corps_html || '') + '</div>' + link;
       } else if (b.type_bloc === 'molecule') {
         const ids = matriceIds(p);
         if (!ids.length) continue;
@@ -387,7 +414,7 @@
           + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
           + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>';
       }
-      html += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '">'
+      html += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '" id="jp-bloc-' + esc(b.id) + '">'
         + head
         + '<div class="jp-bloc-body">' + inner + '</div></article>';
     }

@@ -19,6 +19,17 @@
     return (r.dci || '') + (r.noms ? ' · ' + r.noms : '');
   }
 
+  const PENCIL = '<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+  function referentielEditHref(matriceId) {
+    return 'referentiel.html?id=' + encodeURIComponent(matriceId);
+  }
+
+  function editFicheLink(matriceId, extraClass) {
+    return '<a class="jp-ta-chip-edit' + (extraClass ? ' ' + extraClass : '') + '" href="' + esc(referentielEditHref(matriceId))
+      + '" target="_blank" rel="noopener noreferrer" aria-label="Modifier">' + PENCIL + '</a>';
+  }
+
   /** Libellés des fiches déjà en leçon (pas de liste catalogue complète par défaut). */
   async function describeMatrices(ids) {
     if (!ids.length) return [];
@@ -157,12 +168,15 @@
       box.innerHTML = head + (rows.map((r) => {
         const inProg = pubByMatrice[r.id]?.size > 0 || selected.has(r.id);
         const label = labelOfMatrice(r);
-        return '<button type="button" class="jp-mol-row' + (r.id === activeId ? ' is-active' : '')
-          + (inProg ? ' is-on' : '') + '" data-id="' + r.id + '" data-label="' + esc(label) + '">'
+        return '<div class="jp-mol-row-wrap' + (r.id === activeId ? ' is-active' : '')
+          + (inProg ? ' is-on' : '') + '">'
+          + '<button type="button" class="jp-mol-row" data-id="' + r.id + '" data-label="' + esc(label) + '">'
           + '<strong>' + esc(r.dci || '—') + '</strong>'
           + '<span>' + esc(r.noms || '') + '</span>'
           + (inProg ? '<em>en leçon</em>' : '')
-          + '</button>';
+          + '</button>'
+          + editFicheLink(r.id, 'jp-mol-row-edit')
+          + '</div>';
       }).join('') || '<p class="jp-muted">' + (hasFilter ? 'Aucun résultat' : 'Aucune molécule dans la leçon') + '</p>');
 
       box.querySelectorAll('[data-id]').forEach((btn) => {
@@ -190,8 +204,9 @@
         (byChamp[r.champ_code] = byChamp[r.champ_code] || []).push(r);
       });
 
-      let html = '<div class="jp-mol-detail-head"><h3>' + esc(niceLabel) + '</h3>'
-        + '<div class="jp-mol-detail-actions">'
+      let html = '<div class="jp-mol-detail-head"><div class="jp-mol-detail-title"><h3>' + esc(niceLabel) + '</h3>'
+        + editFicheLink(matriceId)
+        + '</div><div class="jp-mol-detail-actions">'
         + '<button type="button" class="jp-btn jp-btn-ghost" id="molAllOn">Tout afficher</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" id="molAllOff">Tout masquer</button>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="molApply">Appliquer à la leçon</button>'
@@ -213,8 +228,8 @@
       });
 
       detail.innerHTML = html;
-      overlay.querySelectorAll('.jp-mol-row').forEach((r) => {
-        r.classList.toggle('is-active', r.getAttribute('data-id') === matriceId);
+      overlay.querySelectorAll('.jp-mol-row-wrap').forEach((wrap) => {
+        wrap.classList.toggle('is-active', wrap.querySelector('[data-id]')?.getAttribute('data-id') === matriceId);
       });
 
       detail.querySelector('#molAllOn')?.addEventListener('click', () => {
@@ -265,9 +280,9 @@
         await selectMol(matriceId, selected.get(matriceId)?.label);
         opts.onApplied?.({ matriceId, checked, unchecked });
         // refresh list badges
-        overlay.querySelectorAll('.jp-mol-row').forEach((row) => {
-          const id = row.getAttribute('data-id');
-          row.classList.toggle('is-on', !!(pubByMatrice[id]?.size));
+        overlay.querySelectorAll('.jp-mol-row-wrap').forEach((wrap) => {
+          const id = wrap.querySelector('[data-id]')?.getAttribute('data-id');
+          wrap.classList.toggle('is-on', !!(id && pubByMatrice[id]?.size));
         });
         updateSummary();
       } catch (e) {
