@@ -1200,7 +1200,7 @@
   border: 1px solid rgba(15, 107, 92, 0.2);
   border-radius: 0.55rem;
   overflow: hidden;
-  background: #fff;
+  background: #f4f7f6;
 }
 .jp-mode-btn {
   border: 0;
@@ -1211,9 +1211,18 @@
   font-weight: 600;
   cursor: pointer;
   color: #3d5a54;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.jp-mode-btn:hover:not(.is-active) {
+  background: rgba(15, 107, 92, 0.08);
+  color: #0f6b5c;
 }
 .jp-mode-btn.is-active {
   background: #0f6b5c;
+  color: #fff;
+}
+.jp-mode-btn.is-active:hover {
+  background: #0c5a4d;
   color: #fff;
 }
 .jp-edit-comme {

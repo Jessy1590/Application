@@ -1170,9 +1170,11 @@
     const comme = state.editComme;
     pane.innerHTML = '<div class="jp-studio-canvas-head">'
       + '<h2 class="jp-studio-h2">' + esc(m.titre) + '</h2>'
-      + '<div class="jp-studio-mode" role="tablist" aria-label="Mode d’édition">'
-      + '<button type="button" class="jp-mode-btn' + (mode === 'structure' ? ' is-active' : '') + '" data-view="structure">Structure</button>'
-      + '<button type="button" class="jp-mode-btn' + (mode === 'contenu' ? ' is-active' : '') + '" data-view="contenu">Contenu</button>'
+      + '<div class="jp-studio-mode" role="group" aria-label="Mode d’édition">'
+      + '<button type="button" class="jp-mode-btn' + (mode === 'structure' ? ' is-active' : '')
+      + '" data-view="structure" aria-pressed="' + (mode === 'structure' ? 'true' : 'false') + '">Structure</button>'
+      + '<button type="button" class="jp-mode-btn' + (mode === 'contenu' ? ' is-active' : '')
+      + '" data-view="contenu" aria-pressed="' + (mode === 'contenu' ? 'true' : 'false') + '">Contenu</button>'
       + '</div>'
       + '<label class="jp-edit-comme">Éditer comme '
       + '<select id="editComme" aria-label="Filtrer le canvas par niveau">'
@@ -1193,7 +1195,10 @@
       + '<div id="blocksList" class="jp-blocks-' + mode + '"></div>';
     pane.querySelectorAll('[data-view]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        state.viewMode = btn.getAttribute('data-view');
+        const next = btn.getAttribute('data-view');
+        if (next === state.viewMode) return;
+        state.viewMode = next === 'contenu' ? 'contenu' : 'structure';
+        syncViewModeToggle();
         paintBlocks();
         const mod = selectedModule();
         if (mod) void renderInspector(mod);
@@ -1687,8 +1692,24 @@
     });
   }
 
+  /** Aligné le switch Structure|Contenu (is-active + aria-pressed) sur state.viewMode. */
+  function syncViewModeToggle() {
+    const mode = state.viewMode === 'contenu' ? 'contenu' : 'structure';
+    document.querySelectorAll('.jp-mode-btn[data-view]').forEach((btn) => {
+      const on = btn.getAttribute('data-view') === mode;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    const list = document.getElementById('blocksList');
+    if (list) {
+      list.classList.toggle('jp-blocks-contenu', mode === 'contenu');
+      list.classList.toggle('jp-blocks-structure', mode === 'structure');
+    }
+  }
+
   function paintBlocks() {
     clearEditors();
+    syncViewModeToggle();
     const list = document.getElementById('blocksList');
     if (!list) return;
     const all = state.blocs;
