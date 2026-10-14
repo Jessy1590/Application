@@ -338,8 +338,8 @@
     overlay.className = 'jp-studio-overlay';
     overlay.innerHTML = '<div class="jp-studio-sheet jp-jeu-sheet">'
       + '<header class="jp-studio-sheet-head"><h2>' + (editId ? 'Modifier le jeu' : 'Créer un jeu') + '</h2>'
-      + (existing && existing.code_unique ? '<code class="jp-muted">' + esc(existing.code_unique) + '</code>' : '')
-      + '<button type="button" class="jp-btn jp-btn-ghost" data-close>×</button></header>'
+      + (existing && existing.code_unique ? '<code>' + esc(existing.code_unique) + '</code>' : '')
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-close aria-label="Fermer">×</button></header>'
       + '<div class="jp-jeu-wiz-body">'
       + '<div class="jp-split jp-split-2">'
       + '<div class="jp-field"><label>Type</label><select id="jwType"' + (editId ? ' disabled' : '') + '>'
