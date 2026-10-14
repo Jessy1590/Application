@@ -34,7 +34,8 @@
     selectedBlocId: null,
     inspectorTab: 'lecon', // lecon | bloc | programme
     variantTab: 'base', // base | 1..5
-    variantShowingBase: false, // onglet ★ vide : aperçu base sans créer de variante
+    /** ★N sans variante : aperçu base surligné (non enregistré). Jamais écrit dans scratch.base. */
+    variantInherit: false,
     variantScratch: {}, // blocId -> { field, base, tabs }
     editors: {}, // blocId:field[:vN] -> richtext instance
     molChips: {}, // blocId -> instance chips
@@ -161,7 +162,7 @@
     return scratch;
   }
 
-  /** HTML « vide » (RTE) : pas de variante → fallback base. */
+  /** HTML « vide » (RTE) : pas de variante → héritage base. */
   function isEmptyHtml(html) {
     const t = String(html || '')
       .replace(/<[^>]*>/g, ' ')
@@ -171,8 +172,36 @@
     return !t;
   }
 
+  /** Normalise pour comparer base ↔ éditeur (évite de créer une variante fantôme). */
+  function normalizeHtml(html) {
+    return String(html || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/&nbsp;|&#160;/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '')
+      .replace(/<p>\s*<\/p>/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function htmlLooksSame(a, b) {
-    return String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+    return normalizeHtml(a) === normalizeHtml(b);
+  }
+
+  function pubVariantHtml(b, niveau, field) {
+    const v = (pubPayload(b).variantes || {})[String(niveau)];
+    return (v && v[field]) || '';
+  }
+
+  /**
+   * Statut d’un onglet ★ : inherit (pas de variante) | draft (brouillon ≠ publié) | published.
+   */
+  function variantTabStatus(b, scratch, niveau) {
+    const n = String(niveau);
+    const cur = scratch.tabs[n] || '';
+    if (isEmptyHtml(cur)) return 'inherit';
+    const pub = pubVariantHtml(b, n, scratch.field);
+    if (!htmlLooksSame(cur, pub)) return 'draft';
+    return 'published';
   }
 
   function flushVariantEditor(blocId) {
@@ -182,31 +211,78 @@
     const ed = state.editors[key];
     if (!ed) return;
     const html = ed.getHtml?.() || '';
+    // Base : seule source d’écriture de scratch.base (les onglets ★ ne la touchent jamais)
     if (state.variantTab === 'base') {
       scratch.base = html;
       return;
     }
     const tab = String(state.variantTab);
-    // Affiché en « copie de la base » sans édition → ne pas créer de variante
-    if (state.variantShowingBase && htmlLooksSame(html, scratch.base)) {
+    // Héritage surligné : ne pas créer de variante tant que le HTML = base (ou éditeur encore en inherit)
+    if (state.variantInherit || (ed.isInherit && ed.isInherit())) {
       scratch.tabs[tab] = '';
       return;
     }
-    scratch.tabs[tab] = isEmptyHtml(html) ? '' : html;
+    if (htmlLooksSame(html, scratch.base) || isEmptyHtml(html)) {
+      scratch.tabs[tab] = '';
+      return;
+    }
+    scratch.tabs[tab] = html;
   }
 
-  function variantesTabsHtml(type) {
+  function variantesTabsHtml(type, blocId) {
     if (type !== 'texte' && type !== 'conseil') return '';
+    const b = state.blocs.find((x) => x.id === blocId);
+    const scratch = b ? ensureVariantScratch(blocId, type, effPayload(b)) : null;
     const tabs = ['base', '1', '2', '3', '4', '5'].map((t) => {
       const label = t === 'base' ? 'Base' : '★' + t;
       const on = String(state.variantTab) === String(t) ? ' is-active' : '';
-      return '<button type="button" class="jp-vtab' + on + '" data-vtab="' + t + '">' + label + '</button>';
+      let status = '';
+      let badge = '';
+      if (t !== 'base' && scratch && b) {
+        status = variantTabStatus(b, scratch, t);
+        if (status === 'draft') {
+          badge = '<span class="jp-vtab-badge" title="Variante en brouillon">brouillon</span>';
+        } else if (status === 'published') {
+          badge = '<span class="jp-vtab-dot" title="Variante personnalisée" aria-hidden="true"></span>';
+        }
+      }
+      const stCls = status ? ' is-' + status : '';
+      return '<button type="button" class="jp-vtab' + on + stCls + '" data-vtab="' + t + '">'
+        + '<span class="jp-vtab-label">' + label + '</span>' + badge + '</button>';
     }).join('');
     return '<div class="jp-variant-bar">'
       + '<div class="jp-vtabs" role="tablist">' + tabs + '</div>'
-      + '<p class="jp-muted jp-field-hint">Base = texte commun. ★N remplace la base uniquement si renseigné ; vide ou effacé = retour à la base.</p>'
-      + '<p class="jp-muted jp-field-hint jp-variant-fallback-hint" hidden>Aucune variante ★ — affichage de la base (modifiez pour créer une variante).</p>'
+      + '<p class="jp-muted jp-field-hint">Base = référence commune (modifiable uniquement ici). '
+      + '★N sans personnalisation = aperçu <strong>surligné</strong> de la base (non enregistré). '
+      + 'Toute modification crée une variante en brouillon. ↶ remet la base surlignée.</p>'
+      + '<p class="jp-muted jp-field-hint jp-variant-inherit-hint" hidden>'
+      + 'Hérite de la base — surlignage ★ uniquement à l’écran. Modifiez pour créer une variante.</p>'
       + '</div>';
+  }
+
+  function paintVariantTabs(card, b) {
+    if (!card || !b) return;
+    const scratch = state.variantScratch[b.id];
+    if (!scratch) return;
+    card.querySelectorAll('.jp-vtab[data-vtab]').forEach((btn) => {
+      const t = btn.getAttribute('data-vtab');
+      btn.classList.toggle('is-active', String(t) === String(state.variantTab));
+      btn.classList.remove('is-inherit', 'is-draft', 'is-published');
+      btn.querySelector('.jp-vtab-badge')?.remove();
+      btn.querySelector('.jp-vtab-dot')?.remove();
+      if (t === 'base') return;
+      const status = variantTabStatus(b, scratch, t);
+      btn.classList.add('is-' + status);
+      if (status === 'draft') {
+        btn.insertAdjacentHTML('beforeend',
+          '<span class="jp-vtab-badge" title="Variante en brouillon">brouillon</span>');
+      } else if (status === 'published') {
+        btn.insertAdjacentHTML('beforeend',
+          '<span class="jp-vtab-dot" title="Variante personnalisée" aria-hidden="true"></span>');
+      }
+    });
+    const hint = card.querySelector('.jp-variant-inherit-hint');
+    if (hint) hint.hidden = !state.variantInherit;
   }
 
   async function loadBlocs(moduleId) {
@@ -1259,7 +1335,7 @@
     }
     if (b.type_bloc === 'texte') {
       ensureVariantScratch(b.id, 'texte', p);
-      return variantesTabsHtml('texte')
+      return variantesTabsHtml('texte', b.id)
         + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html"></div>';
     }
     if (b.type_bloc === 'video') {
@@ -1295,7 +1371,7 @@
       ensureVariantScratch(b.id, 'conseil', p);
       return '<div class="jp-field jp-field-tight"><label>Pathologie</label>'
         + '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Ex. Anémie ferriprive"></div>'
-        + variantesTabsHtml('conseil')
+        + variantesTabsHtml('conseil', b.id)
         + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
     }
     if (b.type_bloc === 'recommandation') {
@@ -1328,41 +1404,66 @@
       + '</span>';
   }
 
-  function remountVariantRte(card, b) {
+  function resolveVariantDisplay(scratch, tab) {
+    if (tab === 'base') {
+      return { html: scratch.base || '', inherit: false, inheritLevel: null };
+    }
+    const raw = scratch.tabs[String(tab)] || '';
+    if (isEmptyHtml(raw)) {
+      return { html: scratch.base || '', inherit: true, inheritLevel: Number(tab) };
+    }
+    return { html: raw, inherit: false, inheritLevel: null };
+  }
+
+  function mountVariantRte(card, b, host) {
     const id = b.id;
-    const host = card.querySelector('[data-rte]');
-    if (!host || (b.type_bloc !== 'texte' && b.type_bloc !== 'conseil')) return;
     const field = host.getAttribute('data-field') || variantFieldOf(b.type_bloc);
     const prev = state.editors[id + ':' + field];
     prev?.destroy?.();
     const scratch = ensureVariantScratch(id, b.type_bloc, effPayload(b));
-    const tab = state.variantTab;
-    let html;
-    state.variantShowingBase = false;
-    if (tab === 'base') {
-      html = scratch.base;
-    } else {
-      const raw = scratch.tabs[String(tab)] || '';
-      if (isEmptyHtml(raw)) {
-        // Aperçu de la base (vide = fallback) ; flush n’enregistrera une variante que si modifié
-        html = scratch.base || '';
-        state.variantShowingBase = true;
-      } else {
-        html = raw;
-      }
-    }
-    state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html, {
+    const disp = resolveVariantDisplay(scratch, state.variantTab);
+    state.variantInherit = disp.inherit;
+
+    const isStarTab = state.variantTab !== 'base';
+    state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, disp.html, {
+      inheritLevel: disp.inheritLevel,
+      onReset: isStarTab
+        ? () => {
+          scratch.tabs[String(state.variantTab)] = '';
+          state.variantInherit = true;
+          remountVariantRte(card, b);
+          scheduleSave(id);
+          paintVariantTabs(card, b);
+        }
+        : undefined,
+      resetTitle: 'Revenir à la base surlignée (efface la variante ★)',
       onChange: () => {
-        state.variantShowingBase = false;
+        const ed = state.editors[id + ':' + field];
+        // Première frappe quitte l’héritage → variante brouillon
+        if (state.variantInherit) state.variantInherit = false;
         flushVariantEditor(id);
+        const tab = String(state.variantTab);
+        // Plus de variante (vide ou = base) → héritage
+        if (tab !== 'base' && isEmptyHtml(scratch.tabs[tab])) {
+          if (isEmptyHtml(ed?.getHtml?.())) {
+            remountVariantRte(card, b);
+            scheduleSave(id);
+            return;
+          }
+          state.variantInherit = true;
+          ed?.setInheritLevel?.(Number(tab));
+        }
+        paintVariantTabs(card, b);
         scheduleSave(id);
       },
     });
-    card.querySelectorAll('.jp-vtab').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.getAttribute('data-vtab') === String(tab));
-    });
-    const hint = card.querySelector('.jp-variant-fallback-hint');
-    if (hint) hint.hidden = !state.variantShowingBase;
+    paintVariantTabs(card, b);
+  }
+
+  function remountVariantRte(card, b) {
+    const host = card.querySelector('[data-rte]');
+    if (!host || (b.type_bloc !== 'texte' && b.type_bloc !== 'conseil')) return;
+    mountVariantRte(card, b, host);
   }
 
   function bindContenuEditors(card, b) {
@@ -1375,40 +1476,21 @@
         const next = btn.getAttribute('data-vtab');
         if (String(next) === String(state.variantTab)) return;
         flushVariantEditor(id);
+        paintVariantTabs(card, b);
         state.variantTab = next;
         remountVariantRte(card, b);
       });
     });
     card.querySelectorAll('[data-rte]').forEach((host) => {
-      const field = host.getAttribute('data-field') || 'html';
-      let html = '';
-      state.variantShowingBase = false;
       if (b.type_bloc === 'texte' || b.type_bloc === 'conseil') {
-        const scratch = ensureVariantScratch(id, b.type_bloc, effPayload(b));
-        const tab = state.variantTab;
-        if (tab === 'base') {
-          html = scratch.base;
-        } else {
-          const raw = scratch.tabs[String(tab)] || '';
-          if (isEmptyHtml(raw)) {
-            html = scratch.base || '';
-            state.variantShowingBase = true;
-          } else {
-            html = raw;
-          }
-        }
-      } else {
-        html = effPayload(b)[field] || '';
+        mountVariantRte(card, b, host);
+        return;
       }
+      const field = host.getAttribute('data-field') || 'html';
+      const html = effPayload(b)[field] || '';
       state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html, {
-        onChange: () => {
-          state.variantShowingBase = false;
-          flushVariantEditor(id);
-          scheduleSave(id);
-        },
+        onChange: () => scheduleSave(id),
       });
-      const hint = card.querySelector('.jp-variant-fallback-hint');
-      if (hint) hint.hidden = !state.variantShowingBase;
     });
     card.querySelectorAll('[data-mol-multi]').forEach((host) => {
       const initial = matriceIdsOf(effPayload(b)).map(molItem);
@@ -1709,6 +1791,7 @@
         } else if (tagHost && !hasPending(b)) {
           tagHost.querySelector('.jp-bloc-tag')?.remove();
         }
+        if (b.type_bloc === 'texte' || b.type_bloc === 'conseil') paintVariantTabs(card, b);
       } catch (e) {
         state.saveError = true;
         global.JpToast?.fromError?.(e);

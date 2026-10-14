@@ -1,6 +1,11 @@
 /**
  * Éditeur texte riche léger (contenteditable + barre d’outils).
- * mount(host, html, { onChange }) — onChange est appelé à chaque modification (auto-enregistrement brouillon).
+ * mount(host, html, {
+ *   onChange,
+ *   inheritLevel: null | 1..5,  // surlignage CSS (héritage base) — hors HTML sauvegardé
+ *   onReset: fn,                // bouton ↶ à droite de la barre (variantes ★)
+ *   resetTitle: string,
+ * })
  */
 (function (global) {
   const CMDS = [
@@ -25,10 +30,28 @@
     { v: '#5b6b66', n: 'Gris' },
   ];
 
+  const INHERIT_CLASSES = ['jp-rte-inherit', 'jp-rte-inherit-n1', 'jp-rte-inherit-n2',
+    'jp-rte-inherit-n3', 'jp-rte-inherit-n4', 'jp-rte-inherit-n5'];
+
+  function clearInheritClasses(host) {
+    INHERIT_CLASSES.forEach((c) => host.classList.remove(c));
+  }
+
+  function applyInheritLevel(host, level) {
+    clearInheritClasses(host);
+    const n = Number(level);
+    if (n >= 1 && n <= 5) {
+      host.classList.add('jp-rte-inherit', 'jp-rte-inherit-n' + n);
+    }
+  }
+
   function mount(host, initialHtml, opts) {
     const options = opts || {};
     host.innerHTML = '';
     host.classList.add('jp-rte');
+    clearInheritClasses(host);
+    applyInheritLevel(host, options.inheritLevel);
+
     const bar = document.createElement('div');
     bar.className = 'jp-rte-bar';
     const surface = document.createElement('div');
@@ -38,7 +61,9 @@
     surface.setAttribute('aria-multiline', 'true');
     surface.innerHTML = initialHtml || '<p><br></p>';
 
+    let inheritActive = !!(Number(options.inheritLevel) >= 1 && Number(options.inheritLevel) <= 5);
     let savedRange = null;
+
     function saveRange() {
       const sel = window.getSelection();
       if (sel && sel.rangeCount && surface.contains(sel.getRangeAt(0).commonAncestorContainer)) {
@@ -52,7 +77,13 @@
       sel.removeAllRanges();
       sel.addRange(savedRange);
     }
+    function leaveInherit() {
+      if (!inheritActive) return;
+      inheritActive = false;
+      clearInheritClasses(host);
+    }
     function changed() {
+      leaveInherit();
       if (typeof options.onChange === 'function') options.onChange();
     }
     surface.addEventListener('input', changed);
@@ -196,6 +227,21 @@
     });
     bar.appendChild(linkBtn);
 
+    /* ——— Reset variante ★ (tout à droite) ——— */
+    if (typeof options.onReset === 'function') {
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'jp-rte-btn jp-rte-btn-reset';
+      resetBtn.innerHTML = '<span aria-hidden="true">↶</span>';
+      resetBtn.title = options.resetTitle || 'Revenir à la base surlignée';
+      resetBtn.setAttribute('aria-label', resetBtn.title);
+      resetBtn.addEventListener('mousedown', (e) => e.preventDefault());
+      resetBtn.addEventListener('click', () => {
+        options.onReset();
+      });
+      bar.appendChild(resetBtn);
+    }
+
     host.appendChild(bar);
     host.appendChild(surface);
 
@@ -206,9 +252,20 @@
       setHtml(html) {
         surface.innerHTML = html || '<p><br></p>';
       },
+      setInheritLevel(level) {
+        inheritActive = !!(Number(level) >= 1 && Number(level) <= 5);
+        applyInheritLevel(host, level);
+      },
+      clearInherit() {
+        leaveInherit();
+      },
+      isInherit() {
+        return inheritActive;
+      },
       el: surface,
       destroy() {
         document.removeEventListener('mousedown', onDocDown);
+        clearInheritClasses(host);
         host.innerHTML = '';
         host.classList.remove('jp-rte');
       },

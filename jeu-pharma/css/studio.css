@@ -599,12 +599,46 @@
 .jp-rte-bar { align-items: center; gap: 0.15rem; padding: 0.35rem 0.5rem; background: linear-gradient(180deg, #f2f9f7, #e9f4f1); }
 .jp-rte-btn { min-width: 1.9rem; height: 1.85rem; padding: 0 0.35rem; border-radius: 0.45rem; color: #14201c; transition: background 0.12s ease; }
 .jp-rte-btn:hover, .jp-rte-btn:focus-visible { background: rgba(15, 107, 92, 0.16); outline: none; }
+.jp-rte-btn-reset {
+  margin-left: auto;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #3d5a54;
+}
+.jp-rte-btn-reset:hover, .jp-rte-btn-reset:focus-visible {
+  background: rgba(194, 87, 12, 0.14);
+  color: #8a3d08;
+}
 .jp-rte-sep { width: 1px; height: 1.15rem; margin: 0 0.25rem; background: rgba(15, 107, 92, 0.22); }
 .jp-rte-surface { min-height: 8rem; padding: 0.85rem 1rem; font-size: 0.97rem; line-height: 1.6; }
 .jp-rte-surface h2 { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1.25rem; margin: 0.6rem 0 0.3rem; }
 .jp-rte-surface h3 { font-size: 1.05rem; margin: 0.5rem 0 0.25rem; }
 .jp-rte-surface p { margin: 0 0 0.5rem; }
 .jp-rte-surface a { color: var(--jp-accent, #0f6b5c); }
+
+/* Héritage base sur onglet ★ : surlignage CSS (jamais écrit dans le HTML sauvegardé) */
+.jp-rte.jp-rte-inherit .jp-rte-surface {
+  box-shadow: inset 4px 0 0 var(--jp-inherit-accent, #0f6b5c);
+  background: color-mix(in srgb, var(--jp-inherit-bg, #d8f0ea) 55%, #fff);
+}
+.jp-rte.jp-rte-inherit .jp-rte-surface p,
+.jp-rte.jp-rte-inherit .jp-rte-surface li,
+.jp-rte.jp-rte-inherit .jp-rte-surface h2,
+.jp-rte.jp-rte-inherit .jp-rte-surface h3 {
+  background: color-mix(in srgb, var(--jp-inherit-bg, #d8f0ea) 70%, transparent);
+  border-radius: 0.15rem;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.jp-rte-inherit-n1 { --jp-inherit-bg: #fde8c8; --jp-inherit-accent: #c2570c; }
+.jp-rte-inherit-n2 { --jp-inherit-bg: #d8f0ea; --jp-inherit-accent: #0f6b5c; }
+.jp-rte-inherit-n3 { --jp-inherit-bg: #d6e8f8; --jp-inherit-accent: #1d5fa8; }
+.jp-rte-inherit-n4 { --jp-inherit-bg: #e4edd8; --jp-inherit-accent: #4a6b2e; }
+.jp-rte-inherit-n5 { --jp-inherit-bg: #e8e0f0; --jp-inherit-accent: #5c4a7a; }
+.jp-rte.jp-rte-inherit .jp-variant-inherit-hint,
+.jp-variant-inherit-hint:not([hidden]) {
+  color: var(--jp-inherit-accent, #0f6b5c);
+}
 
 .jp-rte-color { position: relative; display: inline-flex; }
 .jp-rte-color-btn { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
@@ -1319,6 +1353,9 @@
   margin-bottom: 0.35rem;
 }
 .jp-vtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   border: 1px solid rgba(15, 107, 92, 0.22);
   background: #fff;
   border-radius: 0.4rem;
@@ -1333,6 +1370,40 @@
   background: #0f6b5c;
   border-color: #0f6b5c;
   color: #fff;
+}
+.jp-vtab.is-draft:not(.is-active) {
+  border-color: #c2570c;
+  color: #8a3d08;
+}
+.jp-vtab.is-published:not(.is-active) {
+  border-color: rgba(15, 107, 92, 0.45);
+}
+.jp-vtab-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 0.08rem 0.28rem;
+  border-radius: 0.25rem;
+  background: rgba(194, 87, 12, 0.16);
+  color: #8a3d08;
+}
+.jp-vtab.is-active .jp-vtab-badge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.jp-vtab-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #0f6b5c;
+  flex-shrink: 0;
+}
+.jp-vtab.is-active .jp-vtab-dot { background: #fff; }
+.jp-variant-inherit-hint {
+  color: #5b6b66;
+  border-left: 3px solid currentColor;
+  padding-left: 0.5rem;
 }
 
 .jp-insp-tabs {
