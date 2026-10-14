@@ -70,6 +70,7 @@
   }
 
   const BLOC_META = {
+    section: { label: 'Section', ico: '§' },
     texte: { label: 'Texte', ico: '¶' },
     video: { label: 'Vidéo', ico: '▶' },
     photo: { label: 'Photo', ico: '▣' },
@@ -414,7 +415,11 @@
       const type = BLOC_META[b.type_bloc] ? b.type_bloc : 'texte';
       const meta = BLOC_META[type];
       let inner = '';
-      if (b.type_bloc === 'texte') {
+      if (b.type_bloc === 'section') {
+        html += '<section class="jp-lecon-section" id="jp-bloc-' + esc(b.id) + '">'
+          + '<h2 class="jp-lecon-section-title">' + esc(b.titre || 'Section') + '</h2></section>';
+        continue;
+      } else if (b.type_bloc === 'texte') {
         inner = '<div class="jp-rich">' + sanitizeHtml(p.html || '') + '</div>';
       } else if (b.type_bloc === 'video') {
         inner = videoEmbed(p.url) || '<p class="jp-muted">Vidéo indisponible.</p>';

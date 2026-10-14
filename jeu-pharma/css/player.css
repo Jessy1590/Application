@@ -178,6 +178,20 @@
   font-weight: 600;
 }
 
+.jp-lecon-section {
+  margin: 1.75rem 0 1rem;
+  padding: 0.35rem 0 0.65rem;
+  border-bottom: 2px solid rgba(15, 107, 92, 0.22);
+  animation: jpTileIn 0.4s ease both;
+}
+.jp-lecon-section-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-family: "Source Serif 4", Georgia, serif;
+  color: var(--jp-accent, #0f6b5c);
+  font-weight: 700;
+}
+
 .jp-lecon-block {
   margin: 0 0 1.25rem;
   padding: 1.15rem 1.2rem;

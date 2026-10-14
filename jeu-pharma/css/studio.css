@@ -1141,3 +1141,213 @@
   font: inherit;
   margin-top: 0.25rem;
 }
+
+/* ——— Refonte Structure / Contenu / Sections ——— */
+.jp-studio-canvas-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.jp-studio-canvas-head .jp-studio-h2 { flex: 1 1 auto; margin: 0; }
+.jp-studio-mode {
+  display: inline-flex;
+  border: 1px solid rgba(15, 107, 92, 0.2);
+  border-radius: 0.55rem;
+  overflow: hidden;
+  background: #fff;
+}
+.jp-mode-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #3d5a54;
+}
+.jp-mode-btn.is-active {
+  background: #0f6b5c;
+  color: #fff;
+}
+.jp-edit-comme {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #3d5a54;
+}
+.jp-edit-comme select { min-width: 4.5rem; }
+
+.jp-plage-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(15, 107, 92, 0.12);
+  color: #0f6b5c;
+  white-space: nowrap;
+}
+.jp-plage-badge.is-all {
+  background: transparent;
+  border: 1px dashed rgba(15, 107, 92, 0.35);
+  font-weight: 600;
+  color: #5b6b66;
+}
+
+.jp-block-row,
+.jp-block-section {
+  margin-bottom: 0.45rem;
+}
+.jp-block-row .jp-block-body,
+.jp-block-section .jp-block-body { display: none; }
+.jp-block-row header,
+.jp-block-section header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.jp-block-row.is-selected,
+.jp-block-section.is-selected {
+  outline: 2px solid rgba(15, 107, 92, 0.45);
+}
+.jp-block-section {
+  background: linear-gradient(90deg, rgba(15, 107, 92, 0.1), rgba(255, 255, 255, 0.9));
+  border-left: 4px solid #0f6b5c;
+}
+.jp-block-hit {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  padding: 0.15rem 0;
+}
+.jp-block-title-ro {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.jp-block-open { flex-shrink: 0; }
+
+.jp-contenu-layout {
+  display: grid;
+  grid-template-columns: minmax(9rem, 12rem) 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+.jp-outline {
+  position: sticky;
+  top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: calc(100dvh - 12rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+.jp-outline-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.35rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.45rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+}
+.jp-outline-item:hover { border-color: rgba(15, 107, 92, 0.25); }
+.jp-outline-item.is-active {
+  border-color: #0f6b5c;
+  background: rgba(15, 107, 92, 0.08);
+}
+.jp-outline-item.is-section {
+  font-weight: 700;
+  background: rgba(15, 107, 92, 0.06);
+}
+.jp-outline-type {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #5b6b66;
+  width: 100%;
+}
+.jp-outline-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.jp-outline-var {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #0f6b5c;
+}
+
+.jp-block-contenu { margin: 0; }
+.jp-variant-bar { margin-bottom: 0.5rem; }
+.jp-vtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+.jp-vtab {
+  border: 1px solid rgba(15, 107, 92, 0.22);
+  background: #fff;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.55rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #3d5a54;
+}
+.jp-vtab.is-active {
+  background: #0f6b5c;
+  border-color: #0f6b5c;
+  color: #fff;
+}
+
+.jp-insp-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.12);
+  padding-bottom: 0.35rem;
+}
+.jp-insp-tab {
+  border: 0;
+  background: transparent;
+  padding: 0.35rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #5b6b66;
+  border-radius: 0.4rem 0.4rem 0 0;
+}
+.jp-insp-tab.is-active {
+  color: #0f6b5c;
+  box-shadow: inset 0 -2px 0 #0f6b5c;
+}
