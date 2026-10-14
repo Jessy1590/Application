@@ -2008,7 +2008,7 @@
 
   /**
    * Ne plus auto-publier toutes les connaissances d’une matrice au « Publier ».
-   * La fiche leçon lit la matrice référentiel via v2_fiche_resolue (matrice_ids du bloc).
+   * Norme : texte = référentiel (matrice) ; pubs = masque afficher/masquer uniquement.
    * Les pubs restent manuelles (« Valeurs affichées… »).
    */
   async function ensureProgramme(_m) { /* no-op */ }
