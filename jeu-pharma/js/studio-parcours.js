@@ -57,11 +57,79 @@
   async function loadModules(parcoursId) {
     const { data, error } = await sb()
       .from('modules_cours')
-      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, criteres_json, icone, couleur_accent, couverture_url, statut')
+      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, criteres_json, icone, couleur_accent, couverture_url, statut, niveau_min, niveau_max')
       .eq('parcours_id', parcoursId)
       .order('ordre');
     if (error) throw error;
     return data || [];
+  }
+
+  function plageOpts(selected) {
+    let html = '';
+    for (let i = 1; i <= 5; i += 1) {
+      html += '<option value="' + i + '"' + (Number(selected) === i ? ' selected' : '') + '>★' + i + '</option>';
+    }
+    return html;
+  }
+
+  /** Contrôle De ★N / À ★M + raccourcis. */
+  function plageControlsHtml(min, max, idPrefix) {
+    const a = Number(min) || 1;
+    const b = Number(max) || 5;
+    return '<div class="jp-plage" data-plage="' + esc(idPrefix) + '">'
+      + '<label>De <select data-plage-min>' + plageOpts(a) + '</select></label>'
+      + '<label>À <select data-plage-max>' + plageOpts(b) + '</select></label>'
+      + '<span class="jp-plage-shortcuts">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-plage-quick="all">Tous</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-plage-quick="only">Uniquement ★</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-plage-quick="from">À partir de ★</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-plage-quick="until">Jusqu’à ★</button>'
+      + '</span></div>';
+  }
+
+  function readPlage(host) {
+    const minEl = host.querySelector('[data-plage-min]');
+    const maxEl = host.querySelector('[data-plage-max]');
+    let min = Number(minEl?.value) || 1;
+    let max = Number(maxEl?.value) || 5;
+    if (min > max) { const t = min; min = max; max = t; }
+    return { niveau_min: min, niveau_max: max };
+  }
+
+  function bindPlage(host, onChange) {
+    if (!host) return;
+    const applyQuick = (mode) => {
+      const minEl = host.querySelector('[data-plage-min]');
+      const maxEl = host.querySelector('[data-plage-max]');
+      const cur = Number(minEl.value) || 1;
+      if (mode === 'all') { minEl.value = '1'; maxEl.value = '5'; }
+      else if (mode === 'only') { maxEl.value = String(cur); }
+      else if (mode === 'from') { maxEl.value = '5'; }
+      else if (mode === 'until') { minEl.value = '1'; maxEl.value = String(cur); }
+      onChange(readPlage(host));
+    };
+    host.querySelectorAll('[data-plage-min], [data-plage-max]').forEach((el) => {
+      el.addEventListener('change', () => onChange(readPlage(host)));
+    });
+    host.querySelectorAll('[data-plage-quick]').forEach((btn) => {
+      btn.addEventListener('click', () => applyQuick(btn.getAttribute('data-plage-quick')));
+    });
+  }
+
+  function variantesHtml(type, payload) {
+    if (type !== 'texte' && type !== 'conseil') return '';
+    const field = type === 'texte' ? 'html' : 'corps_html';
+    const v = (payload && payload.variantes) || {};
+    let rows = '';
+    for (let i = 1; i <= 5; i += 1) {
+      const cur = (v[String(i)] && v[String(i)][field]) || '';
+      rows += '<label class="jp-field jp-field-tight">★' + i
+        + '<textarea data-variant="' + i + '" data-variant-field="' + field + '" rows="2" placeholder="Laisser vide = texte de base">'
+        + esc(cur) + '</textarea></label>';
+    }
+    return '<details class="jp-bloc-variantes"><summary>Variantes par niveau ★</summary>'
+      + '<p class="jp-muted jp-field-hint">Si renseigné, remplace le champ correspondant pour ce niveau uniquement.</p>'
+      + rows + '</details>';
   }
 
   async function loadBlocs(moduleId) {
@@ -392,7 +460,15 @@
       + '<div id="parcoursCombo" class="jp-studio-parcours-combo"></div>'
       + '<h1 id="studioTitle">Modif parcours</h1>'
       + '<span id="draftChip" class="jp-draft-chip" role="status" aria-live="polite" hidden></span>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Aperçu</button>'
+      + '<div class="jp-studio-preview-wrap">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Aperçu brouillon</button>'
+      + '<label class="jp-studio-preview-as">Voir comme '
+      + '<select id="previewNiveau" aria-label="Aperçu comme niveau">'
+      + '<option value="">—</option>'
+      + [1, 2, 3, 4, 5].map((n) => '<option value="' + n + '">★' + n + '</option>').join('')
+      + '</select></label>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreviewNiveau">Ouvrir</button>'
+      + '</div>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnParcoursCfg" title="Prérequis et validation du parcours">Réglages du parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnNewParcours">Nouveau parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublish" disabled>Enregistrer et publier</button>'
@@ -439,6 +515,17 @@
       await flushAll();
       window.open('../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1', '_blank');
     });
+    root.querySelector('#btnPreviewNiveau').addEventListener('click', async () => {
+      const m = selectedModule();
+      if (!m || m.est_groupe) return global.JpToast?.warn?.('Choisir une leçon');
+      const n = root.querySelector('#previewNiveau')?.value;
+      if (!n) return global.JpToast?.warn?.('Choisir ★1–★5');
+      await flushAll();
+      window.open(
+        '../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1&niveau=' + encodeURIComponent(n),
+        '_blank'
+      );
+    });
 
     window.addEventListener('beforeunload', (e) => {
       if (Object.keys(state.timers).length || state.inflight > 0) {
@@ -483,7 +570,7 @@
     try {
       await flushAll();
       const row = await rpc('v2_creer_parcours', {
-        p_payload: { libelle, mode_contenu: 'publications', niveau_lie: 'apprenti' },
+        p_payload: { libelle, mode_contenu: 'publications' },
       });
       global.JpToast?.ok?.('Créé');
       location.search = '?parcours=' + encodeURIComponent(row.id);
@@ -924,7 +1011,8 @@
       const p = effPayload(b);
       let body = '';
       if (b.type_bloc === 'texte') {
-        body = '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html"></div>';
+        body = '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html"></div>'
+          + variantesHtml('texte', p);
       } else if (b.type_bloc === 'video') {
         body = '<div class="jp-field jp-field-tight"><label>Lien de la vidéo</label>'
           + '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="URL YouTube / Vimeo / .mp4"></div>'
@@ -955,7 +1043,8 @@
       } else if (b.type_bloc === 'conseil') {
         body = '<div class="jp-field jp-field-tight"><label>Pathologie</label>'
           + '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Ex. Anémie ferriprive"></div>'
-          + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
+          + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
+          + variantesHtml('conseil', p);
       } else if (b.type_bloc === 'recommandation') {
         body = '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
           + renderRecoReference(b, p);
@@ -986,8 +1075,30 @@
         + '<input class="jp-block-title" data-field="titre" data-id="' + b.id + '" value="' + esc(effTitre(b)) + '" placeholder="Titre du bloc (facultatif)" aria-label="Titre du bloc">'
         + tag
         + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer le bloc" aria-label="Supprimer le bloc">×</button></header>'
+        + '<div class="jp-block-plage">' + plageControlsHtml(b.niveau_min, b.niveau_max, 'bloc-' + b.id) + '</div>'
         + '<div class="jp-block-body">' + body + '</div></article>';
     }).join('');
+
+    list.querySelectorAll('.jp-block-card').forEach((card) => {
+      const blocId = card.getAttribute('data-bloc');
+      const host = card.querySelector('[data-plage]');
+      bindPlage(host, async (plage) => {
+        const b = state.blocs.find((x) => x.id === blocId);
+        if (!b) return;
+        try {
+          const row = await rpc('v2_upsert_bloc', {
+            p_payload: { id: blocId, niveau_min: plage.niveau_min, niveau_max: plage.niveau_max },
+          });
+          b.niveau_min = row.niveau_min;
+          b.niveau_max = row.niveau_max;
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+        }
+      });
+      card.querySelectorAll('[data-variant]').forEach((ta) => {
+        ta.addEventListener('input', () => scheduleSave(blocId));
+      });
+    });
 
     list.querySelectorAll('[data-rte]').forEach((host) => {
       const id = host.getAttribute('data-rte');
@@ -1109,14 +1220,34 @@
     if (!card) return effPayload(b);
     const val = (field) => card.querySelector('[data-field="' + field + '"]')?.value || '';
     const rte = (field) => state.editors[blocId + ':' + field]?.getHtml?.() || '';
-    if (type === 'texte') return { html: rte('html') };
+    function collectVariantes(field) {
+      const variantes = {};
+      card.querySelectorAll('[data-variant][data-variant-field="' + field + '"]').forEach((ta) => {
+        const html = (ta.value || '').trim();
+        if (!html) return;
+        const n = ta.getAttribute('data-variant');
+        variantes[n] = { [field]: html };
+      });
+      return Object.keys(variantes).length ? variantes : null;
+    }
+    if (type === 'texte') {
+      const out = { html: rte('html') };
+      const v = collectVariantes('html');
+      if (v) out.variantes = v;
+      return out;
+    }
     if (type === 'video') return { url: val('url') };
     if (type === 'photo') return { path: val('path'), url: val('url'), alt: val('alt'), legende: val('legende') };
     if (type === 'molecule') {
       const ids = state.molChips[blocId]?.getIds?.() || matriceIdsOf(effPayload(b));
       return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
     }
-    if (type === 'conseil') return { pathologie: val('pathologie'), corps_html: rte('corps_html') };
+    if (type === 'conseil') {
+      const out = { pathologie: val('pathologie'), corps_html: rte('corps_html') };
+      const v = collectVariantes('corps_html');
+      if (v) out.variantes = v;
+      return out;
+    }
     if (type === 'recommandation') {
       return {
         corps_html: rte('corps_html'),
@@ -1355,16 +1486,23 @@
     pane.innerHTML = '<strong class="jp-inspector-title">Propriétés</strong>'
       + '<div class="jp-field"><label for="metaTitre">Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
       + '<div class="jp-field"><label for="metaResume">Résumé</label><textarea id="metaResume" rows="3">' + esc(m.resume || '') + '</textarea></div>'
+      + '<div class="jp-field"><span class="jp-inspector-title" style="display:block;margin-bottom:0.35rem">Visibilité ★</span>'
+      + plageControlsHtml(m.niveau_min, m.niveau_max, 'mod-' + m.id) + '</div>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>'
       + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
     mountDeblocage(m);
+    const plageHost = pane.querySelector('[data-plage]');
+    bindPlage(plageHost, () => {});
     pane.querySelector('#btnSaveMeta').addEventListener('click', async () => {
       try {
+        const plage = readPlage(plageHost);
         await rpc('v2_upsert_module', {
           p_payload: {
             id: m.id,
             titre: pane.querySelector('#metaTitre').value,
             resume: pane.querySelector('#metaResume').value,
+            niveau_min: plage.niveau_min,
+            niveau_max: plage.niveau_max,
           },
         });
         state.modules = await loadModules(state.parcoursId);
@@ -1393,10 +1531,18 @@
     const pane = document.getElementById('inspectorPane');
     const stats = await countProgramme(m.id);
     pane.innerHTML = '<div class="jp-inspector-cta">'
+      + '<strong class="jp-inspector-title">Visibilité ★</strong>'
+      + plageControlsHtml(m.niveau_min, m.niveau_max, 'lecon-' + m.id)
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSavePlage" style="margin-top:0.4rem">Enregistrer la plage</button>'
+      + '</div>'
+      + '<div class="jp-inspector-cta">'
       + '<div class="jp-inspector-head"><strong class="jp-inspector-title">Programme</strong><span id="helpProg"></span></div>'
       + '<p class="jp-muted" id="progStats" style="margin:0">' + stats.molecules + ' molécule(s) · '
       + stats.connaissances + ' valeur(s)</p>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnOpenMol">Sélectionner les molécules</button>'
+      + '<div class="jp-field" style="margin-top:0.6rem"><span class="jp-muted">Plage ★ des publications</span>'
+      + plageControlsHtml(1, 5, 'pubs-' + m.id)
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPubsPlage" style="margin-top:0.35rem">Appliquer aux pubs actives</button></div>'
       + '</div>'
       + '<div class="jp-inspector-cta">'
       + '<strong class="jp-inspector-title">Jeux</strong>'
@@ -1405,6 +1551,38 @@
       + '</div>'
       + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
     mountDeblocage(m);
+
+    const leconPlage = pane.querySelector('[data-plage="lecon-' + m.id + '"]');
+    const pubsPlage = pane.querySelector('[data-plage="pubs-' + m.id + '"]');
+    bindPlage(leconPlage, () => {});
+    bindPlage(pubsPlage, () => {});
+    pane.querySelector('#btnSavePlage')?.addEventListener('click', async () => {
+      try {
+        const plage = readPlage(leconPlage);
+        const row = await rpc('v2_upsert_module', {
+          p_payload: { id: m.id, niveau_min: plage.niveau_min, niveau_max: plage.niveau_max },
+        });
+        Object.assign(m, { niveau_min: row.niveau_min, niveau_max: row.niveau_max });
+        state.modules = await loadModules(state.parcoursId);
+        renderTree();
+        global.JpToast?.ok?.('Plage enregistrée');
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
+    });
+    pane.querySelector('#btnPubsPlage')?.addEventListener('click', async () => {
+      try {
+        const plage = readPlage(pubsPlage);
+        const res = await rpc('v2_set_module_pubs_niveaux', {
+          p_module_id: m.id,
+          p_niveau_min: plage.niveau_min,
+          p_niveau_max: plage.niveau_max,
+        });
+        global.JpToast?.ok?.((res?.updated || 0) + ' publication(s) mises à jour');
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
+    });
 
     pane.querySelector('#helpProg').appendChild(
       global.JpModal.helpButton('Programme', [

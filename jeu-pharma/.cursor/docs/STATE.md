@@ -1,6 +1,13 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Proposer associations** bidirectionnel + messages d’échec. Cache-bust `?v=046`.
+Dernière mise à jour : 2026-10-14 — **Parcours multi-niveaux ★1–★5** + purge profil apprenti/pharmacien / hospitalier-complexe. Migrations `040` + `041` appliquées remote (`supabase db query --linked`).
+
+## Parcours multi-niveaux ★1–★5 (`040` + `041` — remote 2026-10-14)
+- **`sql/040_parcours_multi_niveaux.sql`** : `inscriptions_parcours.niveau_parcours` ; `niveau_min`/`niveau_max` sur modules / blocs / pubs ; helpers ; `v2_traiter_demande_parcours(..., p_niveau_parcours)` ; `v2_maj_niveau_parcours` ; filtrage `v2_lecon_joueur` / `v2_connaissances_visibles` / catalogue / progression / déblocage (prérequis hors plage ignorés) ; variantes `payload_json.variantes` ; mode `referentiel_valide` → `publications`.
+- **`sql/041_purge_profil_niveaux.sql`** : DROP `niveaux`, `niveau_*`, `profil_apprentissage.niveau_id`, `parcours.niveau_lie`, colonnes `hospitalier`/`complexe` ; vue `v_medicaments_complet` sans ces champs ; policy `matrice_select` simplifiée.
+- **Client** : `js/admin-acces.js` (★ à l’accord + modifier) ; `js/studio-parcours.js` (plages + aperçu ★N + variantes texte/conseil) ; `js/lecon-player.js` + `lecon.html?niveau=` ; purge `JpConstants.NIVEAUX`, hospitalier/complexe dans `medicaments.js` / `resolver.js` / CSS.
+- Backfill : inscriptions acceptées → ★1 ; contenu → min=1 max=5.
+- **Suivi admin** : réattribuer les ★ réels (aujourd’hui tous à 1) ; éventuellement désactiver le parcours code `pharmacien` s’il n’a plus de pubs.
 
 ## Appariement / classement — auto-liaison + traits (2026-10-14)
 - Wizard : **Proposer associations** à côté de la recherche référentiel (items/zones et gauche/droite). Bidirectionnel : molécules → classes/indications… **et** classes → molécules. Si plusieurs → modale (1 appariement, multi classement). Messages d’échec explicites (rien en face, texte libre, aucun lien fiche, annulation…).
@@ -419,7 +426,8 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] `026` fix pool quiz / ordonnance
 - [x] `027` studio : `module_blocs`, pubs par `connaissance_id`, accès demande/accepte, `v2_lecon_joueur`, `v2_mon_espace`
 - [x] `037` drop legacy V1 jeux · `038` bloc recommandation · **`039` classement / appariement / `v2_update_modele_jeu`**
-- [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
+- [x] **`040` multi-niveaux ★** · **`041` purge profil / hospitalier-complexe** (vue sans `*_niveaux` / hospitalier — remplace l’intention de `018`)
+- [~] `018_vue_sans_niveaux_entite` — **obsolète** (couvert par `041`)
 
 ### Surfaces
 - Hub joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux
@@ -439,7 +447,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - Utiliser `service_role` côté client.
 - Importer `PhieEvreux/shared/*`.
 - Réappliquer `001` / `002` / `004` / `005` / `007` / `008` sans vérifier l’état remote.
-- Utiliser `portail.profiles.role` pour filtrer les classifications hospitalière / complexe : seule la valeur `pharmacien` de `profil_apprentissage` autorise ces fiches côté joueur.
+- Réintroduire un profil métier type apprenti/pharmacien ou `referentiel_valide` joueur ; l’accès contenu passe par pubs + ★ + déblocage.
 - Impression via `window.open`.
 
 ## Règles Cursor

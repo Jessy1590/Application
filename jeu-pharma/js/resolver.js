@@ -36,7 +36,7 @@
   async function listParcours() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, description, niveau_lie, mode_contenu, ordre, actif')
+      .select('id, code, libelle, description, mode_contenu, ordre, actif')
       .eq('actif', true)
       .order('ordre');
     if (error) throw error;
@@ -77,7 +77,7 @@
         },
         { onConflict: 'user_id' }
       )
-      .select('user_id, niveau_id, parcours_id')
+      .select('user_id, parcours_id')
       .single();
     if (error) throw error;
     void global.JpLogs?.action?.('v2_parcours_actif', { parcours_id: parcoursId });
@@ -89,7 +89,7 @@
     if (!user) return null;
     const { data, error } = await sb()
       .from('profil_apprentissage')
-      .select('user_id, niveau_id, parcours_id, updated_at')
+      .select('user_id, parcours_id, updated_at')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) throw error;

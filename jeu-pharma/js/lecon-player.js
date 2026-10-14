@@ -372,22 +372,27 @@
 
   /* ——— Rendu principal ——— */
 
-  async function boot(root, moduleId, preview) {
-    const { data, error } = await sb().rpc('v2_lecon_joueur', {
+  async function boot(root, moduleId, preview, previewNiveau) {
+    const rpcArgs = {
       p_module_id: moduleId,
       p_preview: !!preview,
-    });
+    };
+    const niv = previewNiveau != null && previewNiveau !== '' ? Number(previewNiveau) : null;
+    if (preview && niv >= 1 && niv <= 5) rpcArgs.p_preview_niveau = niv;
+
+    const { data, error } = await sb().rpc('v2_lecon_joueur', rpcArgs);
     if (error) throw error;
     const module = data.module || {};
     let blocs = data.blocs || [];
-    if (preview) {
-      // Aperçu admin : tous les blocs (y compris brouillons) avec le contenu brouillon
+    if (preview && !(niv >= 1 && niv <= 5)) {
+      // Aperçu admin « brouillon » : tous les blocs (y compris masqués) avec le contenu brouillon
       const all = await sb().rpc('v2_lister_blocs', { p_module_id: moduleId });
       if (all.error) throw all.error;
       blocs = (Array.isArray(all.data) ? all.data : []).map(withDraft);
-    } else {
+    } else if (!preview) {
       blocs = blocs.map((b) => Object.assign({}, b, { payload_json: publishedPayload(b.payload_json) }));
     }
+    // preview + ★N : payload déjà résolu (variantes) et filtré côté RPC
     document.title = (module.titre || 'Leçon') + ' — Jeu Pharma';
     const back = document.querySelector('.jp-back');
     if (back && module.parcours_id) back.setAttribute('href', 'espace.html?parcours=' + encodeURIComponent(module.parcours_id));

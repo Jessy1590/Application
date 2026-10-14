@@ -1078,3 +1078,66 @@
   gap: 0.45rem;
   margin-top: 0.55rem;
 }
+
+.jp-studio-preview-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+.jp-studio-preview-as {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--jp-text-muted, #4a5c56);
+}
+.jp-studio-preview-as select {
+  min-width: 4.5rem;
+}
+.jp-plage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.65rem;
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+}
+.jp-plage label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.jp-plage select {
+  min-width: 3.5rem;
+}
+.jp-plage-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.jp-plage-shortcuts .jp-btn {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+}
+.jp-block-plage {
+  padding: 0.35rem 0.75rem 0;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.08);
+}
+.jp-bloc-variantes {
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px dashed rgba(15, 107, 92, 0.25);
+  border-radius: 0.45rem;
+  background: rgba(15, 107, 92, 0.03);
+}
+.jp-bloc-variantes summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.jp-bloc-variantes textarea {
+  width: 100%;
+  font: inherit;
+  margin-top: 0.25rem;
+}

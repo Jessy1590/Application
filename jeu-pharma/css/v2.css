@@ -834,6 +834,18 @@
 .jp-acc-lessons li.is-done em { color: var(--jp-accent, #0f6b5c); font-weight: 700; }
 @media (max-width: 900px) { .jp-acc-detail-grid { grid-template-columns: 1fr; } }
 
+.jp-acc-stars {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--jp-accent, #0f6b5c);
+  font-weight: 600;
+}
+.jp-acc-stars-select {
+  min-width: 8rem;
+  margin-top: 0.35rem;
+}
+
 
 /* ——— Progression partagée (028) : barres, anneaux, carte de score ——— */
 .jp-pbar {

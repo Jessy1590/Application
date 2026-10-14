@@ -27,3 +27,5 @@ alwaysApply: true
 - Snapshot quiz : en mode évaluation, ne pas exposer le flag correct / corrigé avant soumission RPC.
 - Liste quiz joueur : ne jamais `select` `snapshot_questions` (utiliser `JpQuizz.listQuiz` sans `includeSnapshot`).
 - V2 : les apprenants ne lisent pas `connaissances` / `publications_connaissances` en direct — uniquement les RPC `v2_*` (security definer). Import RCP → statut `a_valider` uniquement.
+- Niveau d’accès parcours : `inscriptions_parcours.niveau_parcours` (★1–5) fixé par l’admin (`v2_traiter_demande_parcours` / `v2_maj_niveau_parcours`) — **pas** `user_metadata` ni `profil_apprentissage.niveau_id` (supprimé).
+- Catalogue / fiche joueur : uniquement via `v2_lister_medicaments` / `v2_fiche_resolue` (pubs des leçons accessibles) — ne pas exposer le référentiel admin côté joueur.

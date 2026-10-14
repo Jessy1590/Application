@@ -95,9 +95,6 @@
     return labs.length ? labs.join(sep != null ? sep : ', ') : '—';
   }
 
-  function isHospitaliere(row) { return !!row?.hospitalier; }
-  function isComplexe(row) { return !!row?.complexe; }
-
   /** Page par page (PostgREST plafonne à 1000 lignes). */
   async function list() {
     const PAGE = 1000;
@@ -243,7 +240,7 @@
 
   /**
    * Payload admin :
-   * { statut, hospitalier, complexe, fiche_validee?,
+   * { statut, fiche_validee?,
    *   singular: { [code]: { valeur?, id?, scope? } },
    *   multi: { [code]: [{ valeur?, id?, scope? }] } }
    * Si la DCI est déjà portée par une autre fiche active → fusion vers cette fiche.
@@ -256,8 +253,6 @@
       updated_by: user?.id || null,
       fiche_validee: payload.fiche_validee === true,
     };
-    if (Object.prototype.hasOwnProperty.call(payload, 'hospitalier')) row.hospitalier = !!payload.hospitalier;
-    if (Object.prototype.hasOwnProperty.call(payload, 'complexe')) row.complexe = !!payload.complexe;
 
     for (const c of singularChamps()) {
       row[c.fk] = await resolveSingular(payload.singular?.[c.code], c.table);
@@ -380,7 +375,5 @@
     labelsOf,
     formatLabels,
     labelFrom,
-    isHospitaliere,
-    isComplexe,
   };
 })(window);

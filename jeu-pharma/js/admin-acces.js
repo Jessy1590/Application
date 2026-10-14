@@ -2,7 +2,8 @@
  * Admin Accès parcours — demandes en attente, accès accordés/refusés et avancement par personne.
  * Données (lecture admin via RLS, clé anon) : inscriptions_parcours, parcours_apprentissage, modules_cours,
  * progression_modules, modeles_jeu, tentatives_jeu ; noms via portail.profiles.
- * Actions : RPC v2_traiter_demande_parcours (accepte | refuse) — security definer, réservé admin portail.
+ * Actions : RPC v2_traiter_demande_parcours (accepte | refuse, ★1–5 si accepte),
+ * v2_maj_niveau_parcours — security definer, réservé admin portail.
  *
  * Avancement = jeux terminés (distincts) / jeux actifs du parcours ; leçons = progression_modules.statut = 'termine'
  * sur les leçons publiées (feuilles). Les deux sont affichés : la table de progression des leçons n'est alimentée
@@ -28,6 +29,20 @@
     expanded: new Set(),
     truncated: false,
   };
+
+  function starsLabel(n) {
+    const v = Math.max(1, Math.min(5, Number(n) || 1));
+    return '★'.repeat(v) + '☆'.repeat(5 - v) + ' ' + v;
+  }
+
+  function starsSelectHtml(name, selected) {
+    const cur = Number(selected) || 1;
+    let opts = '';
+    for (let i = 1; i <= 5; i += 1) {
+      opts += '<option value="' + i + '"' + (i === cur ? ' selected' : '') + '>' + starsLabel(i) + '</option>';
+    }
+    return '<select class="jp-acc-stars-select" name="' + esc(name) + '" aria-label="Niveau d’accès">' + opts + '</select>';
+  }
 
   async function fetchAll(build, max) {
     const out = [];
@@ -59,7 +74,7 @@
   async function loadAll() {
     const [inscr, parcours, modules, modeles] = await Promise.all([
       fetchAll(() => sb().from('inscriptions_parcours')
-        .select('id, user_id, parcours_id, statut, actif, demande_at, traite_at, debut_at')
+        .select('id, user_id, parcours_id, statut, actif, niveau_parcours, demande_at, traite_at, debut_at')
         .order('demande_at', { ascending: false, nullsFirst: false }), 5000),
       sb().from('parcours_apprentissage').select('id, code, libelle, actif'),
       sb().from('modules_cours').select('id, parcours_id, titre, est_groupe, publie, ordre'),
@@ -212,23 +227,26 @@
 
     if (state.tab === 'accepte') {
       host.innerHTML = '<div class="jp-table-wrap"><table class="jp-table jp-acc-table"><thead><tr>'
-        + '<th>Joueur</th><th>Parcours</th><th>Avancement</th><th>Moyenne</th><th>Dernière activité</th><th>Accès depuis</th><th></th>'
+        + '<th>Joueur</th><th>Parcours</th><th>Niveau</th><th>Avancement</th><th>Moyenne</th><th>Dernière activité</th><th>Accès depuis</th><th></th>'
         + '</tr></thead><tbody>'
         + rows.map((r) => {
           const pr = progressOf(r.user_id, r.parcours_id);
           const open = state.expanded.has(r.id);
+          const niv = r.niveau_parcours || 1;
           return '<tr><td><strong>' + esc(nameOf(r.user_id)) + '</strong>'
             + (emailOf(r.user_id) ? '<br><span class="jp-muted">' + esc(emailOf(r.user_id)) + '</span>' : '') + '</td>'
             + '<td>' + esc(parcoursLabel(r.parcours_id)) + '</td>'
+            + '<td><span class="jp-acc-stars" title="Niveau d’accès">' + esc(starsLabel(niv)) + '</span></td>'
             + '<td>' + progressCell(pr) + '</td>'
             + '<td>' + (pr.avg == null ? '—' : '<span class="jp-acc-score is-' + tone(pr.avg) + '">' + Math.round(pr.avg) + ' %</span>') + '</td>'
             + '<td>' + esc(pr.last ? fmtDate(new Date(pr.last).toISOString()) : '—') + '</td>'
             + '<td>' + esc(fmtDate(r.traite_at || r.debut_at)) + '</td>'
             + '<td><div class="jp-jx-actions">'
+            + '<button type="button" class="jp-btn jp-btn-ghost" data-act="niveau" data-id="' + esc(r.id) + '" data-niveau="' + niv + '">Modifier ★</button>'
             + '<button type="button" class="jp-btn jp-btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + (open ? 'Masquer' : 'Détail') + '</button>'
             + '<button type="button" class="jp-btn jp-btn-ghost" data-act="revoke" data-id="' + esc(r.id) + '">Retirer l’accès</button>'
             + '</div></td></tr>'
-            + (open ? detailRow(r, pr, 7) : '');
+            + (open ? detailRow(r, pr, 8) : '');
         }).join('') + '</tbody></table></div>'
         + (state.truncated ? '<p class="jp-muted">Scores calculés sur les ' + MAX_TENTATIVES + ' tentatives les plus récentes.</p>' : '');
       return;
@@ -242,9 +260,10 @@
         + '<td>' + esc(parcoursLabel(r.parcours_id)) + '</td>'
         + '<td>' + esc(fmtDate(state.tab === 'demande' ? r.demande_at : (r.traite_at || r.demande_at))) + '</td>'
         + '<td><div class="jp-jx-actions">'
-        + '<button type="button" class="jp-btn jp-btn-primary" data-act="accept" data-id="' + esc(r.id) + '">Accorder</button>'
         + (state.tab === 'demande'
-          ? '<button type="button" class="jp-btn jp-btn-ghost" data-act="refuse" data-id="' + esc(r.id) + '">Refuser</button>' : '')
+          ? '<button type="button" class="jp-btn jp-btn-primary" data-act="accept" data-id="' + esc(r.id) + '">Accorder</button>'
+            + '<button type="button" class="jp-btn jp-btn-ghost" data-act="refuse" data-id="' + esc(r.id) + '">Refuser</button>'
+          : '<button type="button" class="jp-btn jp-btn-primary" data-act="accept" data-id="' + esc(r.id) + '">Réaccorder</button>')
         + '</div></td></tr>').join('') + '</tbody></table></div>';
   }
 
@@ -255,14 +274,58 @@
 
   /* ------------------------------ actions ------------------------------ */
 
-  async function traiter(id, statut, okMsg) {
-    const { error } = await sb().rpc('v2_traiter_demande_parcours', { p_id: id, p_statut: statut });
+  async function traiter(id, statut, niveau, okMsg) {
+    const payload = { p_id: id, p_statut: statut };
+    if (statut === 'accepte') payload.p_niveau_parcours = Number(niveau) || 1;
+    const { error } = await sb().rpc('v2_traiter_demande_parcours', payload);
     if (error) throw error;
     const r = state.inscr.find((x) => x.id === id);
-    if (r) { r.statut = statut; r.actif = statut === 'accepte'; r.traite_at = new Date().toISOString(); }
-    void global.JpLogs?.action?.('v2_acces_parcours_' + statut, { id });
+    if (r) {
+      r.statut = statut;
+      r.actif = statut === 'accepte';
+      r.traite_at = new Date().toISOString();
+      if (statut === 'accepte') r.niveau_parcours = Number(niveau) || 1;
+    }
+    void global.JpLogs?.action?.('v2_acces_parcours_' + statut, { id, niveau_parcours: niveau });
     global.JpToast.ok(okMsg);
-    if (statut === 'accepte') await loadAll(); // recharge tentatives pour le nouvel inscrit
+    if (statut === 'accepte') await loadAll();
+    render();
+  }
+
+  function askNiveau(title, bodyLines, current, onOk) {
+    const wrap = document.createElement('div');
+    (bodyLines || []).forEach((t) => {
+      const p = document.createElement('p');
+      p.textContent = t;
+      wrap.appendChild(p);
+    });
+    const label = document.createElement('label');
+    label.className = 'jp-field';
+    label.style.display = 'block';
+    label.style.marginTop = '0.75rem';
+    label.innerHTML = '<span>Niveau d’accès</span><br>' + starsSelectHtml('niveau', current);
+    wrap.appendChild(label);
+    const sel = label.querySelector('select');
+    global.JpModal.open({
+      title,
+      body: wrap,
+      confirmLabel: 'Valider',
+      onConfirm: async () => {
+        await onOk(sel ? Number(sel.value) : current);
+      },
+    });
+  }
+
+  async function majNiveau(id, niveau) {
+    const { error } = await sb().rpc('v2_maj_niveau_parcours', {
+      p_inscription_id: id,
+      p_niveau: Number(niveau) || 1,
+    });
+    if (error) throw error;
+    const r = state.inscr.find((x) => x.id === id);
+    if (r) r.niveau_parcours = Number(niveau) || 1;
+    void global.JpLogs?.action?.('v2_maj_niveau_parcours', { id, niveau_parcours: niveau });
+    global.JpToast.ok('Niveau mis à jour');
     render();
   }
 
@@ -278,9 +341,31 @@
       if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
       render();
     } else if (act === 'accept') {
-      void traiter(id, 'accepte', 'Accès accordé').catch((err) => global.JpToast.fromError(err));
+      const r = state.inscr.find((x) => x.id === id);
+      askNiveau(
+        'Accorder l’accès',
+        [(r ? nameOf(r.user_id) : 'Cette personne') + ' — « ' + (r ? parcoursLabel(r.parcours_id) : '') + ' ». '
+          + 'Choisissez le niveau d’étoiles (contenu visible selon les plages min–max).'],
+        r?.niveau_parcours || 1,
+        async (n) => {
+          try { await traiter(id, 'accepte', n, 'Accès accordé (★' + n + ')'); }
+          catch (err) { global.JpToast.fromError(err); }
+        }
+      );
+    } else if (act === 'niveau') {
+      const r = state.inscr.find((x) => x.id === id);
+      const cur = Number(el.getAttribute('data-niveau')) || r?.niveau_parcours || 1;
+      askNiveau(
+        'Modifier le niveau',
+        ['Nouveau niveau pour ' + (r ? nameOf(r.user_id) : 'ce joueur') + ' sur « '
+          + (r ? parcoursLabel(r.parcours_id) : '') + ' ».'],
+        cur,
+        async (n) => {
+          try { await majNiveau(id, n); } catch (err) { global.JpToast.fromError(err); }
+        }
+      );
     } else if (act === 'refuse') {
-      void traiter(id, 'refuse', 'Demande refusée').catch((err) => global.JpToast.fromError(err));
+      void traiter(id, 'refuse', null, 'Demande refusée').catch((err) => global.JpToast.fromError(err));
     } else if (act === 'revoke') {
       const r = state.inscr.find((x) => x.id === id);
       global.JpModal.open({
@@ -289,7 +374,7 @@
           + 'Ses scores sont conservés ; vous pourrez lui redonner l’accès.'],
         confirmLabel: 'Retirer l’accès',
         onConfirm: async () => {
-          try { await traiter(id, 'refuse', 'Accès retiré'); } catch (err) { global.JpToast.fromError(err); }
+          try { await traiter(id, 'refuse', null, 'Accès retiré'); } catch (err) { global.JpToast.fromError(err); }
         },
       });
     }
@@ -305,7 +390,6 @@
       global.JpToast.fromError(e);
       return;
     }
-    // Onglet par défaut : demandes s'il y en a, sinon accès accordés
     if (!counts().demande && counts().accepte) state.tab = 'accepte';
     const search = $('accSearch');
     let t = null;

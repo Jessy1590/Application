@@ -1,22 +1,9 @@
 /**
- * Référentiels UI Jeu Pharma (niveaux + codes de champs quiz).
+ * Référentiels UI Jeu Pharma (codes de champs quiz).
  * `actif: false` = legacy (gardé en base, masqué UI / CSV / quiz / trous).
+ * Niveau d’accès parcours = étoiles 1–5 sur l’inscription (pas de profil métier).
  */
 (function (global) {
-  const NIVEAUX = [
-    { code: 'apprenti', libelle: 'Apprenti' },
-    { code: 'pharmacien', libelle: 'Pharmacien' },
-    { code: 'preparatrice', libelle: 'Préparatrice' },
-    { code: 'etu_3a', libelle: 'Étudiant pharma 3A' },
-    { code: 'etu_4a', libelle: 'Étudiant pharma 4A' },
-    { code: 'etu_6a', libelle: 'Étudiant pharma 6A' },
-  ];
-
-  /** Niveaux pédagogiques proposés dans l’UI. */
-  function niveauxStandards() {
-    return NIVEAUX.map((n) => n.code);
-  }
-
   /** Codes champ pour configuration quiz / affichage fiches */
   const CHAMP_CODES = [
     { code: 'nom_commercial', libelle: 'Noms commerciaux', table: 'noms_commerciaux', card: 'N', liaison: 'matrice_noms_commerciaux', liaisonFk: 'nom_commercial_id', actif: true },
@@ -65,8 +52,6 @@
   ];
 
   global.JpConstants = {
-    NIVEAUX,
-    niveauxStandards,
     CHAMP_CODES,
     champsActifs,
     isChampActif,

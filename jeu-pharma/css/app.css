@@ -424,21 +424,6 @@ body > a[title="Retour au portail"] {
   width: auto;
 }
 
-.jp-niveaux {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.85rem;
-}
-
-.jp-niveaux label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--jp-text);
-  cursor: pointer;
-}
 
 .jp-field-actions {
   display: flex;
@@ -1190,16 +1175,6 @@ body > a[title="Retour au portail"] {
   width: auto;
   margin: 0;
   accent-color: var(--jp-accent);
-}
-
-.jp-badge-hospitalier {
-  background: #e8eef5;
-  color: #3a5a7a;
-}
-
-.jp-badge-complexe {
-  background: var(--jp-accent-soft);
-  color: var(--jp-accent);
 }
 
 .jp-badge-validee {
