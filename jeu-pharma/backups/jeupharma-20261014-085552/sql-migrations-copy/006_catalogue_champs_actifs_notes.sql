@@ -1,0 +1,22 @@
+-- 006_catalogue_champs_actifs_notes.sql
+-- Notes catalogue (pas de DDL destructif).
+--
+-- Champs pédagogiques ACTIFS (UI / CSV / quiz / trous) :
+--   noms_commerciaux, dcis, secteurs_therapeutiques, classes_therapeutiques,
+--   classes_pharmacologiques, details_pharmacologie, indications,
+--   contre_indications, effets_indesirables, precautions_emploi,
+--   interactions, surveillances
+--   + matrice.statut, matrice.hospitalier, niveaux_connus
+--
+-- Champs LEGACY (tables + colonnes / jonctions CONSERVÉES en base) :
+--   posologies_generales / matrice_medicaments.posologie_generale_id
+--   grossesse_allaitement / matrice_medicaments.grossesse_allaitement_id
+--   voies_administration / matrice_voies_administration
+--
+-- Ne PAS dropper ces objets. Les fiches existantes gardent leurs données ;
+-- elles ne sont plus éditables dans l’UI catalogue.
+--
+-- Sélection entités : le client envoie les ids (picker chips) ;
+-- findOrCreate par texte reste pour import CSV.
+-- Filtre admin « Lié à » : jonction / FK via v_medicaments_complet.
+;

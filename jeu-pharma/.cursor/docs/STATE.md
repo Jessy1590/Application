@@ -1,6 +1,11 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
+Dernière mise à jour : 2026-10-14 — **Purge V1** : `legacy-v1/` + pages Sources/Import RCP/CSV + JS morts retirés ; `037` drop tables/RPC quiz-trous V1 ; backup manuel `backups/jeupharma-20261014-085552/`.
+
+## Purge legacy V1 (2026-10-14)
+- **Fichiers** : dossier `legacy-v1/` supprimé ; `admin/sources.html`, `import-rcp.html`, `import-export.html`, `js/import-rcp.js`, `js/admin.js`, `js/profil.js` supprimés.
+- **Backup** : `jeu-pharma/backups/jeupharma-20261014-085552/` (fonctions, colonnes, core pédagogique, pubs DEUST, matrices, copie `sql/*`). Docker absent → pas de `pg_dump` CLI.
+- **Remote `037_drop_legacy_v1_jeux`** : drop `quizz`, `quizz_reponses_utilisateur`, `parties_tableau_trous`, `parties_reponses_utilisateur` + RPC `soumettre_quiz` / `generer_et_geler_quiz` / `ouvrir_quiz` / `v2_backfill_connaissances_from_v1`. Conservés : `modeles_jeu`, `tentatives_jeu`, `scores_fiche_aleatoire`.
 
 ## Seed CardioVasculaires - Deust 2A (031 — appliquée remote, 2026-10-11)
 - `sql/031_seed_cardiovasculaires_deust_2a.sql` : **supprime** `deust_apprenti`, `etu_3a`, `introduction` (+ modules, blocs, pubs, progression, inscriptions, 5 `modeles_jeu` JP-INT* / JP-QST9U + tentatives) ; **garde** `pharmacien`. Plus aucune inscription ni jeu en base.

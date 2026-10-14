@@ -31,8 +31,10 @@ App pédagogique par **parcours thématiques**. Auth portail (`SITE_ID`), schém
 | `admin/referentiel.html` | **Référentiel** : toutes les fiches (recherche, filtres, édition, BDPM, validation) — remplace Catalogue / Référentiel / Sources / Import RCP |
 | `admin/jeux.html` | Scores (jeu / parcours / personne) + pause, relance, archivage des jeux |
 
-`catalogue.html` / `fiche.html?id=` (admin) redirigent vers le Référentiel. `sources.html`, `import-rcp.html`, `import-export.html` restent dans le dépôt mais ne sont plus liés (ajout en masse prévu par IA / DB).
+`admin/catalogue.html` / `admin/fiche.html?id=` redirigent vers le Référentiel.
+
+Le dossier `legacy-v1/` a été **supprimé**. Sources / Import RCP / CSV admin ne font plus partie de l’app.
 
 ## SQL
 
-`sql/019` … `027` (studio blocs + accès demande/accepte). `018` non appliqué sans décision explicite.
+`sql/019` … `037` (parcours V2, Cardio DEUST, purge jeux V1). `018` non appliqué sans décision explicite. Backups manuels : `backups/jeupharma-*`.

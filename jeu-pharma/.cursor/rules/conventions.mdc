@@ -21,7 +21,7 @@ alwaysApply: false
 ## Structure
 - Tout le code app sous `jeu-pharma/` — **isolation** : ne pas importer `PhieEvreux/shared/*`.
 - Pages : hub `index.html` ; `catalogue.html` ; `quiz/` ; `trous/` ; `admin/`.
-- JS : `supabase.js`, `constants.js`, métier (`medicaments`, `entites`, `quizz`, `trous`, `profil`), `logs.js`, `bugs.js`, `fab.js`, `csv.js`, `charts-admin.js`, `print.js`, `toast.js`, `ui.js`.
+- JS : `supabase.js`, `constants.js`, métier (`medicaments`, `entites`, `resolver`, studio/*, `jeux-play`, `ordonnances`), `logs.js`, `bugs.js`, `fab.js`, `toast.js`, `ui.js`, `typeahead.js`.
 - CSS : `tokens.css`, `app.css`, `print.css`.
 - SQL : `sql/001_jeupharma_init.sql`.
 
