@@ -223,8 +223,11 @@
         .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
       const sampleInd = list.filter((r) => r.champ_code === 'indications').slice(0, 2)
         .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
-      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'257be1'},body:JSON.stringify({sessionId:'257be1',runId:'pre',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0},timestamp:Date.now()})}).catch(()=>{});
+      const __dbgPayload = {sessionId:'257be1',runId:'pre2',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0},timestamp:Date.now()};
+      try { global.__JP_DBG_MOL = __dbgPayload; console.info('[jp-dbg-mol]', __dbgPayload); } catch (_) { /* ignore */ }
+      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'257be1'},body:JSON.stringify(__dbgPayload)}).catch(()=>{});
       // #endregion
+
       const dci = list.find((r) => r.champ_code === 'dci')?.texte;
       const niceLabel = dci || label || matriceId;
       selected.set(matriceId, { id: matriceId, label: niceLabel, rows: list });
