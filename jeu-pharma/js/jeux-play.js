@@ -359,9 +359,12 @@
     if (items.length < 2 || zones.length < 2) {
       throw new Error('Configuration classement incomplète');
     }
-    const correctZone = {};
+    const correctZones = {};
     zones.forEach(function (z) {
-      (z.item_ids || []).forEach(function (id) { correctZone[id] = z.id; });
+      (z.item_ids || []).forEach(function (id) {
+        if (!correctZones[id]) correctZones[id] = [];
+        if (correctZones[id].indexOf(z.id) < 0) correctZones[id].push(z.id);
+      });
     });
     const placement = {}; // itemId -> zoneId | null
     items.forEach(function (it) { placement[it.id] = null; });
@@ -372,10 +375,13 @@
       if (done) {
         let ok = 0;
         const details = items.map(function (it) {
-          const good = placement[it.id] === correctZone[it.id];
+          const allowed = correctZones[it.id] || [];
+          const good = allowed.indexOf(placement[it.id]) >= 0;
           if (good) ok += 1;
           const zoneLab = (zones.find(function (z) { return z.id === placement[it.id]; }) || {}).label || '—';
-          const expect = (zones.find(function (z) { return z.id === correctZone[it.id]; }) || {}).label || '—';
+          const expect = allowed.map(function (zid) {
+            return (zones.find(function (z) { return z.id === zid; }) || {}).label || '—';
+          }).join(' / ') || '—';
           return { id: it.id, label: it.label, ok: good, zone: zoneLab, expect: expect };
         });
         root.innerHTML = '<div id="jpScoreHost"></div>'

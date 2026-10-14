@@ -1,10 +1,10 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Appariement / classement UX** : auto-proposition référentiel + traits colorés joueur. Cache-bust `?v=044` (wizard, play, v2, studio).
+Dernière mise à jour : 2026-10-14 — **Proposer associations** à côté de la recherche référentiel. Cache-bust `?v=045`.
 
 ## Appariement / classement — auto-liaison + traits (2026-10-14)
-- Wizard : bouton **Proposer les associations** (+ auto discret à l’ajout référentiel) — remplit `paires[]` / `zones[].item_ids` via liaisons matrice (`matrice_classes_*`, `matrice_indications`, …). Ne touche que les items non assignés ; confirmation si tout est déjà lié. Zones classement persistent `source` / `entite` / `entite_id`.
-- Player appariement : ronds (handles) + overlay SVG (courbes), une couleur par paire ; clic gauche→droite inchangé ; redraw resize.
+- Wizard : bouton **Proposer associations** à côté de « Recherche référentiel » (zones classement / colonne droite). Ajoute les équivalences des molécules à gauche pour le type choisi ; si plusieurs → modale (**1** choix appariement, **multi** classement). Classement : plusieurs zones correctes possibles par item.
+- Player appariement : ronds + traits SVG colorés ; classement accepte toute zone listée dans `item_ids`.
 
 ## Jeux classement, appariement, quiz mixte, édition (039 — appliquée remote, 2026-10-14)
 - `sql/039_jeux_classement_appariement_edit.sql` : CHECK `type_jeu` + `classement` / `appariement` ; RPC admin **`v2_update_modele_jeu`** (titre, mode, `module_ids`, `configuration_json` — pas `type_jeu` / `code_unique` / `parcours_id`).

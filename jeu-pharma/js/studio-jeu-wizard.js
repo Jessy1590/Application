@@ -111,34 +111,73 @@
     return out;
   }
 
-  /**
-   * Relation référentiel entre deux items hybrides (matrice ↔ entité).
-   * @returns {number} rang (0 = meilleur / premier ordre), ou -1 si pas de lien.
-   */
-  function relationRank(linksByMatrice, a, b) {
-    if (!isRefItem(a) || !isRefItem(b)) return -1;
-    if (a.entite === 'matrice' && b.entite !== 'matrice') {
-      const list = (linksByMatrice[String(a.entite_id)] || {})[b.entite] || [];
-      return list.indexOf(String(b.entite_id));
-    }
-    if (b.entite === 'matrice' && a.entite !== 'matrice') {
-      const list = (linksByMatrice[String(b.entite_id)] || {})[a.entite] || [];
-      return list.indexOf(String(a.entite_id));
-    }
-    return -1;
+  /** Libellés d’entités par ids (table référentiel). */
+  async function loadEntiteLabels(table, ids) {
+    const uniq = Array.from(new Set((ids || []).filter(Boolean).map(String)));
+    const map = {};
+    if (!uniq.length || !ENTITE_LIAISON[table]) return map;
+    const { data, error } = await sb()
+      .from(table)
+      .select('id, valeur')
+      .in('id', uniq);
+    if (error) throw error;
+    (data || []).forEach((r) => {
+      map[String(r.id)] = r.valeur || String(r.id);
+    });
+    return map;
   }
 
   /**
-   * Choisit la cible la plus évidente parmi des candidats scorés (rang fiche).
-   * Ambigu si plusieurs candidats partagent le même meilleur rang → null.
+   * Modale de choix d’équivalences pour une molécule.
+   * @param {{ multiple: boolean, title?: string, moleculeLabel: string, candidates: {id,label}[] }} opts
+   * @returns {Promise<string[]|null>} ids choisis, ou null si annulé
    */
-  function pickBestCandidate(scored) {
-    if (!scored.length) return null;
-    scored.sort((x, y) => x.rank - y.rank);
-    const best = scored[0].rank;
-    const ties = scored.filter((s) => s.rank === best);
-    if (ties.length !== 1) return null;
-    return ties[0].target;
+  function pickEquivalentsModal(parentEl, opts) {
+    const multiple = !!opts.multiple;
+    const candidates = opts.candidates || [];
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'jp-jeu-pick-overlay';
+      modal.innerHTML = '<div class="jp-jeu-pick-sheet" role="dialog" aria-modal="true">'
+        + '<h3 class="jp-quiz-admin-panel-title" style="margin-top:0">Équivalences</h3>'
+        + '<p class="jp-muted">' + esc(opts.moleculeLabel || 'Molécule')
+        + ' — plusieurs valeurs liées. '
+        + (multiple ? 'Cochez une ou plusieurs cibles.' : 'Choisissez une seule cible.')
+        + '</p>'
+        + '<div class="jp-jeu-pick-list">'
+        + candidates.map((c, i) => {
+          const inp = multiple
+            ? '<input type="checkbox" name="jwEq" value="' + esc(c.id) + '"' + (i === 0 ? ' checked' : '') + '>'
+            : '<input type="radio" name="jwEq" value="' + esc(c.id) + '"' + (i === 0 ? ' checked' : '') + '>';
+          return '<label class="jp-jeu-pick-opt">' + inp + ' <span>' + esc(c.label) + '</span></label>';
+        }).join('')
+        + '</div>'
+        + '<div class="jp-jeu-pick-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-pick-cancel>Annuler</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" data-pick-ok>Valider</button>'
+        + '</div></div>';
+      (parentEl || document.body).appendChild(modal);
+      function done(val) {
+        modal.remove();
+        resolve(val);
+      }
+      modal.querySelector('[data-pick-cancel]').addEventListener('click', () => done(null));
+      modal.addEventListener('click', (e) => { if (e.target === modal) done(null); });
+      modal.querySelector('[data-pick-ok]').addEventListener('click', () => {
+        const checked = Array.from(modal.querySelectorAll('input[name="jwEq"]:checked'))
+          .map((el) => el.value)
+          .filter(Boolean);
+        if (!checked.length) {
+          global.JpToast?.warn?.(multiple ? 'Sélectionnez au moins une valeur' : 'Sélectionnez une valeur');
+          return;
+        }
+        if (!multiple && checked.length > 1) {
+          done([checked[0]]);
+          return;
+        }
+        done(checked);
+      });
+    });
   }
 
   /**
@@ -321,10 +360,6 @@
       + '<div id="jwClassItems" class="jp-jeu-list"></div>'
       + '<div class="jp-jeu-hybrid-add" id="jwClassZoneAdd" style="margin-top:1rem"></div>'
       + '<div id="jwClassZones" class="jp-jeu-list"></div>'
-      + '<div class="jp-jeu-propose-bar">'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="jwClassPropose">Proposer les associations</button>'
-      + '<small class="jp-field-hint">À partir des relations référentiel (matrice ↔ classes / indications…)</small>'
-      + '</div>'
       + '<div id="jwClassAssign" class="jp-jeu-assign" style="margin-top:1rem"></div>'
       + '</section>'
       + '<section class="jp-quiz-admin-panel" id="jwAppariement" hidden>'
@@ -339,10 +374,6 @@
       + '<div><h4 class="jp-quiz-admin-panel-title" style="font-size:0.95rem">Colonne droite</h4>'
       + '<div class="jp-jeu-hybrid-add" id="jwAppDroiteAdd"></div>'
       + '<div id="jwAppDroite" class="jp-jeu-list"></div></div>'
-      + '</div>'
-      + '<div class="jp-jeu-propose-bar">'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="jwAppPropose">Proposer les associations</button>'
-      + '<small class="jp-field-hint">À partir des relations référentiel (matrice ↔ classes / indications…)</small>'
       + '</div>'
       + '<div id="jwAppPaires" class="jp-jeu-assign" style="margin-top:1rem"></div>'
       + '</section>'
@@ -531,26 +562,48 @@
 
     /* ——— Hybrid add bar (typeahead + texte libre) ——— */
     function mountHybridAdd(host, optsAdd) {
+      const canPropose = !!optsAdd.proposeFromLeft;
       host.innerHTML = '<div class="jp-split jp-split-2">'
         + '<div class="jp-field"><label>' + esc(optsAdd.labelTitle || 'Libellé') + '</label>'
         + '<input class="jw-hyb-label" placeholder="Texte libre ou préremplir via recherche…"></div>'
         + '<div class="jp-field"><label>Source</label>'
         + '<select class="jw-hyb-src">' + HYBRID_SOURCES.map((s) =>
           '<option value="' + s.value + '">' + esc(s.label) + '</option>').join('') + '</select></div></div>'
-        + '<div class="jp-field jw-hyb-ta-wrap" hidden><label>Recherche référentiel</label><div class="jw-hyb-ta"></div></div>'
+        + '<div class="jp-field jw-hyb-ta-wrap" hidden>'
+        + '<div class="jw-hyb-ta-row">'
+        + '<div class="jw-hyb-ta-main"><label>Recherche référentiel</label><div class="jw-hyb-ta"></div></div>'
+        + (canPropose
+          ? '<button type="button" class="jp-btn jp-btn-ghost jw-hyb-propose" hidden title="Ajouter les équivalences des molécules à gauche">'
+            + 'Proposer associations</button>'
+          : '')
+        + '</div>'
+        + (canPropose
+          ? '<small class="jp-field-hint jw-hyb-propose-hint" hidden>Ajoute à droite les équivalences des molécules (gauche) pour ce type de référentiel.</small>'
+          : '')
+        + '</div>'
         + '<button type="button" class="jp-btn jp-btn-ghost jw-hyb-add">' + esc(optsAdd.button || 'Ajouter') + '</button>';
 
       const srcSel = host.querySelector('.jw-hyb-src');
       const taWrap = host.querySelector('.jw-hyb-ta-wrap');
       const taHost = host.querySelector('.jw-hyb-ta');
       const labelInp = host.querySelector('.jw-hyb-label');
+      const proposeBtn = host.querySelector('.jw-hyb-propose');
+      const proposeHint = host.querySelector('.jw-hyb-propose-hint');
       let combo = null;
+
+      function syncProposeVisibility() {
+        const src = srcSel.value;
+        const show = canPropose && !!ENTITE_LIAISON[src];
+        if (proposeBtn) proposeBtn.hidden = !show;
+        if (proposeHint) proposeHint.hidden = !show;
+      }
 
       function remountTa() {
         const src = srcSel.value;
         taWrap.hidden = src === 'manuel';
         taHost.innerHTML = '';
         combo = null;
+        syncProposeVisibility();
         const search = hybridSearch(src);
         if (!search) return;
         combo = TA.combo(taHost, {
@@ -577,61 +630,126 @@
         labelInp.value = '';
         if (combo && combo.clear) combo.clear(true);
       });
-    }
 
-    function classAssignedItemIds() {
-      const assigned = new Set();
-      classZones.forEach((z) => (z.item_ids || []).forEach((id) => assigned.add(id)));
-      return assigned;
-    }
-
-    function collectMatriceIdsFromPairs(aList, bList) {
-      const ids = [];
-      [...aList, ...bList].forEach((it) => {
-        if (isRefItem(it) && it.entite === 'matrice') ids.push(it.entite_id);
-      });
-      return ids;
-    }
-
-    async function proposeClassement(optsProp) {
-      const onlyUnassigned = !optsProp || optsProp.onlyUnassigned !== false;
-      const silent = !!(optsProp && optsProp.silent);
-      if (!classItems.length || !classZones.length) {
-        if (!silent) global.JpToast?.warn?.('Ajoutez des items et des zones');
-        return 0;
-      }
-      const assigned = classAssignedItemIds();
-      const pending = classItems.filter((it) => {
-        if (!isRefItem(it)) return false;
-        return onlyUnassigned ? !assigned.has(it.id) : true;
-      });
-      const refZones = classZones.filter(isRefItem);
-      if (!pending.length || !refZones.length) {
-        if (!silent) global.JpToast?.warn?.('Aucun couple référentiel à proposer');
-        return 0;
-      }
-      const links = await loadMatriceEntityLinks(collectMatriceIdsFromPairs(pending, refZones));
-      let n = 0;
-      pending.forEach((it) => {
-        const scored = [];
-        refZones.forEach((z) => {
-          const rank = relationRank(links, it, z);
-          if (rank >= 0) scored.push({ target: z, rank });
+      if (proposeBtn && optsAdd.proposeFromLeft) {
+        proposeBtn.addEventListener('click', async () => {
+          try {
+            await optsAdd.proposeFromLeft(srcSel.value);
+          } catch (e) {
+            global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
+          }
         });
-        const best = pickBestCandidate(scored);
-        if (!best) return;
-        classZones.forEach((z) => {
-          z.item_ids = (z.item_ids || []).filter((x) => x !== it.id);
-        });
-        best.item_ids.push(it.id);
-        n += 1;
-      });
-      renderClassAssign();
-      if (!silent) {
-        if (n) global.JpToast?.ok?.(n + ' association' + (n > 1 ? 's' : '') + ' proposée' + (n > 1 ? 's' : ''));
-        else global.JpToast?.warn?.('Aucune association claire trouvée');
       }
-      return n;
+    }
+
+    function leftMatrices(list) {
+      return (list || []).filter((it) => isRefItem(it) && it.entite === 'matrice');
+    }
+
+    function ensureRightEntite(list, idPrefix, entiteTable, entiteId, label, extra) {
+      const eid = String(entiteId);
+      const found = list.find((x) => isRefItem(x) && x.entite === entiteTable && String(x.entite_id) === eid);
+      if (found) {
+        if (extra && extra.item_ids && !Array.isArray(found.item_ids)) found.item_ids = [];
+        return { item: found, created: false };
+      }
+      const item = Object.assign({
+        id: uid(idPrefix),
+        label: label || eid,
+        source: entiteTable,
+        entite: entiteTable,
+        entite_id: eid,
+      }, extra || {});
+      list.push(item);
+      return { item, created: true };
+    }
+
+    /**
+     * Pour chaque molécule à gauche : charge les équivalences du type référentiel choisi,
+     * demande un choix si plusieurs (1 = appariement, N = classement), ajoute à droite + lie.
+     */
+    async function proposeEquivalentsFromLeft(entiteTable, mode) {
+      if (!ENTITE_LIAISON[entiteTable]) {
+        global.JpToast?.warn?.('Choisissez un type référentiel (classe, indication…)');
+        return;
+      }
+      const molecules = leftMatrices(mode === 'classement' ? classItems : appGauche);
+      if (!molecules.length) {
+        global.JpToast?.warn?.('Ajoutez d’abord des molécules (référentiel) à gauche');
+        return;
+      }
+      const links = await loadMatriceEntityLinks(molecules.map((m) => m.entite_id));
+      const allEntityIds = [];
+      molecules.forEach((m) => {
+        ((links[String(m.entite_id)] || {})[entiteTable] || []).forEach((id) => allEntityIds.push(id));
+      });
+      const labels = await loadEntiteLabels(entiteTable, allEntityIds);
+      let added = 0;
+      let linked = 0;
+
+      for (const mol of molecules) {
+        const candidates = ((links[String(mol.entite_id)] || {})[entiteTable] || []).map((id) => ({
+          id: String(id),
+          label: labels[String(id)] || String(id),
+        }));
+        if (!candidates.length) continue;
+
+        let chosenIds;
+        if (candidates.length === 1) {
+          chosenIds = [candidates[0].id];
+        } else {
+          chosenIds = await pickEquivalentsModal(overlay, {
+            multiple: mode === 'classement',
+            moleculeLabel: mol.label,
+            candidates,
+          });
+          if (!chosenIds) continue;
+          if (mode === 'appariement') chosenIds = chosenIds.slice(0, 1);
+        }
+
+        if (mode === 'classement') {
+          classZones.forEach((z) => {
+            z.item_ids = (z.item_ids || []).filter((x) => x !== mol.id);
+          });
+          chosenIds.forEach((eid) => {
+            const { item: zone, created } = ensureRightEntite(
+              classZones, 'z', entiteTable, eid, labels[eid], { item_ids: [] }
+            );
+            if (created) added += 1;
+            if (!Array.isArray(zone.item_ids)) zone.item_ids = [];
+            if (zone.item_ids.indexOf(mol.id) < 0) zone.item_ids.push(mol.id);
+          });
+          linked += 1;
+        } else {
+          const eid = chosenIds[0];
+          const { item: right, created } = ensureRightEntite(
+            appDroite, 'd', entiteTable, eid, labels[eid]
+          );
+          if (created) added += 1;
+          Object.keys(appPaires).forEach((g) => {
+            if (g !== mol.id && appPaires[g] === right.id) delete appPaires[g];
+          });
+          appPaires[mol.id] = right.id;
+          linked += 1;
+        }
+      }
+
+      if (mode === 'classement') {
+        renderClassZones();
+        renderClassAssign();
+      } else {
+        renderAppCol('droite');
+        renderAppPaires();
+      }
+
+      if (!linked) {
+        global.JpToast?.warn?.('Aucune équivalence trouvée pour ces molécules');
+      } else {
+        global.JpToast?.ok?.(
+          linked + ' molécule' + (linked > 1 ? 's' : '') + ' associée' + (linked > 1 ? 's' : '')
+          + (added ? ' · ' + added + ' ajoutée' + (added > 1 ? 's' : '') + ' à droite' : '')
+        );
+      }
     }
 
     function renderClassItems() {
@@ -673,25 +791,31 @@
     function renderClassAssign() {
       const box = overlay.querySelector('#jwClassAssign');
       if (!classItems.length || !classZones.length) {
-        box.innerHTML = '<p class="jp-muted">Ajoutez des items et des zones, puis affectez la bonne zone à chaque item.</p>';
+        box.innerHTML = '<p class="jp-muted">Ajoutez des items et des zones, puis cochez la ou les zone(s) correcte(s).</p>';
         return;
       }
-      const zoneByItem = {};
-      classZones.forEach((z) => z.item_ids.forEach((id) => { zoneByItem[id] = z.id; }));
+      const zonesOf = {};
+      classZones.forEach((z) => (z.item_ids || []).forEach((id) => {
+        if (!zonesOf[id]) zonesOf[id] = new Set();
+        zonesOf[id].add(z.id);
+      }));
       box.innerHTML = '<h4 class="jp-quiz-admin-panel-title" style="font-size:0.95rem">Affectation correcte</h4>'
-        + classItems.map((it) => '<div class="jp-jeu-assign-row"><span>' + esc(it.label) + '</span>'
-          + '<select data-assign="' + esc(it.id) + '">'
-          + '<option value="">— zone —</option>'
-          + classZones.map((z) => '<option value="' + esc(z.id) + '"'
-            + (zoneByItem[it.id] === z.id ? ' selected' : '') + '>' + esc(z.label) + '</option>').join('')
-          + '</select></div>').join('');
-      box.querySelectorAll('[data-assign]').forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const itemId = sel.getAttribute('data-assign');
-          const zoneId = sel.value;
-          classZones.forEach((z) => {
-            z.item_ids = z.item_ids.filter((x) => x !== itemId);
-            if (z.id === zoneId) z.item_ids.push(itemId);
+        + '<p class="jp-muted jp-field-hint">Plusieurs zones possibles par item (classement).</p>'
+        + classItems.map((it) => '<div class="jp-jeu-assign-block"><span class="jp-jeu-assign-label">'
+          + esc(it.label) + '</span><div class="jp-jeu-assign-checks" data-assign-item="' + esc(it.id) + '">'
+          + classZones.map((z) => '<label class="jp-jeu-pick-opt"><input type="checkbox" value="'
+            + esc(z.id) + '"' + (zonesOf[it.id] && zonesOf[it.id].has(z.id) ? ' checked' : '')
+            + '> <span>' + esc(z.label) + '</span></label>').join('')
+          + '</div></div>').join('');
+      box.querySelectorAll('[data-assign-item]').forEach((wrap) => {
+        const itemId = wrap.getAttribute('data-assign-item');
+        wrap.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          cb.addEventListener('change', () => {
+            const zoneId = cb.value;
+            const z = classZones.find((x) => x.id === zoneId);
+            if (!z) return;
+            z.item_ids = (z.item_ids || []).filter((x) => x !== itemId);
+            if (cb.checked) z.item_ids.push(itemId);
           });
         });
       });
@@ -704,13 +828,13 @@
       onAdd: (it) => {
         classItems.push(it);
         renderClassItems();
-        if (isRefItem(it)) void proposeClassement({ onlyUnassigned: true, silent: true });
       },
     });
     mountHybridAdd(overlay.querySelector('#jwClassZoneAdd'), {
       labelTitle: 'Zone / catégorie',
       button: '+ Zone',
       idPrefix: 'z',
+      proposeFromLeft: (entiteTable) => proposeEquivalentsFromLeft(entiteTable, 'classement'),
       onAdd: (it) => {
         classZones.push({
           id: it.id,
@@ -721,81 +845,12 @@
           entite_id: it.entite_id || null,
         });
         renderClassZones();
-        if (isRefItem(it)) void proposeClassement({ onlyUnassigned: true, silent: true });
       },
-    });
-    overlay.querySelector('#jwClassPropose').addEventListener('click', async () => {
-      try {
-        const assigned = classAssignedItemIds();
-        const allAssigned = classItems.length > 0 && classItems.every((it) => assigned.has(it.id));
-        let onlyUnassigned = true;
-        if (allAssigned) {
-          const ok = global.confirm
-            ? global.confirm('Toutes les associations sont déjà définies. Les remplacer par une proposition automatique ?')
-            : false;
-          if (!ok) return;
-          onlyUnassigned = false;
-          classZones.forEach((z) => { z.item_ids = []; });
-        }
-        await proposeClassement({ onlyUnassigned, silent: false });
-      } catch (e) {
-        global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
-      }
     });
     renderClassItems();
     renderClassZones();
 
     /* ——— Appariement ——— */
-    async function proposeAppariement(optsProp) {
-      const onlyUnassigned = !optsProp || optsProp.onlyUnassigned !== false;
-      const silent = !!(optsProp && optsProp.silent);
-      if (!appGauche.length || !appDroite.length) {
-        if (!silent) global.JpToast?.warn?.('Ajoutez des éléments des deux côtés');
-        return 0;
-      }
-      const usedRight = new Set(Object.values(appPaires));
-      const pending = appGauche.filter((g) => {
-        if (!isRefItem(g)) return false;
-        return onlyUnassigned ? !appPaires[g.id] : true;
-      });
-      const refDroite = appDroite.filter(isRefItem);
-      if (!pending.length || !refDroite.length) {
-        if (!silent) global.JpToast?.warn?.('Aucun couple référentiel à proposer');
-        return 0;
-      }
-      const links = await loadMatriceEntityLinks(collectMatriceIdsFromPairs(pending, refDroite));
-      let n = 0;
-      pending.forEach((g) => {
-        const scored = [];
-        refDroite.forEach((d) => {
-          if (usedRight.has(d.id) && appPaires[g.id] !== d.id) return;
-          const rank = relationRank(links, g, d);
-          if (rank >= 0) scored.push({ target: d, rank });
-        });
-        const available = scored.filter((s) => !usedRight.has(s.target.id) || appPaires[g.id] === s.target.id);
-        const best = pickBestCandidate(available);
-        if (!best) return;
-        if (appPaires[g.id] && usedRight.has(appPaires[g.id])) {
-          usedRight.delete(appPaires[g.id]);
-        }
-        Object.keys(appPaires).forEach((other) => {
-          if (other !== g.id && appPaires[other] === best.id) {
-            delete appPaires[other];
-            usedRight.delete(best.id);
-          }
-        });
-        appPaires[g.id] = best.id;
-        usedRight.add(best.id);
-        n += 1;
-      });
-      renderAppPaires();
-      if (!silent) {
-        if (n) global.JpToast?.ok?.(n + ' paire' + (n > 1 ? 's' : '') + ' proposée' + (n > 1 ? 's' : ''));
-        else global.JpToast?.warn?.('Aucune paire claire trouvée');
-      }
-      return n;
-    }
-
     function renderAppCol(side) {
       const list = side === 'gauche' ? appGauche : appDroite;
       const box = overlay.querySelector(side === 'gauche' ? '#jwAppGauche' : '#jwAppDroite');
@@ -857,35 +912,17 @@
       onAdd: (it) => {
         appGauche.push(it);
         renderAppCol('gauche');
-        if (isRefItem(it)) void proposeAppariement({ onlyUnassigned: true, silent: true });
       },
     });
     mountHybridAdd(overlay.querySelector('#jwAppDroiteAdd'), {
       labelTitle: 'Élément droite',
       button: '+ Droite',
       idPrefix: 'd',
+      proposeFromLeft: (entiteTable) => proposeEquivalentsFromLeft(entiteTable, 'appariement'),
       onAdd: (it) => {
         appDroite.push(it);
         renderAppCol('droite');
-        if (isRefItem(it)) void proposeAppariement({ onlyUnassigned: true, silent: true });
       },
-    });
-    overlay.querySelector('#jwAppPropose').addEventListener('click', async () => {
-      try {
-        const allPaired = appGauche.length > 0 && appGauche.every((g) => !!appPaires[g.id]);
-        let onlyUnassigned = true;
-        if (allPaired) {
-          const ok = global.confirm
-            ? global.confirm('Toutes les paires sont déjà définies. Les remplacer par une proposition automatique ?')
-            : false;
-          if (!ok) return;
-          onlyUnassigned = false;
-          Object.keys(appPaires).forEach((k) => { delete appPaires[k]; });
-        }
-        await proposeAppariement({ onlyUnassigned, silent: false });
-      } catch (e) {
-        global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
-      }
     });
     renderAppCol('gauche');
     renderAppCol('droite');
