@@ -1319,13 +1319,69 @@
 
   /* ——— Rendu des blocs (Structure / Contenu) ——— */
 
+  /** Nombre de ★ personnalisées (scratch live si présent, sinon payload). */
   function variantCount(b) {
+    if (!b) return 0;
+    const scratch = state.variantScratch[b.id];
+    if (scratch) {
+      let n = 0;
+      for (let i = 1; i <= 5; i += 1) {
+        if (!isEmptyHtml(scratch.tabs[String(i)])) n += 1;
+      }
+      return n;
+    }
     const p = effPayload(b);
     const v = p.variantes || {};
     return Object.keys(v).filter((k) => {
       const o = v[k];
       return o && (o.html || o.corps_html);
     }).length;
+  }
+
+  /** Met à jour le badge +N (outline Contenu / ligne Structure) sans tout redessiner. */
+  function paintVariantCountBadge(blocId) {
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!b) return;
+    const vc = variantCount(b);
+    const outlineBtn = document.querySelector('[data-outline="' + blocId + '"]');
+    if (outlineBtn) {
+      let badge = outlineBtn.querySelector('.jp-outline-var');
+      if (vc) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'jp-outline-var';
+          badge.title = 'Variantes';
+          outlineBtn.appendChild(badge);
+        }
+        badge.textContent = '+' + vc;
+      } else {
+        badge?.remove();
+      }
+    }
+    const row = document.querySelector('[data-bloc="' + blocId + '"]');
+    if (row) {
+      let badge = row.querySelector(':scope > header .jp-outline-var');
+      if (vc) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'jp-outline-var';
+          const openBtn = row.querySelector('.jp-block-open');
+          if (openBtn) openBtn.insertAdjacentElement('beforebegin', badge);
+          else row.querySelector('header')?.appendChild(badge);
+        }
+        badge.textContent = '+' + vc + ' var.';
+      } else {
+        badge?.remove();
+      }
+    }
+    // Inspecteur « N variante(s) » si ce bloc est sélectionné
+    if (state.selectedBlocId === blocId && state.inspectorTab === 'bloc') {
+      const meta = document.querySelector('#inspectorBody .jp-inspector-cta > p.jp-muted');
+      if (meta) {
+        const title = effTitre(b) || 'Sans titre';
+        meta.textContent = title + (vc ? ' · ' + vc + ' variante(s)' : '');
+      }
+    }
   }
 
   function blockBodyHtml(b) {
@@ -1430,8 +1486,9 @@
           scratch.tabs[String(state.variantTab)] = '';
           state.variantInherit = true;
           remountVariantRte(card, b);
-          scheduleSave(id);
           paintVariantTabs(card, b);
+          paintVariantCountBadge(id);
+          scheduleSave(id);
         }
         : undefined,
       resetTitle: 'Revenir à la base surlignée (efface la variante ★)',
@@ -1445,6 +1502,7 @@
         if (tab !== 'base' && isEmptyHtml(scratch.tabs[tab])) {
           if (isEmptyHtml(ed?.getHtml?.())) {
             remountVariantRte(card, b);
+            paintVariantCountBadge(id);
             scheduleSave(id);
             return;
           }
@@ -1452,10 +1510,12 @@
           ed?.setInheritLevel?.(Number(tab));
         }
         paintVariantTabs(card, b);
+        paintVariantCountBadge(id);
         scheduleSave(id);
       },
     });
     paintVariantTabs(card, b);
+    paintVariantCountBadge(id);
   }
 
   function remountVariantRte(card, b) {
