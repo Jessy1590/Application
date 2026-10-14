@@ -438,7 +438,11 @@
             + '</p>';
         }
         inner = '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
-          + (p.type_jeu ? '<span class="jp-jeu-type">' + esc(p.type_jeu === 'fiche_aleatoire' ? 'fiche aléatoire' : p.type_jeu) + '</span>' : '')
+          + (p.type_jeu ? '<span class="jp-jeu-type">' + esc(({
+            fiche_aleatoire: 'fiche aléatoire',
+            classement: 'classement',
+            appariement: 'appariement',
+          })[p.type_jeu] || p.type_jeu) + '</span>' : '')
           + status + '</div>'
           + '<a class="jp-btn jp-btn-touch jp-jeu-play" href="' + esc(href) + '">' + esc(p.libelle_cta || 'Jouer') + ' →</a></div>'
           + (code ? '<p class="jp-jeu-code"><code>' + esc(code) + '</code></p>' : '');

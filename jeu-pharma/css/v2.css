@@ -121,6 +121,114 @@
   color: #8a3a20;
 }
 
+/* ——— Classement (DnD) ——— */
+.jp-classement {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.9fr) minmax(0, 1.6fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+.jp-classement-pile,
+.jp-classement-zone {
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.85rem);
+  background: linear-gradient(180deg, #fff, #f6fbf9);
+  padding: 0.75rem;
+  min-height: 8rem;
+}
+.jp-classement-zones {
+  display: grid;
+  gap: 0.75rem;
+}
+.jp-classement-col-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--jp-accent, #0f6b5c);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.jp-classement-drop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  min-height: 3rem;
+}
+.jp-classement-hint { font-size: 0.85rem; }
+.jp-classement-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.65rem;
+  background: #fff;
+  color: var(--jp-text, #14201c);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.55rem 0.75rem;
+  cursor: grab;
+  touch-action: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.jp-classement-item:active { cursor: grabbing; }
+.jp-classement-item.is-selected,
+.jp-classement-item.is-placed.is-selected {
+  border-color: var(--jp-accent, #0f6b5c);
+  box-shadow: 0 0 0 2px rgba(15, 107, 92, 0.25);
+  background: var(--jp-accent-soft, #e6f3f0);
+}
+.jp-classement-item.is-dragging { opacity: 0.55; }
+.jp-classement-zone.is-drop-target {
+  box-shadow: inset 0 0 0 2px rgba(15, 107, 92, 0.45);
+  background: #eef8f5;
+}
+
+/* ——— Appariement ——— */
+.jp-appariement {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+.jp-appariement-col {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+}
+.jp-appariement-card {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  border: 1px solid rgba(15, 107, 92, 0.22);
+  border-radius: 0.75rem;
+  background: #fff;
+  color: var(--jp-text, #14201c);
+  font: inherit;
+  padding: 0.7rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.jp-appariement-card.is-selected {
+  border-color: var(--jp-accent, #0f6b5c);
+  background: var(--jp-accent-soft, #e6f3f0);
+  box-shadow: 0 0 0 2px rgba(15, 107, 92, 0.2);
+}
+.jp-appariement-card.is-linked {
+  border-color: rgba(15, 107, 92, 0.45);
+  background: linear-gradient(180deg, #f4fbf9, #fff);
+}
+.jp-appariement-card.is-used {
+  opacity: 0.55;
+}
+.jp-appariement-card strong { font-size: 0.95rem; }
+
+@media (max-width: 720px) {
+  .jp-classement { grid-template-columns: 1fr; }
+  .jp-appariement { grid-template-columns: 1fr; }
+}
+
 .jp-admin-simple-card {
   border: 1px solid var(--jp-line);
   border-radius: var(--jp-radius);

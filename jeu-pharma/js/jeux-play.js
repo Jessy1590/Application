@@ -1,5 +1,5 @@
 /**
- * Écrans de jeu joueur — quiz, trous, fiche aléatoire (contenu = résolveur parcours).
+ * Écrans de jeu joueur — quiz, trous, fiche, classement, appariement (contenu = résolveur + config).
  */
 (function (global) {
   function sb() {
@@ -214,17 +214,18 @@
     wire();
   }
 
-  /** ——— Quiz QCM ——— */
-  async function buildQuizQuestions(modele, pool) {
+  /** ——— Quiz QCM (auto molécules + manuelles, tirage à chaque partie) ——— */
+  async function buildAutoQuizQuestions(modele, pool, limit) {
     const cfg = modele.configuration_json || {};
     const champs = cfg.champs_interroges || cfg.champs || ['indications'];
-    const nb = Math.min(Number(cfg.nb_questions) || 8, pool.length * Math.max(1, champs.length));
+    if (!pool.length || !champs.length) return [];
+    const target = Math.max(1, Number(limit) || (Number(cfg.nb_questions) || 8) * 3);
     const nbProp = Math.max(2, Math.min(6, Number(cfg.nb_propositions) || 3));
     const questions = [];
     const used = new Set();
     let guard = 0;
 
-    while (questions.length < nb && guard < nb * 12) {
+    while (questions.length < target && guard < target * 12) {
       guard += 1;
       const med = pick(pool);
       if (!med) break;
@@ -250,6 +251,7 @@
 
       const props = shuffle([correct].concat(distractors).slice(0, nbProp));
       questions.push({
+        source: 'auto',
         matrice_id: med.id,
         dci: f.dci || med.dci,
         noms: med.noms || '',
@@ -261,6 +263,42 @@
       });
     }
     return questions;
+  }
+
+  function buildManualQuizQuestions(cfg) {
+    const raw = Array.isArray(cfg.questions_manuelles) ? cfg.questions_manuelles : [];
+    return raw.map(function (q) {
+      const props = (Array.isArray(q.propositions) ? q.propositions : [])
+        .map(function (p) { return String(p || '').trim(); })
+        .filter(Boolean);
+      const correct = String(q.correct || '').trim();
+      const question = String(q.question || '').trim();
+      if (!question || props.length < 2 || !correct || props.indexOf(correct) < 0) return null;
+      return {
+        source: 'manuel',
+        id: q.id || null,
+        matrice_id: null,
+        dci: '',
+        noms: '',
+        champ_code: null,
+        question,
+        propositions: shuffle(props.slice()),
+        correct,
+      };
+    }).filter(Boolean);
+  }
+
+  async function buildQuizQuestions(modele, pool) {
+    const cfg = modele.configuration_json || {};
+    const nbWanted = Math.max(1, Number(cfg.nb_questions) || 8);
+    const manuelles = buildManualQuizQuestions(cfg);
+    let autoCap = pool.length * Math.max(1, (cfg.champs_interroges || cfg.champs || []).length);
+    if (cfg.nb_auto_max != null && cfg.nb_auto_max !== '') {
+      autoCap = Math.min(autoCap, Math.max(0, Number(cfg.nb_auto_max)));
+    }
+    const auto = autoCap > 0 ? await buildAutoQuizQuestions(modele, pool, autoCap) : [];
+    const bank = shuffle(manuelles.concat(auto));
+    return bank.slice(0, Math.min(nbWanted, bank.length));
   }
 
   function renderQuiz(root, modele, questions) {
@@ -300,13 +338,262 @@
         btn.addEventListener('click', function () {
           const choice = q.propositions[Number(btn.getAttribute('data-i'))];
           const ok = choice === q.correct;
-          answers.push({ choice, ok, champ: q.champ_code, matrice_id: q.matrice_id });
+          answers.push({
+            choice, ok, champ: q.champ_code, matrice_id: q.matrice_id, source: q.source || 'auto',
+          });
           idx += 1;
           paint();
         });
       });
     }
     paint();
+  }
+
+  /** ——— Classement (DnD + fallback clic) ——— */
+  function runClassement(root, modele) {
+    const cfg = modele.configuration_json || {};
+    const items = Array.isArray(cfg.items) ? cfg.items.slice() : [];
+    const zones = Array.isArray(cfg.zones) ? cfg.zones.map(function (z) {
+      return { id: z.id, label: z.label, item_ids: Array.isArray(z.item_ids) ? z.item_ids.slice() : [] };
+    }) : [];
+    if (items.length < 2 || zones.length < 2) {
+      throw new Error('Configuration classement incomplète');
+    }
+    const correctZone = {};
+    zones.forEach(function (z) {
+      (z.item_ids || []).forEach(function (id) { correctZone[id] = z.id; });
+    });
+    const placement = {}; // itemId -> zoneId | null
+    items.forEach(function (it) { placement[it.id] = null; });
+    let selectedId = null;
+    const pile = shuffle(items);
+
+    function paint(done) {
+      if (done) {
+        let ok = 0;
+        const details = items.map(function (it) {
+          const good = placement[it.id] === correctZone[it.id];
+          if (good) ok += 1;
+          const zoneLab = (zones.find(function (z) { return z.id === placement[it.id]; }) || {}).label || '—';
+          const expect = (zones.find(function (z) { return z.id === correctZone[it.id]; }) || {}).label || '—';
+          return { id: it.id, label: it.label, ok: good, zone: zoneLab, expect: expect };
+        });
+        root.innerHTML = '<div id="jpScoreHost"></div>'
+          + '<h3 class="jp-v2-recap-title">Détail</h3>'
+          + '<ul class="jp-v2-quiz-recap">' + details.map(function (d) {
+            return '<li class="' + (d.ok ? 'is-ok' : 'is-ko') + '">' + esc(d.label)
+              + '<br><span class="jp-muted">Votre zone : ' + esc(d.zone)
+              + (d.ok ? '' : ' · Correct : ' + esc(d.expect)) + '</span></li>';
+          }).join('') + '</ul>';
+        const saved = saveTentative(modele, { type: 'classement', n: items.length }, { placement, details }, ok, items.length)
+          .then(function () { global.JpToast?.ok?.('Score enregistré'); });
+        saved.catch(function () { /* ignore */ });
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, items.length,
+          { saved: saved, listHref: 'index.html?type=classement' });
+        return;
+      }
+
+      const unplaced = pile.filter(function (it) { return !placement[it.id]; });
+      let html = '<p class="jp-muted">' + esc(cfg.consigne || 'Classez chaque item dans la bonne catégorie') + '</p>'
+        + '<div class="jp-classement">'
+        + '<div class="jp-classement-pile" aria-label="Items à classer">'
+        + '<p class="jp-classement-col-title">À classer</p>'
+        + (unplaced.length
+          ? unplaced.map(function (it) {
+            return '<button type="button" class="jp-classement-item' + (selectedId === it.id ? ' is-selected' : '')
+              + '" draggable="true" data-item="' + esc(it.id) + '">' + esc(it.label) + '</button>';
+          }).join('')
+          : '<p class="jp-muted">Tous placés</p>')
+        + '</div><div class="jp-classement-zones">';
+      zones.forEach(function (z) {
+        const inZone = items.filter(function (it) { return placement[it.id] === z.id; });
+        html += '<div class="jp-classement-zone" data-zone="' + esc(z.id) + '">'
+          + '<p class="jp-classement-col-title">' + esc(z.label) + '</p>'
+          + '<div class="jp-classement-drop">'
+          + (inZone.length
+            ? inZone.map(function (it) {
+              return '<button type="button" class="jp-classement-item is-placed" draggable="true" data-item="'
+                + esc(it.id) + '">' + esc(it.label) + '</button>';
+            }).join('')
+            : '<span class="jp-muted jp-classement-hint">Déposer ici</span>')
+          + '</div></div>';
+      });
+      html += '</div></div><div class="jp-v2-actions">'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="btnVerify"'
+        + (unplaced.length ? ' disabled' : '') + '>Vérifier</button></div>';
+      root.innerHTML = html;
+
+      function place(itemId, zoneId) {
+        if (!itemId) return;
+        placement[itemId] = zoneId || null;
+        selectedId = null;
+        paint(false);
+      }
+
+      root.querySelectorAll('.jp-classement-item').forEach(function (btn) {
+        const id = btn.getAttribute('data-item');
+        btn.addEventListener('click', function () {
+          if (selectedId === id) {
+            selectedId = null;
+            paint(false);
+            return;
+          }
+          selectedId = id;
+          paint(false);
+        });
+        btn.addEventListener('dragstart', function (e) {
+          e.dataTransfer.setData('text/plain', id);
+          e.dataTransfer.effectAllowed = 'move';
+          btn.classList.add('is-dragging');
+        });
+        btn.addEventListener('dragend', function () { btn.classList.remove('is-dragging'); });
+      });
+
+      root.querySelectorAll('.jp-classement-zone').forEach(function (zoneEl) {
+        const zid = zoneEl.getAttribute('data-zone');
+        zoneEl.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          zoneEl.classList.add('is-drop-target');
+        });
+        zoneEl.addEventListener('dragleave', function () { zoneEl.classList.remove('is-drop-target'); });
+        zoneEl.addEventListener('drop', function (e) {
+          e.preventDefault();
+          zoneEl.classList.remove('is-drop-target');
+          const id = e.dataTransfer.getData('text/plain') || selectedId;
+          place(id, zid);
+        });
+        zoneEl.addEventListener('click', function (e) {
+          if (e.target.closest('.jp-classement-item')) return;
+          if (selectedId) place(selectedId, zid);
+        });
+      });
+
+      root.querySelector('.jp-classement-pile')?.addEventListener('click', function (e) {
+        if (e.target.closest('.jp-classement-item')) return;
+        if (selectedId && placement[selectedId]) place(selectedId, null);
+      });
+
+      document.getElementById('btnVerify')?.addEventListener('click', function () {
+        if (Object.keys(placement).some(function (id) { return !placement[id]; })) {
+          return global.JpToast?.warn?.('Placez tous les items');
+        }
+        paint(true);
+      });
+    }
+    paint(false);
+  }
+
+  /** ——— Appariement (clic gauche puis droite) ——— */
+  function runAppariement(root, modele) {
+    const cfg = modele.configuration_json || {};
+    const gauche = Array.isArray(cfg.gauche) ? cfg.gauche.slice() : [];
+    const droite = Array.isArray(cfg.droite) ? cfg.droite.slice() : [];
+    const paires = Array.isArray(cfg.paires) ? cfg.paires : [];
+    if (gauche.length < 2 || droite.length < 2 || !paires.length) {
+      throw new Error('Configuration appariement incomplète');
+    }
+    const correct = {};
+    paires.forEach(function (p) {
+      if (p && p.gauche_id && p.droite_id) correct[p.gauche_id] = p.droite_id;
+    });
+    const links = {}; // gauche_id -> droite_id
+    let selectedG = null;
+    const orderG = shuffle(gauche);
+    const orderD = shuffle(droite);
+
+    function paint(done) {
+      if (done) {
+        let ok = 0;
+        const details = orderG.map(function (g) {
+          const good = links[g.id] === correct[g.id];
+          if (good) ok += 1;
+          const dLab = (droite.find(function (d) { return d.id === links[g.id]; }) || {}).label || '—';
+          const eLab = (droite.find(function (d) { return d.id === correct[g.id]; }) || {}).label || '—';
+          return { label: g.label, ok: good, choix: dLab, expect: eLab };
+        });
+        root.innerHTML = '<div id="jpScoreHost"></div>'
+          + '<h3 class="jp-v2-recap-title">Détail</h3>'
+          + '<ul class="jp-v2-quiz-recap">' + details.map(function (d) {
+            return '<li class="' + (d.ok ? 'is-ok' : 'is-ko') + '">' + esc(d.label)
+              + '<br><span class="jp-muted">Votre lien : ' + esc(d.choix)
+              + (d.ok ? '' : ' · Correct : ' + esc(d.expect)) + '</span></li>';
+          }).join('') + '</ul>';
+        const saved = saveTentative(modele, { type: 'appariement', n: orderG.length }, { links, details }, ok, orderG.length)
+          .then(function () { global.JpToast?.ok?.('Score enregistré'); });
+        saved.catch(function () { /* ignore */ });
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, orderG.length,
+          { saved: saved, listHref: 'index.html?type=appariement' });
+        return;
+      }
+
+      const usedRight = new Set(Object.keys(links).map(function (g) { return links[g]; }));
+      let html = '<p class="jp-muted">' + esc(cfg.consigne || 'Reliez chaque élément de gauche à celui de droite') + '</p>'
+        + '<p class="jp-field-hint">Cliquez un élément à gauche, puis sa correspondance à droite. Recliquez pour annuler.</p>'
+        + '<div class="jp-appariement">'
+        + '<div class="jp-appariement-col" aria-label="Gauche">';
+      orderG.forEach(function (g) {
+        const linked = links[g.id];
+        const dLab = linked ? ((droite.find(function (d) { return d.id === linked; }) || {}).label || '') : '';
+        html += '<button type="button" class="jp-appariement-card'
+          + (selectedG === g.id ? ' is-selected' : '')
+          + (linked ? ' is-linked' : '') + '" data-g="' + esc(g.id) + '">'
+          + '<strong>' + esc(g.label) + '</strong>'
+          + (linked ? '<span class="jp-muted">→ ' + esc(dLab) + '</span>' : '')
+          + '</button>';
+      });
+      html += '</div><div class="jp-appariement-col" aria-label="Droite">';
+      orderD.forEach(function (d) {
+        html += '<button type="button" class="jp-appariement-card'
+          + (usedRight.has(d.id) ? ' is-used' : '')
+          + '" data-d="' + esc(d.id) + '"' + (usedRight.has(d.id) && !selectedG ? '' : '') + '>'
+          + esc(d.label) + '</button>';
+      });
+      html += '</div></div><div class="jp-v2-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnResetLinks">Réinitialiser</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="btnVerify"'
+        + (Object.keys(links).length < orderG.length ? ' disabled' : '') + '>Vérifier</button></div>';
+      root.innerHTML = html;
+
+      root.querySelectorAll('[data-g]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const gid = btn.getAttribute('data-g');
+          if (links[gid]) {
+            delete links[gid];
+            selectedG = null;
+            paint(false);
+            return;
+          }
+          selectedG = selectedG === gid ? null : gid;
+          paint(false);
+        });
+      });
+      root.querySelectorAll('[data-d]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const did = btn.getAttribute('data-d');
+          if (!selectedG) {
+            return global.JpToast?.warn?.('Sélectionnez d’abord un élément à gauche');
+          }
+          Object.keys(links).forEach(function (g) {
+            if (links[g] === did) delete links[g];
+          });
+          links[selectedG] = did;
+          selectedG = null;
+          paint(false);
+        });
+      });
+      document.getElementById('btnResetLinks')?.addEventListener('click', function () {
+        Object.keys(links).forEach(function (k) { delete links[k]; });
+        selectedG = null;
+        paint(false);
+      });
+      document.getElementById('btnVerify')?.addEventListener('click', function () {
+        if (Object.keys(links).length < orderG.length) {
+          return global.JpToast?.warn?.('Reliez tous les éléments');
+        }
+        paint(true);
+      });
+    }
+    paint(false);
   }
 
   /** ——— Fiche aléatoire ——— */
@@ -484,13 +771,15 @@
 
     if (modele.type_jeu === 'quiz') {
       root.innerHTML = '<p class="jp-muted">Préparation du quiz…</p>';
+      const cfg = modele.configuration_json || {};
+      const hasManuelles = Array.isArray(cfg.questions_manuelles) && cfg.questions_manuelles.length;
       const pool = await poolMedicaments(modele);
-      if (!pool.length) {
-        throw new Error('Aucune molécule publiée dans les modules de ce quiz. Vérifiez le parcours Introduction.');
+      if (!pool.length && !hasManuelles) {
+        throw new Error('Aucune molécule publiée dans les modules de ce quiz, et aucune question manuelle.');
       }
       const questions = await buildQuizQuestions(modele, pool);
       if (!questions.length) {
-        throw new Error('Impossible de générer des questions (champs vides sur les fiches publiées).');
+        throw new Error('Impossible de générer des questions (champs vides ou banque trop petite).');
       }
       renderQuiz(root, modele, questions);
       return modele;
@@ -503,6 +792,16 @@
 
     if (modele.type_jeu === 'trous') {
       await runTrous(root, modele);
+      return modele;
+    }
+
+    if (modele.type_jeu === 'classement') {
+      runClassement(root, modele);
+      return modele;
+    }
+
+    if (modele.type_jeu === 'appariement') {
+      runAppariement(root, modele);
       return modele;
     }
 

@@ -962,7 +962,12 @@
       } else if (b.type_bloc === 'jeu') {
         body = '<p class="jp-bloc-jeu-line"><code>' + esc(p.code_unique || '—') + '</code>'
           + (p.type_jeu ? '<span class="jp-bloc-jeu-type">' + esc(p.type_jeu) + '</span>' : '') + '</p>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-edit-jeu="' + b.id + '">Remplacer / nouveau jeu</button>';
+          + '<div class="jp-bloc-jeu-actions">'
+          + (p.modele_id
+            ? '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + b.id + '">Modifier les paramètres</button>'
+            : '')
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-edit-jeu="' + b.id + '">Remplacer / nouveau jeu</button>'
+          + '</div>';
       }
       const tag = hasPending(b) ? '<span class="jp-bloc-tag" title="Pas encore publié">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>' : '';
       const upDis = i === 0 ? ' disabled' : '';
@@ -1040,6 +1045,13 @@
     });
     list.querySelectorAll('[data-mol-from-prog]').forEach((btn) => {
       btn.addEventListener('click', () => void addFromProgramme(btn.getAttribute('data-mol-from-prog')));
+    });
+    list.querySelectorAll('[data-mod-jeu]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const b = state.blocs.find((x) => x.id === btn.getAttribute('data-mod-jeu'));
+        const mid = b && effPayload(b).modele_id;
+        if (mid) void openJeuWizard({ modeleId: mid });
+      });
     });
     list.querySelectorAll('[data-edit-jeu]').forEach((btn) => {
       btn.addEventListener('click', () => void openJeuWizard());
@@ -1429,15 +1441,43 @@
     ).join('') || '<p class="jp-muted" style="margin:0.5rem 0 0">Aucun</p>';
   }
 
-  async function openJeuWizard() {
+  async function openJeuWizard(extra) {
     const m = selectedModule();
     if (!m || m.est_groupe) return;
     await flushAll();
+    const editId = extra && extra.modeleId;
     await global.JpStudioJeuWizard.open({
       parcoursId: state.parcoursId,
       moduleId: m.id,
       modules: state.modules,
       defaultTitre: 'Jeu — ' + m.titre,
+      modeleId: editId || undefined,
+      onUpdated: async (res) => {
+        try {
+          const modele = res && res.modele;
+          if (modele && modele.id) {
+            const bloc = state.blocs.find((b) => b.type_bloc === 'jeu'
+              && effPayload(b).modele_id === modele.id);
+            if (bloc && modele.titre) {
+              await rpc('v2_upsert_bloc', {
+                p_payload: {
+                  id: bloc.id,
+                  titre: modele.titre,
+                  payload_json: Object.assign({}, effPayload(bloc), {
+                    code_unique: modele.code_unique || effPayload(bloc).code_unique,
+                    type_jeu: modele.type_jeu || effPayload(bloc).type_jeu,
+                  }),
+                },
+              });
+            }
+          }
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+        }
+        state.blocs = await loadBlocs(m.id);
+        paintBlocks();
+        await refreshJeuxLies(m);
+      },
       onCreated: async (res) => {
         try {
           // Le bloc jeu suit le même cycle que les autres : masqué jusqu’à la publication.

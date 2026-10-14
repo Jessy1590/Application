@@ -29,12 +29,12 @@ alwaysApply: true
 - Vue `v_medicaments_complet` : `noms_commerciaux[]` + `nom_commercial` = 1er nom (compat / déprécié) + `hospitalier` + `complexe` + `fiche_validee`. Colonnes vue `*_niveaux` / clé jsonb `niveaux_connus` encore présentes remote (legacy) ; UI ne les lit plus. SQL local `018` prêt pour les retirer (non appliqué). Colonnes table entité `niveaux_connus` conservées.
 - **`fiche_validee`** (bool, défaut false) : revue admin catalogue (`Valider fiches` / filtre / Remettre à 0) ; invalidée à chaque save éditeur.
 - Référentiel : `niveaux` (lookup seed) ; profil : `profil_apprentissage`.
-- Jeux V2 : `modeles_jeu` + `tentatives_jeu`. Tables quiz/trous V1 (`quizz`, `parties_tableau_trous`, …) **supprimées** (`037`).
+- Jeux V2 : `modeles_jeu` + `tentatives_jeu`. Types : `quiz` | `trous` | `ordonnance` | `fiche_aleatoire` | **`classement`** | **`appariement`** (`039`). Édition post-publication : RPC admin **`v2_update_modele_jeu`** (titre / mode / `module_ids` / `configuration_json` ; `type_jeu` / `code_unique` / `parcours_id` figés). Tables quiz/trous V1 **supprimées** (`037`).
 - Fiche aléatoire : `scores_fiche_aleatoire` — `sql/008_scores_fiche_aleatoire.sql`.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
 - BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`036` pédagogie + studio + cardio DEUST (031–036 remote) ; `sql/ops/` (génération RCP `cardio_rcp_matrice_gen.mjs`, apply `034_parts/`).
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `017` ; `018` (local, **non appliqué**) ; `019`–`039` pédagogie + studio + cardio DEUST + jeux (031–039 remote) ; `sql/ops/` (génération RCP `cardio_rcp_matrice_gen.mjs`, apply `034_parts/`).
 - Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage`, `modules_cours` (`parent_id`, `est_groupe`, perso visuelle), `module_blocs`, `publications_connaissances`, `inscriptions_parcours` (`statut` demande|accepte|refuse), `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
 - **Déblocage (`028`)** : `criteres_json` (lecture et/ou score min. d’un jeu, `et`/`ou`) sur leçons, chapitres, parcours ; verrous = `prerequis_module_id` / `prerequis_parcours_id` ; validité calculée en direct côté SQL (lecture via RPC `v2_enregistrer_lecture`, scores via `tentatives_jeu`) — `progression_modules.statut` n’est qu’un miroir. Admin : « Modif parcours » (ex-Studio), panneau Déblocage.
 - Parcours actif DEUST : `cardiovasculaires_deust_2a` (Sang → Appareil CV → HTA). Anciens `introduction` / `deust_apprenti` / `etu_3a` supprimés (`031`).
@@ -46,9 +46,9 @@ alwaysApply: true
 - IA studio (Modif parcours) : Edge `jeupharma-ia-blocs` + dossier `jeu-pharma/IA/` (Gemini ; clé uniquement côté Edge).
 - **Fiches référentiel** : pour les molécules du parcours Cardio DEUST (et ajouts liés), la matrice peut être enrichie avec un **RCP condensé** (propre, lisible) ; effets indésirables = **fréquents** ou **rares mais graves** uniquement. Pas d’invention hors RCP/BDPM.
 - **Visibilité DEUST** (`mode_contenu = publications`) : seules les **connaissances publiées** sur les leçons (issues des **supports de cours**) sont visibles / jouables. Le RCP complet de la fiche **n’est pas** publié sur le parcours DEUST — il reste pour admin / référentiel / parcours `referentiel_valide` (pharmacien).
-- Studio : blocs texte / vidéo embed / molécule / conseil / jeu / photo ; pubs **connaissance par connaissance** par leçon.
+- Studio : blocs texte / vidéo embed / molécule / conseil / jeu / photo / recommandation ; pubs **connaissance par connaissance** par leçon.
 - Anti-surapprentissage : mode `publications` = pubs des modules débloqués (+ héritage ancêtres) ; jeux pool = modules liés.
-- Admin jeux : **création** dans le studio (wizard) ; `admin/jeux.html` = tableau de bord **scores + gestion** (par jeu / parcours / personne ; pause, relancer, archiver via `modeles_jeu.en_pause` / `actif`, lien Jouer + lien Éditer vers le bloc studio `?parcours=&module=&bloc=`) ; codes `JP-*****`.
+- Admin jeux : **création / édition** dans le studio (wizard `JpStudioJeuWizard` create|edit) ; classement / appariement = config hybride (typeahead matrice/entités + texte libre) ; quiz = banque manuelle + auto (`nb_auto_max`, tirage client à chaque partie). `admin/jeux.html` = tableau de bord **scores + gestion** (pause / relancer / archiver, Jouer, Éditer → studio « Modifier les paramètres ») ; codes `JP-*****`.
 - Recherche : `js/typeahead.js` (`JpTypeahead.combo` / `chips` + sources `localSource` / `entiteSource` / `matriceSource`) — pas de `<select>` long ni de liste complète affichée d’office (studio : parcours, pool de leçons, classes, molécules, filtres du sélecteur molécules ; jeux : barre globale).
 
 ## Droits

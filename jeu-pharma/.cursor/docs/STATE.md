@@ -1,6 +1,15 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Bloc recommandation** (`038`) : type `recommandation` studio + lecteur (cadre teal, pastille) ; payload lien ancre / leçon / https. Cache-bust `?v=038` (`lecon.html`, `admin/parcours.html`).
+Dernière mise à jour : 2026-10-14 — **Jeux classement / appariement / quiz mixte / édition** (`039`) : types `classement` + `appariement`, questions manuelles quiz, RPC `v2_update_modele_jeu`, wizard édition post-publication. Cache-bust `?v=039` / `043` (wizard, play, studio).
+
+## Jeux classement, appariement, quiz mixte, édition (039 — appliquée remote, 2026-10-14)
+- `sql/039_jeux_classement_appariement_edit.sql` : CHECK `type_jeu` + `classement` / `appariement` ; RPC admin **`v2_update_modele_jeu`** (titre, mode, `module_ids`, `configuration_json` — pas `type_jeu` / `code_unique` / `parcours_id`).
+- Config hybride (mode B) dans `configuration_json` : items / zones / paires = texte libre **ou** typeahead matrice / entités.
+- Wizard (`js/studio-jeu-wizard.js`) : panels classement / appariement ; section « Questions manuelles » quiz (+ `nb_auto_max`) ; mode édition (`modeleId`) → Enregistrer.
+- Studio : bouton **Modifier les paramètres** (primaire) + **Remplacer / nouveau jeu** (secondaire).
+- Player (`js/jeux-play.js`) : DnD classement (+ clic sélection→zone) ; appariement clic-à-clic 1↔1 ; quiz = union manuelles + auto, tirage `nb_questions` à chaque partie ; insert `tentatives_jeu` comme quiz.
+- Admin scores : labels / filtres `classement` / `appariement`. Listes `jeux/index.html` + `lecon-player` → `jeux/jouer.html`.
+- **Limite « 100 % molécules » levée** pour classement, appariement et questions manuelles quiz (contenu libre / référentiel hybride). Quiz auto / trous / fiche / ordonnance restent basés molécules + pubs.
 
 ## IA studio — blocs depuis texte / PDF (2026-10-14)
 - Bouton **IA** dans « Modif parcours » (barre Ajouter) : modale texte ou PDF (10 Mo) → Edge **`jeupharma-ia-blocs`** (secret `GEMINI_API_KEY` partagé avec `ocr-map-fields` ; modèle `GEMINI_IA_MODEL` → `GEMINI_OCR_MODEL` → `gemini-3.8-flash`) → JSON → blocs **brouillon** (`visible=false`, `_brouillon`), publiés via « Enregistrer et publier ».
@@ -42,7 +51,7 @@ Dernière mise à jour : 2026-10-14 — **Bloc recommandation** (`038`) : type `
   - CV : `JP-CVC1` quiz (L7 : L7) · `JP-CVC2` ordonnance BASIC (L8 : L3, L7, L8 ; règles bêtabloquant / antiagrégant / statine HMG-CoA / IEC) · `JP-CVC3` quiz VW (L9 : L7, L9) · `JP-CVC4` trous IC (L10 : L10) · `JP-CVC5` quiz jambes lourdes (L11 : L11) · `JP-CVC6` quiz révision (L12 : L6–L12). L6 = lecture seule.
   - HTA : `JP-CVH1` quiz (L13 : L7, L10, L13) · `JP-CVH2` trous (L14 : L10, L14) · `JP-CVH3` quiz cas patients (L15 : L7, L10, L15) · `JP-CVH4` quiz cibles (L16 : L7, L10, L16) · `JP-CVH5` quiz final (L17 : les 17 leçons).
 - **Critères leçons** = `{lecture:true, logique:'et', jeux:[{modele_id, score_min_pct}]}` : 70 % partout, **80 % pour L17** (`JP-CVH5`). Parcours : pas de critère propre (= toutes leçons validées).
-- **Limites** : le moteur de jeux est 100 % basé sur des molécules (quiz / trous / fiche / ordonnance) → pas de questions libres (valeurs PA, trous RAA, cas patients). H1–H3 s'appuient donc sur les pools L7 / L10 (BB, INCA, IEC, ARA II, diurétiques clés) + leur propre leçon. Règles d'ordonnance = ids de classes pharmacologiques existantes (taxonomie avec doublons) ; repli sur le pool si une classe est absente des pubs.
+- **Limites (partiellement levées en 039)** : quiz auto / trous / fiche / ordonnance restent basés molécules + pubs ; **classement / appariement / questions manuelles quiz** permettent du contenu libre (hybride typeahead). H1–H3 historiques s'appuient sur les pools L7 / L10 + leur leçon. Règles d'ordonnance = ids de classes pharmacologiques existantes (taxonomie avec doublons) ; repli sur le pool si une classe est absente des pubs.
 - Pubs molécules posées (033) : **3085** publications actives remote ; le parcours est jouable côté pool jeux ; vérifier en conditions réelles les leçons H1–H3 (pool L7/L10) et molécules `hospitalier`.
 
 ## Fiches + pubs molécules CardioVasculaires Deust 2A (032–036 — remote, 2026-10-11)
@@ -405,6 +414,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] `025` RPC `v2_creer_parcours` / `v2_creer_module` / `v2_publier_module_matrices` ; jeux jouables (`js/jeux-play.js`) ; admin parcours simplifié
 - [x] `026` fix pool quiz / ordonnance
 - [x] `027` studio : `module_blocs`, pubs par `connaissance_id`, accès demande/accepte, `v2_lecon_joueur`, `v2_mon_espace`
+- [x] `037` drop legacy V1 jeux · `038` bloc recommandation · **`039` classement / appariement / `v2_update_modele_jeu`**
 - [ ] `018_vue_sans_niveaux_entite` — **toujours non appliqué** (volontaire)
 
 ### Surfaces

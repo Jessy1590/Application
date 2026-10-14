@@ -943,3 +943,63 @@
 /* Combos typeahead : place pour le bouton « × » */
 .jp-studio-app input.jp-ta-input, .jp-studio-overlay input.jp-ta-input { padding-right: 2.2rem; }
 .jp-studio-app .jp-ta-multi input.jp-ta-input, .jp-studio-overlay .jp-ta-multi input.jp-ta-input { padding: 0.2rem 0.25rem; }
+
+/* Wizard jeu — manuelles / hybride / affectations */
+.jp-jeu-wiz-body .jp-split-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+@media (max-width: 720px) {
+  .jp-jeu-wiz-body .jp-split-3 { grid-template-columns: 1fr; }
+}
+.jp-jeu-list ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.jp-jeu-list li { margin: 0.25rem 0; }
+.jp-jeu-manuelle {
+  border: 1px solid rgba(15, 107, 92, 0.16);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.75rem 0.85rem;
+  margin: 0.55rem 0;
+}
+.jp-jeu-props { display: grid; gap: 0.4rem; margin-top: 0.45rem; }
+.jp-jeu-prop-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+.jp-jeu-prop-correct {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--jp-text-muted, #4a5c56);
+  white-space: nowrap;
+}
+.jp-jeu-manuelle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.jp-jeu-hybrid-add {
+  border: 1px dashed rgba(15, 107, 92, 0.28);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  background: rgba(244, 250, 248, 0.65);
+  margin-bottom: 0.5rem;
+}
+.jp-jeu-assign-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.9fr);
+  gap: 0.55rem;
+  align-items: center;
+  margin: 0.35rem 0;
+}
+.jp-bloc-jeu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}

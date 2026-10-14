@@ -18,6 +18,8 @@
     trous: 'Tableau à trous',
     fiche_aleatoire: 'Fiche aléatoire',
     ordonnance: 'Ordonnance',
+    classement: 'Classement',
+    appariement: 'Appariement',
   };
 
   const state = {
