@@ -55,7 +55,7 @@
   async function loadParcoursList() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json')
+      .select('id, code, libelle, description, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json')
       .eq('actif', true)
       .order('ordre');
     if (error) throw error;
@@ -211,14 +211,89 @@
 
   function selectBloc(id, opts) {
     const o = opts || {};
-    state.selectedBlocId = id || null;
+    const prevId = state.selectedBlocId;
+    const sameMode = state.viewMode === 'contenu' && !o.toContenu;
+    const sameBloc = prevId && id && prevId === id;
     if (o.toContenu) state.viewMode = 'contenu';
     if (o.inspectorTab) state.inspectorTab = o.inspectorTab;
     else if (id) state.inspectorTab = 'bloc';
-    state.variantTab = 'base';
-    paintBlocks();
+    if (!sameBloc) state.variantTab = 'base';
+    state.selectedBlocId = id || null;
+
+    // Contenu déjà affiché : ne pas tout reconstruire (scroll outline + focus RTE).
+    if (sameMode && document.querySelector('.jp-contenu-layout')) {
+      if (!sameBloc) {
+        const outline = document.querySelector('.jp-outline');
+        const scrollTop = outline ? outline.scrollTop : 0;
+        flushVariantEditor(prevId);
+        paintContenuEditorOnly();
+        syncOutlineActive();
+        if (outline) outline.scrollTop = scrollTop;
+        ensureOutlineVisible(id);
+      }
+    } else {
+      paintBlocks();
+      ensureOutlineVisible(id);
+    }
     const m = selectedModule();
     if (m && !m.est_groupe) void renderInspector(m);
+  }
+
+  function syncOutlineActive() {
+    const id = state.selectedBlocId;
+    document.querySelectorAll('.jp-outline-item').forEach((el) => {
+      el.classList.toggle('is-active', el.getAttribute('data-outline') === id);
+    });
+  }
+
+  function ensureOutlineVisible(id) {
+    if (!id) return;
+    const btn = document.querySelector('.jp-outline-item[data-outline="' + id + '"]');
+    btn?.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Remplace uniquement le panneau d’édition (outline intact). */
+  function paintContenuEditorOnly() {
+    const layout = document.querySelector('.jp-contenu-layout');
+    if (!layout) {
+      paintBlocks();
+      return;
+    }
+    const shown = visibleBlocs();
+    let b = shown.find((x) => x.id === state.selectedBlocId) || null;
+    if (!b) {
+      b = shown.find((x) => x.type_bloc !== 'section') || shown[0];
+      state.selectedBlocId = b ? b.id : null;
+    }
+    clearEditors();
+    let pane = layout.querySelector('.jp-contenu-editor');
+    if (!pane) {
+      pane = document.createElement('div');
+      pane.className = 'jp-contenu-editor';
+      layout.appendChild(pane);
+    }
+    // Retirer l’ancien article hors du wrapper s’il était en frère direct
+    layout.querySelectorAll(':scope > .jp-block-card').forEach((n) => n.remove());
+    if (!b) {
+      pane.innerHTML = '<p class="jp-muted">Sélectionnez un bloc.</p>';
+      return;
+    }
+    const tag = hasPending(b)
+      ? '<span class="jp-bloc-tag" title="Pas encore publié">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>'
+      : '';
+    pane.innerHTML = '<article class="jp-block-card jp-block-contenu' + (b.type_bloc === 'section' ? ' is-section' : '') + '" data-bloc="' + b.id + '">'
+      + '<header>'
+      + '<span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
+      + '<input class="jp-block-title" data-field="titre" data-id="' + b.id + '" value="' + esc(effTitre(b)) + '" placeholder="'
+      + (b.type_bloc === 'section' ? 'Titre de la section' : 'Titre du bloc (facultatif)') + '" aria-label="Titre">'
+      + tag
+      + plageBadge(b.niveau_min, b.niveau_max)
+      + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer" aria-label="Supprimer">×</button>'
+      + '</header>'
+      + '<div class="jp-block-body">' + blockBodyHtml(b) + '</div></article>';
+    const card = pane.querySelector('.jp-block-card');
+    if (card) bindContenuEditors(card, b);
+    pane.querySelector('[data-del]')?.addEventListener('click', () => confirmDeleteBloc(b.id));
   }
 
   /* ——— Bloc recommandation : références (libellé + URL ou leçon) ——— */
@@ -553,8 +628,9 @@
     const initial = items.find((i) => i.id === qId) || items[0] || null;
 
     let current = initial;
+    let parcoursItems = items;
     const combo = global.JpTypeahead.combo(root.querySelector('#parcoursCombo'), {
-      search: global.JpTypeahead.localSource(items, { limit: 10 }),
+      search: (q) => global.JpTypeahead.localSource(parcoursItems, { limit: 10 })(q),
       placeholder: 'Chercher un parcours…',
       ariaLabel: 'Parcours',
       initial,
@@ -567,6 +643,24 @@
         })();
       },
     });
+    state.parcoursCombo = combo;
+    state.refreshParcoursCombo = async () => {
+      const list = await loadParcoursList();
+      state.parcoursList = list;
+      parcoursItems = list.map((p) => ({ id: p.id, label: p.libelle, sub: p.code }));
+      const cur = parcoursItems.find((i) => i.id === state.parcoursId) || null;
+      if (cur) {
+        current = cur;
+        combo.setItem(cur, true);
+      }
+      if (state.parcours) {
+        const fresh = list.find((p) => p.id === state.parcours.id);
+        if (fresh) Object.assign(state.parcours, fresh);
+      }
+      document.title = (state.parcours?.libelle ? state.parcours.libelle + ' — ' : '') + 'Modif parcours';
+      const h1 = document.getElementById('studioTitle');
+      if (h1 && state.parcours?.libelle) h1.textContent = state.parcours.libelle;
+    };
     combo.input.addEventListener('blur', () => {
       // champ laissé sans choix : on réaffiche le parcours courant
       setTimeout(() => { if (!combo.getItem() && current) combo.setItem(current, true); }, 120);
@@ -609,7 +703,10 @@
     await global.JpStudioDeblocage.openParcours({
       parcours: state.parcours,
       parcoursList: state.parcoursList || [],
-      onSaved: async () => { state.parcoursList = await loadParcoursList(); },
+      onSaved: async () => {
+        if (typeof state.refreshParcoursCombo === 'function') await state.refreshParcoursCombo();
+        else state.parcoursList = await loadParcoursList();
+      },
     });
   }
 
@@ -650,6 +747,8 @@
     state.parcours = list.find((p) => p.id === id) || null;
     state.parcoursList = list;
     document.title = (state.parcours?.libelle ? state.parcours.libelle + ' — ' : '') + 'Modif parcours';
+    const h1 = document.getElementById('studioTitle');
+    if (h1) h1.textContent = state.parcours?.libelle || 'Modif parcours';
     state.modules = await loadModules(id);
     const pend = state.pending;
     state.pending = null;
@@ -1111,9 +1210,8 @@
     }
     if (b.type_bloc === 'texte') {
       ensureVariantScratch(b.id, 'texte', p);
-      const tab = state.variantTab;
       return variantesTabsHtml('texte')
-        + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html" data-vtab="' + esc(String(tab)) + '"></div>';
+        + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="html"></div>';
     }
     if (b.type_bloc === 'video') {
       return '<div class="jp-field jp-field-tight"><label>Lien de la vidéo</label>'
@@ -1146,11 +1244,10 @@
     }
     if (b.type_bloc === 'conseil') {
       ensureVariantScratch(b.id, 'conseil', p);
-      const tab = state.variantTab;
       return '<div class="jp-field jp-field-tight"><label>Pathologie</label>'
         + '<input data-field="pathologie" data-id="' + b.id + '" value="' + esc(p.pathologie || '') + '" placeholder="Ex. Anémie ferriprive"></div>'
         + variantesTabsHtml('conseil')
-        + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html" data-vtab="' + esc(String(tab)) + '"></div>';
+        + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
     }
     if (b.type_bloc === 'recommandation') {
       return '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
@@ -1182,13 +1279,39 @@
       + '</span>';
   }
 
+  function remountVariantRte(card, b) {
+    const id = b.id;
+    const host = card.querySelector('[data-rte]');
+    if (!host || (b.type_bloc !== 'texte' && b.type_bloc !== 'conseil')) return;
+    const field = host.getAttribute('data-field') || variantFieldOf(b.type_bloc);
+    const prev = state.editors[id + ':' + field];
+    prev?.destroy?.();
+    const scratch = ensureVariantScratch(id, b.type_bloc, effPayload(b));
+    const tab = state.variantTab;
+    const html = tab === 'base' ? scratch.base : (scratch.tabs[String(tab)] || '');
+    state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html, {
+      onChange: () => {
+        flushVariantEditor(id);
+        scheduleSave(id);
+      },
+    });
+    card.querySelectorAll('.jp-vtab').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-vtab') === String(tab));
+    });
+  }
+
   function bindContenuEditors(card, b) {
     const id = b.id;
-    card.querySelectorAll('[data-vtab]').forEach((btn) => {
-      btn.addEventListener('click', () => {
+    // Uniquement les boutons d’onglet — pas l’hôte RTE (qui ne doit plus avoir data-vtab).
+    card.querySelectorAll('.jp-vtab[data-vtab]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const next = btn.getAttribute('data-vtab');
+        if (String(next) === String(state.variantTab)) return;
         flushVariantEditor(id);
-        state.variantTab = btn.getAttribute('data-vtab');
-        paintBlocks();
+        state.variantTab = next;
+        remountVariantRte(card, b);
       });
     });
     card.querySelectorAll('[data-rte]').forEach((host) => {
@@ -1293,34 +1416,18 @@
           + (vc ? '<span class="jp-outline-var" title="Variantes">+' + vc + '</span>' : '')
           + '</button>';
       }).join('');
-      if (!b) {
-        list.innerHTML = '<div class="jp-contenu-layout"><nav class="jp-outline">' + outline + '</nav>'
-          + '<p class="jp-muted">Sélectionnez un bloc.</p></div>';
-      } else {
-        const tag = hasPending(b)
-          ? '<span class="jp-bloc-tag" title="Pas encore publié">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>'
-          : '';
-        list.innerHTML = '<div class="jp-contenu-layout">'
-          + '<nav class="jp-outline" aria-label="Blocs de la leçon">' + outline + '</nav>'
-          + '<article class="jp-block-card jp-block-contenu' + (b.type_bloc === 'section' ? ' is-section' : '') + '" data-bloc="' + b.id + '">'
-          + '<header>'
-          + '<span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
-          + '<input class="jp-block-title" data-field="titre" data-id="' + b.id + '" value="' + esc(effTitre(b)) + '" placeholder="'
-          + (b.type_bloc === 'section' ? 'Titre de la section' : 'Titre du bloc (facultatif)') + '" aria-label="Titre">'
-          + tag
-          + plageBadge(b.niveau_min, b.niveau_max)
-          + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer" aria-label="Supprimer">×</button>'
-          + '</header>'
-          + '<div class="jp-block-body">' + blockBodyHtml(b) + '</div></article></div>';
-        const card = list.querySelector('.jp-block-card');
-        if (card) bindContenuEditors(card, b);
-      }
+      list.innerHTML = '<div class="jp-contenu-layout">'
+        + '<nav class="jp-outline" aria-label="Blocs de la leçon">' + outline + '</nav>'
+        + '<div class="jp-contenu-editor"></div></div>';
       list.querySelectorAll('[data-outline]').forEach((btn) => {
-        btn.addEventListener('click', () => selectBloc(btn.getAttribute('data-outline'), { inspectorTab: 'bloc' }));
+        btn.addEventListener('click', () => {
+          const nid = btn.getAttribute('data-outline');
+          if (nid === state.selectedBlocId) return;
+          selectBloc(nid, { inspectorTab: 'bloc' });
+        });
       });
-      list.querySelectorAll('[data-del]').forEach((btn) => {
-        btn.addEventListener('click', () => confirmDeleteBloc(btn.getAttribute('data-del')));
-      });
+      paintContenuEditorOnly();
+      ensureOutlineVisible(state.selectedBlocId);
     } else {
       // Structure : lignes compactes + sections en bandeau
       list.innerHTML = shown.map((b) => {

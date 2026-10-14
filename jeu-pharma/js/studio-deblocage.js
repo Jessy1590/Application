@@ -304,7 +304,12 @@
       + '<header class="jp-studio-sheet-head"><h2>Réglages du parcours</h2>'
       + '<button type="button" class="jp-btn jp-btn-ghost" data-close aria-label="Fermer">×</button></header>'
       + '<div class="jp-jeu-wiz-body">'
-      + '<p class="jp-muted" style="margin-top:0">« ' + esc(p.libelle) + ' » — conditions pour valider ce parcours et pour l’ouvrir.</p>'
+      + '<div class="jp-field"><label for="parcLibelle">Nom du parcours</label>'
+      + '<input id="parcLibelle" type="text" maxlength="200" value="' + esc(p.libelle || '') + '" required></div>'
+      + '<div class="jp-field"><label for="parcDesc">Description (facultatif)</label>'
+      + '<textarea id="parcDesc" rows="3" maxlength="2000">' + esc(p.description || '') + '</textarea></div>'
+      + '<hr class="jp-sheet-sep" aria-hidden="true">'
+      + '<p class="jp-muted" style="margin-top:0">Conditions pour valider ce parcours et pour l’ouvrir.</p>'
       + '<div class="jp-field"><label>S’ouvre après validation du parcours</label><div data-prereq></div>'
       + '<small class="jp-field-hint">Un parcours verrouillé verrouille toutes ses leçons.</small></div>'
       + '<div class="jp-field"><span class="jp-field-label">Pour valider ce parcours</span><div data-crit></div></div>'
@@ -329,18 +334,29 @@
 
     overlay.querySelector('[data-save]').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
+      const libelle = String(overlay.querySelector('#parcLibelle')?.value || '').trim();
+      const description = String(overlay.querySelector('#parcDesc')?.value || '');
+      if (!libelle) {
+        global.JpToast?.warn?.('Indiquez un nom de parcours');
+        overlay.querySelector('#parcLibelle')?.focus();
+        return;
+      }
       btn.disabled = true;
       try {
-        await rpc('v2_maj_parcours_criteres', {
+        const row = await rpc('v2_maj_parcours_criteres', {
           p_parcours_id: p.id,
           p_prerequis_id: prereqId,
           p_criteres: ed.get(),
+          p_libelle: libelle,
+          p_description: description,
         });
         p.prerequis_parcours_id = prereqId;
         p.criteres_json = ed.get();
+        p.libelle = row?.libelle || libelle;
+        p.description = row?.description != null ? row.description : description;
         global.JpToast?.ok?.('Réglages enregistrés');
         close();
-        if (o.onSaved) await o.onSaved();
+        if (o.onSaved) await o.onSaved(p);
       } catch (err) {
         btn.disabled = false;
         global.JpToast?.fromError?.(err);

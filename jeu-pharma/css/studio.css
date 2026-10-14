@@ -883,6 +883,11 @@
 /* Paramètres de jeu (wizard) : grille régulière */
 .jp-jeu-wiz-body .jp-split { gap: 0 1rem; }
 .jp-jeu-wiz-body .jp-field { margin-bottom: 0.9rem; }
+.jp-sheet-sep {
+  border: 0;
+  border-top: 1px solid rgba(15, 107, 92, 0.15);
+  margin: 0.85rem 0 1rem;
+}
 
 /* ═══════════ Déblocage (prérequis + critères) ═══════════ */
 .jp-unlock .jp-inspector-head { margin-bottom: 0.65rem; }
@@ -1245,10 +1250,11 @@
 
 .jp-contenu-layout {
   display: grid;
-  grid-template-columns: minmax(9rem, 12rem) 1fr;
+  grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
 }
+.jp-contenu-editor { min-width: 0; }
 .jp-outline {
   position: sticky;
   top: 0.25rem;
