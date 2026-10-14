@@ -497,38 +497,93 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 .jp-bloc--molecule { --bloc-c: #1f6f8b; --bloc-soft: rgba(31, 111, 139, 0.08); border-color: rgba(31, 111, 139, 0.22); }
 .jp-bloc--molecule .jp-bloc-head { border-bottom-color: rgba(31, 111, 139, 0.12); }
 
-/* Jeu : bandeau d’appel à l’action */
+/* Jeu : encart clair (même famille que reco / conseil — pas de fond sombre ni d’overlays) */
 .jp-bloc--jeu {
-  --bloc-c: #fff;
-  background: linear-gradient(135deg, #0f6b5c, #0b4a40);
-  border-color: #0b4a40;
+  --bloc-c: #0f6b5c;
+  --bloc-soft: rgba(15, 107, 92, 0.08);
+  background: #fff;
+  border-color: rgba(15, 107, 92, 0.28);
+  border-left: 5px solid var(--jp-accent, #0f6b5c);
+  color: var(--jp-text, #14201c);
+  box-shadow: 0 8px 22px rgba(15, 107, 92, 0.08);
+}
+.jp-bloc--jeu .jp-bloc-head {
+  background: var(--bloc-soft);
+  border-bottom-color: rgba(15, 107, 92, 0.12);
+}
+.jp-bloc--jeu .jp-bloc-ico {
+  background: var(--jp-accent, #0f6b5c);
   color: #fff;
 }
-.jp-bloc--jeu .jp-bloc-head { background: transparent; border-bottom: 0; padding-bottom: 0; }
-.jp-bloc--jeu .jp-bloc-ico { background: rgba(255, 255, 255, 0.18); }
-.jp-bloc--jeu .jp-bloc-kind { color: #b5e6dc; }
-.jp-bloc--jeu .jp-bloc-head h2 { color: #fff; }
-.jp-jeu-cta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.9rem; }
-.jp-jeu-cta-text { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
-.jp-jeu-type { font-size: 0.8rem; font-weight: 600; text-transform: capitalize; color: #d4f1ea; }
-.jp-jeu-req { margin: 0; font-size: 0.88rem; font-weight: 600; }
-.jp-jeu-req.is-ok { color: #b9f5df; }
-.jp-jeu-req.is-todo { color: #ffe3a6; }
-.jp-jeu-play {
-  display: inline-flex;
+.jp-bloc--jeu .jp-bloc-kind { color: var(--jp-accent, #0f6b5c); }
+.jp-bloc--jeu .jp-bloc-head h2 { color: var(--jp-ink, #0f2e28); }
+.jp-jeu-cta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  background: #fff;
-  color: #0b4a40;
-  border: 0;
-  text-decoration: none;
-  font-weight: 700;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease;
+  justify-content: space-between;
+  gap: 0.85rem 1rem;
 }
-.jp-jeu-play:hover { transform: translateY(-1px); }
-.jp-jeu-code { margin: 0.7rem 0 0; font-size: 0.75rem; opacity: 0.75; }
-.jp-jeu-code code { background: rgba(255, 255, 255, 0.14); color: #fff; padding: 0.1rem 0.4rem; border-radius: 0.4rem; }
+.jp-jeu-cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+/* Classe dédiée : éviter la collision avec .jp-jeu-type (admin) dans app.css */
+.jp-jeu-cta-type {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  color: var(--jp-text-muted, #4a5c56);
+}
+.jp-jeu-req {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--jp-text-muted, #4a5c56);
+}
+.jp-jeu-req.is-ok { color: var(--jp-ok, #0f6b5c); }
+.jp-jeu-req.is-todo { color: var(--jp-warn, #9a6700); }
+.jp-jeu-play {
+  flex: none;
+  background: var(--jp-accent, #0f6b5c);
+  color: #fff;
+  border: 0;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.jp-jeu-play:hover {
+  background: var(--jp-accent-hover, #0c574b);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.jp-jeu-code {
+  margin: 0.75rem 0 0;
+  padding-top: 0.65rem;
+  border-top: 1px dashed rgba(15, 107, 92, 0.18);
+  font-size: 0.75rem;
+  color: var(--jp-text-muted, #4a5c56);
+}
+.jp-jeu-code code {
+  padding: 0.12rem 0.45rem;
+  border-radius: 0.4rem;
+  background: var(--jp-accent-soft, #e6f3f0);
+  color: var(--jp-accent, #0f6b5c);
+  font-weight: 700;
+}
+@media (max-width: 480px) {
+  .jp-jeu-cta { flex-direction: column; align-items: stretch; }
+  .jp-jeu-play { width: 100%; }
+}
 
 /* ═══════════════ Molécules : fiche + carrousel ═══════════════ */
 .jp-chip-list { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }

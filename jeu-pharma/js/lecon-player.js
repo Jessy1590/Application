@@ -465,7 +465,7 @@
             + '</p>';
         }
         inner = '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
-          + (p.type_jeu ? '<span class="jp-jeu-type">' + esc(({
+          + (p.type_jeu ? '<span class="jp-jeu-cta-type">' + esc(({
             fiche_aleatoire: 'fiche aléatoire',
             classement: 'classement',
             appariement: 'appariement',

@@ -235,13 +235,16 @@
    *   modules: Array,
    *   defaultTitre?: string,
    *   modeleId?: string,
+   *   blocId?: string,
    *   onCreated?: Function,
    *   onUpdated?: Function
    * }} opts
+   * `blocId` (création) : lier le nouveau modèle à ce bloc au lieu d’en créer un second.
    */
   async function open(opts) {
     const { parcoursId, moduleId, modules } = opts;
     const editId = opts.modeleId || null;
+    const linkBlocId = (!editId && opts.blocId) || null;
     const TA = global.JpTypeahead;
     const byId = {};
     (modules || []).forEach((m) => { byId[m.id] = m; });
@@ -1314,6 +1317,14 @@
             configuration_json,
           },
         });
+
+        // Remplacer le jeu d’un bloc existant : ne pas créer un second bloc.
+        if (linkBlocId) {
+          global.JpToast?.ok?.(created.code_unique || 'Jeu créé');
+          opts.onCreated?.({ modele: created, blocId: linkBlocId, linked: true });
+          close();
+          return;
+        }
 
         const bloc = await rpc('v2_upsert_bloc', {
           p_payload: {

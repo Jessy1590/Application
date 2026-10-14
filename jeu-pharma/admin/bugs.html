@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bugs — Admin</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css?v=060">
+<link rel="stylesheet" href="../css/v2.css?v=047">
+</head>
+<body>
+  <main class="jp-page jp-page-wide" id="bugRoot">
+    <a class="jp-back" href="index.html">← Admin</a>
+    <h1 class="jp-title">Bugs<span id="helpBugs"></span></h1>
+    <p class="jp-sub">Consultez les signalements, changez leur statut, marquez-les comme traités (<em>modifié</em>).</p>
+
+    <div class="jp-field">
+      <label for="bugSearch" class="jp-field-label">Recherche</label>
+      <input type="search" id="bugSearch" placeholder="Titre, description, page, auteur…" autocomplete="off">
+    </div>
+    <div id="bugTypeFilter" class="jp-jx-filters" aria-label="Type"></div>
+    <div id="bugTabs" class="jp-jx-tabs" role="tablist" aria-label="Statut"></div>
+    <div id="bugList"><p class="jp-muted">Chargement…</p></div>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js?v=060"></script>
+  <script src="../js/fab.js?v=059"></script>
+  <script src="../js/ui.js?v=059"></script>
+  <script src="../js/ui-modal.js"></script>
+  <script src="../js/bugs-admin.js?v=001"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      JpUi.bootPage({ module: 'admin-bugs', homeHref: JpFab.PORTAIL_URL });
+      document.getElementById('helpBugs').appendChild(JpModal.helpButton('Bugs', [
+        'Les joueurs signalent un bug ou une idée via le bouton flottant.',
+        'Ouverts = nouveau + en cours. « Modifié » = traité définitivement (corrigé ou pris en compte).',
+        'Impossible / Annulé ferment aussi le ticket. Vous pouvez rouvrir un ticket fermé.',
+      ]));
+      void JpBugsAdmin.boot();
+    });
+  </script>
+</body>
+</html>

@@ -502,6 +502,12 @@ body:has(.jp-bottom-nav) > a[title="Retour au portail"] {
 .jp-badge-publie { background: var(--jp-accent-soft); color: var(--jp-accent); }
 .jp-badge-archive { background: #eee; color: #666; }
 
+.jp-bug-badge-nouveau { background: rgba(180, 120, 40, 0.15); color: #8a5a12; }
+.jp-bug-badge-en_cours { background: var(--jp-accent-soft); color: var(--jp-accent); }
+.jp-bug-badge-modifie { background: rgba(20, 120, 80, 0.12); color: #0f6b5c; }
+.jp-bug-badge-impossible { background: rgba(160, 40, 40, 0.12); color: #8a2020; }
+.jp-bug-badge-annule { background: #eee; color: #666; }
+
 .jp-link-btn {
   background: none;
   border: none;
@@ -722,13 +728,24 @@ body:has(.jp-bottom-nav) > a[title="Retour au portail"] {
   color: var(--jp-text-muted);
 }
 
-.jp-bug-statut-label select {
+.jp-bug-statut-label select,
+.jp-bug-statut-select {
   background: var(--jp-bg-elevated);
   border: 1px solid var(--jp-line);
   border-radius: var(--jp-radius-sm);
   padding: 0.55rem 0.7rem;
   font: inherit;
   color: var(--jp-text);
+}
+
+.jp-bug-detail {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--jp-line);
+}
+
+.jp-bug-item .jp-jx-actions {
+  margin-top: 0.35rem;
 }
 
 @media (min-width: 640px) {

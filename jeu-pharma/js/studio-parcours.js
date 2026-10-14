@@ -19,6 +19,14 @@
     texte: 'Texte', video: 'Vidéo', photo: 'Photo', molecule: 'Molécules',
     conseil: 'Conseil', recommandation: 'Recommandation', jeu: 'Jeu',
   };
+  const TYPE_JEU_LABELS = {
+    quiz: 'Quiz',
+    trous: 'Tableau à trous',
+    fiche_aleatoire: 'Fiche aléatoire',
+    ordonnance: 'Ordonnance',
+    classement: 'Classement',
+    appariement: 'Appariement',
+  };
   const ADD_TYPES = ['section', 'texte', 'video', 'photo', 'molecule', 'conseil', 'recommandation', 'jeu'];
 
   const state = {
@@ -1481,13 +1489,16 @@
         + renderRecoReference(b, p);
     }
     if (b.type_bloc === 'jeu') {
+      const typeLab = p.type_jeu ? (TYPE_JEU_LABELS[p.type_jeu] || p.type_jeu) : '';
       return '<p class="jp-bloc-jeu-line"><code>' + esc(p.code_unique || '—') + '</code>'
-        + (p.type_jeu ? '<span class="jp-bloc-jeu-type">' + esc(p.type_jeu) + '</span>' : '') + '</p>'
+        + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '') + '</p>'
+        + (effTitre(b) ? '<p class="jp-muted jp-bloc-jeu-titre">' + esc(effTitre(b)) + '</p>' : '')
         + '<div class="jp-bloc-jeu-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-change-jeu="' + b.id + '">Changer le jeu</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-new-jeu="' + b.id + '">Créer un nouveau</button>'
         + (p.modele_id
           ? '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + b.id + '">Modifier les paramètres</button>'
           : '')
-        + '<button type="button" class="jp-btn jp-btn-ghost" data-edit-jeu="' + b.id + '">Remplacer / nouveau jeu</button>'
         + '</div>';
     }
     return '';
@@ -1657,14 +1668,22 @@
     card.querySelectorAll('[data-mol-from-prog]').forEach((btn) => {
       btn.addEventListener('click', () => void addFromProgramme(btn.getAttribute('data-mol-from-prog')));
     });
-    card.querySelectorAll('[data-mod-jeu]').forEach((btn) => {
+    bindJeuBlocActions(card, b);
+  }
+
+  function bindJeuBlocActions(root, b) {
+    if (!root || !b || b.type_bloc !== 'jeu') return;
+    root.querySelectorAll('[data-mod-jeu]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const mid = effPayload(b).modele_id;
-        if (mid) void openJeuWizard({ modeleId: mid });
+        if (mid) void openJeuWizard({ modeleId: mid, blocId: b.id });
       });
     });
-    card.querySelectorAll('[data-edit-jeu]').forEach((btn) => {
-      btn.addEventListener('click', () => void openJeuWizard());
+    root.querySelectorAll('[data-new-jeu]').forEach((btn) => {
+      btn.addEventListener('click', () => void openJeuWizard({ blocId: b.id }));
+    });
+    root.querySelectorAll('[data-change-jeu]').forEach((btn) => {
+      btn.addEventListener('click', () => void openChangerJeu(b.id));
     });
   }
 
@@ -2223,6 +2242,22 @@
         return;
       }
       const vc = variantCount(bloc);
+      const pj = effPayload(bloc);
+      let jeuInsp = '';
+      if (bloc.type_bloc === 'jeu') {
+        const typeLab = pj.type_jeu ? (TYPE_JEU_LABELS[pj.type_jeu] || pj.type_jeu) : '';
+        jeuInsp = '<div class="jp-inspector-cta" style="margin-top:0.75rem">'
+          + '<strong class="jp-inspector-title">Jeu lié</strong>'
+          + '<p class="jp-bloc-jeu-line" style="margin-top:0.35rem"><code>' + esc(pj.code_unique || '—') + '</code>'
+          + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '') + '</p>'
+          + '<div class="jp-bloc-jeu-actions">'
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-change-jeu="' + bloc.id + '">Changer le jeu</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost" data-new-jeu="' + bloc.id + '">Créer un nouveau</button>'
+          + (pj.modele_id
+            ? '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + bloc.id + '">Modifier les paramètres</button>'
+            : '')
+          + '</div></div>';
+      }
       body.innerHTML = '<div class="jp-inspector-cta">'
         + '<strong class="jp-inspector-title">' + esc(TYPE_LABELS[bloc.type_bloc] || bloc.type_bloc) + '</strong>'
         + '<p class="jp-muted" style="margin:0.25rem 0 0.6rem">' + esc(effTitre(bloc) || 'Sans titre')
@@ -2231,7 +2266,8 @@
         + plageControlsHtml(bloc.niveau_min, bloc.niveau_max, 'bloc-' + bloc.id)
         + '<p class="jp-muted jp-field-hint">Enregistré dès modification. Le contenu (texte, variantes) s’édite en mode Contenu.</p>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnOpenContenu" style="margin-top:0.5rem">Écrire ce bloc</button>'
-        + '</div>';
+        + '</div>'
+        + jeuInsp;
       const host = body.querySelector('[data-plage]');
       bindPlage(host, async (plage) => {
         try {
@@ -2248,6 +2284,7 @@
       body.querySelector('#btnOpenContenu')?.addEventListener('click', () => {
         selectBloc(bloc.id, { toContenu: true, inspectorTab: 'bloc' });
       });
+      if (bloc.type_bloc === 'jeu') bindJeuBlocActions(body, bloc);
       return;
     }
 
@@ -2330,54 +2367,160 @@
     ).join('') || '<p class="jp-muted" style="margin:0.5rem 0 0">Aucun</p>';
   }
 
+  /** Lie un modèle de jeu au bloc (brouillon si déjà publié, sinon payload direct). */
+  async function lierModeleAuBloc(blocId, modele) {
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!b || b.type_bloc !== 'jeu' || !modele?.id) return null;
+    const prev = effPayload(b);
+    const payload = Object.assign({}, prev, {
+      modele_id: modele.id,
+      code_unique: modele.code_unique || '',
+      type_jeu: modele.type_jeu || prev.type_jeu || '',
+      libelle_cta: prev.libelle_cta || 'Jouer',
+    });
+    const titre = modele.titre || effTitre(b) || '';
+    const pub = pubPayload(b);
+    const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
+    const pj = Object.assign({}, pub);
+    if (!same || isHidden(b)) pj._brouillon = { titre, payload };
+    const row = await rpc('v2_upsert_bloc', { p_payload: { id: blocId, payload_json: pj } });
+    b.payload_json = row.payload_json;
+    if (row.titre != null) b.titre = row.titre;
+    return b;
+  }
+
+  async function listModelesParcours() {
+    const { data, error } = await sb()
+      .from('modeles_jeu')
+      .select('id, code_unique, type_jeu, titre, en_pause, actif, module_ids')
+      .eq('parcours_id', state.parcoursId)
+      .eq('actif', true)
+      .order('code_unique');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function openChangerJeu(blocId) {
+    const m = selectedModule();
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!m || !b || b.type_bloc !== 'jeu') return;
+    await flushAll();
+    let rows;
+    try {
+      rows = await listModelesParcours();
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      return;
+    }
+    const curId = effPayload(b).modele_id || '';
+    const items = rows.map((r) => ({
+      id: r.id,
+      label: (r.code_unique || 'JP-?????') + ' — ' + (r.titre || 'Sans titre'),
+      sub: (TYPE_JEU_LABELS[r.type_jeu] || r.type_jeu || '')
+        + (r.en_pause ? ' · en pause' : '')
+        + (r.id === curId ? ' · actuel' : ''),
+      modele: r,
+    }));
+
+    const overlay = document.createElement('div');
+    overlay.className = 'jp-studio-overlay';
+    overlay.innerHTML = '<div class="jp-studio-sheet jp-jeu-pick-sheet" role="dialog" aria-modal="true" aria-labelledby="jpChangeJeuTitle">'
+      + '<header class="jp-studio-sheet-head"><h2 id="jpChangeJeuTitle">Changer le jeu</h2>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-close aria-label="Fermer">×</button></header>'
+      + '<p class="jp-muted" style="margin:0 0 0.75rem">Choisissez un jeu existant du parcours (code JP-***** ou titre).</p>'
+      + '<div class="jp-field"><label for="jpChangeJeuTa">Jeu</label><div id="jpChangeJeuTa"></div></div>'
+      + '<div class="jp-jeu-pick-actions">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-close>Annuler</button>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="jpChangeJeuOk" disabled>Lier à ce bloc</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+
+    let picked = null;
+    const close = () => overlay.remove();
+    overlay.querySelectorAll('[data-close]').forEach((btn) => btn.addEventListener('click', close));
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+
+    const okBtn = overlay.querySelector('#jpChangeJeuOk');
+    const initial = items.find((it) => it.id === curId) || null;
+    if (initial) picked = initial;
+    global.JpTypeahead.combo(overlay.querySelector('#jpChangeJeuTa'), {
+      search: global.JpTypeahead.localSource(items, { limit: 15 }),
+      placeholder: items.length ? 'Code JP-***** ou titre…' : 'Aucun jeu actif dans ce parcours',
+      ariaLabel: 'Choisir un jeu',
+      emptyText: 'Aucun jeu trouvé',
+      initial,
+      onChange: (it) => {
+        picked = it;
+        okBtn.disabled = !it || it.id === curId;
+      },
+    });
+
+    okBtn.addEventListener('click', async () => {
+      if (!picked?.modele || picked.id === curId) return;
+      okBtn.disabled = true;
+      try {
+        await lierModeleAuBloc(blocId, picked.modele);
+        close();
+        state.blocs = await loadBlocs(m.id);
+        selectBloc(blocId, { toContenu: true, inspectorTab: 'bloc' });
+        await refreshJeuxLies(m);
+        global.JpToast?.ok?.('Jeu lié au bloc');
+      } catch (e) {
+        okBtn.disabled = false;
+        global.JpToast?.fromError?.(e);
+      }
+    });
+  }
+
   async function openJeuWizard(extra) {
     const m = selectedModule();
     if (!m || m.est_groupe) return;
     await flushAll();
     const editId = extra && extra.modeleId;
+    const linkBlocId = (!editId && extra && extra.blocId) || null;
+    const editBlocId = (editId && extra && extra.blocId) || null;
     await global.JpStudioJeuWizard.open({
       parcoursId: state.parcoursId,
       moduleId: m.id,
       modules: state.modules,
       defaultTitre: 'Jeu — ' + m.titre,
       modeleId: editId || undefined,
+      blocId: linkBlocId || undefined,
       onUpdated: async (res) => {
         try {
           const modele = res && res.modele;
           if (modele && modele.id) {
-            const bloc = state.blocs.find((b) => b.type_bloc === 'jeu'
-              && effPayload(b).modele_id === modele.id);
-            if (bloc && modele.titre) {
-              await rpc('v2_upsert_bloc', {
-                p_payload: {
-                  id: bloc.id,
-                  titre: modele.titre,
-                  payload_json: Object.assign({}, effPayload(bloc), {
-                    code_unique: modele.code_unique || effPayload(bloc).code_unique,
-                    type_jeu: modele.type_jeu || effPayload(bloc).type_jeu,
-                  }),
-                },
-              });
-            }
+            const bloc = (editBlocId && state.blocs.find((x) => x.id === editBlocId))
+              || state.blocs.find((b) => b.type_bloc === 'jeu'
+                && effPayload(b).modele_id === modele.id);
+            if (bloc) await lierModeleAuBloc(bloc.id, modele);
           }
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
         state.blocs = await loadBlocs(m.id);
-        paintBlocks();
+        const focusId = editBlocId
+          || (res?.modele?.id
+            && (state.blocs.find((b) => b.type_bloc === 'jeu' && effPayload(b).modele_id === res.modele.id)?.id));
+        if (focusId) selectBloc(focusId, { inspectorTab: 'bloc' });
+        else paintBlocks();
         await refreshJeuxLies(m);
       },
       onCreated: async (res) => {
         try {
-          // Le bloc jeu suit le même cycle que les autres : masqué jusqu’à la publication.
-          if (res?.bloc?.id) {
+          if (res?.linked && res?.blocId && res?.modele) {
+            await lierModeleAuBloc(res.blocId, res.modele);
+          } else if (res?.bloc?.id) {
+            // Nouveau bloc : masqué jusqu’à la publication.
             await rpc('v2_upsert_bloc', { p_payload: { id: res.bloc.id, visible: false } });
           }
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
         state.blocs = await loadBlocs(m.id);
-        paintBlocks();
+        const focusId = (res?.linked && res?.blocId) || res?.bloc?.id || null;
+        if (focusId) selectBloc(focusId, { toContenu: true, inspectorTab: 'bloc' });
+        else paintBlocks();
         await refreshJeuxLies(m);
       },
     });
