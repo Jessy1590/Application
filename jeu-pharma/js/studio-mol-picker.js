@@ -194,6 +194,37 @@
         p_module_id: moduleId,
       });
       const list = Array.isArray(rows) ? rows : [];
+      // #region agent log
+      let matriceSample = null;
+      try {
+        const { data: vm } = await sb().from('v_medicaments_complet')
+          .select('id, dci, indications, contre_indications, detail_pharmacologie, effets_indesirables')
+          .eq('id', matriceId).maybeSingle();
+        const ind = Array.isArray(vm?.indications) ? vm.indications : [];
+        const ci = Array.isArray(vm?.contre_indications) ? vm.contre_indications : [];
+        matriceSample = {
+          dci: vm?.dci || null,
+          nInd: ind.length,
+          ind0: ind[0]?.valeur || null,
+          ind0Len: (ind[0]?.valeur || '').length,
+          nCi: ci.length,
+          ci0: ci[0]?.valeur || null,
+          ci0Len: (ci[0]?.valeur || '').length,
+          detail: typeof vm?.detail_pharmacologie === 'string' ? vm.detail_pharmacologie.slice(0, 80) : null,
+          detailLen: typeof vm?.detail_pharmacologie === 'string' ? vm.detail_pharmacologie.length : 0,
+        };
+      } catch (_) { /* ignore */ }
+      const byCode = {};
+      list.forEach((r) => {
+        const k = r.champ_code || '?';
+        byCode[k] = (byCode[k] || 0) + 1;
+      });
+      const sampleCi = list.filter((r) => r.champ_code === 'contre_indications').slice(0, 2)
+        .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
+      const sampleInd = list.filter((r) => r.champ_code === 'indications').slice(0, 2)
+        .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
+      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'257be1'},body:JSON.stringify({sessionId:'257be1',runId:'pre',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const dci = list.find((r) => r.champ_code === 'dci')?.texte;
       const niceLabel = dci || label || matriceId;
       selected.set(matriceId, { id: matriceId, label: niceLabel, rows: list });
