@@ -483,7 +483,13 @@
     paint(false);
   }
 
-  /** ——— Appariement (clic gauche puis droite) ——— */
+  /** Palette fixe pour traits d’appariement (une couleur par paire). */
+  const APPARIE_COLORS = [
+    '#0f6b5c', '#c45c26', '#2f5aa8', '#8a3a7a', '#3d7a2a',
+    '#a67c00', '#1a6f8a', '#9b2d3a', '#5b4bb0', '#2a7a6a',
+  ];
+
+  /** ——— Appariement (clic gauche puis droite + traits colorés) ——— */
   function runAppariement(root, modele) {
     const cfg = modele.configuration_json || {};
     const gauche = Array.isArray(cfg.gauche) ? cfg.gauche.slice() : [];
@@ -500,8 +506,89 @@
     let selectedG = null;
     const orderG = shuffle(gauche);
     const orderD = shuffle(droite);
+    const pairColorIndex = {}; // gauche_id -> index palette stable pour la session
+    let nextColor = 0;
+    let boardEl = null;
+    let svgEl = null;
+    let resizeObs = null;
+    let onWinResize = null;
+    let onWinScroll = null;
+
+    function colorFor(gid) {
+      if (pairColorIndex[gid] == null) {
+        pairColorIndex[gid] = nextColor % APPARIE_COLORS.length;
+        nextColor += 1;
+      }
+      return APPARIE_COLORS[pairColorIndex[gid]];
+    }
+
+    function detachDrawListeners() {
+      if (resizeObs) {
+        resizeObs.disconnect();
+        resizeObs = null;
+      }
+      if (onWinResize) {
+        window.removeEventListener('resize', onWinResize);
+        onWinResize = null;
+      }
+      if (onWinScroll) {
+        window.removeEventListener('scroll', onWinScroll, true);
+        onWinScroll = null;
+      }
+    }
+
+    function drawLinks() {
+      if (!boardEl || !svgEl) return;
+      const rect = boardEl.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width));
+      const h = Math.max(1, Math.round(rect.height));
+      svgEl.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+      svgEl.setAttribute('width', String(w));
+      svgEl.setAttribute('height', String(h));
+      const parts = [];
+      Object.keys(links).forEach(function (gid) {
+        const did = links[gid];
+        const gHandle = boardEl.querySelector('[data-g-handle="' + gid + '"]');
+        const dHandle = boardEl.querySelector('[data-d-handle="' + did + '"]');
+        if (!gHandle || !dHandle) return;
+        const gr = gHandle.getBoundingClientRect();
+        const dr = dHandle.getBoundingClientRect();
+        const x1 = gr.left + gr.width / 2 - rect.left;
+        const y1 = gr.top + gr.height / 2 - rect.top;
+        const x2 = dr.left + dr.width / 2 - rect.left;
+        const y2 = dr.top + dr.height / 2 - rect.top;
+        const dx = Math.abs(x2 - x1);
+        const cx1 = x1 + Math.max(24, dx * 0.35);
+        const cx2 = x2 - Math.max(24, dx * 0.35);
+        const color = colorFor(gid);
+        parts.push(
+          '<path d="M ' + x1.toFixed(1) + ' ' + y1.toFixed(1)
+            + ' C ' + cx1.toFixed(1) + ' ' + y1.toFixed(1)
+            + ', ' + cx2.toFixed(1) + ' ' + y2.toFixed(1)
+            + ', ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '"'
+            + ' fill="none" stroke="' + color + '" stroke-width="2.5"'
+            + ' stroke-linecap="round" opacity="0.9"/>'
+        );
+      });
+      svgEl.innerHTML = parts.join('');
+    }
+
+    function attachDrawListeners() {
+      detachDrawListeners();
+      if (!boardEl) return;
+      onWinResize = function () { drawLinks(); };
+      onWinScroll = function () { drawLinks(); };
+      window.addEventListener('resize', onWinResize);
+      window.addEventListener('scroll', onWinScroll, true);
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObs = new ResizeObserver(function () { drawLinks(); });
+        resizeObs.observe(boardEl);
+      }
+      requestAnimationFrame(function () { drawLinks(); });
+    }
 
     function paint(done) {
+      detachDrawListeners();
       if (done) {
         let ok = 0;
         const details = orderG.map(function (g) {
@@ -527,32 +614,46 @@
       }
 
       const usedRight = new Set(Object.keys(links).map(function (g) { return links[g]; }));
+      const gToColor = {};
+      Object.keys(links).forEach(function (gid) { gToColor[gid] = colorFor(gid); });
+      const dToColor = {};
+      Object.keys(links).forEach(function (gid) { dToColor[links[gid]] = gToColor[gid]; });
+
       let html = '<p class="jp-muted">' + esc(cfg.consigne || 'Reliez chaque élément de gauche à celui de droite') + '</p>'
-        + '<p class="jp-field-hint">Cliquez un élément à gauche, puis sa correspondance à droite. Recliquez pour annuler.</p>'
-        + '<div class="jp-appariement">'
-        + '<div class="jp-appariement-col" aria-label="Gauche">';
+        + '<p class="jp-field-hint">Cliquez un élément à gauche, puis sa correspondance à droite. Recliquez une paire pour annuler.</p>'
+        + '<div class="jp-appariement" id="jpApparieBoard">'
+        + '<svg class="jp-appariement-svg" aria-hidden="true"></svg>'
+        + '<div class="jp-appariement-col jp-appariement-col--g" aria-label="Gauche">';
       orderG.forEach(function (g) {
         const linked = links[g.id];
-        const dLab = linked ? ((droite.find(function (d) { return d.id === linked; }) || {}).label || '') : '';
-        html += '<button type="button" class="jp-appariement-card'
+        const col = linked ? gToColor[g.id] : '';
+        html += '<button type="button" class="jp-appariement-card jp-appariement-card--g'
           + (selectedG === g.id ? ' is-selected' : '')
-          + (linked ? ' is-linked' : '') + '" data-g="' + esc(g.id) + '">'
-          + '<strong>' + esc(g.label) + '</strong>'
-          + (linked ? '<span class="jp-muted">→ ' + esc(dLab) + '</span>' : '')
+          + (linked ? ' is-linked' : '') + '" data-g="' + esc(g.id) + '"'
+          + (col ? ' style="--jp-pair:' + col + '"' : '') + '>'
+          + '<span class="jp-appariement-card-body"><strong>' + esc(g.label) + '</strong></span>'
+          + '<span class="jp-appariement-handle" data-g-handle="' + esc(g.id) + '" aria-hidden="true"></span>'
           + '</button>';
       });
-      html += '</div><div class="jp-appariement-col" aria-label="Droite">';
+      html += '</div><div class="jp-appariement-col jp-appariement-col--d" aria-label="Droite">';
       orderD.forEach(function (d) {
-        html += '<button type="button" class="jp-appariement-card'
-          + (usedRight.has(d.id) ? ' is-used' : '')
-          + '" data-d="' + esc(d.id) + '"' + (usedRight.has(d.id) && !selectedG ? '' : '') + '>'
-          + esc(d.label) + '</button>';
+        const col = dToColor[d.id] || '';
+        html += '<button type="button" class="jp-appariement-card jp-appariement-card--d'
+          + (usedRight.has(d.id) ? ' is-used is-linked' : '')
+          + '" data-d="' + esc(d.id) + '"'
+          + (col ? ' style="--jp-pair:' + col + '"' : '') + '>'
+          + '<span class="jp-appariement-handle" data-d-handle="' + esc(d.id) + '" aria-hidden="true"></span>'
+          + '<span class="jp-appariement-card-body">' + esc(d.label) + '</span>'
+          + '</button>';
       });
       html += '</div></div><div class="jp-v2-actions">'
         + '<button type="button" class="jp-btn jp-btn-ghost" id="btnResetLinks">Réinitialiser</button>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnVerify"'
         + (Object.keys(links).length < orderG.length ? ' disabled' : '') + '>Vérifier</button></div>';
       root.innerHTML = html;
+      boardEl = root.querySelector('#jpApparieBoard');
+      svgEl = root.querySelector('.jp-appariement-svg');
+      attachDrawListeners();
 
       root.querySelectorAll('[data-g]').forEach(function (btn) {
         btn.addEventListener('click', function () {

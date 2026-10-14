@@ -1,13 +1,17 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Jeux classement / appariement / quiz mixte / édition** (`039`) : types `classement` + `appariement`, questions manuelles quiz, RPC `v2_update_modele_jeu`, wizard édition post-publication. Cache-bust `?v=039` / `043` (wizard, play, studio).
+Dernière mise à jour : 2026-10-14 — **Appariement / classement UX** : auto-proposition référentiel + traits colorés joueur. Cache-bust `?v=044` (wizard, play, v2, studio).
+
+## Appariement / classement — auto-liaison + traits (2026-10-14)
+- Wizard : bouton **Proposer les associations** (+ auto discret à l’ajout référentiel) — remplit `paires[]` / `zones[].item_ids` via liaisons matrice (`matrice_classes_*`, `matrice_indications`, …). Ne touche que les items non assignés ; confirmation si tout est déjà lié. Zones classement persistent `source` / `entite` / `entite_id`.
+- Player appariement : ronds (handles) + overlay SVG (courbes), une couleur par paire ; clic gauche→droite inchangé ; redraw resize.
 
 ## Jeux classement, appariement, quiz mixte, édition (039 — appliquée remote, 2026-10-14)
 - `sql/039_jeux_classement_appariement_edit.sql` : CHECK `type_jeu` + `classement` / `appariement` ; RPC admin **`v2_update_modele_jeu`** (titre, mode, `module_ids`, `configuration_json` — pas `type_jeu` / `code_unique` / `parcours_id`).
 - Config hybride (mode B) dans `configuration_json` : items / zones / paires = texte libre **ou** typeahead matrice / entités.
 - Wizard (`js/studio-jeu-wizard.js`) : panels classement / appariement ; section « Questions manuelles » quiz (+ `nb_auto_max`) ; mode édition (`modeleId`) → Enregistrer.
 - Studio : bouton **Modifier les paramètres** (primaire) + **Remplacer / nouveau jeu** (secondaire).
-- Player (`js/jeux-play.js`) : DnD classement (+ clic sélection→zone) ; appariement clic-à-clic 1↔1 ; quiz = union manuelles + auto, tirage `nb_questions` à chaque partie ; insert `tentatives_jeu` comme quiz.
+- Player (`js/jeux-play.js`) : DnD classement (+ clic sélection→zone) ; appariement clic-à-clic 1↔1 + traits SVG ; quiz = union manuelles + auto, tirage `nb_questions` à chaque partie ; insert `tentatives_jeu` comme quiz.
 - Admin scores : labels / filtres `classement` / `appariement`. Listes `jeux/index.html` + `lecon-player` → `jeux/jouer.html`.
 - **Limite « 100 % molécules » levée** pour classement, appariement et questions manuelles quiz (contenu libre / référentiel hybride). Quiz auto / trous / fiche / ordonnance restent basés molécules + pubs.
 

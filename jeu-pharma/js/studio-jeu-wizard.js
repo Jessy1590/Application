@@ -60,6 +60,87 @@
     return out;
   }
 
+  /** Table entité → colonne jsonb de v_medicaments_complet / métadonnée liaison. */
+  const ENTITE_LIAISON = {
+    classes_pharmacologiques: {
+      liaison: 'matrice_classes_pharmacologiques',
+      fk: 'classe_pharmacologique_id',
+    },
+    classes_therapeutiques: {
+      liaison: 'matrice_classes_therapeutiques',
+      fk: 'classe_therapeutique_id',
+    },
+    indications: { liaison: 'matrice_indications', fk: 'indication_id' },
+    contre_indications: { liaison: 'matrice_contre_indications', fk: 'contre_indication_id' },
+    effets_indesirables: { liaison: 'matrice_effets_indesirables', fk: 'effet_indesirable_id' },
+    precautions_emploi: { liaison: 'matrice_precautions_emploi', fk: 'precaution_emploi_id' },
+    interactions: { liaison: 'matrice_interactions', fk: 'interaction_id' },
+    surveillances: { liaison: 'matrice_surveillances', fk: 'surveillance_id' },
+  };
+
+  function isRefItem(it) {
+    return !!(it && it.entite && it.entite_id && it.source !== 'manuel');
+  }
+
+  /**
+   * Charge les ids d’entités liés à chaque matrice (ordre fiche).
+   * @returns {Promise<Record<string, Record<string, string[]>>>} matriceId → entiteTable → [entityIds]
+   */
+  async function loadMatriceEntityLinks(matriceIds) {
+    const ids = Array.from(new Set((matriceIds || []).filter(Boolean).map(String)));
+    const out = {};
+    ids.forEach((id) => { out[id] = {}; });
+    if (!ids.length) return out;
+
+    await Promise.all(Object.keys(ENTITE_LIAISON).map(async (table) => {
+      const meta = ENTITE_LIAISON[table];
+      const { data, error } = await sb()
+        .from(meta.liaison)
+        .select('matrice_id, ' + meta.fk + ', ordre')
+        .in('matrice_id', ids)
+        .order('ordre', { ascending: true });
+      if (error) throw error;
+      (data || []).forEach((row) => {
+        const mid = String(row.matrice_id);
+        const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
+        if (!mid || !eid || !out[mid]) return;
+        if (!out[mid][table]) out[mid][table] = [];
+        out[mid][table].push(eid);
+      });
+    }));
+    return out;
+  }
+
+  /**
+   * Relation référentiel entre deux items hybrides (matrice ↔ entité).
+   * @returns {number} rang (0 = meilleur / premier ordre), ou -1 si pas de lien.
+   */
+  function relationRank(linksByMatrice, a, b) {
+    if (!isRefItem(a) || !isRefItem(b)) return -1;
+    if (a.entite === 'matrice' && b.entite !== 'matrice') {
+      const list = (linksByMatrice[String(a.entite_id)] || {})[b.entite] || [];
+      return list.indexOf(String(b.entite_id));
+    }
+    if (b.entite === 'matrice' && a.entite !== 'matrice') {
+      const list = (linksByMatrice[String(b.entite_id)] || {})[a.entite] || [];
+      return list.indexOf(String(a.entite_id));
+    }
+    return -1;
+  }
+
+  /**
+   * Choisit la cible la plus évidente parmi des candidats scorés (rang fiche).
+   * Ambigu si plusieurs candidats partagent le même meilleur rang → null.
+   */
+  function pickBestCandidate(scored) {
+    if (!scored.length) return null;
+    scored.sort((x, y) => x.rank - y.rank);
+    const best = scored[0].rank;
+    const ties = scored.filter((s) => s.rank === best);
+    if (ties.length !== 1) return null;
+    return ties[0].target;
+  }
+
   /**
    * @param {{
    *   parcoursId: string,
@@ -119,6 +200,9 @@
         id: z.id || uid('z'),
         label: z.label || '',
         item_ids: Array.isArray(z.item_ids) ? z.item_ids.slice() : [],
+        source: z.source || 'manuel',
+        entite: z.entite || null,
+        entite_id: z.entite_id || null,
       }))
       : [];
     const appGauche = Array.isArray(cfg0.gauche)
@@ -237,6 +321,10 @@
       + '<div id="jwClassItems" class="jp-jeu-list"></div>'
       + '<div class="jp-jeu-hybrid-add" id="jwClassZoneAdd" style="margin-top:1rem"></div>'
       + '<div id="jwClassZones" class="jp-jeu-list"></div>'
+      + '<div class="jp-jeu-propose-bar">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="jwClassPropose">Proposer les associations</button>'
+      + '<small class="jp-field-hint">À partir des relations référentiel (matrice ↔ classes / indications…)</small>'
+      + '</div>'
       + '<div id="jwClassAssign" class="jp-jeu-assign" style="margin-top:1rem"></div>'
       + '</section>'
       + '<section class="jp-quiz-admin-panel" id="jwAppariement" hidden>'
@@ -251,6 +339,10 @@
       + '<div><h4 class="jp-quiz-admin-panel-title" style="font-size:0.95rem">Colonne droite</h4>'
       + '<div class="jp-jeu-hybrid-add" id="jwAppDroiteAdd"></div>'
       + '<div id="jwAppDroite" class="jp-jeu-list"></div></div>'
+      + '</div>'
+      + '<div class="jp-jeu-propose-bar">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="jwAppPropose">Proposer les associations</button>'
+      + '<small class="jp-field-hint">À partir des relations référentiel (matrice ↔ classes / indications…)</small>'
       + '</div>'
       + '<div id="jwAppPaires" class="jp-jeu-assign" style="margin-top:1rem"></div>'
       + '</section>'
@@ -487,6 +579,61 @@
       });
     }
 
+    function classAssignedItemIds() {
+      const assigned = new Set();
+      classZones.forEach((z) => (z.item_ids || []).forEach((id) => assigned.add(id)));
+      return assigned;
+    }
+
+    function collectMatriceIdsFromPairs(aList, bList) {
+      const ids = [];
+      [...aList, ...bList].forEach((it) => {
+        if (isRefItem(it) && it.entite === 'matrice') ids.push(it.entite_id);
+      });
+      return ids;
+    }
+
+    async function proposeClassement(optsProp) {
+      const onlyUnassigned = !optsProp || optsProp.onlyUnassigned !== false;
+      const silent = !!(optsProp && optsProp.silent);
+      if (!classItems.length || !classZones.length) {
+        if (!silent) global.JpToast?.warn?.('Ajoutez des items et des zones');
+        return 0;
+      }
+      const assigned = classAssignedItemIds();
+      const pending = classItems.filter((it) => {
+        if (!isRefItem(it)) return false;
+        return onlyUnassigned ? !assigned.has(it.id) : true;
+      });
+      const refZones = classZones.filter(isRefItem);
+      if (!pending.length || !refZones.length) {
+        if (!silent) global.JpToast?.warn?.('Aucun couple référentiel à proposer');
+        return 0;
+      }
+      const links = await loadMatriceEntityLinks(collectMatriceIdsFromPairs(pending, refZones));
+      let n = 0;
+      pending.forEach((it) => {
+        const scored = [];
+        refZones.forEach((z) => {
+          const rank = relationRank(links, it, z);
+          if (rank >= 0) scored.push({ target: z, rank });
+        });
+        const best = pickBestCandidate(scored);
+        if (!best) return;
+        classZones.forEach((z) => {
+          z.item_ids = (z.item_ids || []).filter((x) => x !== it.id);
+        });
+        best.item_ids.push(it.id);
+        n += 1;
+      });
+      renderClassAssign();
+      if (!silent) {
+        if (n) global.JpToast?.ok?.(n + ' association' + (n > 1 ? 's' : '') + ' proposée' + (n > 1 ? 's' : ''));
+        else global.JpToast?.warn?.('Aucune association claire trouvée');
+      }
+      return n;
+    }
+
     function renderClassItems() {
       const box = overlay.querySelector('#jwClassItems');
       box.innerHTML = classItems.length
@@ -510,6 +657,7 @@
       const box = overlay.querySelector('#jwClassZones');
       box.innerHTML = classZones.length
         ? '<ul>' + classZones.map((z, i) => '<li><strong>' + esc(z.label) + '</strong>'
+          + ' <span class="jp-muted">(' + esc(z.source || 'manuel') + ')</span>'
           + ' <button type="button" data-del-zone="' + i + '" aria-label="Retirer">×</button></li>').join('') + '</ul>'
         : '<p class="jp-muted">Aucune zone</p>';
       box.querySelectorAll('[data-del-zone]').forEach((b) => {
@@ -553,21 +701,101 @@
       labelTitle: 'Item à classer',
       button: '+ Item',
       idPrefix: 'i',
-      onAdd: (it) => { classItems.push(it); renderClassItems(); },
+      onAdd: (it) => {
+        classItems.push(it);
+        renderClassItems();
+        if (isRefItem(it)) void proposeClassement({ onlyUnassigned: true, silent: true });
+      },
     });
     mountHybridAdd(overlay.querySelector('#jwClassZoneAdd'), {
       labelTitle: 'Zone / catégorie',
       button: '+ Zone',
       idPrefix: 'z',
       onAdd: (it) => {
-        classZones.push({ id: it.id, label: it.label, item_ids: [] });
+        classZones.push({
+          id: it.id,
+          label: it.label,
+          item_ids: [],
+          source: it.source || 'manuel',
+          entite: it.entite || null,
+          entite_id: it.entite_id || null,
+        });
         renderClassZones();
+        if (isRefItem(it)) void proposeClassement({ onlyUnassigned: true, silent: true });
       },
+    });
+    overlay.querySelector('#jwClassPropose').addEventListener('click', async () => {
+      try {
+        const assigned = classAssignedItemIds();
+        const allAssigned = classItems.length > 0 && classItems.every((it) => assigned.has(it.id));
+        let onlyUnassigned = true;
+        if (allAssigned) {
+          const ok = global.confirm
+            ? global.confirm('Toutes les associations sont déjà définies. Les remplacer par une proposition automatique ?')
+            : false;
+          if (!ok) return;
+          onlyUnassigned = false;
+          classZones.forEach((z) => { z.item_ids = []; });
+        }
+        await proposeClassement({ onlyUnassigned, silent: false });
+      } catch (e) {
+        global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
+      }
     });
     renderClassItems();
     renderClassZones();
 
     /* ——— Appariement ——— */
+    async function proposeAppariement(optsProp) {
+      const onlyUnassigned = !optsProp || optsProp.onlyUnassigned !== false;
+      const silent = !!(optsProp && optsProp.silent);
+      if (!appGauche.length || !appDroite.length) {
+        if (!silent) global.JpToast?.warn?.('Ajoutez des éléments des deux côtés');
+        return 0;
+      }
+      const usedRight = new Set(Object.values(appPaires));
+      const pending = appGauche.filter((g) => {
+        if (!isRefItem(g)) return false;
+        return onlyUnassigned ? !appPaires[g.id] : true;
+      });
+      const refDroite = appDroite.filter(isRefItem);
+      if (!pending.length || !refDroite.length) {
+        if (!silent) global.JpToast?.warn?.('Aucun couple référentiel à proposer');
+        return 0;
+      }
+      const links = await loadMatriceEntityLinks(collectMatriceIdsFromPairs(pending, refDroite));
+      let n = 0;
+      pending.forEach((g) => {
+        const scored = [];
+        refDroite.forEach((d) => {
+          if (usedRight.has(d.id) && appPaires[g.id] !== d.id) return;
+          const rank = relationRank(links, g, d);
+          if (rank >= 0) scored.push({ target: d, rank });
+        });
+        const available = scored.filter((s) => !usedRight.has(s.target.id) || appPaires[g.id] === s.target.id);
+        const best = pickBestCandidate(available);
+        if (!best) return;
+        if (appPaires[g.id] && usedRight.has(appPaires[g.id])) {
+          usedRight.delete(appPaires[g.id]);
+        }
+        Object.keys(appPaires).forEach((other) => {
+          if (other !== g.id && appPaires[other] === best.id) {
+            delete appPaires[other];
+            usedRight.delete(best.id);
+          }
+        });
+        appPaires[g.id] = best.id;
+        usedRight.add(best.id);
+        n += 1;
+      });
+      renderAppPaires();
+      if (!silent) {
+        if (n) global.JpToast?.ok?.(n + ' paire' + (n > 1 ? 's' : '') + ' proposée' + (n > 1 ? 's' : ''));
+        else global.JpToast?.warn?.('Aucune paire claire trouvée');
+      }
+      return n;
+    }
+
     function renderAppCol(side) {
       const list = side === 'gauche' ? appGauche : appDroite;
       const box = overlay.querySelector(side === 'gauche' ? '#jwAppGauche' : '#jwAppDroite');
@@ -626,13 +854,38 @@
       labelTitle: 'Élément gauche',
       button: '+ Gauche',
       idPrefix: 'g',
-      onAdd: (it) => { appGauche.push(it); renderAppCol('gauche'); },
+      onAdd: (it) => {
+        appGauche.push(it);
+        renderAppCol('gauche');
+        if (isRefItem(it)) void proposeAppariement({ onlyUnassigned: true, silent: true });
+      },
     });
     mountHybridAdd(overlay.querySelector('#jwAppDroiteAdd'), {
       labelTitle: 'Élément droite',
       button: '+ Droite',
       idPrefix: 'd',
-      onAdd: (it) => { appDroite.push(it); renderAppCol('droite'); },
+      onAdd: (it) => {
+        appDroite.push(it);
+        renderAppCol('droite');
+        if (isRefItem(it)) void proposeAppariement({ onlyUnassigned: true, silent: true });
+      },
+    });
+    overlay.querySelector('#jwAppPropose').addEventListener('click', async () => {
+      try {
+        const allPaired = appGauche.length > 0 && appGauche.every((g) => !!appPaires[g.id]);
+        let onlyUnassigned = true;
+        if (allPaired) {
+          const ok = global.confirm
+            ? global.confirm('Toutes les paires sont déjà définies. Les remplacer par une proposition automatique ?')
+            : false;
+          if (!ok) return;
+          onlyUnassigned = false;
+          Object.keys(appPaires).forEach((k) => { delete appPaires[k]; });
+        }
+        await proposeAppariement({ onlyUnassigned, silent: false });
+      } catch (e) {
+        global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
+      }
     });
     renderAppCol('gauche');
     renderAppCol('droite');
@@ -677,6 +930,9 @@
           id: z.id,
           label: z.label,
           item_ids: (z.item_ids || []).slice(),
+          source: z.source || 'manuel',
+          entite: z.entite || undefined,
+          entite_id: z.entite_id || undefined,
         }));
       }
       if (type === 'appariement') {

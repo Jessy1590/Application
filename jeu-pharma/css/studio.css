@@ -997,6 +997,15 @@
   align-items: center;
   margin: 0.35rem 0;
 }
+.jp-jeu-propose-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  margin-top: 0.85rem;
+  padding: 0.55rem 0.15rem 0;
+  border-top: 1px dashed rgba(15, 107, 92, 0.2);
+}
 .jp-bloc-jeu-actions {
   display: flex;
   flex-wrap: wrap;
