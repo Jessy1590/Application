@@ -49,3 +49,5 @@
 {"matrice_id":"0415e982-3813-4b5c-8534-e93933343ce8","dci":"Sacubitril + valsartan","status":"ok","cis":"65122144","source":"epar_pdf","stats":{"reused":52,"created":3},"at":"2026-10-14T15:36:43.873Z"}
 {"matrice_id":"d122d669-2f7c-48ed-a517-aa6e4bd765b8","dci":"Sels ferreux","status":"ok","cis":"61879666","source":"ansm_html","stats":{"reused":38,"created":3},"at":"2026-10-14T15:37:04.101Z"}
 {"matrice_id":"6062f202-2407-493f-aa22-c26fc374877e","dci":"Sels ferreux + acide folique","status":"ok","cis":"64875192","source":"ansm_html","stats":{"reused":37,"created":3},"at":"2026-10-14T15:37:23.088Z"}
+{"matrice_id":"c0fd1199-5e18-4edb-b686-4cdfa41330c8","dci":"Spironolactone + altizide","status":"ok","cis":"69724251","source":"ansm_html","stats":{"reused":49,"created":3},"at":"2026-10-14T15:37:49.468Z"}
+{"status":"manual","dci":"Streptokinase","reason":"no_cis","at":"2026-10-14T15:37:50.879Z"}
