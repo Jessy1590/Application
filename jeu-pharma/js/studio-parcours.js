@@ -1353,8 +1353,6 @@
         + '<small class="jp-field-hint">JPEG, PNG, WebP ou GIF — 5 Mo max.</small></div>'
         + '<div class="jp-field jp-field-tight"><label>… ou lien de l’image (https)</label>'
         + '<input data-field="url" data-id="' + b.id + '" value="' + esc(p.url || '') + '" placeholder="https://…/photo.jpg"></div>'
-        + '<div class="jp-field jp-field-tight"><label>Texte alternatif (accessibilité)</label>'
-        + '<input data-field="alt" data-id="' + b.id + '" value="' + esc(p.alt || '') + '" placeholder="Décrivez l’image"></div>'
         + '<div class="jp-field jp-field-tight"><label>Légende (facultatif)</label>'
         + '<input data-field="legende" data-id="' + b.id + '" value="' + esc(p.legende || '') + '" placeholder="Ex. Frottis sanguin"></div>';
     }
@@ -1718,7 +1716,14 @@
       return out;
     }
     if (type === 'video') return { url: val('url') };
-    if (type === 'photo') return { path: val('path'), url: val('url'), alt: val('alt'), legende: val('legende') };
+    if (type === 'photo') {
+      return {
+        path: val('path'),
+        url: val('url'),
+        alt: (effPayload(b).alt || ''),
+        legende: val('legende'),
+      };
+    }
     if (type === 'molecule') {
       const ids = state.molChips[blocId]?.getIds?.() || matriceIdsOf(effPayload(b));
       return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
