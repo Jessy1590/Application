@@ -1,9 +1,9 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Proposer associations** à côté de la recherche référentiel. Cache-bust `?v=045`.
+Dernière mise à jour : 2026-10-14 — **Proposer associations** bidirectionnel + messages d’échec. Cache-bust `?v=046`.
 
 ## Appariement / classement — auto-liaison + traits (2026-10-14)
-- Wizard : bouton **Proposer associations** à côté de « Recherche référentiel » (zones classement / colonne droite). Ajoute les équivalences des molécules à gauche pour le type choisi ; si plusieurs → modale (**1** choix appariement, **multi** classement). Classement : plusieurs zones correctes possibles par item.
+- Wizard : **Proposer associations** à côté de la recherche référentiel (items/zones et gauche/droite). Bidirectionnel : molécules → classes/indications… **et** classes → molécules. Si plusieurs → modale (1 appariement, multi classement). Messages d’échec explicites (rien en face, texte libre, aucun lien fiche, annulation…).
 - Player appariement : ronds + traits SVG colorés ; classement accepte toute zone listée dans `item_ids`.
 
 ## Jeux classement, appariement, quiz mixte, édition (039 — appliquée remote, 2026-10-14)

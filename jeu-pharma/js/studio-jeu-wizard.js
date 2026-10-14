@@ -127,10 +127,58 @@
     return map;
   }
 
+  /** Libellés DCI (et noms) pour des ids matrice. */
+  async function loadMatriceLabels(ids) {
+    const uniq = Array.from(new Set((ids || []).filter(Boolean).map(String)));
+    const map = {};
+    if (!uniq.length) return map;
+    const { data, error } = await sb()
+      .from('v_medicaments_complet')
+      .select('id, dci, noms_commerciaux')
+      .in('id', uniq);
+    if (error) throw error;
+    (data || []).forEach((r) => {
+      const noms = global.JpTypeahead?.nomsToText?.(r.noms_commerciaux) || '';
+      map[String(r.id)] = r.dci || noms || String(r.id);
+    });
+    return map;
+  }
+
   /**
-   * Modale de choix d’équivalences pour une molécule.
-   * @param {{ multiple: boolean, title?: string, moleculeLabel: string, candidates: {id,label}[] }} opts
-   * @returns {Promise<string[]|null>} ids choisis, ou null si annulé
+   * Molécules liées à des entités (inverse de loadMatriceEntityLinks).
+   * @returns {Promise<Record<string, string[]>>} entityId → [matriceIds]
+   */
+  async function loadMatriceIdsByEntities(entiteTable, entityIds) {
+    const meta = ENTITE_LIAISON[entiteTable];
+    const uniq = Array.from(new Set((entityIds || []).filter(Boolean).map(String)));
+    const out = {};
+    uniq.forEach((id) => { out[id] = []; });
+    if (!meta || !uniq.length) return out;
+    const { data, error } = await sb()
+      .from(meta.liaison)
+      .select('matrice_id, ' + meta.fk + ', ordre')
+      .in(meta.fk, uniq)
+      .order('ordre', { ascending: true });
+    if (error) throw error;
+    (data || []).forEach((row) => {
+      const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
+      const mid = row.matrice_id != null ? String(row.matrice_id) : '';
+      if (!eid || !mid || !out[eid]) return;
+      if (out[eid].indexOf(mid) < 0) out[eid].push(mid);
+    });
+    return out;
+  }
+
+  function sourceLibelle(src) {
+    if (src === 'matrice') return 'molécule';
+    const hit = HYBRID_SOURCES.find((s) => s.value === src);
+    return hit ? hit.label.toLowerCase() : (src || 'référentiel');
+  }
+
+  /**
+   * Modale de choix d’équivalences.
+   * @param {{ multiple: boolean, sourceLabel: string, candidates: {id,label}[] }} opts
+   * @returns {Promise<string[]|null>}
    */
   function pickEquivalentsModal(parentEl, opts) {
     const multiple = !!opts.multiple;
@@ -140,7 +188,7 @@
       modal.className = 'jp-jeu-pick-overlay';
       modal.innerHTML = '<div class="jp-jeu-pick-sheet" role="dialog" aria-modal="true">'
         + '<h3 class="jp-quiz-admin-panel-title" style="margin-top:0">Équivalences</h3>'
-        + '<p class="jp-muted">' + esc(opts.moleculeLabel || 'Molécule')
+        + '<p class="jp-muted">' + esc(opts.sourceLabel || 'Élément')
         + ' — plusieurs valeurs liées. '
         + (multiple ? 'Cochez une ou plusieurs cibles.' : 'Choisissez une seule cible.')
         + '</p>'
@@ -573,12 +621,13 @@
         + '<div class="jw-hyb-ta-row">'
         + '<div class="jw-hyb-ta-main"><label>Recherche référentiel</label><div class="jw-hyb-ta"></div></div>'
         + (canPropose
-          ? '<button type="button" class="jp-btn jp-btn-ghost jw-hyb-propose" hidden title="Ajouter les équivalences des molécules à gauche">'
+          ? '<button type="button" class="jp-btn jp-btn-ghost jw-hyb-propose" hidden title="Proposer depuis l’autre colonne">'
             + 'Proposer associations</button>'
           : '')
         + '</div>'
         + (canPropose
-          ? '<small class="jp-field-hint jw-hyb-propose-hint" hidden>Ajoute à droite les équivalences des molécules (gauche) pour ce type de référentiel.</small>'
+          ? '<small class="jp-field-hint jw-hyb-propose-hint" hidden>'
+            + 'Depuis l’autre colonne : molécules ↔ classes / indications… (et l’inverse).</small>'
           : '')
         + '</div>'
         + '<button type="button" class="jp-btn jp-btn-ghost jw-hyb-add">' + esc(optsAdd.button || 'Ajouter') + '</button>';
@@ -593,7 +642,7 @@
 
       function syncProposeVisibility() {
         const src = srcSel.value;
-        const show = canPropose && !!ENTITE_LIAISON[src];
+        const show = canPropose && (src === 'matrice' || !!ENTITE_LIAISON[src]);
         if (proposeBtn) proposeBtn.hidden = !show;
         if (proposeHint) proposeHint.hidden = !show;
       }
@@ -642,114 +691,312 @@
       }
     }
 
-    function leftMatrices(list) {
-      return (list || []).filter((it) => isRefItem(it) && it.entite === 'matrice');
+    function refItemsOf(list, entite) {
+      return (list || []).filter((it) => isRefItem(it) && it.entite === entite);
     }
 
-    function ensureRightEntite(list, idPrefix, entiteTable, entiteId, label, extra) {
+    function ensureRefItem(list, idPrefix, entite, entiteId, label, extra) {
       const eid = String(entiteId);
-      const found = list.find((x) => isRefItem(x) && x.entite === entiteTable && String(x.entite_id) === eid);
+      const found = list.find((x) => isRefItem(x) && x.entite === entite && String(x.entite_id) === eid);
       if (found) {
         if (extra && extra.item_ids && !Array.isArray(found.item_ids)) found.item_ids = [];
         return { item: found, created: false };
       }
+      const source = entite === 'matrice' ? 'matrice' : entite;
       const item = Object.assign({
         id: uid(idPrefix),
         label: label || eid,
-        source: entiteTable,
-        entite: entiteTable,
+        source,
+        entite,
         entite_id: eid,
       }, extra || {});
       list.push(item);
       return { item, created: true };
     }
 
+    function failToast(lines) {
+      const msg = (lines || []).filter(Boolean).join(' · ');
+      global.JpToast?.warn?.(msg || 'Proposition impossible');
+    }
+
     /**
-     * Pour chaque molécule à gauche : charge les équivalences du type référentiel choisi,
-     * demande un choix si plusieurs (1 = appariement, N = classement), ajoute à droite + lie.
+     * Propose depuis `seedList` vers `fillList` selon `targetSource`.
+     * - seeds molécules + cible entité → ajoute les entités liées
+     * - seeds entités + cible molécule → ajoute les molécules liées
+     * fillSide: 'items'|'zones'|'gauche'|'droite'
      */
-    async function proposeEquivalentsFromLeft(entiteTable, mode) {
-      if (!ENTITE_LIAISON[entiteTable]) {
-        global.JpToast?.warn?.('Choisissez un type référentiel (classe, indication…)');
+    async function proposeAssociations(targetSource, mode, fillSide) {
+      const targetIsMatrice = targetSource === 'matrice';
+      const targetIsEntite = !!ENTITE_LIAISON[targetSource];
+      if (!targetIsMatrice && !targetIsEntite) {
+        failToast(['Choisissez « Molécule » ou un type référentiel (classe, indication…) — pas texte libre.']);
         return;
       }
-      const molecules = leftMatrices(mode === 'classement' ? classItems : appGauche);
-      if (!molecules.length) {
-        global.JpToast?.warn?.('Ajoutez d’abord des molécules (référentiel) à gauche');
+
+      let seedList;
+      let fillList;
+      let fillPrefix;
+      let seedSideLabel;
+      let fillSideLabel;
+      if (mode === 'classement') {
+        if (fillSide === 'zones') {
+          seedList = classItems;
+          fillList = classZones;
+          fillPrefix = 'z';
+          seedSideLabel = 'items (haut)';
+          fillSideLabel = 'zones';
+        } else {
+          seedList = classZones;
+          fillList = classItems;
+          fillPrefix = 'i';
+          seedSideLabel = 'zones';
+          fillSideLabel = 'items';
+        }
+      } else if (fillSide === 'droite') {
+        seedList = appGauche;
+        fillList = appDroite;
+        fillPrefix = 'd';
+        seedSideLabel = 'colonne gauche';
+        fillSideLabel = 'colonne droite';
+      } else {
+        seedList = appDroite;
+        fillList = appGauche;
+        fillPrefix = 'g';
+        seedSideLabel = 'colonne droite';
+        fillSideLabel = 'colonne gauche';
+      }
+
+      const seedMatrices = refItemsOf(seedList, 'matrice');
+
+      // Direction A : molécules → entités du type cible
+      // Direction B : entités → molécules
+      let direction = null;
+      let seeds = [];
+      if (targetIsEntite && seedMatrices.length) {
+        direction = 'mol_to_entite';
+        seeds = seedMatrices;
+      } else if (targetIsMatrice) {
+        const anyEnt = (seedList || []).filter((it) => isRefItem(it) && it.entite !== 'matrice' && ENTITE_LIAISON[it.entite]);
+        if (anyEnt.length) {
+          direction = 'entite_to_mol';
+          seeds = anyEnt;
+        }
+      }
+
+      if (!direction) {
+        const reasons = [];
+        if (!(seedList || []).length) {
+          reasons.push('Aucun élément dans « ' + seedSideLabel + ' »');
+        } else if (!(seedList || []).some(isRefItem)) {
+          reasons.push('« ' + seedSideLabel + ' » ne contient que du texte libre — il faut des éléments référentiel (pas manuel)');
+        } else if (targetIsEntite && !seedMatrices.length) {
+          reasons.push(
+            'Pour proposer des « ' + sourceLibelle(targetSource)
+            + ' », placez des molécules en « ' + seedSideLabel
+            + ' » (actuellement : '
+            + (seedList || []).filter(isRefItem).map((x) => sourceLibelle(x.entite === 'matrice' ? 'matrice' : x.entite)).slice(0, 3).join(', ')
+            + ')'
+          );
+        } else if (targetIsMatrice) {
+          reasons.push(
+            'Pour proposer des molécules, placez des classes / indications… en « '
+            + seedSideLabel + ' » (pas uniquement des molécules)'
+          );
+        } else {
+          reasons.push('Aucune correspondance possible entre « ' + seedSideLabel + ' » et « ' + sourceLibelle(targetSource) + ' »');
+        }
+        failToast(reasons);
         return;
       }
-      const links = await loadMatriceEntityLinks(molecules.map((m) => m.entite_id));
-      const allEntityIds = [];
-      molecules.forEach((m) => {
-        ((links[String(m.entite_id)] || {})[entiteTable] || []).forEach((id) => allEntityIds.push(id));
-      });
-      const labels = await loadEntiteLabels(entiteTable, allEntityIds);
+
+      const noLink = [];
+      const cancelled = [];
       let added = 0;
       let linked = 0;
+      const fillExtra = (mode === 'classement' && fillSide === 'zones') ? { item_ids: [] } : null;
 
-      for (const mol of molecules) {
-        const candidates = ((links[String(mol.entite_id)] || {})[entiteTable] || []).map((id) => ({
-          id: String(id),
-          label: labels[String(id)] || String(id),
-        }));
-        if (!candidates.length) continue;
+      if (direction === 'mol_to_entite') {
+        const links = await loadMatriceEntityLinks(seeds.map((m) => m.entite_id));
+        const allIds = [];
+        seeds.forEach((m) => {
+          ((links[String(m.entite_id)] || {})[targetSource] || []).forEach((id) => allIds.push(id));
+        });
+        const labels = await loadEntiteLabels(targetSource, allIds);
 
-        let chosenIds;
-        if (candidates.length === 1) {
-          chosenIds = [candidates[0].id];
-        } else {
-          chosenIds = await pickEquivalentsModal(overlay, {
-            multiple: mode === 'classement',
-            moleculeLabel: mol.label,
-            candidates,
+        for (const mol of seeds) {
+          const candidates = ((links[String(mol.entite_id)] || {})[targetSource] || []).map((id) => ({
+            id: String(id),
+            label: labels[String(id)] || String(id),
+          }));
+          if (!candidates.length) {
+            noLink.push(mol.label + ' (aucune ' + sourceLibelle(targetSource) + ' liée en fiche)');
+            continue;
+          }
+          let chosenIds;
+          if (candidates.length === 1) {
+            chosenIds = [candidates[0].id];
+          } else {
+            chosenIds = await pickEquivalentsModal(overlay, {
+              multiple: mode === 'classement',
+              sourceLabel: mol.label,
+              candidates,
+            });
+            if (!chosenIds) {
+              cancelled.push(mol.label);
+              continue;
+            }
+            if (mode === 'appariement') chosenIds = chosenIds.slice(0, 1);
+          }
+          const applied = applySeedToTargets({
+            mode, fillSide, seed: mol, targetEntite: targetSource,
+            chosenIds, labels, fillList, fillPrefix, fillExtra,
           });
-          if (!chosenIds) continue;
-          if (mode === 'appariement') chosenIds = chosenIds.slice(0, 1);
+          added += applied.added;
+          linked += applied.linked;
         }
+      } else {
+        // Group seeds by their entite table (IEC + indication possible)
+        const byTable = {};
+        seeds.forEach((s) => {
+          if (!byTable[s.entite]) byTable[s.entite] = [];
+          byTable[s.entite].push(s);
+        });
+        for (const entiteTable of Object.keys(byTable)) {
+          const group = byTable[entiteTable];
+          const byEnt = await loadMatriceIdsByEntities(entiteTable, group.map((s) => s.entite_id));
+          const allMids = [];
+          group.forEach((s) => {
+            (byEnt[String(s.entite_id)] || []).forEach((id) => allMids.push(id));
+          });
+          const labels = await loadMatriceLabels(allMids);
 
-        if (mode === 'classement') {
-          classZones.forEach((z) => {
-            z.item_ids = (z.item_ids || []).filter((x) => x !== mol.id);
-          });
-          chosenIds.forEach((eid) => {
-            const { item: zone, created } = ensureRightEntite(
-              classZones, 'z', entiteTable, eid, labels[eid], { item_ids: [] }
-            );
-            if (created) added += 1;
-            if (!Array.isArray(zone.item_ids)) zone.item_ids = [];
-            if (zone.item_ids.indexOf(mol.id) < 0) zone.item_ids.push(mol.id);
-          });
-          linked += 1;
-        } else {
-          const eid = chosenIds[0];
-          const { item: right, created } = ensureRightEntite(
-            appDroite, 'd', entiteTable, eid, labels[eid]
-          );
-          if (created) added += 1;
-          Object.keys(appPaires).forEach((g) => {
-            if (g !== mol.id && appPaires[g] === right.id) delete appPaires[g];
-          });
-          appPaires[mol.id] = right.id;
-          linked += 1;
+          for (const seed of group) {
+            const candidates = (byEnt[String(seed.entite_id)] || []).map((id) => ({
+              id: String(id),
+              label: labels[String(id)] || String(id),
+            }));
+            if (!candidates.length) {
+              noLink.push(seed.label + ' (aucune molécule liée en référentiel)');
+              continue;
+            }
+            let chosenIds;
+            if (candidates.length === 1) {
+              chosenIds = [candidates[0].id];
+            } else {
+              chosenIds = await pickEquivalentsModal(overlay, {
+                multiple: mode === 'classement',
+                sourceLabel: seed.label,
+                candidates,
+              });
+              if (!chosenIds) {
+                cancelled.push(seed.label);
+                continue;
+              }
+              if (mode === 'appariement') chosenIds = chosenIds.slice(0, 1);
+            }
+            const applied = applySeedToTargets({
+              mode, fillSide, seed, targetEntite: 'matrice',
+              chosenIds, labels, fillList, fillPrefix, fillExtra,
+            });
+            added += applied.added;
+            linked += applied.linked;
+          }
         }
       }
 
       if (mode === 'classement') {
+        renderClassItems();
         renderClassZones();
         renderClassAssign();
       } else {
+        renderAppCol('gauche');
         renderAppCol('droite');
-        renderAppPaires();
       }
 
       if (!linked) {
-        global.JpToast?.warn?.('Aucune équivalence trouvée pour ces molécules');
-      } else {
-        global.JpToast?.ok?.(
-          linked + ' molécule' + (linked > 1 ? 's' : '') + ' associée' + (linked > 1 ? 's' : '')
-          + (added ? ' · ' + added + ' ajoutée' + (added > 1 ? 's' : '') + ' à droite' : '')
-        );
+        const parts = ['Aucune association créée'];
+        if (noLink.length) {
+          parts.push('sans lien : ' + noLink.slice(0, 4).join(' ; ') + (noLink.length > 4 ? '…' : ''));
+        }
+        if (cancelled.length) {
+          parts.push('annulé pour : ' + cancelled.slice(0, 3).join(', '));
+        }
+        if (!noLink.length && !cancelled.length) {
+          parts.push('vérifiez le type « ' + sourceLibelle(targetSource) + ' » et le contenu de « ' + seedSideLabel + ' »');
+        }
+        failToast(parts);
+        return;
       }
+
+      global.JpToast?.ok?.(
+        linked + ' association' + (linked > 1 ? 's' : '') + ' · '
+        + added + ' ajoutée' + (added > 1 ? 's' : '') + ' en « ' + fillSideLabel + ' »'
+        + (noLink.length ? ' · ' + noLink.length + ' sans lien' : '')
+        + (cancelled.length ? ' · ' + cancelled.length + ' annulée(s)' : '')
+      );
+    }
+
+    function applySeedToTargets(o) {
+      const {
+        mode, fillSide, seed, targetEntite, chosenIds, labels, fillList, fillPrefix, fillExtra,
+      } = o;
+      let added = 0;
+      let linked = 0;
+
+      if (mode === 'classement') {
+        const seedIsItem = fillSide === 'zones'; // seed in items, fill zones
+        if (seedIsItem) {
+          // item (seed) → zones (targets): clear then assign
+          classZones.forEach((z) => {
+            z.item_ids = (z.item_ids || []).filter((x) => x !== seed.id);
+          });
+          chosenIds.forEach((tid) => {
+            const { item: zone, created } = ensureRefItem(
+              fillList, fillPrefix, targetEntite, tid, labels[tid], fillExtra || { item_ids: [] }
+            );
+            if (created) added += 1;
+            if (!Array.isArray(zone.item_ids)) zone.item_ids = [];
+            if (zone.item_ids.indexOf(seed.id) < 0) zone.item_ids.push(seed.id);
+          });
+          linked = 1;
+        } else {
+          // zone (seed) → items (targets): each target item assigned to this zone
+          chosenIds.forEach((tid) => {
+            const { item: it, created } = ensureRefItem(
+              fillList, fillPrefix, targetEntite, tid, labels[tid]
+            );
+            if (created) added += 1;
+            classZones.forEach((z) => {
+              if (z.id === seed.id) return;
+              z.item_ids = (z.item_ids || []).filter((x) => x !== it.id);
+            });
+            if (!Array.isArray(seed.item_ids)) seed.item_ids = [];
+            if (seed.item_ids.indexOf(it.id) < 0) seed.item_ids.push(it.id);
+          });
+          linked = 1;
+        }
+      } else {
+        // Appariement 1↔1 : seed côté opposé, une cible
+        const tid = chosenIds[0];
+        const { item: other, created } = ensureRefItem(
+          fillList, fillPrefix, targetEntite, tid, labels[tid]
+        );
+        if (created) added += 1;
+        if (fillSide === 'droite') {
+          Object.keys(appPaires).forEach((g) => {
+            if (g !== seed.id && appPaires[g] === other.id) delete appPaires[g];
+          });
+          appPaires[seed.id] = other.id;
+        } else {
+          // seed est à droite, other à gauche
+          Object.keys(appPaires).forEach((g) => {
+            if (appPaires[g] === seed.id && g !== other.id) delete appPaires[g];
+          });
+          appPaires[other.id] = seed.id;
+        }
+        linked = 1;
+      }
+      return { added, linked };
     }
 
     function renderClassItems() {
@@ -825,6 +1072,7 @@
       labelTitle: 'Item à classer',
       button: '+ Item',
       idPrefix: 'i',
+      proposeFromLeft: (src) => proposeAssociations(src, 'classement', 'items'),
       onAdd: (it) => {
         classItems.push(it);
         renderClassItems();
@@ -834,7 +1082,7 @@
       labelTitle: 'Zone / catégorie',
       button: '+ Zone',
       idPrefix: 'z',
-      proposeFromLeft: (entiteTable) => proposeEquivalentsFromLeft(entiteTable, 'classement'),
+      proposeFromLeft: (src) => proposeAssociations(src, 'classement', 'zones'),
       onAdd: (it) => {
         classZones.push({
           id: it.id,
@@ -909,6 +1157,7 @@
       labelTitle: 'Élément gauche',
       button: '+ Gauche',
       idPrefix: 'g',
+      proposeFromLeft: (src) => proposeAssociations(src, 'appariement', 'gauche'),
       onAdd: (it) => {
         appGauche.push(it);
         renderAppCol('gauche');
@@ -918,7 +1167,7 @@
       labelTitle: 'Élément droite',
       button: '+ Droite',
       idPrefix: 'd',
-      proposeFromLeft: (entiteTable) => proposeEquivalentsFromLeft(entiteTable, 'appariement'),
+      proposeFromLeft: (src) => proposeAssociations(src, 'appariement', 'droite'),
       onAdd: (it) => {
         appDroite.push(it);
         renderAppCol('droite');
