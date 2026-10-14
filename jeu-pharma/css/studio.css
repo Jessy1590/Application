@@ -752,19 +752,78 @@
 }
 .jp-studio-app ::placeholder, .jp-studio-overlay ::placeholder { color: rgba(20, 32, 28, 0.4); opacity: 1; }
 
-/* Bloc recommandation : groupe lien / contexte */
-.jp-reco-link-fieldset {
-  margin: 0.75rem 0 0;
-  padding: 0.5rem 0.75rem 0.05rem;
+/* Bloc recommandation : référence (libellé + URL ou leçon) */
+.jp-reco-ref { margin-top: 0.75rem; }
+.jp-reco-add { font-size: 0.88rem; }
+.jp-reco-ref-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) auto;
+  gap: 0.55rem 0.65rem;
+  align-items: end;
+  padding: 0.65rem 0.75rem 0.55rem;
   border: 1px dashed rgba(15, 107, 92, 0.28);
   border-radius: 0.65rem;
   background: rgba(15, 107, 92, 0.03);
 }
-.jp-reco-link-fieldset legend {
-  padding: 0 0.35rem;
-  font-size: 0.78rem;
+.jp-reco-ref-row .jp-reco-label,
+.jp-reco-ref-row .jp-reco-target { margin-bottom: 0; }
+.jp-reco-target-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+.jp-reco-mode-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jp-accent, #0f6b5c);
+}
+.jp-reco-mode-toggle {
+  flex: none;
+  min-width: 2rem;
+  min-height: 1.75rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1;
   font-weight: 700;
   color: var(--jp-accent, #0f6b5c);
+  background: #fff;
+  border: 1px solid rgba(15, 107, 92, 0.35);
+  border-radius: 0.45rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.jp-reco-mode-toggle:hover {
+  background: var(--jp-accent-soft, #e6f3f0);
+  border-color: rgba(15, 107, 92, 0.55);
+}
+.jp-reco-mode-lesson .jp-ta-input { min-height: 2.35rem; }
+.jp-reco-remove {
+  align-self: start;
+  width: 2rem;
+  height: 2rem;
+  margin-top: 1.35rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: rgba(20, 32, 28, 0.45);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+.jp-reco-remove:hover {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.06);
+  border-color: rgba(180, 35, 24, 0.2);
+}
+@media (max-width: 720px) {
+  .jp-reco-ref-row { grid-template-columns: 1fr auto; }
+  .jp-reco-target { grid-column: 1 / -1; }
+  .jp-reco-remove { margin-top: 0; align-self: center; }
 }
 
 /* Bloc conseil / vidéo : label, champ pleine largeur, espacement régulier */
