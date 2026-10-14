@@ -1,8 +1,46 @@
 /**
- * FAB Bug (local jeu-pharma). Accueil portail = bouton protect.js.
+ * FAB Bug (local jeu-pharma). Accueil portail = bouton protect.js (z-index 9999).
+ * Le FAB bug doit rester visible : z-index > portail + décalage vertical du home.
  */
 (function (global) {
   const PORTAIL_URL = 'https://jessy1590.github.io/Application';
+  const PORTAIL_SEL = 'body > a[title="Retour au portail"]';
+  const FAB_Z = '10050';
+  const GAP_PX = 64;
+
+  let watching = false;
+
+  function portailBottom() {
+    const hasNav = !!document.querySelector('.jp-bottom-nav');
+    const narrow = global.matchMedia && global.matchMedia('(max-width: 959px)').matches;
+    if (hasNav && narrow) {
+      return `calc(4.5rem + env(safe-area-inset-bottom, 0px) + ${GAP_PX}px)`;
+    }
+    return `calc(20px + env(safe-area-inset-bottom, 0px) + ${GAP_PX}px)`;
+  }
+
+  function liftPortailHome() {
+    const home = document.querySelector(PORTAIL_SEL);
+    if (!home) return false;
+    home.style.setProperty('bottom', portailBottom(), 'important');
+    home.style.setProperty('right', '14px', 'important');
+    return true;
+  }
+
+  function watchPortailHome() {
+    if (watching) return;
+    watching = true;
+    liftPortailHome();
+    const obs = new MutationObserver(() => {
+      if (liftPortailHome()) {
+        /* home peut être réinjecté ; on garde l’observer léger */
+      }
+    });
+    obs.observe(document.body, { childList: true });
+    [0, 100, 400, 1200].forEach((ms) => {
+      setTimeout(liftPortailHome, ms);
+    });
+  }
 
   /**
    * @param {{ homeHref?: string | null, showHome?: boolean }} [opts]
@@ -15,6 +53,8 @@
       root.className = 'jp-fabs no-print';
       document.body.appendChild(root);
     }
+    root.className = 'jp-fabs no-print';
+    root.style.zIndex = FAB_Z;
     root.innerHTML = '';
 
     const bug = document.createElement('button');
@@ -29,6 +69,7 @@
     });
     root.appendChild(bug);
 
+    watchPortailHome();
     return root;
   }
 

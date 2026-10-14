@@ -1,0 +1,641 @@
+{
+  "started_at": "2026-10-14T15:17:24.892Z",
+  "ok": [
+    {
+      "matrice_id": "a09d1e36-6b34-47fe-b011-af197df3428e",
+      "dci": "Apixaban",
+      "status": "ok",
+      "cis": "61902218",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "c2ae6d77-b733-4f1e-9bf2-567055e7e9b8",
+      "dci": "Dapagliflozine",
+      "status": "ok",
+      "cis": "67456363",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 40,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "f005d8d6-fec4-44ec-ad4e-1e3feac930d6",
+      "dci": "Darbépoétine alfa",
+      "status": "ok",
+      "cis": "66066271",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 40,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "a3954933-3a62-45df-93a6-4d196a7f1c42",
+      "dci": "Epoétine alfa",
+      "status": "ok",
+      "cis": "67610861",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 44,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "70364dd8-1f46-41cc-97ea-fd018d73470a",
+      "dci": "Epoétine bêta",
+      "status": "ok",
+      "cis": "66823618",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 41,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "a96a7577-2c97-42a0-91fc-bace08d19c50",
+      "dci": "Filgrastim",
+      "status": "ok",
+      "cis": "61823354",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "36c4713b-faa7-4187-a5de-c60ef8e82c4a",
+      "dci": "Ginkgo biloba",
+      "status": "ok",
+      "cis": "60287373",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 27,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+      "dci": "Idarucizumab",
+      "status": "ok",
+      "cis": "63555182",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 21,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "5c971e09-303d-4111-9606-b413fe9aba99",
+      "dci": "Ivabradine",
+      "status": "ok",
+      "cis": "60549911",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 49,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "7df6b28a-35f6-47a0-aacb-d73d5482e275",
+      "dci": "Rivaroxaban",
+      "status": "ok",
+      "cis": "64206365",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 46,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "3721e13c-4675-47e0-a8c7-d486485bbcf1",
+      "dci": "Ténectéplase",
+      "status": "ok",
+      "cis": "65088998",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 40,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "2db88479-3f2f-4a9c-8a81-805c057278a1",
+      "dci": "Amiloride + furosémide",
+      "status": "ok",
+      "cis": "68045361",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 42,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "1c74e4af-0fb6-4693-9df6-899ef1006dc6",
+      "dci": "Amiloride + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "68045361",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 41,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "6dfc1ca2-4b8a-4776-8aff-d1fda683d069",
+      "dci": "Amlodipine + atorvastatine",
+      "status": "ok",
+      "cis": "65364681",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 49,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "46a6d3fa-a641-4744-b33b-738e18d28fd2",
+      "dci": "Amlodipine + indapamide",
+      "status": "ok",
+      "cis": "67290596",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "c9c50626-455d-4837-a3c8-fcba7be16aad",
+      "dci": "Aténolol + chlortalidone",
+      "status": "ok",
+      "cis": "62980497",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 49,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "de4b7b05-e1fe-4889-b1b7-4fbb692f66e5",
+      "dci": "Aténolol + nifédipine",
+      "status": "ok",
+      "cis": "67713249",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 49,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "54501772-19a2-4b29-b041-ea2ca04bb1d1",
+      "dci": "Bénazépril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "61591226",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "285c20ec-04ed-465c-9f24-ef6a68a6b574",
+      "dci": "Bisoprolol + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "67460027",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 46,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "8f314a54-7984-426a-8f26-a1dc622ee99c",
+      "dci": "Candésartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "66950291",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 35,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "191cba4a-00b2-4564-acab-abd94e5eed51",
+      "dci": "Captopril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "60214350",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 50,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "04061350-4766-4925-9f69-09681a21de92",
+      "dci": "Clopidogrel + aspirine",
+      "status": "ok",
+      "cis": "61952274",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 44,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "0acc3e8c-c078-42ba-bf9b-65d271c6cca1",
+      "dci": "Énalapril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "69155138",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 46,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "43b571eb-f9bd-4290-87e9-89a747d0d10c",
+      "dci": "Énalapril + lercanidipine",
+      "status": "ok",
+      "cis": "69974066",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "bb41ff4f-e19a-46dc-ab17-6f0ec5c3eaef",
+      "dci": "Félodipine + métoprolol",
+      "status": "ok",
+      "cis": "61950444",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "bff4fc50-9f56-41dd-be79-ff0236ff7347",
+      "dci": "Fosinopril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "67017829",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 46,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "25e0ff36-7a93-4732-a6a6-df534971db4b",
+      "dci": "Héparinate de calcium",
+      "status": "ok",
+      "cis": "69636132",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 42,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "d090e3fa-91c3-4f3b-9bea-507a03582b7e",
+      "dci": "Héparinate de sodium",
+      "status": "ok",
+      "cis": "64395923",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "dce8ea52-2ab2-4085-b934-321cc2a14eb9",
+      "dci": "Immunoglobulines anti-D",
+      "status": "ok",
+      "cis": "62468162",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 33,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "4f79d030-eaa9-46f9-a92c-9421467414ee",
+      "dci": "Irbésartan + amlodipine",
+      "status": "ok",
+      "cis": "61605035",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 37,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "55e5729b-0ca6-451c-aa6e-139420a86625",
+      "dci": "Irbésartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "61547030",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 44,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "20956c96-a8ae-4180-a821-a0d53718ceba",
+      "dci": "Isosorbide dinitrate",
+      "status": "ok",
+      "cis": "60172339",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 36,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "54c0aadb-db71-41c9-bc07-ff7315efad8e",
+      "dci": "Lisinopril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "66434780",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 51,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "8b707b55-fb59-4d36-8cd6-64573680aedc",
+      "dci": "Losartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "65214977",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 45,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "a6aad096-0a5d-4841-a2e4-77dc1ffbad7a",
+      "dci": "Métoprolol + chlortalidone",
+      "status": "ok",
+      "cis": "68743715",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "43e31250-8f71-4538-be5f-ba4aa4d47d9c",
+      "dci": "Nébivolol + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "67856966",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "06ebcbd7-3411-43a2-abb5-6740db9ee511",
+      "dci": "Olmésartan + amlodipine",
+      "status": "ok",
+      "cis": "67023718",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "243efc01-b85c-4276-a117-170eea200c06",
+      "dci": "Olmésartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "66838901",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "e27330ff-c5f5-45da-8835-acac70f04b93",
+      "dci": "Périndopril + amlodipine",
+      "status": "ok",
+      "cis": "65401119",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 46,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "5b7210cc-f828-429e-8eee-eac4122e3e08",
+      "dci": "Quinapril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "62927128",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 44,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "0e0c9cd8-b224-4ec0-ab92-1e42eaa79434",
+      "dci": "Ramipril + amlodipine",
+      "status": "ok",
+      "cis": "68359312",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 50,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "306e3d9a-7105-4776-ae9a-4e9107b9cf7f",
+      "dci": "Ramipril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "67103203",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 52,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "0415e982-3813-4b5c-8534-e93933343ce8",
+      "dci": "Sacubitril + valsartan",
+      "status": "ok",
+      "cis": "65122144",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 52,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "d122d669-2f7c-48ed-a517-aa6e4bd765b8",
+      "dci": "Sels ferreux",
+      "status": "ok",
+      "cis": "61879666",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 38,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "6062f202-2407-493f-aa22-c26fc374877e",
+      "dci": "Sels ferreux + acide folique",
+      "status": "ok",
+      "cis": "64875192",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 37,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "c0fd1199-5e18-4edb-b686-4cdfa41330c8",
+      "dci": "Spironolactone + altizide",
+      "status": "ok",
+      "cis": "69724251",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 49,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "ff6b5838-7b06-4ce5-9ace-1eb8282a3322",
+      "dci": "Telmisartan + amlodipine",
+      "status": "ok",
+      "cis": "67700337",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 45,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "b09d063b-8417-4f21-bd8a-6e6b15a84110",
+      "dci": "Telmisartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "60570229",
+      "source": "epar_pdf",
+      "stats": {
+        "reused": 43,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "9e6b62af-aa91-4c8d-8a3d-fffc24e004e2",
+      "dci": "Timolol + amiloride + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "64343809",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "4d3accd4-e824-4c36-a643-fc9486969c94",
+      "dci": "Triamtérène + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "63870751",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 38,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "2799c3c2-f885-49ff-be34-4f9e094cf010",
+      "dci": "Valsartan + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "67481950",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "30bab9da-8cb5-45c1-88a3-af223b21eace",
+      "dci": "Vérapamil + trandolapril",
+      "status": "ok",
+      "cis": "62404028",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 48,
+        "created": 3
+      }
+    },
+    {
+      "matrice_id": "1643b814-7c63-4b5f-977d-d5f44d323052",
+      "dci": "Zofénopril + hydrochlorothiazide",
+      "status": "ok",
+      "cis": "66298483",
+      "source": "ansm_html",
+      "stats": {
+        "reused": 47,
+        "created": 3
+      }
+    }
+  ],
+  "manual": [
+    {
+      "status": "manual",
+      "dci": "Alginate de calcium",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Désirudine",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Éprosartan",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Lépirudine",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Rétéplase",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Ruscoside",
+      "reason": "no_cis"
+    },
+    {
+      "status": "manual",
+      "dci": "Streptokinase",
+      "reason": "no_cis"
+    }
+  ],
+  "errors": [
+    {
+      "dci": "Triamtérène + méthyclothiazide",
+      "error": "Non-JSON 520: <!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class=\"no-js\" lang=\"en-US\"> <!"
+    },
+    {
+      "dci": "Valsartan + amlodipine",
+      "error": "HTTP 500: {\"error\":\"Gemini HTTP 429: {\\\"error\\\":{\\\"code\\\":429,\\\"message\\\":\\\"Resource has been exhausted (e.g. check quota).\\\",\\\"status\\\":\\\"RESOURCE_EXHAUSTED\\\"}}\"}"
+    }
+  ],
+  "finished_at": "2026-10-14T15:41:09.811Z",
+  "totals": {
+    "ok": 53,
+    "manual": 7,
+    "errors": 2
+  }
+}

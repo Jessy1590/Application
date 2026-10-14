@@ -218,15 +218,20 @@ textarea:focus-visible {
   to { opacity: 1; transform: none; }
 }
 
-/* FABs */
+/* FABs — z-index > protect.js home (9999) pour ne pas être masqué */
 .jp-fabs {
   position: fixed;
   right: 14px;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  z-index: 120;
+  z-index: 10050;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  pointer-events: none;
+}
+
+.jp-fabs > * {
+  pointer-events: auto;
 }
 
 .jp-fab {
@@ -252,6 +257,8 @@ textarea:focus-visible {
 
 .jp-fab-bug {
   color: var(--jp-accent);
+  background: #fff;
+  border-color: rgba(15, 107, 92, 0.35);
 }
 
 /* Remonte le bouton portail protect.js au-dessus du FAB Bug */
@@ -260,7 +267,25 @@ body > a[title="Retour au portail"] {
   right: 14px !important;
 }
 
-/* Bug sheet */
+/* Mobile joueur : au-dessus de la bottom nav */
+body:has(.jp-bottom-nav) .jp-fabs {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body:has(.jp-bottom-nav) > a[title="Retour au portail"] {
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px) + 64px) !important;
+}
+
+@media (min-width: 960px) {
+  body:has(.jp-bottom-nav) .jp-fabs {
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  body:has(.jp-bottom-nav) > a[title="Retour au portail"] {
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px) + 64px) !important;
+  }
+}
+
+/* Bug sheet — au-dessus du home portail (9999) et du FAB */
 .jp-sheet[hidden] {
   display: none;
 }
@@ -268,7 +293,7 @@ body > a[title="Retour au portail"] {
 .jp-sheet {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: 10100;
 }
 
 .jp-sheet-backdrop {

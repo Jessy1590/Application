@@ -5,11 +5,12 @@
  * - RCP : HTML ANSM AmmAnnexe, sinon EPAR PDF (unpdf local)
  * - Applique via Edge apply_one (Gemini + ops_entite_find_or_create)
  *
- * Usage : node sql/ops/retry_skips_local.mjs
+ * Usage : node sql/ops/retry_skips_local.mjs [input.json] [report_suffix]
  * Prérequis : unpdf installé (npm i unpdf --no-save déjà fait)
+ * Ex. : node sql/ops/retry_skips_local.mjs retry_skips_input_r2_tech.json r2_tech
  */
 import { readFile, writeFile, appendFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractText, getDocumentProxy } from 'unpdf';
 
@@ -20,9 +21,13 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwamZsbnRub3RmdHB6ZmZqYnVkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyODg0MjMsImV4cCI6MjEwMTg2NDQyM30.mTjm86Thn6VUOAAJRWCsGMcR0Ip-qEP08fJdwUvKKEo';
 const OPS = 'jp-regen-20261014-vocab-canonique';
 const MAX_RCP = 90_000;
-const SKIPS_FILE = join(__dir, 'retry_skips_input.json');
-const REPORT = join(__dir, 'retry_skips_local_report.json');
-const NDJSON = join(__dir, 'retry_skips_local_progress.ndjson');
+const inputArg = process.argv[2];
+const reportSuffix = process.argv[3] || '';
+const SKIPS_FILE = inputArg
+  ? (isAbsolute(inputArg) ? inputArg : join(__dir, inputArg))
+  : join(__dir, 'retry_skips_input.json');
+const REPORT = join(__dir, reportSuffix ? `retry_skips_local_report_${reportSuffix}.json` : 'retry_skips_local_report.json');
+const NDJSON = join(__dir, reportSuffix ? `retry_skips_local_progress_${reportSuffix}.ndjson` : 'retry_skips_local_progress.ndjson');
 
 const CIS_ALLOW = {
   'sels ferreux': '61879666',

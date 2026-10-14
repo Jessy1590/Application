@@ -1,59 +1,65 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Bugs UI studio/lecteur** (4 tickets `jeupharma.bugs` → `modifie`) + reprise référentiel TERMINÉE.
+Dernière mise à jour : 2026-10-14 — **Ops 050** : retrait pubs mol obsolètes (retour post-048).
+
+## Ops 050 — pubs molécules parcours (2026-10-14)
+- Soft-off **261** pubs mol actives (dont **138** `cours_cardio_deust_2a` + **123** `rcp_bdpm_cardio_deust` ; **44** Sels ferreux sur `sang_rappel` + Pathologie GR).
+- **22** connaissances cours Sels ferreux → `statut=retire`.
+- Intact : matrice / entités référentiel ; leçons + blocs (bloc molecule Pathologie GR garde `matrice_ids`) ; bypass admin `v2_connaissances_visibles` (049-C).
+- Pubs mol actives = **0** — admin republie lui-même (player : `matrice_ids` OK, fiche vide tant que pas de pubs).
+- SQL : `sql/ops/050_retrait_pubs_mol_cours_obsoletes.sql` (remote appliqué).
 
 ## Bugs traités 2026-10-14 (studio / lecteur)
 - **Lien accès recommandation** : toggle/remove branchés sur `.jp-reco-*` (sélecteurs `data-*` morts) ; aperçu conserve `preview=1` vers leçon cible.
 - **Renommer leçon** : titre + résumé dans l’onglet Leçon de l’inspecteur Modif parcours.
 - **Photo / légende** : plus de `paintPhotoPreview` à chaque frappe — seulement path/url.
-- **FAB bug disparu** : `JpUi.bootPage` sur `admin/parcours.html` ; z-index FAB → 120.
+- **FAB bug disparu** : cause réelle = bouton portail `protect.js` (z-index **9999**) qui **recouvrait** le FAB bug (z-index 120) en bas à droite. Fix : FAB z-index **10050**, sheet bugs **10100**, `JpFab.mount` remonte le home via JS (+ MutationObserver), cache-bust `?v=059`.
 - Tickets DB passés en `modifie`. Restent ouverts / à clarifier : « Revoir le texte », « Ordonnance type », « Modif » (pause/recréer quiz/responsive).
 
-## Reprise référentiel — bilan final (2026-10-14)
+## Reprise référentiel — bilan après retry (2026-10-14)
 
-## Reprise référentiel — bilan final (2026-10-14)
+### Règle vocabulaire unique (inchangée)
+HTA → **Hypertension artérielle** ; alias via `vocabulaire_alias` / `ops_entite_find_or_create`.
 
-### Règle vocabulaire unique (appliquée)
-Avant toute création d’entité : alias / synonymes → **1 libellé canonique / 1 UUID** (ex. HTA → Hypertension artérielle).  
-Tables/outils : `vocabulaire_alias`, `ops_entite_find_or_create`, `sql/ops/vocabulaire-canonique.mjs`, `JpEntites.findOrCreate`.
-
-### Exécution
-- Edge **`jeupharma-regen-referentiel`** (Gemini via `GEMINI_API_KEY` serveur + `SERVICE_ROLE`) ; boucle `sql/ops/run_regen_edge_loop.mjs` (~45 min, lots de 4, worst-first).
-- Suivi : `jeupharma.ops_regen_log` + `sql/ops/regen_edge_loop_report.json`.
-- Post-campagne : Edge sans token ops par défaut (exiger secret `REGEN_OPS_TOKEN` ou JWT `service_role`).
-
-### Counts AVANT → APRÈS (actifs)
-| Table | Avant n / avg / >120 | Après n / avg / >120 |
+### Campagne 1 → Retry intelligent
+| Étape | OK | Skips |
 |---|---|---|
-| Fiches non-archive | 165 (`fiche_validee=false`) | 165 (`fiche_validee=false` — invalider OK) |
-| indications | 455 / ~80 / 121 | **196 / 46 / 8** |
-| contre_indications | 870 / ~73 / 145 | **483 / 48 / 11** |
-| effets_indesirables | 455 / ~72 / 114 | **536 / 40 / 9** |
-| precautions_emploi | **1262 / ~110 / 561** | **584 / 63 / 21** |
-| interactions | **1005 / ~102 / 392** | **488 / 58 / 20** |
-| pubs molécules actives | ~3248 | **0** (désactivées — admin republie) |
+| Batch Edge initial (`run_regen_edge_loop`) | 102–103 | **63** (51 `no_cis` + 12 `rcp_vide`) |
+| Retry (Sotalol Edge + `retry_skips_local.mjs` EPAR/alias) | **+53 net** | → **10** restants |
+| **Bilan final** | **155** | **10** |
 
-### Regen IA
-| Statut | n | Commentaire |
-|---|---|---|
-| **ok** | **102** | RCP ANSM + Gemini condensé + `ops_entite_find_or_create` |
-| **skip no_cis** | **51** | surtout associations « A + B » / héparinates / sels ferreux / thrombolytiques rares |
-| **skip rcp_vide** | **12** | Apixaban, Rivaroxaban, Ivabradine, EPO/darbépoétine, Filgrastim, Ginkgo, Idarucizumab, Sotalol, Ténectéplase, Dapagliflozine |
-| error | 0 | — |
+Cause `rcp_vide` : AMM européennes sans HTML `AmmAnnexeTitre` (lien EPAR PDF EMA). Extraction **locale** `unpdf` + Edge `apply_one` (Gemini).  
+Cause `no_cis` : `search_products('A + B')` vide → résolution marques (ENTRESTO, COVERAM, LODOZ…).
 
-Exemple OK : Aténolol → indications `Hypertension artérielle`, `Angor stable chronique`, `Fibrillation auriculaire`…
+### Skips restants — à faire à la main (admin)
+**Absent BDM FR / retirés** (`manual_absent_bdm`) :
+Désirudine, Éprosartan, Lépirudine, Rétéplase, Ruscoside, Streptokinase.
 
-### Fichiers / SQL
-- `sql/047_vocabulaire_canonique.sql` (remote)
-- `sql/ops/vocabulaire-canonique.mjs`, `regen_referentiel_ia.mjs`, `run_regen_edge_loop.mjs`, `048_cleanup_pubs_orphelines.sql`
-- `IA/edge/jeupharma-regen-referentiel/index.ts` (+ copie `supabase/functions/…`)
-- `js/entites.js` (alias avant findOrCreate)
+**CIS suspect** (`cis_suspect` — mauvais match auto, revoir wizard IA) :
+- Alginate de calcium → CIS alginate/sodium (pas pansement calcique)
+- Amiloride + furosémide → Moduretic (amiloride+HCTZ)
+- Nébivolol + hydrochlorothiazide → nébivolol mono
+- Triamtérène + méthyclothiazide → Prestol (triam+HCTZ)
 
-### Admin doit revalider
-1. **102 fiches OK** : revue UI Référentiel → `fiche_validee=true` quand satisfait.
-2. **63 skips** : CIS manuel / collage RCP / asso multi-substances (Edge `jeupharma-ia-matrice` wizard) puis re-save.
-3. **Republier molécules** sur le parcours DEUST (pubs à 0) + éventuels blocs molécule.
-4. Optionnel : peupler `REGEN_OPS_TOKEN` si nouvelle campagne batch.
+### Counts actifs (post-retry + cleanup 048)
+| Table | n actifs / avg / >120 |
+|---|---|
+| indications | 289 / 50 / 6 |
+| contre_indications | 764 / 50 / 6 |
+| effets_indesirables | 923 / 43 / 4 |
+| precautions_emploi | 1034 / 62 / 11 |
+| interactions | 890 / 60 / 15 |
+| pubs molécules actives | **0** |
+
+### Outils
+- Edge `jeupharma-regen-referentiel` : `retry_skips`, `apply_one`, allowlist CIS / alias marques (sans `unpdf` Edge — OOM).
+- `sql/ops/retry_skips_local.mjs` + `retry_skips_local_report.json`.
+- Cleanup : `048_cleanup_pubs_orphelines.sql` réappliqué (pubs mol = 0 ; orphelines >160 soft-off).
+
+### Admin
+1. Revalider **155** fiches OK → `fiche_validee`.
+2. Traiter **10** manuels (wizard `jeupharma-ia-matrice` + collage RCP).
+3. Republier molécules DEUST (pubs à 0).
 
 ### Non touché
 portail, bdm, inscriptions_parcours, structure modules (hors pubs molécules), modeles_jeu.
