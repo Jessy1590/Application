@@ -73,7 +73,7 @@ Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edg
 
 # IA — fiche matrice depuis RCP (Référentiel)
 
-Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes formes** d’une DCI) → Edge `jeupharma-ia-matrice` → revue éditable → `JpMedicaments.save` (brouillon, `fiche_validee:false`). **Zéro écriture** pendant la génération. **1 DCI = 1 fiche** (pas de multi-fiches).
+Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes formes** d’une DCI mono) → Edge `jeupharma-ia-matrice` → revue éditable → `JpMedicaments.save` (brouillon, `fiche_validee:false`). **Zéro écriture** pendant la génération. **1 DCI = 1 fiche** (pas de multi-fiches).
 
 | Fichier | Rôle |
 |---|---|
@@ -81,12 +81,17 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes
 | `referentiel-matrice.js` | `JpReferentielIA` : wizard 3 étapes (choisir / générer / revue) |
 | `ia.css` | styles wizard (`.jp-ia-matrice-*`) |
 | `edge/jeupharma-ia-matrice/index.ts` | fetch ANSM/EMA/Meddispar, prompt ATC + CPD/conseils, `normalize` |
-| `js/bdm.js` | `suggest`, `getSpecialite`, `pickRecommendedCis`, **`listByDci`**, `formeAnnotation` |
+| `js/bdm.js` | `suggest`, `getSpecialite`, `pickRecommendedCis`, `pickCisForFiche`, **`formatCombinedDci`**, **`listByDci`**, `formeAnnotation` |
+
+## Mono vs association multi-substances
+- **Mono** : inchangé — DCI = substance ; agrégat `listByDci` toutes formes ; CIS mono recommandé pour le RCP.
+- **Multi** (ex. Lamaline) : DCI = libellé combiné stable « Paracétamol + caféine + opium » (ordre BDM, `findOrCreate` sur cette valeur). Wizard badge **asso** + liste des substances. CIS = spécialité sélectionnée (avertissement RCP asso) ; mono préféré seulement s’il existe la même marque.
+- Edge : si `substances[]` multi / `association`, la DCI fournie est la combinaison — ne pas la réduire à la 1ʳᵉ substance ; `normalize` réimpose la DCI combinée.
 
 ## Edge Function
 - Même secrets / modèle / gate admin que `jeupharma-ia-blocs`. `verify_jwt = true`. `GEMINI_API_KEY` serveur uniquement.
 - Sources RCP : ANSM `…/medicament/{cis}/extrait` (4.1–4.6, 4.8, 5.1) ; EMA si ANSM vide + nº EU ; Meddispar best-effort pour CPD ; sinon `rcp_text` collé.
-- Prompt : few-shot **Apixaban** (secteur / classes / détail ATC pédagogique) + **Lamictal** (classe pharma condensée) ; `detail_pharmacologie` max ~520 car. ; champs `conditions_prescription_delivrance` + `conseils_delivrance` ; multi-formes → annoter `(forme)` si besoin.
+- Prompt : few-shot **Apixaban** (secteur / classes / détail ATC pédagogique) + **Lamictal** (classe pharma condensée) ; `detail_pharmacologie` max ~520 car. ; champs `conditions_prescription_delivrance` + `conseils_delivrance` ; multi-formes → annoter `(forme)` ; **asso multi** → DCI combinée + annoter `(composant)` si besoin.
 - Déploiement : MCP `deploy_edge_function` (slug `jeupharma-ia-matrice`, projet `kpjflntnotftpzffjbud`).
 
 ## Requête
@@ -95,6 +100,7 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes
   "dci": "Apixaban",
   "cis": "62271266",
   "noms_commerciaux": ["ELIQUIS"],
+  "substances": ["Apixaban"],
   "contexte_bdm": {
     "forme_pharmaceutique": "comprimé pelliculé",
     "voies_administration": "orale",
@@ -107,6 +113,7 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes
   "rcp_text": "(optionnel — collage secours)"
 }
 ```
+Association (ex. Lamaline) : `"dci": "Paracétamol + caféine + opium"`, `"substances": ["Paracétamol","Caféine","Opium"]`, `contexte_bdm.association: true`.
 
 ## Réponse
 ```json

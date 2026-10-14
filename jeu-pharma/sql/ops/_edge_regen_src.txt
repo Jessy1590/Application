@@ -1,0 +1,475 @@
+﻿/**
+ * Ops â€” rÃ©gÃ©nÃ©ration batch rÃ©fÃ©rentiel (RCP ANSM â†’ Gemini â†’ entitÃ©s canoniques).
+ * Secret Gemini : GEMINI_API_KEY (Edge). Ã‰criture : SERVICE_ROLE.
+ * Auth : header x-jeupharma-ops = REGEN_OPS_TOKEN (secret) OU rÃ´le JWT service_role.
+ * Body : { limit?: 1-8, worst_first?: bool }
+ * Ne pas exposer cÃ´tÃ© navigateur joueur.
+ */
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-jeupharma-ops',
+};
+
+const MODEL = Deno.env.get('GEMINI_IA_MODEL') || Deno.env.get('GEMINI_OCR_MODEL') || 'gemini-3.8-flash';
+// Exiger le secret Edge REGEN_OPS_TOKEN (pas de dÃ©faut en prod aprÃ¨s la campagne).
+const OPS_TOKEN = String(Deno.env.get('REGEN_OPS_TOKEN') || '').trim();
+const MAX_RCP = 90_000;
+
+const MULTI_CAPS: Record<string, number> = {
+  nom_commercial: 8,
+  secteur_therapeutique: 4,
+  classe_therapeutique: 4,
+  classe_pharmacologique: 4,
+  voies_administration: 6,
+  indications: 8,
+  contre_indications: 8,
+  effets_indesirables: 8,
+  precautions_emploi: 8,
+  interactions: 8,
+  surveillances: 6,
+  conditions_prescription_delivrance: 6,
+  conseils_delivrance: 8,
+};
+
+const CHAMP_META: Record<string, { table: string; card: 1 | 'N'; liaison?: string; fk?: string; col?: string }> = {
+  nom_commercial: { table: 'noms_commerciaux', card: 'N', liaison: 'matrice_noms_commerciaux', fk: 'nom_commercial_id' },
+  secteur_therapeutique: {
+    table: 'secteurs_therapeutiques', card: 'N',
+    liaison: 'matrice_secteurs_therapeutiques', fk: 'secteur_therapeutique_id', col: 'secteur_therapeutique_id',
+  },
+  classe_therapeutique: {
+    table: 'classes_therapeutiques', card: 'N',
+    liaison: 'matrice_classes_therapeutiques', fk: 'classe_therapeutique_id', col: 'classe_therapeutique_id',
+  },
+  classe_pharmacologique: {
+    table: 'classes_pharmacologiques', card: 'N',
+    liaison: 'matrice_classes_pharmacologiques', fk: 'classe_pharmacologique_id', col: 'classe_pharmacologique_id',
+  },
+  detail_pharmacologie: { table: 'details_pharmacologie', card: 1, col: 'detail_pharmacologie_id' },
+  posologie_generale: { table: 'posologies_generales', card: 1, col: 'posologie_generale_id' },
+  grossesse_allaitement: { table: 'grossesse_allaitement', card: 1, col: 'grossesse_allaitement_id' },
+  indications: { table: 'indications', card: 'N', liaison: 'matrice_indications', fk: 'indication_id' },
+  contre_indications: { table: 'contre_indications', card: 'N', liaison: 'matrice_contre_indications', fk: 'contre_indication_id' },
+  effets_indesirables: { table: 'effets_indesirables', card: 'N', liaison: 'matrice_effets_indesirables', fk: 'effet_indesirable_id' },
+  precautions_emploi: { table: 'precautions_emploi', card: 'N', liaison: 'matrice_precautions_emploi', fk: 'precaution_emploi_id' },
+  interactions: { table: 'interactions', card: 'N', liaison: 'matrice_interactions', fk: 'interaction_id' },
+  surveillances: { table: 'surveillances', card: 'N', liaison: 'matrice_surveillances', fk: 'surveillance_id' },
+  voies_administration: { table: 'voies_administration', card: 'N', liaison: 'matrice_voies_administration', fk: 'voie_administration_id' },
+  conditions_prescription_delivrance: {
+    table: 'conditions_prescription_delivrance', card: 'N',
+    liaison: 'matrice_conditions_prescription_delivrance', fk: 'condition_prescription_delivrance_id',
+  },
+  conseils_delivrance: {
+    table: 'conseils_delivrance', card: 'N',
+    liaison: 'matrice_conseils_delivrance', fk: 'conseil_delivrance_id',
+  },
+};
+
+const SYSTEM_PROMPT = `Tu es un assistant pÃ©dagogique Jeu Pharma (officine / DEUST).
+Condense un RCP officiel en libellÃ©s pÃ©dagogiques pour UNE fiche (1 DCI = 1 fiche).
+JSON uniquement :
+{"version":1,"champs":{"nom_commercial":[],"secteur_therapeutique":["Cardiovasculaire"],"classe_therapeutique":["Anticoagulant"],"classe_pharmacologique":["Inhibiteur du facteur Xa"],"detail_pharmacologie":"â€¦","posologie_generale":"â€¦","grossesse_allaitement":"â€¦","voies_administration":["orale"],"indications":["Hypertension artÃ©rielle"],"contre_indications":[],"effets_indesirables":[],"precautions_emploi":[],"interactions":[],"surveillances":[],"conditions_prescription_delivrance":[],"conseils_delivrance":[]},"avertissements":[]}
+
+VOCABULAIRE UNIQUE obligatoire :
+- Hypertension artÃ©rielle (pas HTA / Hypertension seule)
+- Insuffisance cardiaque (pas IC) ; Fibrillation auriculaire (pas FA)
+- Anticoagulant / AntiagrÃ©gant plaquettaire / BÃªtabloquant (singulier)
+- Inhibiteur de l'enzyme de conversion ; Antagoniste des rÃ©cepteurs de l'angiotensine II
+- Antivitamine K ; Anticoagulant oral direct ; Inhibiteur du facteur Xa
+- Secteur : Cardiovasculaire
+FidÃ©litÃ© RCP ; EI frÃ©quents ou rares graves ; multi â‰¤8 ; ~60-80 car. ; dÃ©tail â‰¤500 ; annoter (forme) si besoin.`;
+
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function assertOps(req: Request) {
+  const ops = String(req.headers.get('x-jeupharma-ops') || '').trim();
+  if (OPS_TOKEN && ops && ops === OPS_TOKEN) return true;
+  const auth = req.headers.get('Authorization') || '';
+  const m = auth.match(/Bearer\s+(.+)/i);
+  if (!m) return false;
+  try {
+    const payload = JSON.parse(atob(m[1].split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return payload?.role === 'service_role';
+  } catch {
+    return false;
+  }
+}
+
+function str(v: unknown, max: number) {
+  return String(v ?? '').trim().slice(0, max);
+}
+
+function uniqStrings(arr: unknown[], maxItems: number, maxLen: number) {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of arr) {
+    const v = str(x, maxLen);
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
+function decodeHtml(s: string) {
+  return s
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'");
+}
+
+function cleanHtml(html: string) {
+  return decodeHtml(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<\/(p|div|tr|li|h\d)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
+}
+
+function extractAnsmSections(html: string) {
+  const parts = html.split(/<p class="AmmAnnexeTitre[12]"/i).slice(1);
+  const out: Record<string, string> = {};
+  for (const p of parts) {
+    const m = p.match(/<span id=['"]([0-9]\.[0-9]*)\.?_/);
+    if (!m) continue;
+    const num = m[1];
+    const body = p.replace(/^[^>]*>/, '');
+    if (!out[num]) out[num] = body;
+  }
+  return out;
+}
+
+async function fetchAnsmRcp(cis: string) {
+  const url = `https://base-donnees-publique.medicaments.gouv.fr/medicament/${encodeURIComponent(cis)}/extrait`;
+  let html = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'JeuPharma-regen/1.0 (ops pÃ©dagogique)' },
+    });
+    if (!res.ok) throw new Error(`ANSM HTTP ${res.status}`);
+    html = await res.text();
+    if (/AmmAnnexeTitre/i.test(html) && html.length > 20_000) break;
+    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+  }
+  const raw = extractAnsmSections(html);
+  const labels: Record<string, string> = {
+    '4.1': 'Indications', '4.2': 'Posologie', '4.3': 'CI', '4.4': 'PrÃ©cautions',
+    '4.5': 'Interactions', '4.6': 'Grossesse', '4.8': 'EI', '5.1': 'Pharmacodynamie',
+  };
+  const parts: string[] = [];
+  let total = 0;
+  for (const num of Object.keys(labels)) {
+    if (!raw[num]) continue;
+    const cleaned = cleanHtml(raw[num]).replace(/^\d\.\d\.?\s*[^\n]*\n/, '').slice(0, 16_000);
+    total += cleaned.length;
+    parts.push(`## ${num} ${labels[num]}\n${cleaned}`);
+  }
+  return { url, text: parts.join('\n\n').slice(0, MAX_RCP), total };
+}
+
+async function callGemini(userText: string) {
+  const apiKey = String(Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || '').trim();
+  if (!apiKey) throw new Error('GEMINI_API_KEY manquant');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: userText }] }],
+      generationConfig: {
+        temperature: 0.15,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 8192,
+      },
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}: ${JSON.stringify(body).slice(0, 280)}`);
+  let raw = body.candidates?.[0]?.content?.parts?.map((x: { text?: string }) => x.text || '').join('') || '';
+  if (!raw) throw new Error('Gemini vide');
+  if (raw.startsWith('```')) raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  return JSON.parse(raw);
+}
+
+function normalizeChamps(parsed: Record<string, unknown>, dci: string) {
+  const raw = (parsed?.champs && typeof parsed.champs === 'object'
+    ? parsed.champs
+    : parsed) as Record<string, unknown>;
+  const champs: Record<string, unknown> = {};
+  for (const code of ['detail_pharmacologie', 'posologie_generale', 'grossesse_allaitement']) {
+    const v = str(raw[code], code === 'detail_pharmacologie' ? 520 : 220);
+    if (v) champs[code] = v;
+  }
+  champs.dci = dci;
+  for (const [code, cap] of Object.entries(MULTI_CAPS)) {
+    const src = Array.isArray(raw[code]) ? raw[code] : (raw[code] != null && raw[code] !== '' ? [raw[code]] : []);
+    const items = uniqStrings(src as unknown[], cap, code.includes('secteur') || code.includes('classe') ? 120 : 180);
+    if (items.length) champs[code] = items;
+  }
+  return champs;
+}
+
+function sbService(schema: string) {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) throw new Error('SUPABASE_URL / SERVICE_ROLE manquants');
+  return createClient(url, key, {
+    db: { schema },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+async function pickCis(dci: string): Promise<string | null> {
+  const bdm = sbService('bdm');
+  const { data, error } = await bdm.rpc('search_products', { q: dci, lim: 12 });
+  if (error || !data?.length) return null;
+  const dci0 = dci.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/)[0];
+  const scored = (data as Record<string, unknown>[]).map((h) => {
+    let score = 0;
+    const denom = String(h.denomination || '').toLowerCase();
+    const subst = String(h.substances || h.substance || '').toLowerCase();
+    const forme = String(h.forme_pharmaceutique || h.forme || '').toLowerCase();
+    if (subst.includes(dci0) || denom.includes(dci0)) score += 40;
+    if (/comprim|gelule|capsule|orale/.test(denom + ' ' + forme)) score += 25;
+    if (/inject|perfus/.test(denom + ' ' + forme)) score -= 15;
+    const cis = String(h.cis || '').replace(/\D/g, '');
+    return { cis, score };
+  }).filter((x) => x.cis);
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.cis || null;
+}
+
+async function resolveEntite(jeu: ReturnType<typeof sbService>, table: string, valeur: string) {
+  const v = String(valeur || '').trim();
+  if (!v) return null;
+  const { data, error } = await jeu.rpc('ops_entite_find_or_create', { p_table: table, p_valeur: v });
+  if (error) throw error;
+  return data as string | null;
+}
+
+async function replaceLiaisons(
+  jeu: ReturnType<typeof sbService>,
+  matriceId: string,
+  liaison: string,
+  fk: string,
+  ids: string[],
+) {
+  await jeu.from(liaison).delete().eq('matrice_id', matriceId);
+  if (!ids.length) return;
+  const rows = ids.map((id, ordre) => ({ matrice_id: matriceId, [fk]: id, ordre }));
+  const { error } = await jeu.from(liaison).insert(rows);
+  if (error) throw error;
+}
+
+async function applyChamps(
+  jeu: ReturnType<typeof sbService>,
+  matriceId: string,
+  champs: Record<string, unknown>,
+) {
+  let reused = 0;
+  let created = 0;
+  const patch: Record<string, unknown> = {
+    fiche_validee: false,
+    updated_at: new Date().toISOString(),
+  };
+
+  for (const [code, meta] of Object.entries(CHAMP_META)) {
+    const raw = champs[code];
+    if (raw == null || raw === '') continue;
+    if (meta.card === 1) {
+      const id = await resolveEntite(jeu, meta.table, String(raw));
+      if (!id || !meta.col) continue;
+      patch[meta.col] = id;
+      created += 1; // compteur approximatif (find_or_create ne distingue pas)
+    } else {
+      const arr = Array.isArray(raw) ? raw : [raw];
+      const ids: string[] = [];
+      const seen = new Set<string>();
+      for (const item of arr.slice(0, MULTI_CAPS[code] || 8)) {
+        const id = await resolveEntite(jeu, meta.table, String(item));
+        if (!id || seen.has(id)) {
+          if (id) reused += 1;
+          continue;
+        }
+        seen.add(id);
+        ids.push(id);
+      }
+      if (meta.liaison && meta.fk) await replaceLiaisons(jeu, matriceId, meta.liaison, meta.fk, ids);
+      if (meta.col && ids[0]) patch[meta.col] = ids[0];
+      reused += ids.length;
+    }
+  }
+
+  const { error } = await jeu.from('matrice_medicaments').update(patch).eq('id', matriceId);
+  if (error) throw error;
+  return { reused, created };
+}
+
+async function logResult(
+  jeu: ReturnType<typeof sbService>,
+  row: {
+    matrice_id: string;
+    dci: string;
+    status: string;
+    cis?: string | null;
+    error?: string | null;
+    reused?: number;
+    created_n?: number;
+  },
+) {
+  await jeu.from('ops_regen_log').upsert({
+    matrice_id: row.matrice_id,
+    dci: row.dci,
+    status: row.status,
+    cis: row.cis || null,
+    error: row.error || null,
+    reused: row.reused ?? 0,
+    created_n: row.created_n ?? 0,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'matrice_id' });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  try {
+    if (req.method !== 'POST') return json(405, { error: 'POST only' });
+    if (!assertOps(req)) return json(403, { error: 'Ops token / service_role requis' });
+
+    const body = await req.json().catch(() => ({}));
+    const limit = Math.max(1, Math.min(Number(body.limit) || 3, 8));
+    const worstFirst = body.worst_first !== false;
+
+    const jeu = sbService('jeupharma');
+
+    // Fiches dÃ©jÃ  traitÃ©es (ok / skip / error) â€” supprimer une ligne error pour retenter
+    const { data: doneRows } = await jeu.from('ops_regen_log').select('matrice_id');
+    const done = new Set((doneRows || []).map((r: { matrice_id: string }) => r.matrice_id));
+
+    const { data: mats, error: mErr } = await jeu
+      .from('matrice_medicaments')
+      .select('id, dci_id')
+      .neq('statut', 'archive')
+      .limit(500);
+    if (mErr) throw mErr;
+
+    const pending = (mats || []).filter((m: { id: string }) => !done.has(m.id));
+    if (!pending.length) {
+      return json(200, { done: true, processed: 0, remaining: 0, ok: [], errors: [] });
+    }
+
+    // Enrichir DCI + score verbositÃ© (worst_first)
+    type Cand = { id: string; dci: string; worst: number };
+    const cands: Cand[] = [];
+    for (const m of pending) {
+      const { data: dciRow } = await jeu.from('dcis').select('valeur').eq('id', m.dci_id).maybeSingle();
+      const dci = dciRow?.valeur || '';
+      let worst = 0;
+      if (worstFirst) {
+        const { data: pre } = await jeu
+          .from('matrice_precautions_emploi')
+          .select('precaution_emploi_id')
+          .eq('matrice_id', m.id);
+        worst = (pre || []).length;
+      }
+      cands.push({ id: m.id, dci, worst });
+    }
+    cands.sort((a, b) => b.worst - a.worst);
+
+    const batch = cands.slice(0, limit);
+    const ok: unknown[] = [];
+    const errors: unknown[] = [];
+
+    for (const f of batch) {
+      const entry: Record<string, unknown> = { matrice_id: f.id, dci: f.dci };
+      try {
+        const cis = await pickCis(f.dci);
+        if (!cis) {
+          entry.status = 'skip';
+          entry.error = 'no_cis';
+          await logResult(jeu, { matrice_id: f.id, dci: f.dci, status: 'skip', error: 'no_cis' });
+          errors.push(entry);
+          continue;
+        }
+        const rcp = await fetchAnsmRcp(cis);
+        if (rcp.total < 80) {
+          entry.status = 'skip';
+          entry.error = 'rcp_vide';
+          entry.cis = cis;
+          await logResult(jeu, { matrice_id: f.id, dci: f.dci, status: 'skip', cis, error: 'rcp_vide' });
+          errors.push(entry);
+          continue;
+        }
+        const userText = [
+          `DCI : ${f.dci}`,
+          `CIS : ${cis}`,
+          '',
+          '--- RCP ---',
+          rcp.text,
+          '',
+          'Retourne le JSON (libellÃ©s CANONIQUES partagÃ©s).',
+        ].join('\n');
+        const parsed = await callGemini(userText);
+        const champs = normalizeChamps(parsed, f.dci);
+        const stats = await applyChamps(jeu, f.id, champs);
+        entry.status = 'ok';
+        entry.cis = cis;
+        entry.stats = stats;
+        await logResult(jeu, {
+          matrice_id: f.id,
+          dci: f.dci,
+          status: 'ok',
+          cis,
+          reused: stats.reused,
+          created_n: stats.created,
+        });
+        ok.push(entry);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        entry.status = 'error';
+        entry.error = msg.slice(0, 400);
+        await logResult(jeu, {
+          matrice_id: f.id,
+          dci: f.dci,
+          status: 'error',
+          error: msg.slice(0, 400),
+        });
+        errors.push(entry);
+      }
+    }
+
+    const remaining = Math.max(0, pending.length - batch.length);
+    return json(200, {
+      done: remaining === 0,
+      processed: batch.length,
+      remaining,
+      ok,
+      errors,
+      model: MODEL,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('jeupharma-regen-referentiel', msg);
+    return json(500, { error: msg });
+  }
+});
+

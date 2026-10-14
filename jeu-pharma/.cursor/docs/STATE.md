@@ -1,18 +1,71 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **IA revue prompts + CPD/conseils** (`046` + Edge `jeupharma-ia-matrice`). (Précédent : IA référentiel + ★ + purge `041`.)
+Dernière mise à jour : 2026-10-14 — **Reprise référentiel TERMINÉE** (IA batch + vocabulaire canonique). (Précédent : vocabulaire `047`.)
+
+## Reprise référentiel — bilan final (2026-10-14)
+
+### Règle vocabulaire unique (appliquée)
+Avant toute création d’entité : alias / synonymes → **1 libellé canonique / 1 UUID** (ex. HTA → Hypertension artérielle).  
+Tables/outils : `vocabulaire_alias`, `ops_entite_find_or_create`, `sql/ops/vocabulaire-canonique.mjs`, `JpEntites.findOrCreate`.
+
+### Exécution
+- Edge **`jeupharma-regen-referentiel`** (Gemini via `GEMINI_API_KEY` serveur + `SERVICE_ROLE`) ; boucle `sql/ops/run_regen_edge_loop.mjs` (~45 min, lots de 4, worst-first).
+- Suivi : `jeupharma.ops_regen_log` + `sql/ops/regen_edge_loop_report.json`.
+- Post-campagne : Edge sans token ops par défaut (exiger secret `REGEN_OPS_TOKEN` ou JWT `service_role`).
+
+### Counts AVANT → APRÈS (actifs)
+| Table | Avant n / avg / >120 | Après n / avg / >120 |
+|---|---|---|
+| Fiches non-archive | 165 (`fiche_validee=false`) | 165 (`fiche_validee=false` — invalider OK) |
+| indications | 455 / ~80 / 121 | **196 / 46 / 8** |
+| contre_indications | 870 / ~73 / 145 | **483 / 48 / 11** |
+| effets_indesirables | 455 / ~72 / 114 | **536 / 40 / 9** |
+| precautions_emploi | **1262 / ~110 / 561** | **584 / 63 / 21** |
+| interactions | **1005 / ~102 / 392** | **488 / 58 / 20** |
+| pubs molécules actives | ~3248 | **0** (désactivées — admin republie) |
+
+### Regen IA
+| Statut | n | Commentaire |
+|---|---|---|
+| **ok** | **102** | RCP ANSM + Gemini condensé + `ops_entite_find_or_create` |
+| **skip no_cis** | **51** | surtout associations « A + B » / héparinates / sels ferreux / thrombolytiques rares |
+| **skip rcp_vide** | **12** | Apixaban, Rivaroxaban, Ivabradine, EPO/darbépoétine, Filgrastim, Ginkgo, Idarucizumab, Sotalol, Ténectéplase, Dapagliflozine |
+| error | 0 | — |
+
+Exemple OK : Aténolol → indications `Hypertension artérielle`, `Angor stable chronique`, `Fibrillation auriculaire`…
+
+### Fichiers / SQL
+- `sql/047_vocabulaire_canonique.sql` (remote)
+- `sql/ops/vocabulaire-canonique.mjs`, `regen_referentiel_ia.mjs`, `run_regen_edge_loop.mjs`, `048_cleanup_pubs_orphelines.sql`
+- `IA/edge/jeupharma-regen-referentiel/index.ts` (+ copie `supabase/functions/…`)
+- `js/entites.js` (alias avant findOrCreate)
+
+### Admin doit revalider
+1. **102 fiches OK** : revue UI Référentiel → `fiche_validee=true` quand satisfait.
+2. **63 skips** : CIS manuel / collage RCP / asso multi-substances (Edge `jeupharma-ia-matrice` wizard) puis re-save.
+3. **Republier molécules** sur le parcours DEUST (pubs à 0) + éventuels blocs molécule.
+4. Optionnel : peupler `REGEN_OPS_TOKEN` si nouvelle campagne batch.
+
+### Non touché
+portail, bdm, inscriptions_parcours, structure modules (hors pubs molécules), modeles_jeu.
+
+## IA référentiel — associations multi-substances (2026-10-14)
+- Problème : `pickToPrefill` prenait la **1ʳᵉ substance** seule (Lamaline → paracétamol).
+- Fix : `JpBdm.formatCombinedDci` → DCI pédagogique « A + b + c » ; `pickCisForFiche` (CIS asso + avertissement, mono si même marque) ; wizard badge **asso** + liste substances ; Edge `substances[]` + prompt / `normalize` qui **n’écrase pas** la DCI combinée.
+- Toujours **1 `dcis` = 1 fiche** (valeur combinée pour les asso). Pas de flags hospitalier/complexe.
+- Fichiers : `js/bdm.js`, `IA/referentiel-matrice.js`, `IA/edge/jeupharma-ia-matrice/index.ts`, `IA/README.md`.
 
 ## IA référentiel — revue, prompts ATC, CPD / conseils (`046`, 2026-10-14)
 - **`sql/046_conditions_conseils_delivrance.sql`** (remote) : entités `conditions_prescription_delivrance` + `conseils_delivrance` + jonctions `matrice_*` + RLS + vue `v_medicaments_complet` + CHECK `connaissances` + `fusionner_entites`. Pattern classique (pas de schéma `referentiel`, pas multi-fiches).
-- Edge **`jeupharma-ia-matrice`** : few-shot Apixaban (secteur / CT / CP / détail) + Lamictal ; `detail_pharmacologie` ~520 car. ; champs CPD + conseils ; Meddispar best-effort ; multi-formes → annoter `(forme)` ; `contexte_bdm` enrichi.
-- Client : `JpBdm.listByDci` / `formeAnnotation` ; wizard revue **découper / ajouter / restaurer / re-match** ; section **Délivrance** éditeur + wizard ; `constants.js` codes actifs.
+- Edge **`jeupharma-ia-matrice`** : few-shot Apixaban (secteur / CT / CP / détail) + Lamictal ; `detail_pharmacologie` ~520 car. ; champs CPD + conseils ; Meddispar best-effort ; multi-formes → annoter `(forme)` ; `contexte_bdm` enrichi ; **asso multi** → DCI combinée.
+- Client : `JpBdm.listByDci` / `formatCombinedDci` / `pickCisForFiche` / `formeAnnotation` ; wizard revue **découper / ajouter / restaurer / re-match** ; section **Délivrance** éditeur + wizard ; `constants.js` codes actifs.
 - 1 DCI = 1 fiche ; hospitalier/complexe non réintroduits.
 
 ## IA référentiel — fiche depuis RCP (`jeupharma-ia-matrice`, 2026-10-14)
 - Bouton **IA** à côté de « Nouvelle fiche » (`admin/referentiel.html`) : wizard BDM → Edge **`jeupharma-ia-matrice`** (fetch ANSM `/extrait` puis EMA secours, collage manuel UI) → Gemini condense JSON → revue matching entités → `JpMedicaments.save` brouillon `fiche_validee:false`.
 - Gate admin `portail.profiles.role === 'admin'` ; secret `GEMINI_API_KEY` serveur ; **pas** d’extension de `jeupharma-ia-blocs` ; **pas** d’OCR Location.
 - Champs UI : `posologie_generale`, `grossesse_allaitement`, `voies_administration`, **`conditions_prescription_delivrance`**, **`conseils_delivrance`**. Flags `hospitalier`/`complexe` absents (purgés `041`).
-- Code : `IA/edge/jeupharma-ia-matrice/`, `IA/referentiel-matrice.js`, `IA/gemini-client.js` (`FN_MATRICE`), `js/bdm.js` (`listByDci`, `suggest`, `getSpecialite`, `pickRecommendedCis`).
+- Code : `IA/edge/jeupharma-ia-matrice/`, `IA/referentiel-matrice.js`, `IA/gemini-client.js` (`FN_MATRICE`), `js/bdm.js` (`listByDci`, `formatCombinedDci`, `pickCisForFiche`, `suggest`, `getSpecialite`, `pickRecommendedCis`).
 
 ## Parcours multi-niveaux ★1–★5 (`040` + `041` — remote 2026-10-14)
 - **`sql/040_parcours_multi_niveaux.sql`** : `inscriptions_parcours.niveau_parcours` ; `niveau_min`/`niveau_max` sur modules / blocs / pubs ; helpers ; `v2_traiter_demande_parcours(..., p_niveau_parcours)` ; `v2_maj_niveau_parcours` ; filtrage `v2_lecon_joueur` / `v2_connaissances_visibles` / catalogue / progression / déblocage (prérequis hors plage ignorés) ; variantes `payload_json.variantes` ; mode `referentiel_valide` → `publications`.

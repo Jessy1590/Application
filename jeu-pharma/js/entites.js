@@ -74,6 +74,42 @@
     return [...new Set([nfd, lower].filter(Boolean))];
   }
 
+  /**
+   * Résout un alias pédagogique (vocabulaire_alias) → libellé canonique.
+   * Ex. HTA / Hypertension → « Hypertension artérielle ».
+   */
+  async function resolveAliasCanonique(table, valeur) {
+    const v = String(valeur || '').trim();
+    if (!v) return null;
+    for (const norm of normCandidates(v)) {
+      const { data, error } = await sb()
+        .from('vocabulaire_alias')
+        .select('valeur_canonique')
+        .eq('table_name', table)
+        .eq('alias_norm', norm)
+        .maybeSingle();
+      if (error) {
+        // Table absente / RLS : ignorer silencieusement
+        if (/vocabulaire_alias|schema cache|does not exist/i.test(String(error.message || ''))) return null;
+        throw error;
+      }
+      if (data?.valeur_canonique) return String(data.valeur_canonique).trim();
+    }
+    // Pluriel simple → alias singulier
+    const n0 = normaliser(v);
+    if (n0.endsWith('s') && n0.length > 4) {
+      const stem = n0.slice(0, -1);
+      const { data } = await sb()
+        .from('vocabulaire_alias')
+        .select('valeur_canonique')
+        .eq('table_name', table)
+        .eq('alias_norm', stem)
+        .maybeSingle();
+      if (data?.valeur_canonique) return String(data.valeur_canonique).trim();
+    }
+    return null;
+  }
+
   /** Entité active dont valeur_norm matche la valeur. */
   async function findActiveByValeur(table, valeur) {
     assertTable(table);
@@ -100,13 +136,22 @@
     return data || null;
   }
 
-  /** Trouve une entité active (norm) ou la crée. */
+  /**
+   * Trouve une entité active (norm / synonyme canonique) ou la crée.
+   * Règle vocabulaire unique : HTA ≡ Hypertension ≡ Hypertension artérielle → même UUID.
+   */
   async function findOrCreate(table, valeur) {
     assertTable(table);
-    const v = String(valeur || '').trim();
-    if (!v) return null;
+    const raw = String(valeur || '').trim();
+    if (!raw) return null;
+    const canon = await resolveAliasCanonique(table, raw);
+    const v = canon || raw;
     const existing = await findActiveByValeur(table, v);
     if (existing) return existing;
+    if (canon && canon !== raw) {
+      const byRaw = await findActiveByValeur(table, raw);
+      if (byRaw) return byRaw;
+    }
     try {
       return await create(table, { valeur: v });
     } catch (err) {
@@ -147,6 +192,7 @@
   global.JpEntites = {
     normaliser,
     normCandidates,
+    resolveAliasCanonique,
     findActiveByValeur,
     list,
     getById,

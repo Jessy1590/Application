@@ -50,6 +50,10 @@
 .jp-ia-badge-ok { background: rgba(15, 107, 92, 0.15); color: #0f6b5c; }
 .jp-ia-badge-warn { background: rgba(154, 103, 0, 0.15); color: #9a6700; }
 .jp-ia-badge-new { background: rgba(30, 90, 160, 0.12); color: #1e5aa0; }
+.jp-ia-subst-list {
+  margin: 0.2rem 0 0.5rem 1.1rem; padding: 0;
+  font-size: 0.86rem; color: var(--jp-muted, #5a6570);
+}
 .jp-ia-review { display: grid; gap: 0.75rem; }
 .jp-ia-review-sec h3 {
   margin: 0.4rem 0 0.35rem; font-size: 0.95rem; color: #0f4c42;

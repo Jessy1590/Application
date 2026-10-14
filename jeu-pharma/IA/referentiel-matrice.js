@@ -295,15 +295,24 @@
     }
 
     async function selectRow(row) {
+      const parseSubs = global.JpBdm.parseSubstancesList || ((s) => String(s || '').split(', ').map((x) => x.trim()).filter(Boolean));
+      const formatDci = global.JpBdm.formatCombinedDci
+        || ((list) => parseSubs(list).join(' + '));
       const pre = global.JpBdm.pickToPrefill(row);
       let detail = null;
       try {
         detail = row.cis ? await global.JpBdm.getSpecialite(row.cis) : null;
       } catch (_) { /* détail optionnel */ }
-      const dci = pre.dci || (detail?.substances_list?.[0] || '');
+
+      const substancesList = (detail?.substances_list?.length
+        ? detail.substances_list
+        : (pre.substances_list || parseSubs(row.substances)))
+        .map((s) => (global.JpBdm.pedagogLabel ? global.JpBdm.pedagogLabel(s) : s));
+      const dci = pre.dci || formatDci(substancesList) || '';
       const nom = brandFromDenom(pre.nom_commercial || row.denomination);
-      const multi = (detail && detail.mono_substance === false)
-        || String(row.substances || '').split(', ').filter(Boolean).length > 1;
+      const multi = substancesList.length > 1
+        || (detail && detail.mono_substance === false)
+        || pre.mono_substance === false;
 
       let agg = null;
       if (dci && !multi && typeof global.JpBdm.listByDci === 'function') {
@@ -311,6 +320,16 @@
           agg = await global.JpBdm.listByDci(dci, 40);
         } catch (_) { /* agrégation optionnelle */ }
       }
+
+      const cisPick = typeof global.JpBdm.pickCisForFiche === 'function'
+        ? global.JpBdm.pickCisForFiche(row, searchRows)
+        : {
+          cis: (agg?.recommended?.cis) || row.cis || detail?.cis || '',
+          mono_rcp: !multi,
+          warn: multi
+            ? 'Association multi-substances : le RCP sera celui de cette spécialité.'
+            : '',
+        };
 
       const noms = [...new Set([
         ...(nom ? [nom] : []),
@@ -329,7 +348,9 @@
             || agg.contexte_bdm.etat_commercialisation || '',
           numero_autorisation_europeenne: detail?.numero_autorisation_europeenne
             || agg.contexte_bdm.numero_autorisation_europeenne || '',
-          substances: row.substances || detail?.substances || dci,
+          substances: substancesList.join(', ') || dci,
+          substances_list: substancesList,
+          association: false,
         }
         : {
           denomination: row.denomination || detail?.denomination || '',
@@ -337,14 +358,23 @@
           voies_administration: detail?.voies_administration || '',
           etat_commercialisation: row.etat_commercialisation || detail?.etat_commercialisation || '',
           numero_autorisation_europeenne: detail?.numero_autorisation_europeenne || '',
-          substances: row.substances || detail?.substances || '',
+          substances: substancesList.join(', ') || '',
+          substances_list: substancesList,
+          association: multi,
+          cis_list: cisPick.cis ? [String(cisPick.cis)] : [],
+          resume_formes: multi
+            ? 'Association multi-substances (1 CIS spécialité pour le RCP)'
+            : '',
         };
 
-      const cisPrincipal = (agg?.recommended?.cis) || row.cis || detail?.cis || '';
+      const cisPrincipal = cisPick.cis || (agg?.recommended?.cis) || row.cis || detail?.cis || '';
       pick = {
         cis: cisPrincipal,
         dci,
         noms,
+        substances_list: substancesList,
+        multi,
+        cis_warn: cisPick.warn || '',
         row,
         detail,
         agg,
@@ -352,17 +382,32 @@
       };
       const host = $('iaMatPick');
       const formesHint = (agg?.formes || []).slice(0, 6).join(', ');
+      const substHtml = substancesList.length
+        ? '<ul class="jp-ia-subst-list">'
+          + substancesList.map((s) => '<li>' + esc(s) + '</li>').join('')
+          + '</ul>'
+        : '';
       host.innerHTML = '<p><strong>Sélection</strong> — ' + esc(dci || 'DCI ?')
+        + (multi ? ' <span class="jp-ia-badge jp-ia-badge-warn">asso</span>' : '')
         + (noms.length ? ' · ' + esc(noms.slice(0, 3).join(', ')) : '')
         + ' · CIS RCP ' + esc(pick.cis || '—') + '</p>'
-        + (multi ? '<p class="jp-ia-warn-inline">Association multi-substances : privilégiez un CIS mono-substance.</p>' : '')
+        + (multi
+          ? '<p class="jp-ia-warn-inline">' + esc(pick.cis_warn
+            || 'Association multi-substances : DCI = libellé combiné (1 fiche).')
+            + '</p>'
+            + '<p class="jp-field-hint">Substances BDM :</p>' + substHtml
+          : '')
         + (agg && !multi
           ? '<p class="jp-field-hint">1 fiche pour toutes les formes : ' + esc(agg.resume || '')
             + (formesHint ? ' — ' + esc(formesHint) : '')
             + '. Annoter (forme) si une info est spécifique.</p>'
-          : '<p class="jp-field-hint">' + esc(pick.contexte_bdm.forme_pharmaceutique || '')
-            + (pick.contexte_bdm.voies_administration ? ' · ' + esc(pick.contexte_bdm.voies_administration) : '')
-            + '</p>');
+          : (!multi
+            ? '<p class="jp-field-hint">' + esc(pick.contexte_bdm.forme_pharmaceutique || '')
+              + (pick.contexte_bdm.voies_administration ? ' · ' + esc(pick.contexte_bdm.voies_administration) : '')
+              + '</p>'
+            : '<p class="jp-field-hint">' + esc(pick.contexte_bdm.forme_pharmaceutique || '')
+              + (pick.contexte_bdm.voies_administration ? ' · ' + esc(pick.contexte_bdm.voies_administration) : '')
+              + '</p>'));
       host.hidden = false;
       $('iaMatNext').disabled = !pick.dci;
     }
@@ -403,12 +448,20 @@
     function renderGenInfo() {
       if (!pick) return;
       const nFormes = pick.agg?.formes?.length || 0;
+      const subst = (pick.substances_list || []).map(esc).join(' · ');
       $('iaMatGenInfo').innerHTML = '<p>DCI <strong>' + esc(pick.dci) + '</strong>'
+        + (pick.multi ? ' <span class="jp-ia-badge jp-ia-badge-warn">asso</span>' : '')
         + (pick.cis ? ' · CIS <strong>' + esc(pick.cis) + '</strong>' : '')
         + (nFormes > 1 ? ' · <strong>' + nFormes + ' formes</strong> BDM' : '')
         + '</p>'
+        + (pick.multi && subst
+          ? '<p class="jp-field-hint">Substances : ' + subst + '</p>'
+          : '')
+        + (pick.cis_warn ? '<p class="jp-ia-warn-inline">' + esc(pick.cis_warn) + '</p>' : '')
         + '<p class="jp-field-hint">Fetch ANSM (extrait public) + Meddispar CPD (best-effort) puis condensation Gemini. '
-        + 'Une fiche pour toutes les formes ; annoter (forme) si besoin. '
+        + (pick.multi
+          ? 'Association : la DCI fournie est le libellé combiné (ne pas la réduire à une seule substance). '
+          : 'Une fiche pour toutes les formes ; annoter (forme) si besoin. ')
         + 'Si le RCP manque, collez-le ci-dessous.</p>';
     }
 
@@ -431,6 +484,7 @@
           dci: pick.dci,
           cis: pick.cis || undefined,
           noms_commerciaux: pick.noms,
+          substances: pick.substances_list || [],
           contexte_bdm: pick.contexte_bdm,
         };
         const manual = $('iaMatRcp').value.trim();

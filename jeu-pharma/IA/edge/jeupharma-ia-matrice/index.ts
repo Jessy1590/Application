@@ -59,7 +59,7 @@ const MULTI_MAXLEN: Record<string, number> = {
   conseils_delivrance: 180,
 };
 const SINGULAR_MAXLEN: Record<string, number> = {
-  dci: 120,
+  dci: 200, // associations « A + b + c » (ex. Lamaline)
   detail_pharmacologie: 520,
   posologie_generale: 220,
   grossesse_allaitement: 220,
@@ -133,6 +133,12 @@ Mapping rubriques → champs :
 - voies_administration : libellés courts (orale, IV, IM, SC, cutanée…) depuis 4.2 / BDM
 - secteur / classes : déduire du RCP + style ATC pédagogique (voir few-shot). Omettre si incertain.
 - nom_commercial / dci : reprendre le contexte (ne pas inventer de marques)
+
+Associations multi-substances :
+- Si le contexte fournit plusieurs substances (substances[] / association), la DCI fournie EST le libellé combiné pédagogique (ex. « Paracétamol + caféine + opium »).
+- Reprendre cette DCI telle quelle dans champs.dci — NE PAS la réduire à la 1ʳᵉ substance seule.
+- Condenser le RCP de l’association (effets / CI / interactions des composants pertinents) ; annoter « (composant) » si une info ne vaut que pour une substance.
+- 1 fiche = 1 entrée DCI (valeur combinée), pas une fiche par composant.
 
 Mapping ATC pédagogique (few-shot Apixaban — style cible, ne pas recopier hors RCP) :
 - secteur_therapeutique : "Cardiovasculaire"
@@ -274,10 +280,30 @@ function buildRcpBundle(sections: Record<string, string>, freeText?: string) {
 
 const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 
+function parseSubstancesPayload(
+  payloadSubs: unknown,
+  contexte: Record<string, unknown>,
+): string[] {
+  const fromPayload = Array.isArray(payloadSubs)
+    ? payloadSubs.map((x) => str(x, 80)).filter(Boolean)
+    : [];
+  if (fromPayload.length) return fromPayload.slice(0, 12);
+  if (Array.isArray(contexte.substances_list)) {
+    return (contexte.substances_list as unknown[]).map((x) => str(x, 80)).filter(Boolean).slice(0, 12);
+  }
+  const raw = String(contexte.substances || '').trim();
+  if (!raw) return [];
+  if (raw.includes(' + ')) {
+    return raw.split(/\s*\+\s*/).map((s) => s.trim()).filter(Boolean).slice(0, 12);
+  }
+  return raw.split(', ').map((s) => s.trim()).filter(Boolean).slice(0, 12);
+}
+
 function buildUserText(p: {
   dci: string;
   cis?: string;
   noms: string[];
+  substances: string[];
   contexte: Record<string, unknown>;
   rcpText: string;
   source: string;
@@ -295,10 +321,17 @@ function buildUserText(p: {
     ? (p.contexte.cis_list as unknown[]).map((x) => str(x, 20)).filter(Boolean).slice(0, 20)
     : [];
   const resumeFormes = String(p.contexte.resume_formes || '').trim();
+  const isAsso = p.substances.length > 1 || p.contexte.association === true || p.dci.includes('+');
   return [
-    `DCI : ${p.dci.slice(0, 120)}`,
+    `DCI : ${p.dci.slice(0, 200)}`,
+    isAsso ? 'Type : association multi-substances (DCI = libellé combiné — ne pas réduire à la 1ʳᵉ substance)' : 'Type : mono-substance',
+    p.substances.length ? `Substances BDM : ${JSON.stringify(p.substances)}` : '',
     p.cis ? `CIS principal (RCP) : ${p.cis}` : '',
-    cisList.length ? `CIS BDM (toutes formes mono-substance) : ${JSON.stringify(cisList)}` : '',
+    cisList.length
+      ? (isAsso
+        ? `CIS BDM (spécialité asso) : ${JSON.stringify(cisList)}`
+        : `CIS BDM (toutes formes mono-substance) : ${JSON.stringify(cisList)}`)
+      : '',
     nomsAgg.length ? `Noms commerciaux (agrégat BDM) : ${JSON.stringify(nomsAgg)}` : '',
     forme ? `Forme pharmaceutique (CIS principal) : ${forme.slice(0, 120)}` : '',
     formes.length ? `Formes BDM : ${JSON.stringify(formes)}` : '',
@@ -306,7 +339,9 @@ function buildUserText(p: {
     voiesBdm ? `Voies BDM : ${voiesBdm.slice(0, 200)}` : '',
     `Source RCP : ${p.source}`,
     '',
-    'Consignes : 1 DCI = 1 fiche ; annoter (forme) si une info est spécifique à une forme.',
+    isAsso
+      ? 'Consignes : 1 DCI combinée = 1 fiche ; conserver la DCI fournie ; annoter (composant) ou (forme) si une info est spécifique.'
+      : 'Consignes : 1 DCI = 1 fiche ; annoter (forme) si une info est spécifique à une forme.',
     '',
     '--- RCP ---',
     p.rcpText,
@@ -373,7 +408,10 @@ function uniqStrings(arr: unknown[], maxItems: number, maxLen: number) {
 }
 
 // deno-lint-ignore no-explicit-any
-function normalize(parsed: any, fallback: { dci: string; noms: string[] }) {
+function normalize(
+  parsed: any,
+  fallback: { dci: string; noms: string[]; substances: string[]; forceCombinedDci?: boolean },
+) {
   const warnings: string[] = Array.isArray(parsed?.avertissements)
     ? parsed.avertissements.map((w: unknown) => str(w, 300)).filter(Boolean).slice(0, 20)
     : [];
@@ -384,7 +422,12 @@ function normalize(parsed: any, fallback: { dci: string; noms: string[] }) {
     const v = str(raw[code], maxLen);
     if (v) champs[code] = v;
   }
-  if (!champs.dci && fallback.dci) champs.dci = str(fallback.dci, SINGULAR_MAXLEN.dci);
+  // Associations : imposer la DCI combinée fournie (éviter réduction à la 1ʳᵉ substance).
+  if (fallback.forceCombinedDci && fallback.dci) {
+    champs.dci = str(fallback.dci, SINGULAR_MAXLEN.dci);
+  } else if (!champs.dci && fallback.dci) {
+    champs.dci = str(fallback.dci, SINGULAR_MAXLEN.dci);
+  }
 
   for (const [code, cap] of Object.entries(MULTI_CAPS)) {
     const maxLen = MULTI_MAXLEN[code] || 160;
@@ -448,7 +491,7 @@ Deno.serve(async (req) => {
     if (!gate.ok) return json(gate.status as number, { error: gate.error });
 
     const payload = await req.json().catch(() => ({}));
-    const dci = str(payload.dci, 120);
+    const dci = str(payload.dci, 200);
     if (!dci) return json(400, { error: 'DCI requise' });
 
     const cis = str(payload.cis, 20).replace(/\D/g, '');
@@ -458,12 +501,19 @@ Deno.serve(async (req) => {
     const contexte = (payload.contexte_bdm && typeof payload.contexte_bdm === 'object')
       ? payload.contexte_bdm as Record<string, unknown>
       : {};
+    const substances = parseSubstancesPayload(payload.substances, contexte);
+    const isAsso = substances.length > 1 || contexte.association === true || dci.includes('+');
     const manualRcp = typeof payload.rcp_text === 'string' ? payload.rcp_text.trim() : '';
     if (manualRcp.length > MAX_RCP) {
       return json(413, { error: `RCP trop long (${MAX_RCP} caractères maximum)` });
     }
 
     const avertissements: string[] = [];
+    if (isAsso) {
+      avertissements.push(
+        'Association multi-substances : DCI = libellé combiné ; RCP de la spécialité sélectionnée.',
+      );
+    }
     let source = 'manuel';
     let rcpUrl = '';
     let rcpText = '';
@@ -533,13 +583,19 @@ Deno.serve(async (req) => {
       dci,
       cis: cis || undefined,
       noms,
+      substances,
       contexte,
       rcpText,
       source,
       meddisparText: meddisparText || undefined,
     });
     const { parsed, usage } = await callGemini(userText);
-    const result = normalize(parsed, { dci, noms });
+    const result = normalize(parsed, {
+      dci,
+      noms,
+      substances,
+      forceCombinedDci: isAsso,
+    });
     return json(200, {
       ...result,
       avertissements: [...avertissements, ...result.avertissements].slice(0, 20),
@@ -547,6 +603,8 @@ Deno.serve(async (req) => {
       source,
       cis: cis || null,
       dci,
+      substances,
+      association: isAsso,
       rcp_url: rcpUrl || null,
       model: MODEL,
       usage,

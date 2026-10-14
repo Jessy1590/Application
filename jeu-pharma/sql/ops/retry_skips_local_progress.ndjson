@@ -1,0 +1,21 @@
+{"matrice_id":"a09d1e36-6b34-47fe-b011-af197df3428e","dci":"Apixaban","status":"ok","cis":"61902218","source":"epar_pdf","stats":{"reused":47,"created":3},"at":"2026-10-14T15:17:58.207Z"}
+{"matrice_id":"c2ae6d77-b733-4f1e-9bf2-567055e7e9b8","dci":"Dapagliflozine","status":"ok","cis":"67456363","source":"epar_pdf","stats":{"reused":40,"created":3},"at":"2026-10-14T15:18:22.121Z"}
+{"matrice_id":"f005d8d6-fec4-44ec-ad4e-1e3feac930d6","dci":"Darbépoétine alfa","status":"ok","cis":"66066271","source":"epar_pdf","stats":{"reused":40,"created":3},"at":"2026-10-14T15:18:42.949Z"}
+{"matrice_id":"a3954933-3a62-45df-93a6-4d196a7f1c42","dci":"Epoétine alfa","status":"ok","cis":"67610861","source":"epar_pdf","stats":{"reused":44,"created":3},"at":"2026-10-14T15:19:07.978Z"}
+{"matrice_id":"70364dd8-1f46-41cc-97ea-fd018d73470a","dci":"Epoétine bêta","status":"ok","cis":"66823618","source":"epar_pdf","stats":{"reused":41,"created":3},"at":"2026-10-14T15:19:35.156Z"}
+{"matrice_id":"a96a7577-2c97-42a0-91fc-bace08d19c50","dci":"Filgrastim","status":"ok","cis":"61823354","source":"epar_pdf","stats":{"reused":48,"created":3},"at":"2026-10-14T15:20:15.847Z"}
+{"matrice_id":"36c4713b-faa7-4187-a5de-c60ef8e82c4a","dci":"Ginkgo biloba","status":"ok","cis":"60287373","source":"ansm_html","stats":{"reused":27,"created":3},"at":"2026-10-14T15:20:39.611Z"}
+{"matrice_id":"a446fae6-94e0-4179-94b8-ecc7cbe0d9f7","dci":"Idarucizumab","status":"ok","cis":"63555182","source":"epar_pdf","stats":{"reused":21,"created":3},"at":"2026-10-14T15:20:54.837Z"}
+{"matrice_id":"5c971e09-303d-4111-9606-b413fe9aba99","dci":"Ivabradine","status":"ok","cis":"60549911","source":"epar_pdf","stats":{"reused":49,"created":3},"at":"2026-10-14T15:21:24.287Z"}
+{"matrice_id":"7df6b28a-35f6-47a0-aacb-d73d5482e275","dci":"Rivaroxaban","status":"ok","cis":"64206365","source":"epar_pdf","stats":{"reused":46,"created":3},"at":"2026-10-14T15:21:59.154Z"}
+{"matrice_id":"3721e13c-4675-47e0-a8c7-d486485bbcf1","dci":"Ténectéplase","status":"ok","cis":"65088998","source":"epar_pdf","stats":{"reused":40,"created":3},"at":"2026-10-14T15:22:23.158Z"}
+{"status":"manual","dci":"Alginate de calcium","reason":"no_cis","at":"2026-10-14T15:22:24.620Z"}
+{"matrice_id":"2db88479-3f2f-4a9c-8a81-805c057278a1","dci":"Amiloride + furosémide","status":"ok","cis":"68045361","source":"ansm_html","stats":{"reused":42,"created":3},"at":"2026-10-14T15:22:50.799Z"}
+{"matrice_id":"1c74e4af-0fb6-4693-9df6-899ef1006dc6","dci":"Amiloride + hydrochlorothiazide","status":"ok","cis":"68045361","source":"ansm_html","stats":{"reused":41,"created":3},"at":"2026-10-14T15:23:11.117Z"}
+{"matrice_id":"6dfc1ca2-4b8a-4776-8aff-d1fda683d069","dci":"Amlodipine + atorvastatine","status":"ok","cis":"65364681","source":"ansm_html","stats":{"reused":49,"created":3},"at":"2026-10-14T15:23:44.696Z"}
+{"matrice_id":"46a6d3fa-a641-4744-b33b-738e18d28fd2","dci":"Amlodipine + indapamide","status":"ok","cis":"67290596","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:24:09.000Z"}
+{"matrice_id":"c9c50626-455d-4837-a3c8-fcba7be16aad","dci":"Aténolol + chlortalidone","status":"ok","cis":"62980497","source":"ansm_html","stats":{"reused":49,"created":3},"at":"2026-10-14T15:24:37.390Z"}
+{"matrice_id":"de4b7b05-e1fe-4889-b1b7-4fbb692f66e5","dci":"Aténolol + nifédipine","status":"ok","cis":"67713249","source":"ansm_html","stats":{"reused":49,"created":3},"at":"2026-10-14T15:25:10.952Z"}
+{"matrice_id":"54501772-19a2-4b29-b041-ea2ca04bb1d1","dci":"Bénazépril + hydrochlorothiazide","status":"ok","cis":"61591226","source":"ansm_html","stats":{"reused":47,"created":3},"at":"2026-10-14T15:25:30.563Z"}
+{"matrice_id":"285c20ec-04ed-465c-9f24-ef6a68a6b574","dci":"Bisoprolol + hydrochlorothiazide","status":"ok","cis":"67460027","source":"ansm_html","stats":{"reused":46,"created":3},"at":"2026-10-14T15:25:50.400Z"}
+{"matrice_id":"8f314a54-7984-426a-8f26-a1dc622ee99c","dci":"Candésartan + hydrochlorothiazide","status":"ok","cis":"66950291","source":"ansm_html","stats":{"reused":35,"created":3},"at":"2026-10-14T15:26:14.201Z"}

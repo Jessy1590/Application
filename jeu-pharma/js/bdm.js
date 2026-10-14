@@ -85,7 +85,15 @@
     const substances = (actives.length ? actives : comps || [])
       .map((c) => String(c.denomination_substance || '').trim())
       .filter(Boolean);
-    const uniq = [...new Set(substances)];
+    // Ordre BDM (numero_lien) conservé ; dédoublonnage stable.
+    const uniq = [];
+    const seen = new Set();
+    for (const s of substances) {
+      const k = normKey(s);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      uniq.push(s);
+    }
 
     return {
       ...sp,
@@ -96,53 +104,186 @@
     };
   }
 
-  /**
-   * Mappe une ligne `search_products` → préremplissage fiche.
-   * DCI = 1ʳᵉ substance de `substances` (séparateur `, `), sinon vide.
-   * @returns {{ nom_commercial: string, dci: string }}
-   */
-  function pickToPrefill(row) {
-    const nom = String(row?.denomination || '').trim();
-    const substances = String(row?.substances || '').trim();
-    const dci = substances
-      ? substances.split(', ').map((s) => s.trim()).filter(Boolean)[0] || ''
-      : '';
-    return { nom_commercial: nom, dci };
-  }
-
   function normKey(s) {
     return String(s || '').trim().toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   }
 
   /**
-   * Heuristique CIS recommandé : mono-substance, commercialisé, forme orale préférée.
+   * Parse une liste de substances (tableau ou chaîne « A, B, C » BDM).
+   * @param {string|string[]|null|undefined} raw
+   * @returns {string[]}
+   */
+  function parseSubstancesList(raw) {
+    if (Array.isArray(raw)) {
+      return raw.map((s) => String(s || '').trim()).filter(Boolean);
+    }
+    return String(raw || '').split(', ').map((s) => s.trim()).filter(Boolean);
+  }
+
+  /**
+   * Libellé pédagogique (BDM souvent en MAJUSCULES).
+   * @param {string} s
+   * @returns {string}
+   */
+  function pedagogLabel(s) {
+    const t = String(s || '').trim().replace(/\s+/g, ' ');
+    if (!t) return '';
+    const lower = t.toLowerCase();
+    // Déjà mixte (ex. « Paracétamol ») → capitaliser seulement la 1ʳᵉ lettre.
+    if (/[a-zà-ÿ]/.test(t) && /[A-ZÀ-Ÿ]/.test(t) && t !== t.toUpperCase()) {
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }
+
+  /**
+   * DCI fiche : mono = substance seule ; multi = « A + b + c » (ordre BDM stable).
+   * 1 fiche = 1 entrée `dcis` (valeur combinée pour les associations).
+   * @param {string|string[]|null|undefined} substances
+   * @returns {string}
+   */
+  function formatCombinedDci(substances) {
+    const list = parseSubstancesList(substances).map(pedagogLabel).filter(Boolean);
+    if (!list.length) return '';
+    if (list.length === 1) return list[0];
+    // Style pédagogique : « Paracétamol + caféine + opium » (1ʳᵉ capitalisée, suivantes en minuscules).
+    return [list[0]]
+      .concat(list.slice(1).map((s) => s.charAt(0).toLowerCase() + s.slice(1)))
+      .join(' + ');
+  }
+
+  /**
+   * Mappe une ligne `search_products` → préremplissage fiche.
+   * Mono : 1 substance. Multi : libellé combiné « A + b + c » (pas la 1ʳᵉ seule).
+   * @returns {{
+   *   nom_commercial: string,
+   *   dci: string,
+   *   substances_list: string[],
+   *   mono_substance: boolean
+   * }}
+   */
+  function pickToPrefill(row) {
+    const nom = String(row?.denomination || '').trim();
+    const list = parseSubstancesList(row?.substances);
+    const labels = list.map(pedagogLabel);
+    const dci = formatCombinedDci(list);
+    return {
+      nom_commercial: nom,
+      dci,
+      substances_list: labels,
+      mono_substance: list.length === 1,
+    };
+  }
+
+  /**
+   * Heuristique CIS recommandé pour le RCP.
+   * - Mono : commercialisé + orale préférée (comportement historique).
+   * - Multi / asso : si la requête matche une spécialité, garder un CIS de cette asso ;
+   *   sinon préférer encore un mono si disponible.
    * @param {object[]} rows lignes search_products
    * @param {string} [dciHint]
+   * @param {{ allowMulti?: boolean }} [opts]
    * @returns {object|null}
    */
-  function pickRecommendedCis(rows, dciHint) {
+  function pickRecommendedCis(rows, dciHint, opts) {
     const list = Array.isArray(rows) ? rows : [];
     const hint = normKey(dciHint);
+    const allowMulti = !!(opts && opts.allowMulti);
     const scored = [];
     for (const r of list) {
-      const subs = String(r.substances || '').split(', ').map((s) => s.trim()).filter(Boolean);
-      if (subs.length !== 1) continue;
+      const subs = parseSubstancesList(r.substances);
+      const isMulti = subs.length > 1;
+      if (isMulti && !allowMulti) {
+        // Autoriser une asso si le libellé commercial matche clairement la requête.
+        const denom = normKey(r.denomination);
+        if (!(hint && denom && (denom.startsWith(hint) || denom.includes(hint) || hint.includes(denom.split(/\s+/)[0])))) {
+          continue;
+        }
+      }
       let score = 0;
       const etat = String(r.etat_commercialisation || '').toLowerCase();
       if (etat.includes('commercialis')) score += 12;
       const forme = String(r.forme_pharmaceutique || r.denomination || '').toLowerCase();
       if (/comprim|g[eé]lule|capsule|solution buvable|goutte/.test(forme)) score += 10;
       else if (/injectable|perfusion|intraveineuse/.test(forme)) score -= 2;
+      if (!isMulti) score += 6;
+      else score += 2; // asso : moins prioritaire qu’un mono sauf match marque
       if (hint) {
-        const sn = normKey(subs[0]);
-        if (sn === hint || sn.includes(hint) || hint.includes(sn)) score += 8;
+        const denom = normKey(r.denomination);
+        if (denom.startsWith(hint) || (hint.length >= 4 && denom.includes(hint))) score += 20;
+        if (subs.length === 1) {
+          const sn = normKey(subs[0]);
+          if (sn === hint || sn.includes(hint) || hint.includes(sn)) score += 8;
+        } else {
+          const combined = normKey(formatCombinedDci(subs));
+          if (combined === hint || (hint.includes('+') && combined.includes(hint.split('+')[0].trim()))) {
+            score += 10;
+          }
+        }
       }
       if (String(r.match_reason || '') === 'dci') score += 4;
       if (score >= 8) scored.push({ r, score });
     }
     scored.sort((a, b) => b.score - a.score);
-    return scored[0]?.r || list.find((r) => String(r.substances || '').split(', ').filter(Boolean).length === 1) || list[0] || null;
+    if (scored[0]) return scored[0].r;
+    return list.find((r) => parseSubstancesList(r.substances).length === 1) || list[0] || null;
+  }
+
+  /**
+   * CIS pour une fiche : mono → agrégat recommandé ; multi → CIS de la spécialité asso.
+   * @param {object} selectedRow
+   * @param {object[]} [searchRows]
+   * @returns {{ cis: string, row: object|null, mono_rcp: boolean, warn: string }}
+   */
+  function pickCisForFiche(selectedRow, searchRows) {
+    const row = selectedRow || null;
+    if (!row) return { cis: '', row: null, mono_rcp: true, warn: '' };
+    const subs = parseSubstancesList(row.substances);
+    if (subs.length <= 1) {
+      const pool = Array.isArray(searchRows) && searchRows.length ? searchRows : [row];
+      const rec = pickRecommendedCis(pool, formatCombinedDci(subs) || row.denomination);
+      const chosen = rec || row;
+      return {
+        cis: String(chosen.cis || row.cis || '').trim(),
+        row: chosen,
+        mono_rcp: true,
+        warn: '',
+      };
+    }
+    // Association : préférer un mono du même pool si un existe (rare) ;
+    // sinon CIS de la spécialité sélectionnée (ex. Lamaline).
+    const pool = Array.isArray(searchRows) && searchRows.length ? searchRows : [row];
+    const monoSameBrand = pool.find((r) => {
+      if (parseSubstancesList(r.substances).length !== 1) return false;
+      const a = normKey(r.denomination).split(/\s+/)[0];
+      const b = normKey(row.denomination).split(/\s+/)[0];
+      return a && b && a === b;
+    });
+    if (monoSameBrand) {
+      return {
+        cis: String(monoSameBrand.cis || '').trim(),
+        row: monoSameBrand,
+        mono_rcp: true,
+        warn: 'Association multi-substances : un CIS mono de la même marque a été préféré pour le RCP.',
+      };
+    }
+    const etatOk = (r) => String(r.etat_commercialisation || '').toLowerCase().includes('commercialis');
+    const sameAsso = pool.filter((r) => {
+      const s = parseSubstancesList(r.substances);
+      if (s.length !== subs.length) return false;
+      const keys = new Set(s.map(normKey));
+      return subs.every((x) => keys.has(normKey(x)));
+    });
+    const ranked = sameAsso.length ? sameAsso : [row];
+    ranked.sort((a, b) => Number(etatOk(b)) - Number(etatOk(a)));
+    const chosen = ranked[0] || row;
+    return {
+      cis: String(chosen.cis || row.cis || '').trim(),
+      row: chosen,
+      mono_rcp: false,
+      warn: 'Association multi-substances : le RCP sera celui de cette spécialité (pas une monographie mono).',
+    };
   }
 
   /**
@@ -190,10 +331,18 @@
         cis_list: [], recommended: null, resume: '', contexte_bdm: {},
       };
     }
+    // Agrégation mono uniquement — les associations ont une DCI combinée dédiée.
+    if (label.includes('+')) {
+      return {
+        dci: label, specialites: [], formes: [], noms: [], voies: [],
+        cis_list: [], recommended: null, resume: 'Association multi-substances (pas d’agrégat mono)',
+        contexte_bdm: { substances: label, association: true, resume_formes: 'Association multi-substances' },
+      };
+    }
     const rows = await searchProducts(label, Math.max(10, Math.min(Number(lim) || 40, 50)));
     const hint = normKey(label);
     const mono = (rows || []).filter((r) => {
-      const subs = String(r.substances || '').split(', ').map((s) => s.trim()).filter(Boolean);
+      const subs = parseSubstancesList(r.substances);
       if (subs.length !== 1) return false;
       const sn = normKey(subs[0]);
       return !hint || sn === hint || sn.includes(hint) || hint.includes(sn);
@@ -278,8 +427,12 @@
     searchProducts,
     suggest,
     getSpecialite,
+    parseSubstancesList,
+    pedagogLabel,
+    formatCombinedDci,
     pickToPrefill,
     pickRecommendedCis,
+    pickCisForFiche,
     formeAnnotation,
     listByDci,
   };

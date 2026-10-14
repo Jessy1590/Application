@@ -1,0 +1,792 @@
+{
+  "started_at": "2026-10-14T14:10:38.596Z",
+  "rounds": [
+    {
+      "round": 1,
+      "processed": 4,
+      "remaining": 157,
+      "done": false,
+      "ok": [
+        "Furosémide",
+        "Minoxidil",
+        "Captopril",
+        "Dipyridamole"
+      ],
+      "errors": []
+    },
+    {
+      "round": 2,
+      "processed": 4,
+      "remaining": 153,
+      "done": false,
+      "ok": [
+        "Spironolactone",
+        "Clonidine",
+        "Nicardipine",
+        "Nifédipine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 3,
+      "processed": 4,
+      "remaining": 149,
+      "done": false,
+      "ok": [
+        "Altéplase",
+        "Zofénopril",
+        "Acide ascorbique",
+        "Acide tranéxamique"
+      ],
+      "errors": []
+    },
+    {
+      "round": 4,
+      "processed": 4,
+      "remaining": 145,
+      "done": false,
+      "ok": [
+        "Acide folique",
+        "Cyanocobalamine",
+        "Carvédilol",
+        "Propafénone"
+      ],
+      "errors": []
+    },
+    {
+      "round": 5,
+      "processed": 4,
+      "remaining": 141,
+      "done": false,
+      "ok": [
+        "Amiodarone",
+        "Moxonidine",
+        "Molsidomine",
+        "Urapidil"
+      ],
+      "errors": []
+    },
+    {
+      "round": 6,
+      "processed": 4,
+      "remaining": 137,
+      "done": false,
+      "ok": [
+        "Bétaxolol",
+        "Acébutolol",
+        "Quinapril",
+        "Trinitrine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 7,
+      "processed": 4,
+      "remaining": 133,
+      "done": false,
+      "ok": [
+        "Diltiazem",
+        "Amiloride",
+        "Lisinopril",
+        "Bénazépril"
+      ],
+      "errors": []
+    },
+    {
+      "round": 8,
+      "processed": 4,
+      "remaining": 129,
+      "done": false,
+      "ok": [
+        "Nadroparine",
+        "Daltéparine",
+        "Fluindione",
+        "Tinzaparine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 9,
+      "processed": 4,
+      "remaining": 125,
+      "done": false,
+      "ok": [
+        "Énoxaparine sodique",
+        "Phytoménadione",
+        "Danaparoïde"
+      ],
+      "errors": [
+        {
+          "dci": "Sels ferreux",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 10,
+      "error": "Non-JSON HTTP 503: "
+    },
+    {
+      "round": 11,
+      "processed": 4,
+      "remaining": 117,
+      "done": false,
+      "ok": [
+        "Acénocoumarol",
+        "Prasugrel",
+        "Trandolapril"
+      ],
+      "errors": [
+        {
+          "dci": "Héparinate de calcium",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 12,
+      "processed": 4,
+      "remaining": 113,
+      "done": false,
+      "ok": [
+        "Ticagrélor",
+        "Clopidogrel",
+        "Bisoprolol"
+      ],
+      "errors": [
+        {
+          "dci": "Héparinate de sodium",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 13,
+      "processed": 4,
+      "remaining": 109,
+      "done": false,
+      "ok": [
+        "Nébivolol",
+        "Vérapamil",
+        "Dabigatran étexilate",
+        "Timolol"
+      ],
+      "errors": []
+    },
+    {
+      "round": 14,
+      "processed": 4,
+      "remaining": 105,
+      "done": false,
+      "ok": [
+        "Propranolol",
+        "Nadolol",
+        "Pindolol",
+        "Tertatolol"
+      ],
+      "errors": []
+    },
+    {
+      "round": 15,
+      "processed": 4,
+      "remaining": 101,
+      "done": false,
+      "ok": [
+        "Manidipine",
+        "Trimétazidine",
+        "Fosinopril"
+      ],
+      "errors": [
+        {
+          "dci": "Sotalol",
+          "error": "rcp_vide",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 16,
+      "processed": 4,
+      "remaining": 97,
+      "done": false,
+      "ok": [
+        "Atorvastatine",
+        "Acide folinique",
+        "Olmésartan"
+      ],
+      "errors": [
+        {
+          "dci": "Immunoglobulines anti-D",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 17,
+      "processed": 4,
+      "remaining": 93,
+      "done": false,
+      "ok": [
+        "Irbésartan",
+        "Telmisartan",
+        "Méthyldopa",
+        "Fondaparinux"
+      ],
+      "errors": []
+    },
+    {
+      "round": 18,
+      "processed": 4,
+      "remaining": 89,
+      "done": false,
+      "ok": [
+        "Pirétanide",
+        "Bumétanide",
+        "Hydrochlorothiazide",
+        "Indapamide"
+      ],
+      "errors": []
+    },
+    {
+      "round": 19,
+      "processed": 4,
+      "remaining": 85,
+      "done": false,
+      "ok": [
+        "Ciclétanine",
+        "Éplérénone",
+        "Lercanidipine",
+        "Prazosine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 20,
+      "processed": 4,
+      "remaining": 81,
+      "done": false,
+      "ok": [
+        "Amlodipine",
+        "Nicorandil",
+        "Hydroquinidine",
+        "Disopyramide"
+      ],
+      "errors": []
+    },
+    {
+      "round": 21,
+      "processed": 4,
+      "remaining": 77,
+      "done": false,
+      "ok": [
+        "Valsartan",
+        "Flécaïnide",
+        "Enalapril",
+        "Candésartan"
+      ],
+      "errors": []
+    },
+    {
+      "round": 22,
+      "processed": 4,
+      "remaining": 73,
+      "done": false,
+      "ok": [
+        "Digoxine",
+        "Perindopril",
+        "Losartan",
+        "Nitrendipine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 23,
+      "processed": 4,
+      "remaining": 69,
+      "done": false,
+      "ok": [
+        "Piribedil",
+        "Adrénaline",
+        "Diosmine",
+        "Doxazosine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 24,
+      "processed": 4,
+      "remaining": 65,
+      "done": false,
+      "ok": [
+        "Colécalciférol",
+        "Rilménidine",
+        "Naftidrofuryl",
+        "Urokinase"
+      ],
+      "errors": []
+    },
+    {
+      "round": 25,
+      "processed": 4,
+      "remaining": 61,
+      "done": false,
+      "ok": [
+        "Peroxyde d'hydrogène",
+        "Fraction flavonoïque",
+        "Troxérutine",
+        "Isradipine"
+      ],
+      "errors": []
+    },
+    {
+      "round": 26,
+      "processed": 4,
+      "remaining": 57,
+      "done": false,
+      "ok": [
+        "Naftazone"
+      ],
+      "errors": [
+        {
+          "dci": "Isosorbide dinitrate",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Apixaban",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Epoétine alfa",
+          "error": "rcp_vide",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 27,
+      "processed": 4,
+      "remaining": 53,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Darbépoétine alfa",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Clopidogrel + aspirine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Epoétine bêta",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Rivaroxaban",
+          "error": "rcp_vide",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 28,
+      "processed": 4,
+      "remaining": 49,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Nébivolol + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Bisoprolol + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Métoprolol + chlortalidone",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Félodipine + métoprolol",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 29,
+      "processed": 4,
+      "remaining": 45,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Aténolol + chlortalidone",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Timolol + amiloride + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Aténolol + nifédipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Idarucizumab",
+          "error": "rcp_vide",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 30,
+      "processed": 4,
+      "remaining": 41,
+      "done": false,
+      "ok": [
+        "Triamtérène"
+      ],
+      "errors": [
+        {
+          "dci": "Filgrastim",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Alginate de calcium",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Sels ferreux + acide folique",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 31,
+      "processed": 4,
+      "remaining": 37,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Désirudine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Streptokinase",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Lépirudine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Rétéplase",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 32,
+      "processed": 4,
+      "remaining": 33,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Ténectéplase",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Éprosartan",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Ivabradine",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Telmisartan + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 33,
+      "processed": 4,
+      "remaining": 29,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Irbésartan + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Sacubitril + valsartan",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Olmésartan + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Dapagliflozine",
+          "error": "rcp_vide",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 34,
+      "processed": 4,
+      "remaining": 25,
+      "done": false,
+      "ok": [
+        "Périndopril + indapamide"
+      ],
+      "errors": [
+        {
+          "dci": "Amlodipine + atorvastatine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Bénazépril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Captopril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 35,
+      "processed": 4,
+      "remaining": 21,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Ginkgo biloba",
+          "error": "rcp_vide",
+          "status": "skip"
+        },
+        {
+          "dci": "Fosinopril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Ruscoside",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Quinapril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 36,
+      "processed": 4,
+      "remaining": 17,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Énalapril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Ramipril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Zofénopril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Lisinopril + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 37,
+      "processed": 4,
+      "remaining": 13,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Vérapamil + trandolapril",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Losartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Candésartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Olmésartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 38,
+      "processed": 4,
+      "remaining": 9,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Périndopril + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Énalapril + lercanidipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Ramipril + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Telmisartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 39,
+      "processed": 4,
+      "remaining": 5,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Valsartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Irbésartan + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Valsartan + amlodipine",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Amlodipine + indapamide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 40,
+      "processed": 4,
+      "remaining": 1,
+      "done": false,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Spironolactone + altizide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Triamtérène + méthyclothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Amiloride + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        },
+        {
+          "dci": "Triamtérène + hydrochlorothiazide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    },
+    {
+      "round": 41,
+      "processed": 1,
+      "remaining": 0,
+      "done": true,
+      "ok": [],
+      "errors": [
+        {
+          "dci": "Amiloride + furosémide",
+          "error": "no_cis",
+          "status": "skip"
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "ok": 94,
+    "errors": 63,
+    "skip": 63
+  },
+  "finished_at": "2026-10-14T14:55:29.786Z"
+}
