@@ -509,13 +509,34 @@
       + ['texte', 'video', 'photo', 'molecule', 'conseil', 'recommandation', 'jeu'].map((t) =>
         '<button type="button" class="jp-btn jp-btn-ghost" data-add="' + t + '">+ ' + TYPE_LABELS[t] + '</button>'
       ).join('')
+      + (global.JpStudioIA ? '<button type="button" class="jp-btn jp-btn-ghost jp-btn-ia" id="btnIa" '
+        + 'title="Créer des blocs brouillon depuis un texte ou un PDF de cours">IA</button>' : '')
       + '</div><p class="jp-studio-autosave-hint">Les modifications sont enregistrées automatiquement en brouillon. '
       + 'Les joueurs ne voient le nouveau contenu qu’après « Enregistrer et publier ».</p>'
       + '<div id="blocksList"></div>';
     pane.querySelectorAll('[data-add]').forEach((btn) => {
       btn.addEventListener('click', () => void addBloc(btn.getAttribute('data-add')));
     });
+    pane.querySelector('#btnIa')?.addEventListener('click', () => openIa());
     paintBlocks();
+  }
+
+  /** Hook IA (logique dans IA/studio-blocs.js) : expose seulement l’état nécessaire. */
+  function openIa() {
+    const m = selectedModule();
+    if (!m || m.est_groupe || !global.JpStudioIA) return;
+    global.JpStudioIA.open({
+      module: m,
+      getBlocs: () => state.blocs,
+      flush: flushAll,
+      rpc,
+      refresh: async () => {
+        state.blocs = await loadBlocs(m.id);
+        await preloadMolLabels();
+        paintBlocks();
+        updateStatus();
+      },
+    });
   }
 
   /* ——— Molécules : libellés (cache) ——— */

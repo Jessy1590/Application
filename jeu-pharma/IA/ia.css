@@ -1,0 +1,12 @@
+/* Studio IA — modale (réutilise .jp-modal*, .jp-field de v2.css / studio.css) */
+.jp-ia-backdrop { z-index: 450; }
+.jp-ia-modal { width: min(640px, 100%); max-height: min(88vh, 760px); }
+.jp-ia-lead { margin: 0 0 0.75rem; }
+.jp-ia-modal textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 8rem; }
+.jp-ia-privacy { margin: 0.25rem 0 0.5rem; }
+.jp-ia-status { margin: 0.6rem 0 0; padding: 0.5rem 0.7rem; border-radius: 0.6rem; font-size: 0.88rem; background: rgba(15, 107, 92, 0.08); color: #0f4c42; }
+.jp-ia-status.is-error { background: rgba(180, 35, 24, 0.09); color: #b42318; }
+.jp-ia-result { margin-top: 0.6rem; }
+.jp-ia-ok { margin: 0 0 0.4rem; font-weight: 600; color: #0f6b5c; }
+.jp-ia-warns { margin: 0.3rem 0 0.5rem 1.1rem; padding: 0; font-size: 0.82rem; color: #9a6700; }
+.jp-btn-ia { border-color: rgba(15, 107, 92, 0.45); color: #0f6b5c; font-weight: 700; }

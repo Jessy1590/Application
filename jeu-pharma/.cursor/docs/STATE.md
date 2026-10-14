@@ -2,6 +2,12 @@
 
 Dernière mise à jour : 2026-10-14 — **Bloc recommandation** (`038`) : type `recommandation` studio + lecteur (cadre teal, pastille) ; payload lien ancre / leçon / https. Cache-bust `?v=038` (`lecon.html`, `admin/parcours.html`).
 
+## IA studio — blocs depuis texte / PDF (2026-10-14)
+- Bouton **IA** dans « Modif parcours » (barre Ajouter) : modale texte ou PDF (10 Mo) → Edge **`jeupharma-ia-blocs`** (secret `GEMINI_API_KEY` partagé avec `ocr-map-fields` ; modèle `GEMINI_IA_MODEL` → `GEMINI_OCR_MODEL` → `gemini-3.8-flash`) → JSON → blocs **brouillon** (`visible=false`, `_brouillon`), publiés via « Enregistrer et publier ».
+- Accès fonction : `portail.profiles.role === 'admin'` uniquement. Types : texte, conseil, recommandation, photo (stub), vidéo (URL source), molécule (DCI déjà publiées sur la leçon) ; jamais `jeu`.
+- Code : `IA/` (`gemini-client.js`, `studio-blocs.js`, `ia.css`, `edge/…`, `README.md` = schéma JSON). Hook mince `openIa()` dans `js/studio-parcours.js`. Cache-bust `?v=040`. Aucune migration SQL.
+- `ocr-map-fields` / `ocr-document` (Location, prompt figé) **non réutilisés** tels quels : nouvelle fonction fine, même pattern (CORS, gate admin, appel Gemini).
+
 ## Bloc « recommandation » (038 — appliquée remote, 2026-10-14)
 - `module_blocs.type_bloc` accepte `recommandation`. Payload : `corps_html`, `lien_bloc_id` | `lien_module_id` (+ `lien_parcours_id` opt.) | `lien_href`, `lien_label`.
 - Studio : bouton « + Recommandation », éditeur riche + contexte (bloc de la leçon, autre leçon, URL in-app/https).
