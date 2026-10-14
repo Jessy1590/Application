@@ -383,18 +383,19 @@
 
     const { data, error } = await sb().rpc('v2_lecon_joueur', rpcArgs);
     if (error) throw error;
+    if (!data || data.preview === false && preview) {
+      // Admin attendu mais RPC n’a pas activé le mode aperçu (rôle)
+      throw new Error('Aperçu réservé aux administrateurs portail');
+    }
     const module = data.module || {};
     let blocs = data.blocs || [];
-    if (preview && !(niv >= 1 && niv <= 5)) {
-      // Aperçu admin « brouillon » : tous les blocs (y compris masqués) avec le contenu brouillon
-      const all = await sb().rpc('v2_lister_blocs', { p_module_id: moduleId });
-      if (all.error) throw all.error;
-      blocs = (Array.isArray(all.data) ? all.data : []).map(withDraft);
-    } else if (!preview) {
+    if (!preview) {
       blocs = blocs.map((b) => Object.assign({}, b, { payload_json: publishedPayload(b.payload_json) }));
     }
-    // preview + ★N : payload déjà résolu (variantes) et filtré côté RPC
-    document.title = (module.titre || 'Leçon') + ' — Jeu Pharma';
+    // preview : brouillons + blocs masqués déjà fusionnés côté RPC (044)
+    document.title = (module.titre || 'Leçon')
+      + (preview ? ' (aperçu)' : '')
+      + ' — Jeu Pharma';
     const back = document.querySelector('.jp-back');
     if (back && module.parcours_id) back.setAttribute('href', 'espace.html?parcours=' + encodeURIComponent(module.parcours_id));
 

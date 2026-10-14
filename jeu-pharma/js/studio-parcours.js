@@ -34,7 +34,8 @@
     selectedBlocId: null,
     inspectorTab: 'lecon', // lecon | bloc | programme
     variantTab: 'base', // base | 1..5
-    variantScratch: {}, // blocId -> { field -> { base, "1".. } }
+    variantShowingBase: false, // onglet ★ vide : aperçu base sans créer de variante
+    variantScratch: {}, // blocId -> { field, base, tabs }
     editors: {}, // blocId:field[:vN] -> richtext instance
     molChips: {}, // blocId -> instance chips
     recoCombos: {}, // blocId -> typeahead leçon (bloc recommandation)
@@ -160,6 +161,20 @@
     return scratch;
   }
 
+  /** HTML « vide » (RTE) : pas de variante → fallback base. */
+  function isEmptyHtml(html) {
+    const t = String(html || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;|&#160;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return !t;
+  }
+
+  function htmlLooksSame(a, b) {
+    return String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+  }
+
   function flushVariantEditor(blocId) {
     const scratch = state.variantScratch[blocId];
     if (!scratch) return;
@@ -167,8 +182,17 @@
     const ed = state.editors[key];
     if (!ed) return;
     const html = ed.getHtml?.() || '';
-    if (state.variantTab === 'base') scratch.base = html;
-    else scratch.tabs[String(state.variantTab)] = html;
+    if (state.variantTab === 'base') {
+      scratch.base = html;
+      return;
+    }
+    const tab = String(state.variantTab);
+    // Affiché en « copie de la base » sans édition → ne pas créer de variante
+    if (state.variantShowingBase && htmlLooksSame(html, scratch.base)) {
+      scratch.tabs[tab] = '';
+      return;
+    }
+    scratch.tabs[tab] = isEmptyHtml(html) ? '' : html;
   }
 
   function variantesTabsHtml(type) {
@@ -180,7 +204,8 @@
     }).join('');
     return '<div class="jp-variant-bar">'
       + '<div class="jp-vtabs" role="tablist">' + tabs + '</div>'
-      + '<p class="jp-muted jp-field-hint">Base = texte commun. ★N remplace la base pour ce niveau uniquement (vide = base).</p>'
+      + '<p class="jp-muted jp-field-hint">Base = texte commun. ★N remplace la base uniquement si renseigné ; vide ou effacé = retour à la base.</p>'
+      + '<p class="jp-muted jp-field-hint jp-variant-fallback-hint" hidden>Aucune variante ★ — affichage de la base (modifiez pour créer une variante).</p>'
       + '</div>';
   }
 
@@ -668,21 +693,33 @@
     root.querySelector('#btnNewParcours').addEventListener('click', () => void createParcours());
     root.querySelector('#btnParcoursCfg').addEventListener('click', () => void openParcoursCfg());
     root.querySelector('#btnPublish').addEventListener('click', () => void publishLesson());
-    root.querySelector('#btnPreview').addEventListener('click', async () => {
+    async function openPreview(url) {
+      // Ouvrir tout de suite (geste utilisateur) pour éviter le bloqueur de pop-ups après await.
+      const w = window.open('about:blank', '_blank');
+      try {
+        await flushAll();
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
+      if (w && !w.closed) {
+        w.location.href = url;
+      } else {
+        global.JpToast?.warn?.('Autorisez les pop-ups, ou ouverture dans cet onglet…');
+        window.location.assign(url);
+      }
+    }
+    root.querySelector('#btnPreview').addEventListener('click', () => {
       const m = selectedModule();
       if (!m || m.est_groupe) return global.JpToast?.warn?.('Choisir une leçon');
-      await flushAll();
-      window.open('../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1', '_blank');
+      void openPreview('../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1');
     });
-    root.querySelector('#btnPreviewNiveau').addEventListener('click', async () => {
+    root.querySelector('#btnPreviewNiveau').addEventListener('click', () => {
       const m = selectedModule();
       if (!m || m.est_groupe) return global.JpToast?.warn?.('Choisir une leçon');
       const n = root.querySelector('#previewNiveau')?.value;
       if (!n) return global.JpToast?.warn?.('Choisir ★1–★5');
-      await flushAll();
-      window.open(
-        '../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1&niveau=' + encodeURIComponent(n),
-        '_blank'
+      void openPreview(
+        '../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1&niveau=' + encodeURIComponent(n)
       );
     });
 
@@ -1288,9 +1325,23 @@
     prev?.destroy?.();
     const scratch = ensureVariantScratch(id, b.type_bloc, effPayload(b));
     const tab = state.variantTab;
-    const html = tab === 'base' ? scratch.base : (scratch.tabs[String(tab)] || '');
+    let html;
+    state.variantShowingBase = false;
+    if (tab === 'base') {
+      html = scratch.base;
+    } else {
+      const raw = scratch.tabs[String(tab)] || '';
+      if (isEmptyHtml(raw)) {
+        // Aperçu de la base (vide = fallback) ; flush n’enregistrera une variante que si modifié
+        html = scratch.base || '';
+        state.variantShowingBase = true;
+      } else {
+        html = raw;
+      }
+    }
     state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html, {
       onChange: () => {
+        state.variantShowingBase = false;
         flushVariantEditor(id);
         scheduleSave(id);
       },
@@ -1298,6 +1349,8 @@
     card.querySelectorAll('.jp-vtab').forEach((btn) => {
       btn.classList.toggle('is-active', btn.getAttribute('data-vtab') === String(tab));
     });
+    const hint = card.querySelector('.jp-variant-fallback-hint');
+    if (hint) hint.hidden = !state.variantShowingBase;
   }
 
   function bindContenuEditors(card, b) {
@@ -1317,19 +1370,33 @@
     card.querySelectorAll('[data-rte]').forEach((host) => {
       const field = host.getAttribute('data-field') || 'html';
       let html = '';
+      state.variantShowingBase = false;
       if (b.type_bloc === 'texte' || b.type_bloc === 'conseil') {
         const scratch = ensureVariantScratch(id, b.type_bloc, effPayload(b));
         const tab = state.variantTab;
-        html = tab === 'base' ? scratch.base : (scratch.tabs[String(tab)] || '');
+        if (tab === 'base') {
+          html = scratch.base;
+        } else {
+          const raw = scratch.tabs[String(tab)] || '';
+          if (isEmptyHtml(raw)) {
+            html = scratch.base || '';
+            state.variantShowingBase = true;
+          } else {
+            html = raw;
+          }
+        }
       } else {
         html = effPayload(b)[field] || '';
       }
       state.editors[id + ':' + field] = global.JpStudioRichtext.mount(host, html, {
         onChange: () => {
+          state.variantShowingBase = false;
           flushVariantEditor(id);
           scheduleSave(id);
         },
       });
+      const hint = card.querySelector('.jp-variant-fallback-hint');
+      if (hint) hint.hidden = !state.variantShowingBase;
     });
     card.querySelectorAll('[data-mol-multi]').forEach((host) => {
       const initial = matriceIdsOf(effPayload(b)).map(molItem);
@@ -1541,8 +1608,8 @@
       if (!scratch) return null;
       const variantes = {};
       for (let i = 1; i <= 5; i += 1) {
-        const html = String(scratch.tabs[String(i)] || '').trim();
-        if (!html) continue;
+        const html = String(scratch.tabs[String(i)] || '');
+        if (isEmptyHtml(html)) continue;
         variantes[String(i)] = { [field]: html };
       }
       return Object.keys(variantes).length ? variantes : null;
