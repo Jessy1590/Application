@@ -1,0 +1,202 @@
+{
+  "generated_at": "2026-10-11T17:47:09.848Z",
+  "ok": 101,
+  "skip": 23,
+  "processed": [
+    "sels ferreux",
+    "acide ascorbique",
+    "colecalciferol",
+    "cyanocobalamine",
+    "acide folique",
+    "immunoglobulines anti-d",
+    "acide acetylsalicylique",
+    "clopidogrel",
+    "prasugrel",
+    "ticagrelor",
+    "dipyridamole",
+    "heparinate de sodium",
+    "heparinate de calcium",
+    "dalteparine",
+    "enoxaparine sodique",
+    "tinzaparine",
+    "nadroparine",
+    "danaparoide",
+    "fondaparinux",
+    "dabigatran etexilate",
+    "warfarine",
+    "acenocoumarol",
+    "fluindione",
+    "alteplase",
+    "phytomenadione",
+    "acide tranexamique",
+    "peroxyde d'hydrogene",
+    "trinitrine",
+    "molsidomine",
+    "nicorandil",
+    "nifedipine",
+    "nicardipine",
+    "nitrendipine",
+    "isradipine",
+    "amlodipine",
+    "felodipine",
+    "manidipine",
+    "lercanidipine",
+    "verapamil",
+    "diltiazem",
+    "carvedilol",
+    "bisoprolol",
+    "metoprolol",
+    "nebivolol",
+    "atorvastatine",
+    "enalapril",
+    "ramipril",
+    "captopril",
+    "lisinopril",
+    "perindopril",
+    "hydroquinidine",
+    "disopyramide",
+    "flecainide",
+    "propafenone",
+    "amiodarone",
+    "sotalol",
+    "fosinopril",
+    "losartan",
+    "valsartan",
+    "candesartan",
+    "digoxine",
+    "furosemide",
+    "spironolactone",
+    "eplerenone",
+    "naftidrofuryl",
+    "trimetazidine",
+    "piribedil",
+    "fraction flavonoique",
+    "diosmine",
+    "troxerutine",
+    "naftazone",
+    "adrenaline",
+    "acebutolol",
+    "atenolol",
+    "celiprolol",
+    "betaxolol",
+    "pindolol",
+    "nadolol",
+    "labetalol",
+    "tertatolol",
+    "piretanide",
+    "bumetanide",
+    "hydrochlorothiazide",
+    "indapamide",
+    "cicletanine",
+    "amiloride",
+    "urapidil",
+    "prazosine",
+    "doxazosine",
+    "minoxidil",
+    "rilmenidine",
+    "methyldopa",
+    "moxonidine",
+    "clonidine",
+    "benazepril",
+    "quinapril",
+    "trandolapril",
+    "zofenopril",
+    "irbesartan",
+    "telmisartan",
+    "olmesartan"
+  ],
+  "skipped": [
+    {
+      "dci_norm": "acide folinique",
+      "reason": "no_safe_candidate"
+    },
+    {
+      "dci_norm": "epoetine alfa",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "epoetine beta",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "darbepoetine alfa",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "rivaroxaban",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "apixaban",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "idarucizumab",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "desirudine",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "lepirudine",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "tenecteplase",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "reteplase",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "streptokinase",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "urokinase",
+      "reason": "no_safe_candidate"
+    },
+    {
+      "dci_norm": "alginate de calcium",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "isosorbide dinitrate",
+      "reason": "no_safe_candidate"
+    },
+    {
+      "dci_norm": "ivabradine",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "dapagliflozine",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "ginkgo biloba",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "ruscoside",
+      "reason": "no_search_hit"
+    },
+    {
+      "dci_norm": "propranolol",
+      "reason": "empty_rcp"
+    },
+    {
+      "dci_norm": "timolol",
+      "reason": "no_safe_candidate"
+    },
+    {
+      "dci_norm": "triamterene",
+      "reason": "no_safe_candidate"
+    },
+    {
+      "dci_norm": "eprosartan",
+      "reason": "no_search_hit"
+    }
+  ]
+}

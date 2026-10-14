@@ -47,8 +47,8 @@
       document.getElementById('codeForm').addEventListener('submit', function (ev) {
         ev.preventDefault();
         const code = document.getElementById('code').value.trim().toUpperCase();
-        if (!/^JP-[A-Z0-9]{5}$/.test(code)) {
-          JpToast.warn('Format : JP-XXXXX');
+        if (!/^JP-[A-Z0-9]{4,5}$/.test(code)) {
+          JpToast.warn('Format : JP-XXXX ou JP-XXXXX');
           return;
         }
         location.href = 'jouer.html?code=' + encodeURIComponent(code);

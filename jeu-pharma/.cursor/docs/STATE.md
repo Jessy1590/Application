@@ -2,6 +2,48 @@
 
 Dernière mise à jour : 2026-10-11 — **Studio parcours** (`027`) : blocs, pubs fines, accès demande/accepte, hub joueur 4 tuiles ; **plus de dépendance `legacy-v1/`**.
 
+## Seed CardioVasculaires - Deust 2A (031 — appliquée remote, 2026-10-11)
+- `sql/031_seed_cardiovasculaires_deust_2a.sql` : **supprime** `deust_apprenti`, `etu_3a`, `introduction` (+ modules, blocs, pubs, progression, inscriptions, 5 `modeles_jeu` JP-INT* / JP-QST9U + tentatives) ; **garde** `pharmacien`. Plus aucune inscription ni jeu en base.
+- Crée `cardiovasculaires_deust_2a` (id `b0d4c335-717c-4574-aa81-3391cbce70a3`, `publications`, niveau apprenti, ordre 1) : chapitres `chap_sang` (10) → `chap_cv` (20) → `chap_hta` (30), verrous par `prerequis_module_id` entre chapitres ; 17 leçons chaînées (ordre 11–15, 21–27, 31–35 ; codes du plan `sang_*`, `cv_*`, `hta_*`), 1re leçon de chaque chapitre sans prérequis propre (`sang_rappel`, `cv_definitions`, `hta_rappel_pa` → `hta_raa`). `criteres_json` leçons = `{lecture:true, logique:'et'}` ; **jeux score min. à ajouter** avec les `JP-CV*`.
+- Les utilisateurs doivent se réinscrire au nouveau parcours (demande → accepte).
+
+## Blocs contenu + images CardioVasculaires Deust 2A (035 — appliquée remote, 2026-10-11)
+- `sql/035_blocs_contenu_cardio_deust.sql` (MCP `jeupharma_035_blocs_contenu_cardio_deust_v2` + `supabase db query --linked`) : **132 blocs** hors `jeu` sur les **17 leçons** (`seed_key` `035:*`, idempotent — ne touche pas aux blocs `JP-CV*` ordre 999).
+  - Répartition : **86** photo · **20** texte · **8** conseil · **5** vidéo · **13** molécule (carrousel = DCI publiées sur la leçon via `publications_connaissances` → `connaissances.matrice_id`).
+  - Chemins photo : bucket privé **`jeupharma-lecons`** → `modules/<module_id>/<slug>.jpg` (86 objets, alignés `sql/ops/cardio_images_prepare.ps1` + `%TEMP%\jp-media\upload-report.txt`).
+  - Schémas docx : hémostase primaire + cascade (L1), RAA (L14) ; ordonnances rappel sang **anonymisées** (script prepare).
+  - Vidéos : embeds complémentaires (mesure PA, chaîne Le cours de bio en lien texte ; stubs Natispray / angioplastie — remplaçables dans le studio).
+  - Leçons **sans** bloc molécule : `cv_definitions`, `hta_rappel_pa`, `hta_raa`, `hta_clinique`. Leçons `publie=true`, `statut=publie`, `contenu_maj_at` à jour.
+- Générateur : `sql/ops/build_035_blocs.mjs` (relancer après changement d’images ou de texte cours).
+- **Reste** : affiner CIS BDPM / RCP pour DCI restantes (EPO, AOD sans page RCP) ; remplacer URLs vidéo stub si besoin.
+
+## Jeux JP-CV* CardioVasculaires - Deust 2A (032 — appliquée remote, 2026-10-11)
+- `sql/032_jeux_cardiovasculaires_deust_2a.sql` : **17 `modeles_jeu`** actifs ; pool = publications cours (035, **3050** lignes actives).
+- **Format code assoupli** : `modeles_jeu_code_format` = `^JP-[A-Z0-9]{4,5}$` (les codes du plan `JP-CVS1`… ont 4 caractères ; le générateur studio reste à 5). `ordonnances/index.html` : regex alignée.
+- Jeux (leçon porteuse du bloc `jeu` ordre 999 + critère → `module_ids`) :
+  - Sang : `JP-CVS1` quiz (L1 : L1) · `JP-CVS2` trous (L2 : L1–L2) · `JP-CVS3` fiche aléatoire (L3 : L3) · `JP-CVS4` quiz (L4 : L4) · `JP-CVSO1` ordonnance ACO (L4, **non requise**, règles AVK / anti-Xa / HBPM) · `JP-CVS5` quiz révision (L5 : L1–L5).
+  - CV : `JP-CVC1` quiz (L7 : L7) · `JP-CVC2` ordonnance BASIC (L8 : L3, L7, L8 ; règles bêtabloquant / antiagrégant / statine HMG-CoA / IEC) · `JP-CVC3` quiz VW (L9 : L7, L9) · `JP-CVC4` trous IC (L10 : L10) · `JP-CVC5` quiz jambes lourdes (L11 : L11) · `JP-CVC6` quiz révision (L12 : L6–L12). L6 = lecture seule.
+  - HTA : `JP-CVH1` quiz (L13 : L7, L10, L13) · `JP-CVH2` trous (L14 : L10, L14) · `JP-CVH3` quiz cas patients (L15 : L7, L10, L15) · `JP-CVH4` quiz cibles (L16 : L7, L10, L16) · `JP-CVH5` quiz final (L17 : les 17 leçons).
+- **Critères leçons** = `{lecture:true, logique:'et', jeux:[{modele_id, score_min_pct}]}` : 70 % partout, **80 % pour L17** (`JP-CVH5`). Parcours : pas de critère propre (= toutes leçons validées).
+- **Limites** : le moteur de jeux est 100 % basé sur des molécules (quiz / trous / fiche / ordonnance) → pas de questions libres (valeurs PA, trous RAA, cas patients). H1–H3 s'appuient donc sur les pools L7 / L10 (BB, INCA, IEC, ARA II, diurétiques clés) + leur propre leçon. Règles d'ordonnance = ids de classes pharmacologiques existantes (taxonomie avec doublons) ; repli sur le pool si une classe est absente des pubs.
+- Pubs molécules posées (033) : **3085** publications actives remote ; le parcours est jouable côté pool jeux ; vérifier en conditions réelles les leçons H1–H3 (pool L7/L10) et molécules `hospitalier`.
+
+## Fiches + pubs molécules CardioVasculaires Deust 2A (032–036 — remote, 2026-10-11)
+- **Règle duale** : (1) **Matrice / référentiel** = RCP BDPM condensé (EI fréquents ou rares graves) ; (2) **DEUST** = connaissances **source `cours_cardio_deust_2a` uniquement** (libellés courts / champs cours — pas le surplus RCP long sur les leçons).
+- `sql/032_fiches_cardio_deust_cours.sql` · `sql/033_pubs_molecules_cardio_deust.sql` : 1re passe cours + lots 1–13 (**165** fiches plan).
+- **`sql/034_rcp_matrice_cardio_deust.sql` — appliquée remote 2026-10-11** (`supabase db query --linked -f sql/034_apply_parts/part_01..05` ; helpers `pg_temp` dupliqués par part ; historique MCP `034_rcp_matrice_cardio_deust_applied`) :
+  - Générateur durci : `sql/ops/cardio_rcp_matrice_gen.mjs` + `cardio_rcp_cis_config.mjs` (DCI stricte, score forme orale/usuelle, allow/deny CIS, rapport `sql/ops/cardio_rcp_cis_report.json`).
+  - **101** DCI enrichies matrice (124 mono plan 033) ; **23** ignorées (pas de CIS sûr / RCP BDPM vide / pas de hit) — liste dans le footer SQL + rapport JSON.
+  - Source miroir **`rcp_bdpm_cardio_deust`** / version **`bdpm-2026-10`** → **4881** lignes `connaissances` (référentiel) ; **`0`** `publications_connaissances` sur cette source (DEUST inchangé).
+  - Exemples CIS corrigés : colécalciférol **63902334**, cyanocobalamine **61247741**, dipyridamole **60021216** (plus alendronate+D3 / CERNEVIT / injectable diagnostic).
+- **DCI 034 non traitées (matrice = cours 033 seulement)** : `acide folinique`, époétines / darbépoétine, rivaroxaban / apixaban / dapagliflozine / ivabradine, idarucizumab, desirudine / lepirudine, tenecteplase / reteplase / streptokinase / urokinase, alginate de calcium, isosorbide dinitrate, ginkgo, ruscoside, propranolol, timolol, triamterene, eprosartan.
+- `sql/036_sync_connaissances_cours_deust.sql` : connaissances cours ← migration_v1 (filtre ≤ 55 car. ind/CI/EI… + champs structurels).
+- `sql/035_deust_connaissances_cours.sql` : depub non-cours + repub lots 033 en source cours only.
+- **Comptes remote** : **3085** publications actives (cours) · **4881** connaissances RCP matrice · **0** pub RCP sur leçons DEUST. Jeux / blocs **non touchés**.
+- **Hors plan** : lacidipine ; sclérosants archivés ; facteurs VIII/IX, HE/homéo (conseil texte).
+- Attention : thrombolytiques et idarucizumab sont `hospitalier` (visibles apprenti seulement si les RPC `v2_*` ne filtrent pas ce flag — à vérifier au jeu).
+- **Statut tâche** : **pubs-molecules / RCP matrice 034** = **terminé** (033 + 034 appliqués ; relancer `cardio_rcp_matrice_gen.mjs` si BDPM ou allowlist évolue).
+
 ## Modif parcours — supprimer / réordonner chapitres et leçons (030 — **à appliquer remote**)
 - Arbre : boutons ↑ ↓ × par ligne (visibles au survol / sélection). ↑↓ = échange avec le frère voisin (même `parent_id`) et renumérotation du niveau (`ordre` × 10) via `v2_reorder_modules` (027, inchangée). × = confirmation `JpModal` puis `v2_supprimer_module`.
 - `modules_cours` n'a pas de `actif` → suppression **physique** du sous-arbre (blocs / publications / progression en cascade FK). `030` redéfinit `v2_supprimer_module` (ancienne = simple dépublication, jamais appelée) : raccroche les dépendants extérieurs au prérequis du module supprimé ; retire les ids de `modeles_jeu.module_ids` ; jeu à pool vide → **archivé** (`actif=false`, scores conservés) + critères `jeux` nettoyés + blocs jeu extérieurs retirés. Fichiers photo du bucket non purgés.
@@ -331,7 +373,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - RPC : `v2_module_ancetres`, `v2_publier_module_par_indications`, `v2_publier_module_par_classes_ther` ; résolveur / progression mis à jour
 
 ### Parcours démo Introduction (`024`)
-- Parcours `introduction` (ordre 1, `publications`, niveau apprenti) — prise en main admin complète
+- (Obsolète depuis 031 : parcours `introduction` supprimé, remplacé par `cardiovasculaires_deust_2a`) Parcours `introduction` (ordre 1, `publications`, niveau apprenti) — prise en main admin complète
 - Thèmes : Prise en main → Sang premiers pas → Mise en pratique
 - Feuilles : Lire une fiche (fer + énoxaparine) · Anémie · Anticoagulation · Révision guidée — **sans prérequis** (toutes ouvertes)
 - Pubs : corpus réduit (~7 DCI) depuis connaissances `valide`
