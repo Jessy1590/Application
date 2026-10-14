@@ -16,6 +16,7 @@
 <script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
 <link rel="stylesheet" href="../css/app.css">
 <link rel="stylesheet" href="../css/v2.css?v=028">
+<link rel="stylesheet" href="../IA/ia.css">
 </head>
 <body>
   <main class="jp-page jp-page-wide jp-catalogue jp-admin-catalogue">
@@ -24,6 +25,7 @@
 
     <div class="jp-admin-cat-actions">
       <button type="button" class="jp-btn jp-btn-primary" id="btnNew">Nouvelle fiche</button>
+      <button type="button" class="jp-btn jp-btn-ia" id="btnIa" title="Proposer une fiche depuis le RCP (BDPM)">IA</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="btnValider">Valider fiches</button>
       <span class="jp-admin-cat-validation-count jp-muted" id="valCount" aria-live="polite"></span>
     </div>
@@ -169,6 +171,8 @@
   <script src="../js/bdm.js"></script>
   <script src="../js/entites.js"></script>
   <script src="../js/medicaments.js"></script>
+  <script src="../IA/gemini-client.js"></script>
+  <script src="../IA/referentiel-matrice.js"></script>
   <script src="../js/referentiel-admin.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

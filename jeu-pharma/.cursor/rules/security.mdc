@@ -16,7 +16,7 @@ alwaysApply: true
 - Admin métier : `portail.profiles.role === 'admin'` uniquement.
 - Joueurs : `site_access` sur le SITE_ID Jeu Pharma.
 - Correction / scoring quiz : RPC `soumettre_quiz` (security definer) — ne pas recalculer le score côté client comme source de vérité.
-- IA Jeu Pharma : Edge **`jeupharma-ia-blocs`** uniquement (admin Modif parcours). Ne pas appeler les Edge OCR Location depuis le client jeu-pharma ; **`GEMINI_API_KEY` jamais dans le navigateur**.
+- IA Jeu Pharma : Edges **`jeupharma-ia-blocs`** (admin Modif parcours) et **`jeupharma-ia-matrice`** (admin Référentiel, condensation RCP). Ne pas appeler les Edge OCR Location depuis le client jeu-pharma ; **`GEMINI_API_KEY` jamais dans le navigateur**.
 
 ## Secrets & client
 - Ne pas committer `.env` / clés ; respecter `.gitignore` monorepo.

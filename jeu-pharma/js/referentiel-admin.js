@@ -997,6 +997,21 @@
     });
 
     $('btnNew').addEventListener('click', () => openEditor(null));
+    $('btnIa')?.addEventListener('click', () => {
+      if (!global.JpReferentielIA) {
+        global.JpToast.warn('Module IA référentiel indisponible');
+        return;
+      }
+      global.JpReferentielIA.open({
+        onSaved: async (saved) => {
+          await refreshAll();
+          if (saved?.id) {
+            const row = all.find((r) => r.id === saved.id);
+            if (row) openEditor(row);
+          }
+        },
+      });
+    });
     $('btnValider').addEventListener('click', openQueue);
     $('btnResetVal').addEventListener('click', () => void resetValidation());
 

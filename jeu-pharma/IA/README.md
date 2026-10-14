@@ -1,3 +1,18 @@
+# IA — Jeu Pharma
+
+Deux Edge Functions Gemini (secret **`GEMINI_API_KEY`** serveur uniquement, jamais dans le navigateur) :
+
+| Edge | Surface | Rôle |
+|---|---|---|
+| `jeupharma-ia-blocs` | Modif parcours | Texte / PDF de cours → blocs de leçon (brouillon) |
+| `jeupharma-ia-matrice` | Référentiel admin | BDM + RCP officiel → fiche matrice condensée (revue puis save) |
+
+Client partagé : `gemini-client.js` (`JpIaGemini.invoke`, `FN_BLOCS`, `FN_MATRICE`).
+
+Ne **pas** appeler les Edge OCR Location depuis le client jeu-pharma.
+
+---
+
 # IA — blocs de leçon (Modif parcours)
 
 Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edge Function `jeupharma-ia-blocs` (Gemini) → JSON → blocs **brouillon** (`visible=false`, `payload_json._brouillon`), publiés seulement via « Enregistrer et publier ».
@@ -53,3 +68,73 @@ Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edg
 | photo | `{ path:'', url, alt, legende }` |
 | video | `{ url }` |
 | molecule | `{ matrice_ids[], matrice_id, mode:'fiche' }` |
+
+---
+
+# IA — fiche matrice depuis RCP (Référentiel)
+
+Bouton **IA** (`admin/referentiel.html`) → recherche BDM → Edge `jeupharma-ia-matrice` → revue matching entités → `JpMedicaments.save` (brouillon, `fiche_validee:false`). **Zéro écriture** pendant la génération.
+
+| Fichier | Rôle |
+|---|---|
+| `gemini-client.js` | `FN_MATRICE = 'jeupharma-ia-matrice'` |
+| `referentiel-matrice.js` | `JpReferentielIA` : wizard 3 étapes (choisir / générer / revue) |
+| `ia.css` | styles wizard (`.jp-ia-matrice-*`) |
+| `edge/jeupharma-ia-matrice/index.ts` | fetch ANSM/EMA, prompt condensation, `normalize` |
+| `js/bdm.js` | `suggest`, `getSpecialite`, `pickRecommendedCis` |
+
+## Edge Function
+- Même secrets / modèle / gate admin que `jeupharma-ia-blocs`. `verify_jwt = true`.
+- Sources RCP : ANSM `https://base-donnees-publique.medicaments.gouv.fr/medicament/{cis}/extrait` (rubriques 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 5.1) ; EMA si ANSM vide + nº EU ; sinon `rcp_text` collé par l’admin.
+- Déploiement : MCP `deploy_edge_function` (slug `jeupharma-ia-matrice`, projet `kpjflntnotftpzffjbud`).
+
+## Requête
+```json
+{
+  "dci": "Digoxine",
+  "cis": "67681303",
+  "noms_commerciaux": ["DIGOXINE"],
+  "contexte_bdm": {
+    "forme_pharmaceutique": "comprimé",
+    "voies_administration": "orale",
+    "numero_autorisation_europeenne": null
+  },
+  "rcp_text": "(optionnel — collage secours)"
+}
+```
+
+## Réponse
+```json
+{
+  "version": 1,
+  "need_manual_rcp": false,
+  "source": "ansm",
+  "cis": "67681303",
+  "dci": "Digoxine",
+  "rcp_url": "https://…/extrait",
+  "champs": {
+    "dci": "Digoxine",
+    "nom_commercial": ["…"],
+    "secteur_therapeutique": ["…"],
+    "classe_therapeutique": ["…"],
+    "classe_pharmacologique": ["…"],
+    "detail_pharmacologie": "…",
+    "posologie_generale": "…",
+    "grossesse_allaitement": "…",
+    "voies_administration": ["orale"],
+    "indications": ["…"],
+    "contre_indications": ["…"],
+    "effets_indesirables": ["…"],
+    "precautions_emploi": ["…"],
+    "interactions": ["…"],
+    "surveillances": ["…"]
+  },
+  "avertissements": [],
+  "model": "…",
+  "usage": {}
+}
+```
+Si `need_manual_rcp: true` : l’UI affiche la zone de collage ; aucune suggestion de champs.
+
+## Revue client
+Pour chaque libellé : match exact `JpEntites.findActiveByValeur` → **Existant** ; sinon suggestions `list({ q })` → **Proche** ; sinon **Nouveau**. Commit final via `JpMedicaments.save` (fusion DCI si fiche active déjà présente). Pas de flags hospitalier/complexe (colonnes purgées `041`).

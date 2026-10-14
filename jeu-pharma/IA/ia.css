@@ -10,3 +10,64 @@
 .jp-ia-ok { margin: 0 0 0.4rem; font-weight: 600; color: #0f6b5c; }
 .jp-ia-warns { margin: 0.3rem 0 0.5rem 1.1rem; padding: 0; font-size: 0.82rem; color: #9a6700; }
 .jp-btn-ia { border-color: rgba(15, 107, 92, 0.45); color: #0f6b5c; font-weight: 700; }
+
+/* Wizard IA référentiel (matrice / RCP) */
+.jp-ia-matrice-modal { width: min(720px, 100%); max-height: min(92vh, 900px); overflow: auto; }
+.jp-ia-steps {
+  display: flex; gap: 0.35rem; flex-wrap: wrap;
+  margin: 0 0 0.85rem; padding: 0;
+}
+.jp-ia-step {
+  appearance: none; border: 1px solid rgba(15, 107, 92, 0.25);
+  background: #f4faf8; color: #0f4c42; border-radius: 999px;
+  padding: 0.28rem 0.7rem; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+}
+.jp-ia-step.is-active { background: #0f6b5c; color: #fff; border-color: #0f6b5c; }
+.jp-ia-step:disabled { opacity: 0.45; cursor: default; }
+.jp-ia-bdm-results {
+  max-height: 240px; overflow: auto; margin: 0.4rem 0 0.6rem;
+  border: 1px solid rgba(15, 40, 35, 0.12); border-radius: 0.55rem;
+}
+.jp-ia-bdm-item {
+  display: grid; gap: 0.1rem; width: 100%; text-align: left;
+  appearance: none; border: 0; border-bottom: 1px solid rgba(15, 40, 35, 0.08);
+  background: transparent; padding: 0.55rem 0.7rem; cursor: pointer; font: inherit;
+}
+.jp-ia-bdm-item:hover { background: rgba(15, 107, 92, 0.06); }
+.jp-ia-bdm-name { font-weight: 600; color: #123; }
+.jp-ia-bdm-meta, .jp-ia-bdm-forme { font-size: 0.82rem; color: #5a6b66; }
+.jp-ia-bdm-empty { margin: 0.6rem; color: #5a6b66; font-size: 0.88rem; }
+.jp-ia-pick {
+  margin: 0.5rem 0 0; padding: 0.55rem 0.7rem;
+  border-radius: 0.55rem; background: rgba(15, 107, 92, 0.07);
+}
+.jp-ia-pick p { margin: 0.2rem 0; }
+.jp-ia-warn-inline { color: #9a6700; font-size: 0.86rem; margin: 0.35rem 0; }
+.jp-ia-badge {
+  display: inline-block; font-size: 0.68rem; font-weight: 700;
+  padding: 0.1rem 0.4rem; border-radius: 999px; vertical-align: middle;
+}
+.jp-ia-badge-ok { background: rgba(15, 107, 92, 0.15); color: #0f6b5c; }
+.jp-ia-badge-warn { background: rgba(154, 103, 0, 0.15); color: #9a6700; }
+.jp-ia-badge-new { background: rgba(30, 90, 160, 0.12); color: #1e5aa0; }
+.jp-ia-review { display: grid; gap: 0.75rem; }
+.jp-ia-review-sec h3 {
+  margin: 0.4rem 0 0.35rem; font-size: 0.95rem; color: #0f4c42;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.2); padding-bottom: 0.2rem;
+}
+.jp-ia-review-field h4 { margin: 0.35rem 0 0.25rem; font-size: 0.82rem; color: #456; }
+.jp-ia-chip {
+  display: grid; gap: 0.25rem;
+  padding: 0.45rem 0.55rem; margin: 0.3rem 0;
+  border: 1px solid rgba(15, 40, 35, 0.1); border-radius: 0.5rem;
+  background: #fff;
+}
+.jp-ia-chip.is-dropped { opacity: 0.45; }
+.jp-ia-chip-keep { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; }
+.jp-ia-chip-val {
+  width: 100%; box-sizing: border-box; font: inherit;
+  padding: 0.35rem 0.5rem; border: 1px solid rgba(15, 40, 35, 0.18); border-radius: 0.4rem;
+}
+.jp-ia-sugs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.jp-ia-gen-info p { margin: 0.25rem 0; }
+

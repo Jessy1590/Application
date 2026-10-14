@@ -1,6 +1,12 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Parcours multi-niveaux ★1–★5** + purge profil apprenti/pharmacien / hospitalier-complexe. Migrations `040` + `041` appliquées remote (`supabase db query --linked`).
+Dernière mise à jour : 2026-10-14 — **IA référentiel molécules** (`jeupharma-ia-matrice`) + réactivation posologie / grossesse / voies. (Précédent : multi-niveaux ★ + purge `041`.)
+
+## IA référentiel — fiche depuis RCP (`jeupharma-ia-matrice`, 2026-10-14)
+- Bouton **IA** à côté de « Nouvelle fiche » (`admin/referentiel.html`) : wizard BDM → Edge **`jeupharma-ia-matrice`** (fetch ANSM `/extrait` puis EMA secours, collage manuel UI) → Gemini condense JSON → revue matching entités → `JpMedicaments.save` brouillon `fiche_validee:false`.
+- Gate admin `portail.profiles.role === 'admin'` ; secret `GEMINI_API_KEY` serveur ; **pas** d’extension de `jeupharma-ia-blocs` ; **pas** d’OCR Location.
+- Champs réactivés UI : `posologie_generale`, `grossesse_allaitement`, `voies_administration` (`actif:true` dans `constants.js`). Flags `hospitalier`/`complexe` absents (purgés `041`) — non proposés.
+- Code : `IA/edge/jeupharma-ia-matrice/`, `IA/referentiel-matrice.js`, `IA/gemini-client.js` (`FN_MATRICE`), `js/bdm.js` (`suggest`, `getSpecialite`, `pickRecommendedCis`). Aucune migration SQL bulk.
 
 ## Parcours multi-niveaux ★1–★5 (`040` + `041` — remote 2026-10-14)
 - **`sql/040_parcours_multi_niveaux.sql`** : `inscriptions_parcours.niveau_parcours` ; `niveau_min`/`niveau_max` sur modules / blocs / pubs ; helpers ; `v2_traiter_demande_parcours(..., p_niveau_parcours)` ; `v2_maj_niveau_parcours` ; filtrage `v2_lecon_joueur` / `v2_connaissances_visibles` / catalogue / progression / déblocage (prérequis hors plage ignorés) ; variantes `payload_json.variantes` ; mode `referentiel_valide` → `publications`.
@@ -27,6 +33,7 @@ Dernière mise à jour : 2026-10-14 — **Parcours multi-niveaux ★1–★5** +
 - Accès fonction : `portail.profiles.role === 'admin'` uniquement. Types : texte, conseil, recommandation, photo (stub), vidéo (URL source), molécule (DCI déjà publiées sur la leçon) ; jamais `jeu`.
 - Code : `IA/` (`gemini-client.js`, `studio-blocs.js`, `ia.css`, `edge/…`, `README.md` = schéma JSON). Hook mince `openIa()` dans `js/studio-parcours.js`. Cache-bust `?v=040`. Aucune migration SQL.
 - `ocr-map-fields` / `ocr-document` (Location, prompt figé) **non réutilisés** tels quels : nouvelle fonction fine, même pattern (CORS, gate admin, appel Gemini).
+- **2ᵉ Edge** : voir section « IA référentiel » (`jeupharma-ia-matrice`).
 
 ## Bloc « recommandation » (038 — appliquée remote, 2026-10-14)
 - `module_blocs.type_bloc` accepte `recommandation`. Payload : `corps_html`, `lien_bloc_id` | `lien_module_id` (+ `lien_parcours_id` opt.) | `lien_href`, `lien_label`.

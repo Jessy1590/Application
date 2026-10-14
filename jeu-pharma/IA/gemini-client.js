@@ -4,8 +4,10 @@
  */
 (function (global) {
   const FN_BLOCS = 'jeupharma-ia-blocs';
+  const FN_MATRICE = 'jeupharma-ia-matrice';
   const PDF_MAX_BYTES = 10 * 1024 * 1024;
   const TEXT_MAX_CHARS = 80000;
+  const RCP_MAX_CHARS = 100000;
 
   /** Fichier -> base64 (sans préfixe data:). */
   function fileToBase64(file) {
@@ -49,5 +51,13 @@
     return data;
   }
 
-  global.JpIaGemini = { FN_BLOCS, PDF_MAX_BYTES, TEXT_MAX_CHARS, fileToBase64, invoke };
+  global.JpIaGemini = {
+    FN_BLOCS,
+    FN_MATRICE,
+    PDF_MAX_BYTES,
+    TEXT_MAX_CHARS,
+    RCP_MAX_CHARS,
+    fileToBase64,
+    invoke,
+  };
 })(window);

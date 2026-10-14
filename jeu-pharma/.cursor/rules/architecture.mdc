@@ -22,7 +22,7 @@ alwaysApply: true
 - Schéma métier : **`jeupharma`** (minuscules).
 - Entités (valeur + `valeur_norm` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ colonnes legacy `niveaux_connus[]` conservées en base mais non pilotées par l’UI ; posologies, grossesse/allaitement, voies masquées).
 - Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
-- Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, indications, CI, EI, précautions, interactions, surveillances — **pas** posologie / grossesse / voies (legacy, pas de DROP).
+- Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, **posologie générale**, **grossesse/allaitement**, indications, CI, EI, précautions, interactions, surveillances, **voies d’administration**.
 - **Niveaux d’accès parcours ★1–★5** (`040`) : `inscriptions_parcours.niveau_parcours` ; plages `niveau_min`/`niveau_max` sur `modules_cours`, `module_blocs`, `publications_connaissances` (défaut 1–5). Visible ssi `min ≤ ★ ≤ max` (module + ancêtres). Admin : Accorder / Modifier ★ ; studio : plages + aperçu « Voir comme ★N » ; variantes texte `payload_json.variantes["1"…"5"]` fusionnées dans `v2_lecon_joueur`.
 - **Catalogue joueur** : union des pubs des leçons accessibles (inscriptions acceptées + ★ + déblocage) via `v2_connaissances_visibles` / `v2_lister_medicaments` / `v2_fiche_resolue` — **pas** de référentiel complet joueur (`referentiel_valide` abandonné). Admin : `admin/referentiel.html` = catalogue complet.
 - Profil : `profil_apprentissage` ne conserve que `parcours_id` (plus de `niveau_id` / table `niveaux` / `niveau_*` — purge `041`). Colonnes entité `niveaux_connus[]` legacy conservées, non pilotées.
@@ -43,7 +43,7 @@ alwaysApply: true
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin / SQL / enrichissement RCP condensé (référentiel) ; pubs DEUST = sous-ensemble cours.
 - BDPM **lecture seule** via `js/bdm.js` dans `admin/referentiel.html`.
-- IA studio (Modif parcours) : Edge `jeupharma-ia-blocs` + dossier `jeu-pharma/IA/` (Gemini ; clé uniquement côté Edge).
+- IA studio (Modif parcours) : Edge `jeupharma-ia-blocs` ; IA référentiel (ajout fiche) : Edge `jeupharma-ia-matrice` — dossier `jeu-pharma/IA/` (Gemini ; clé uniquement côté Edge).
 - **Fiches référentiel** : pour les molécules du parcours Cardio DEUST (et ajouts liés), la matrice peut être enrichie avec un **RCP condensé** (propre, lisible) ; effets indésirables = **fréquents** ou **rares mais graves** uniquement. Pas d’invention hors RCP/BDPM.
 - **Visibilité DEUST** (`mode_contenu = publications`) : seules les **connaissances publiées** sur les leçons accessibles (★ + déblocage, issues des **supports de cours**) sont visibles / jouables. Le RCP complet de la fiche **n’est pas** publié sur le parcours — il reste pour admin / référentiel.
 - Studio : blocs texte / vidéo embed / molécule / conseil / jeu / photo / recommandation / **section** ; modes Structure|Contenu + inspecteur Leçon|Bloc|Programme ; pubs **connaissance par connaissance** par leçon ; plages ★ + variantes texte (onglets Base/★N).

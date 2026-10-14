@@ -12,15 +12,15 @@
     { code: 'classe_therapeutique', libelle: 'Classe thérapeutique', table: 'classes_therapeutiques', card: 'N', liaison: 'matrice_classes_therapeutiques', liaisonFk: 'classe_therapeutique_id', fk: 'classe_therapeutique_id', actif: true },
     { code: 'classe_pharmacologique', libelle: 'Classe pharmacologique', table: 'classes_pharmacologiques', card: 'N', liaison: 'matrice_classes_pharmacologiques', liaisonFk: 'classe_pharmacologique_id', fk: 'classe_pharmacologique_id', actif: true },
     { code: 'detail_pharmacologie', libelle: 'Détail pharmacologie', table: 'details_pharmacologie', card: 1, fk: 'detail_pharmacologie_id', actif: true },
-    { code: 'posologie_generale', libelle: 'Posologie générale', table: 'posologies_generales', card: 1, fk: 'posologie_generale_id', actif: false },
-    { code: 'grossesse_allaitement', libelle: 'Grossesse & allaitement', table: 'grossesse_allaitement', card: 1, fk: 'grossesse_allaitement_id', actif: false },
+    { code: 'posologie_generale', libelle: 'Posologie générale', table: 'posologies_generales', card: 1, fk: 'posologie_generale_id', actif: true },
+    { code: 'grossesse_allaitement', libelle: 'Grossesse & allaitement', table: 'grossesse_allaitement', card: 1, fk: 'grossesse_allaitement_id', actif: true },
     { code: 'indications', libelle: 'Indications', table: 'indications', card: 'N', liaison: 'matrice_indications', liaisonFk: 'indication_id', actif: true },
     { code: 'contre_indications', libelle: 'Contre-indications', table: 'contre_indications', card: 'N', liaison: 'matrice_contre_indications', liaisonFk: 'contre_indication_id', actif: true },
     { code: 'effets_indesirables', libelle: 'Effets indésirables', table: 'effets_indesirables', card: 'N', liaison: 'matrice_effets_indesirables', liaisonFk: 'effet_indesirable_id', actif: true },
     { code: 'precautions_emploi', libelle: 'Précautions d’emploi', table: 'precautions_emploi', card: 'N', liaison: 'matrice_precautions_emploi', liaisonFk: 'precaution_emploi_id', actif: true },
     { code: 'interactions', libelle: 'Interactions', table: 'interactions', card: 'N', liaison: 'matrice_interactions', liaisonFk: 'interaction_id', actif: true },
     { code: 'surveillances', libelle: 'Surveillances', table: 'surveillances', card: 'N', liaison: 'matrice_surveillances', liaisonFk: 'surveillance_id', actif: true },
-    { code: 'voies_administration', libelle: 'Voies d’administration', table: 'voies_administration', card: 'N', liaison: 'matrice_voies_administration', liaisonFk: 'voie_administration_id', actif: false },
+    { code: 'voies_administration', libelle: 'Voies d’administration', table: 'voies_administration', card: 'N', liaison: 'matrice_voies_administration', liaisonFk: 'voie_administration_id', actif: true },
   ];
 
   function champsActifs() {
