@@ -20,9 +20,10 @@ alwaysApply: true
 
 ## Données
 - Schéma métier : **`jeupharma`** (minuscules).
-- Entités (valeur + `valeur_norm` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances (+ colonnes legacy `niveaux_connus[]` conservées en base mais non pilotées par l’UI ; posologies, grossesse/allaitement, voies masquées).
-- Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; champs pédagogiques partagés (secteur, classes, indications, CI, EI…).
-- Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, **posologie générale**, **grossesse/allaitement**, indications, CI, EI, précautions, interactions, surveillances, **voies d’administration**.
+- Entités (valeur + `valeur_norm` + soft-delete `actif`) : noms commerciaux, DCI, secteurs, classes, détails pharma, indications, CI, EI, précautions, interactions, surveillances, **conditions prescription/délivrance (CPD)**, **conseils de délivrance** (+ colonnes legacy `niveaux_connus[]` conservées en base mais non pilotées par l’UI ; posologies, grossesse/allaitement, voies).
+- Matrice : **1 `matrice_medicaments` = 1 DCI** (`dci_id` unique hors `archive`) ; toutes formes BDM analysées ; info spécifique à une forme → libellé annoté `(oral)`, `(crème)`, etc. Champs pédagogiques partagés (secteur, classes, indications, CI, EI, CPD, conseils…).
+- Champs UI actifs (`JpConstants.CHAMP_CODES.actif`) : noms, DCI, secteur, classes, détail pharma, **posologie générale**, **grossesse/allaitement**, indications, CI, EI, précautions, interactions, surveillances, **voies d’administration**, **CPD**, **conseils délivrance**.
+- Mapping IA ATC pédagogique (ex. Apixaban) : secteur = Cardiovasculaire ; classe théra = Anticoagulant ; classe pharma = INHIBITEURS facteur Xa ; détail = INHIBITEURS DIRECTS DU FACTEUR Xa (détail plus complet autorisé).
 - **Niveaux d’accès parcours ★1–★5** (`040`) : `inscriptions_parcours.niveau_parcours` ; plages `niveau_min`/`niveau_max` sur `modules_cours`, `module_blocs`, `publications_connaissances` (défaut 1–5). Visible ssi `min ≤ ★ ≤ max` (module + ancêtres). Admin : Accorder / Modifier ★ ; studio : plages + aperçu « Voir comme ★N » ; variantes texte `payload_json.variantes["1"…"5"]` fusionnées dans `v2_lecon_joueur`.
 - **Catalogue joueur** : union des pubs des leçons accessibles (inscriptions acceptées + ★ + déblocage) via `v2_connaissances_visibles` / `v2_lister_medicaments` / `v2_fiche_resolue` — **pas** de référentiel complet joueur (`referentiel_valide` abandonné). Admin : `admin/referentiel.html` = catalogue complet.
 - Profil : `profil_apprentissage` ne conserve que `parcours_id` (plus de `niveau_id` / table `niveaux` / `niveau_*` — purge `041`). Colonnes entité `niveaux_connus[]` legacy conservées, non pilotées.
@@ -33,8 +34,8 @@ alwaysApply: true
 - Fiche aléatoire : `scores_fiche_aleatoire` — `sql/008_scores_fiche_aleatoire.sql`.
 - Transverse : `bugs`, `logs`, `historique_modifications`.
 - Profils / accès site : schéma `portail` (`profiles`, `site_access`).
-- BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
-- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `039` ; **`040` multi-niveaux ★** ; **`041` purge profil/hospitalier** (remote appliquées) ; `sql/ops/`.
+- BDPM : schéma **`bdm`** (RPC `search_products` lecture seule) — préremplir nom(s)/DCI ; agrégation `JpBdm.listByDci` (toutes formes mono-substance) ; si DCI déjà en fiche → ouvrir et append le nom ; pas de sync destructive.
+- SQL locaux : `jeu-pharma/sql/*.sql` — `001` … `045` ; **`046` CPD + conseils délivrance** ; **`040` multi-niveaux ★** ; **`041` purge profil/hospitalier** (remote appliquées) ; `sql/ops/`.
 - Tables parcours : `sources_contenu`, `connaissances`, `parcours_apprentissage` (`mode_contenu` = `publications` uniquement), `modules_cours` (`parent_id`, `est_groupe`, perso visuelle, plages ★), `module_blocs`, `publications_connaissances`, `inscriptions_parcours` (`statut` + `niveau_parcours`), `modeles_jeu`, `tentatives_jeu` ; RPC `v2_*` = seule lecture joueur du contenu.
 - **Déblocage (`028` + ★)** : `criteres_json` ; verrous = `prerequis_module_id` / `prerequis_parcours_id` ; prérequis hors plage ★ du joueur **ignorés** ; % progression = leçons visibles pour son ★.
 - Parcours actif DEUST : `cardiovasculaires_deust_2a` (Sang → Appareil CV → HTA). Anciens `introduction` / `deust_apprenti` / `etu_3a` supprimés (`031`).

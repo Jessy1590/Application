@@ -23,6 +23,7 @@
     { id: 'identite', title: 'Identité', codes: ['nom_commercial', 'dci', 'secteur_therapeutique'] },
     { id: 'classes', title: 'Classes', codes: ['classe_therapeutique', 'classe_pharmacologique', 'detail_pharmacologie'] },
     { id: 'clinique', title: 'Clinique', codes: ['indications', 'contre_indications', 'effets_indesirables', 'precautions_emploi'] },
+    { id: 'delivrance', title: 'Délivrance', codes: ['conditions_prescription_delivrance', 'conseils_delivrance'] },
     { id: 'suivi', title: 'Interactions & suivi', codes: ['interactions', 'surveillances'] },
   ];
 

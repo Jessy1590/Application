@@ -21,6 +21,8 @@
     { code: 'interactions', libelle: 'Interactions', table: 'interactions', card: 'N', liaison: 'matrice_interactions', liaisonFk: 'interaction_id', actif: true },
     { code: 'surveillances', libelle: 'Surveillances', table: 'surveillances', card: 'N', liaison: 'matrice_surveillances', liaisonFk: 'surveillance_id', actif: true },
     { code: 'voies_administration', libelle: 'Voies d’administration', table: 'voies_administration', card: 'N', liaison: 'matrice_voies_administration', liaisonFk: 'voie_administration_id', actif: true },
+    { code: 'conditions_prescription_delivrance', libelle: 'Conditions prescription / délivrance', table: 'conditions_prescription_delivrance', card: 'N', liaison: 'matrice_conditions_prescription_delivrance', liaisonFk: 'condition_prescription_delivrance_id', actif: true },
+    { code: 'conseils_delivrance', libelle: 'Conseils de délivrance', table: 'conseils_delivrance', card: 'N', liaison: 'matrice_conseils_delivrance', liaisonFk: 'conseil_delivrance_id', actif: true },
   ];
 
   function champsActifs() {

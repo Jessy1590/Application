@@ -40,6 +40,8 @@ const MULTI_CAPS: Record<string, number> = {
   precautions_emploi: 8,
   interactions: 8,
   surveillances: 6,
+  conditions_prescription_delivrance: 6,
+  conseils_delivrance: 8,
 };
 const MULTI_MAXLEN: Record<string, number> = {
   nom_commercial: 80,
@@ -53,10 +55,12 @@ const MULTI_MAXLEN: Record<string, number> = {
   precautions_emploi: 180,
   interactions: 180,
   surveillances: 140,
+  conditions_prescription_delivrance: 160,
+  conseils_delivrance: 180,
 };
 const SINGULAR_MAXLEN: Record<string, number> = {
   dci: 120,
-  detail_pharmacologie: 280,
+  detail_pharmacologie: 520,
   posologie_generale: 220,
   grossesse_allaitement: 220,
 };
@@ -87,7 +91,8 @@ async function assertAdmin(authHeader: string) {
 }
 
 const SYSTEM_PROMPT = `Tu es un assistant pédagogique pour Jeu Pharma (formation pharmacie d'officine / DEUST).
-On te donne des rubriques extraites d'un RCP officiel (ANSM ou EMA, ou collage admin). Tu condenses ces rubriques en libellés courts réutilisables pour une fiche médicament (matrice).
+On te donne des rubriques extraites d'un RCP officiel (ANSM ou EMA, ou collage admin), éventuellement un extrait Meddispar (CPD) et un résumé multi-formes BDM.
+Tu condenses en libellés pédagogiques pour UNE fiche médicament (1 DCI = 1 fiche).
 
 Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
 {
@@ -107,33 +112,51 @@ Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
     "effets_indesirables": ["…"],
     "precautions_emploi": ["…"],
     "interactions": ["…"],
-    "surveillances": ["…"]
+    "surveillances": ["…"],
+    "conditions_prescription_delivrance": ["…"],
+    "conseils_delivrance": ["…"]
   },
-  "avertissements": ["limites, rubriques absentes, multi-substances…"]
+  "avertissements": ["limites, rubriques absentes, multi-formes…"]
 }
 
 Mapping rubriques → champs :
 - 4.1 → indications
-- 4.2 → posologie_generale (1 libellé synthétique : schéma usuel adulte ; pas le détail pédiatrique exhaustif) + voies si mentionnées
+- 4.2 → posologie_generale (1 libellé synthétique adulte) + voies ; conseils_delivrance si consignes patient / modalités d’emploi utiles à l’officine
 - 4.3 → contre_indications
-- 4.4 → precautions_emploi (+ surveillances si explicites : bilan, INR, créatinine…)
+- 4.4 → precautions_emploi (+ surveillances explicites) ; conseils_delivrance si conseils patient clairs
 - 4.5 → interactions
-- 4.6 → grossesse_allaitement (1 libellé synthétique)
+- 4.6 → grossesse_allaitement (1 libellé)
 - 4.8 → effets_indesirables : UNIQUEMENT fréquents OU rares mais graves
-- 5.1 → detail_pharmacologie (1 phrase mécanique d’action)
-- voies_administration : libellés courts réutilisables (orale, IV, IM, SC, cutanée…) depuis 4.2 / contexte BDM
-- secteur / classes : seulement si clairement déductibles du RCP ; sinon omettre (tableaux vides / chaîne vide)
-- nom_commercial / dci : reprendre le contexte fourni (ne pas inventer de marques absentes)
+- 5.1 → detail_pharmacologie : détail COMPLET mais pédagogique (mécanisme, cible, famille ; jusqu’à ~500 car. si utile)
+- conditions_prescription_delivrance (CPD) : depuis Meddispar si fourni, sinon indices RCP (liste I/II, stupéfiants, prescription initiale hospitalière, renouvellement, etc.). Ne pas inventer.
+- conseils_delivrance : conseils officinaux concrets (prise, oubli, alimentation, surveillance patient) issus du RCP — pas de slogans.
+- voies_administration : libellés courts (orale, IV, IM, SC, cutanée…) depuis 4.2 / BDM
+- secteur / classes : déduire du RCP + style ATC pédagogique (voir few-shot). Omettre si incertain.
+- nom_commercial / dci : reprendre le contexte (ne pas inventer de marques)
 
-Exemples de condensation (Digoxine — style cible, ne pas recopier hors RCP) :
+Mapping ATC pédagogique (few-shot Apixaban — style cible, ne pas recopier hors RCP) :
+- secteur_therapeutique : "Cardiovasculaire"
+- classe_therapeutique : "Anticoagulant"
+- classe_pharmacologique : "INHIBITEURS facteur Xa"
+- detail_pharmacologie : "INHIBITEURS DIRECTS DU FACTEUR Xa" (ou formulation plus complète si le RCP le permet)
+
+Classe pharmacologique condensée (few-shot Lamictal / lamotrigine — style) :
+- classe_pharmacologique courte type "Antiépileptique" / mécanisme condensé ; détail_pharmacologie porte le détail plus long.
+
+Multi-formes (1 fiche) :
+- Une seule fiche pour toutes les formes BDM fournies.
+- Si une info ne vaut que pour une forme / voie, annoter le libellé : "(comprimé)", "(crème)", "(oral)", "(IV)", etc.
+- Sinon libellé commun sans annotation.
+
+Exemples de condensation clinique (Digoxine — style, ne pas recopier hors RCP) :
 - indication : "Insuffisance cardiaque avec dysfonction systolique"
 - CI : "Bloc AV du 2e ou 3e degré non appareillé"
 - EI : "Troubles du rythme (surdosage)"
 
 Règles :
-1. Fidélité stricte au texte fourni. Aucun fait clinique hors RCP.
-2. Condensation pédagogique : libellés courts, clairs, réutilisables (cible ~60–80 car. pour multi ; max ~160–180). Posologie / grossesse = 1 chaque.
-3. Caps : ≤ 8 items par champ multi ; 1 détail pharma ; 1 posologie ; 1 grossesse.
+1. Fidélité stricte au texte fourni (RCP + Meddispar). Aucun fait clinique inventé.
+2. Condensation pédagogique : multi ~60–80 car. (max ~160–180) ; détail_pharmacologie plus riche autorisé.
+3. Caps : ≤ 8 items / champ multi (≤ 6 CPD) ; 1 détail ; 1 posologie ; 1 grossesse.
 4. Français, pas d'emoji, pas de markdown dans les libellés.
 5. Omettre un champ plutôt que d’inventer.`;
 
@@ -249,6 +272,8 @@ function buildRcpBundle(sections: Record<string, string>, freeText?: string) {
   return parts.join('\n\n').slice(0, MAX_RCP);
 }
 
+const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+
 function buildUserText(p: {
   dci: string;
   cis?: string;
@@ -256,22 +281,74 @@ function buildUserText(p: {
   contexte: Record<string, unknown>;
   rcpText: string;
   source: string;
+  meddisparText?: string;
 }) {
   const voiesBdm = String(p.contexte.voies_administration || '').trim();
   const forme = String(p.contexte.forme_pharmaceutique || '').trim();
+  const formes = Array.isArray(p.contexte.formes)
+    ? (p.contexte.formes as unknown[]).map((x) => str(x, 80)).filter(Boolean).slice(0, 20)
+    : [];
+  const nomsAgg = Array.isArray(p.contexte.noms_commerciaux_bdm)
+    ? (p.contexte.noms_commerciaux_bdm as unknown[]).map((x) => str(x, 80)).filter(Boolean).slice(0, 12)
+    : p.noms;
+  const cisList = Array.isArray(p.contexte.cis_list)
+    ? (p.contexte.cis_list as unknown[]).map((x) => str(x, 20)).filter(Boolean).slice(0, 20)
+    : [];
+  const resumeFormes = String(p.contexte.resume_formes || '').trim();
   return [
     `DCI : ${p.dci.slice(0, 120)}`,
-    p.cis ? `CIS : ${p.cis}` : '',
-    p.noms.length ? `Noms commerciaux suggérés : ${JSON.stringify(p.noms.slice(0, 8))}` : '',
-    forme ? `Forme pharmaceutique BDM : ${forme.slice(0, 120)}` : '',
-    voiesBdm ? `Voies BDM : ${voiesBdm.slice(0, 120)}` : '',
+    p.cis ? `CIS principal (RCP) : ${p.cis}` : '',
+    cisList.length ? `CIS BDM (toutes formes mono-substance) : ${JSON.stringify(cisList)}` : '',
+    nomsAgg.length ? `Noms commerciaux (agrégat BDM) : ${JSON.stringify(nomsAgg)}` : '',
+    forme ? `Forme pharmaceutique (CIS principal) : ${forme.slice(0, 120)}` : '',
+    formes.length ? `Formes BDM : ${JSON.stringify(formes)}` : '',
+    resumeFormes ? `Résumé multi-formes : ${resumeFormes.slice(0, 400)}` : '',
+    voiesBdm ? `Voies BDM : ${voiesBdm.slice(0, 200)}` : '',
     `Source RCP : ${p.source}`,
+    '',
+    'Consignes : 1 DCI = 1 fiche ; annoter (forme) si une info est spécifique à une forme.',
     '',
     '--- RCP ---',
     p.rcpText,
+    p.meddisparText
+      ? `\n--- Meddispar (CPD, best-effort) ---\n${p.meddisparText.slice(0, 8_000)}`
+      : '',
     '',
     'Retourne le JSON demandé (champs condensés).',
   ].filter(Boolean).join('\n');
+}
+
+/** Meddispar : page publique best-effort pour CPD (échec soft → collage manuel). */
+async function fetchMeddisparCpd(dci: string, cis?: string) {
+  const warnings: string[] = [];
+  const q = encodeURIComponent((cis || dci || '').trim().slice(0, 80));
+  if (!q) return { text: '', url: '', warnings };
+  const url = `https://www.meddispar.fr/Medicaments?recherche=${q}`;
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'JeuPharma-IA/1.0 (admin pédagogique; lecture CPD publique)' },
+      redirect: 'follow',
+    });
+    if (!res.ok) {
+      warnings.push(`Meddispar HTTP ${res.status} — CPD à coller / vérifier manuellement`);
+      return { text: '', url, warnings };
+    }
+    const html = await res.text();
+    const text = cleanHtml(html).slice(0, 6_000);
+    const hint = (dci || '').toLowerCase().slice(0, 30);
+    if (text.length < 200 || (hint && !text.toLowerCase().includes(hint.split(' ')[0]))) {
+      warnings.push('Meddispar : contenu CPD insuffisant — vérifier manuellement ou coller');
+      return { text: '', url, warnings };
+    }
+    return {
+      text,
+      url,
+      warnings: ['Source Meddispar (best-effort) — vérifier les CPD'],
+    };
+  } catch (e) {
+    warnings.push(`Meddispar inaccessible : ${e instanceof Error ? e.message : String(e)}`);
+    return { text: '', url, warnings };
+  }
 }
 
 function parseJsonResponse(raw: string) {
@@ -279,8 +356,6 @@ function parseJsonResponse(raw: string) {
   if (text.startsWith('```')) text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   return JSON.parse(text);
 }
-
-const str = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 
 function uniqStrings(arr: unknown[], maxItems: number, maxLen: number) {
   const out: string[] = [];
@@ -445,6 +520,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    let meddisparText = '';
+    try {
+      const md = await fetchMeddisparCpd(dci, cis || undefined);
+      avertissements.push(...md.warnings);
+      meddisparText = md.text || '';
+    } catch (e) {
+      avertissements.push(`Meddispar : ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const userText = buildUserText({
       dci,
       cis: cis || undefined,
@@ -452,6 +536,7 @@ Deno.serve(async (req) => {
       contexte,
       rcpText,
       source,
+      meddisparText: meddisparText || undefined,
     });
     const { parsed, usage } = await callGemini(userText);
     const result = normalize(parsed, { dci, noms });

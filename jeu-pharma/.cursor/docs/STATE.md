@@ -1,12 +1,18 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **IA référentiel molécules** (`jeupharma-ia-matrice`) + réactivation posologie / grossesse / voies. (Précédent : multi-niveaux ★ + purge `041`.)
+Dernière mise à jour : 2026-10-14 — **IA revue prompts + CPD/conseils** (`046` + Edge `jeupharma-ia-matrice`). (Précédent : IA référentiel + ★ + purge `041`.)
+
+## IA référentiel — revue, prompts ATC, CPD / conseils (`046`, 2026-10-14)
+- **`sql/046_conditions_conseils_delivrance.sql`** (remote) : entités `conditions_prescription_delivrance` + `conseils_delivrance` + jonctions `matrice_*` + RLS + vue `v_medicaments_complet` + CHECK `connaissances` + `fusionner_entites`. Pattern classique (pas de schéma `referentiel`, pas multi-fiches).
+- Edge **`jeupharma-ia-matrice`** : few-shot Apixaban (secteur / CT / CP / détail) + Lamictal ; `detail_pharmacologie` ~520 car. ; champs CPD + conseils ; Meddispar best-effort ; multi-formes → annoter `(forme)` ; `contexte_bdm` enrichi.
+- Client : `JpBdm.listByDci` / `formeAnnotation` ; wizard revue **découper / ajouter / restaurer / re-match** ; section **Délivrance** éditeur + wizard ; `constants.js` codes actifs.
+- 1 DCI = 1 fiche ; hospitalier/complexe non réintroduits.
 
 ## IA référentiel — fiche depuis RCP (`jeupharma-ia-matrice`, 2026-10-14)
 - Bouton **IA** à côté de « Nouvelle fiche » (`admin/referentiel.html`) : wizard BDM → Edge **`jeupharma-ia-matrice`** (fetch ANSM `/extrait` puis EMA secours, collage manuel UI) → Gemini condense JSON → revue matching entités → `JpMedicaments.save` brouillon `fiche_validee:false`.
 - Gate admin `portail.profiles.role === 'admin'` ; secret `GEMINI_API_KEY` serveur ; **pas** d’extension de `jeupharma-ia-blocs` ; **pas** d’OCR Location.
-- Champs réactivés UI : `posologie_generale`, `grossesse_allaitement`, `voies_administration` (`actif:true` dans `constants.js`). Flags `hospitalier`/`complexe` absents (purgés `041`) — non proposés.
-- Code : `IA/edge/jeupharma-ia-matrice/`, `IA/referentiel-matrice.js`, `IA/gemini-client.js` (`FN_MATRICE`), `js/bdm.js` (`suggest`, `getSpecialite`, `pickRecommendedCis`). Aucune migration SQL bulk.
+- Champs UI : `posologie_generale`, `grossesse_allaitement`, `voies_administration`, **`conditions_prescription_delivrance`**, **`conseils_delivrance`**. Flags `hospitalier`/`complexe` absents (purgés `041`).
+- Code : `IA/edge/jeupharma-ia-matrice/`, `IA/referentiel-matrice.js`, `IA/gemini-client.js` (`FN_MATRICE`), `js/bdm.js` (`listByDci`, `suggest`, `getSpecialite`, `pickRecommendedCis`).
 
 ## Parcours multi-niveaux ★1–★5 (`040` + `041` — remote 2026-10-14)
 - **`sql/040_parcours_multi_niveaux.sql`** : `inscriptions_parcours.niveau_parcours` ; `niveau_min`/`niveau_max` sur modules / blocs / pubs ; helpers ; `v2_traiter_demande_parcours(..., p_niveau_parcours)` ; `v2_maj_niveau_parcours` ; filtrage `v2_lecon_joueur` / `v2_connaissances_visibles` / catalogue / progression / déblocage (prérequis hors plage ignorés) ; variantes `payload_json.variantes` ; mode `referentiel_valide` → `publications`.

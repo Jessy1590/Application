@@ -73,30 +73,35 @@ Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edg
 
 # IA — fiche matrice depuis RCP (Référentiel)
 
-Bouton **IA** (`admin/referentiel.html`) → recherche BDM → Edge `jeupharma-ia-matrice` → revue matching entités → `JpMedicaments.save` (brouillon, `fiche_validee:false`). **Zéro écriture** pendant la génération.
+Bouton **IA** (`admin/referentiel.html`) → recherche BDM (agrégation **toutes formes** d’une DCI) → Edge `jeupharma-ia-matrice` → revue éditable → `JpMedicaments.save` (brouillon, `fiche_validee:false`). **Zéro écriture** pendant la génération. **1 DCI = 1 fiche** (pas de multi-fiches).
 
 | Fichier | Rôle |
 |---|---|
 | `gemini-client.js` | `FN_MATRICE = 'jeupharma-ia-matrice'` |
 | `referentiel-matrice.js` | `JpReferentielIA` : wizard 3 étapes (choisir / générer / revue) |
 | `ia.css` | styles wizard (`.jp-ia-matrice-*`) |
-| `edge/jeupharma-ia-matrice/index.ts` | fetch ANSM/EMA, prompt condensation, `normalize` |
-| `js/bdm.js` | `suggest`, `getSpecialite`, `pickRecommendedCis` |
+| `edge/jeupharma-ia-matrice/index.ts` | fetch ANSM/EMA/Meddispar, prompt ATC + CPD/conseils, `normalize` |
+| `js/bdm.js` | `suggest`, `getSpecialite`, `pickRecommendedCis`, **`listByDci`**, `formeAnnotation` |
 
 ## Edge Function
-- Même secrets / modèle / gate admin que `jeupharma-ia-blocs`. `verify_jwt = true`.
-- Sources RCP : ANSM `https://base-donnees-publique.medicaments.gouv.fr/medicament/{cis}/extrait` (rubriques 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.8, 5.1) ; EMA si ANSM vide + nº EU ; sinon `rcp_text` collé par l’admin.
+- Même secrets / modèle / gate admin que `jeupharma-ia-blocs`. `verify_jwt = true`. `GEMINI_API_KEY` serveur uniquement.
+- Sources RCP : ANSM `…/medicament/{cis}/extrait` (4.1–4.6, 4.8, 5.1) ; EMA si ANSM vide + nº EU ; Meddispar best-effort pour CPD ; sinon `rcp_text` collé.
+- Prompt : few-shot **Apixaban** (secteur / classes / détail ATC pédagogique) + **Lamictal** (classe pharma condensée) ; `detail_pharmacologie` max ~520 car. ; champs `conditions_prescription_delivrance` + `conseils_delivrance` ; multi-formes → annoter `(forme)` si besoin.
 - Déploiement : MCP `deploy_edge_function` (slug `jeupharma-ia-matrice`, projet `kpjflntnotftpzffjbud`).
 
 ## Requête
 ```json
 {
-  "dci": "Digoxine",
-  "cis": "67681303",
-  "noms_commerciaux": ["DIGOXINE"],
+  "dci": "Apixaban",
+  "cis": "62271266",
+  "noms_commerciaux": ["ELIQUIS"],
   "contexte_bdm": {
-    "forme_pharmaceutique": "comprimé",
+    "forme_pharmaceutique": "comprimé pelliculé",
     "voies_administration": "orale",
+    "formes": ["comprimé pelliculé"],
+    "noms_commerciaux_bdm": ["ELIQUIS"],
+    "cis_list": ["62271266"],
+    "resume_formes": "1 spécialité(s) mono-substance · 1 forme(s)",
     "numero_autorisation_europeenne": null
   },
   "rcp_text": "(optionnel — collage secours)"
@@ -109,16 +114,16 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM → Edge `jeupharma-i
   "version": 1,
   "need_manual_rcp": false,
   "source": "ansm",
-  "cis": "67681303",
-  "dci": "Digoxine",
+  "cis": "62271266",
+  "dci": "Apixaban",
   "rcp_url": "https://…/extrait",
   "champs": {
-    "dci": "Digoxine",
-    "nom_commercial": ["…"],
-    "secteur_therapeutique": ["…"],
-    "classe_therapeutique": ["…"],
-    "classe_pharmacologique": ["…"],
-    "detail_pharmacologie": "…",
+    "dci": "Apixaban",
+    "nom_commercial": ["ELIQUIS"],
+    "secteur_therapeutique": ["Cardiovasculaire"],
+    "classe_therapeutique": ["Anticoagulant"],
+    "classe_pharmacologique": ["INHIBITEURS facteur Xa"],
+    "detail_pharmacologie": "INHIBITEURS DIRECTS DU FACTEUR Xa",
     "posologie_generale": "…",
     "grossesse_allaitement": "…",
     "voies_administration": ["orale"],
@@ -127,7 +132,9 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM → Edge `jeupharma-i
     "effets_indesirables": ["…"],
     "precautions_emploi": ["…"],
     "interactions": ["…"],
-    "surveillances": ["…"]
+    "surveillances": ["…"],
+    "conditions_prescription_delivrance": ["…"],
+    "conseils_delivrance": ["…"]
   },
   "avertissements": [],
   "model": "…",
@@ -137,4 +144,4 @@ Bouton **IA** (`admin/referentiel.html`) → recherche BDM → Edge `jeupharma-i
 Si `need_manual_rcp: true` : l’UI affiche la zone de collage ; aucune suggestion de champs.
 
 ## Revue client
-Pour chaque libellé : match exact `JpEntites.findActiveByValeur` → **Existant** ; sinon suggestions `list({ q })` → **Proche** ; sinon **Nouveau**. Commit final via `JpMedicaments.save` (fusion DCI si fiche active déjà présente). Pas de flags hospitalier/complexe (colonnes purgées `041`).
+Pour chaque libellé : match exact → **Existant** ; suggestions → **Proche** ; sinon **Nouveau**. Actions : **découper** (`;` / retours ligne), **ajouter**, **retirer** / **restaurer**, **re-matcher** (debounce à l’édition). Commit final via `JpMedicaments.save` (fusion DCI si fiche déjà présente). Pas de flags hospitalier/complexe (purgés `041`). Tables entités CPD / conseils : migration `046`.

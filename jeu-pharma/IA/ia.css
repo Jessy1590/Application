@@ -68,6 +68,9 @@
   width: 100%; box-sizing: border-box; font: inherit;
   padding: 0.35rem 0.5rem; border: 1px solid rgba(15, 40, 35, 0.18); border-radius: 0.4rem;
 }
+.jp-ia-chip-actions {
+  display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; margin-top: 0.15rem;
+}
 .jp-ia-sugs { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .jp-ia-gen-info p { margin: 0.25rem 0; }
 

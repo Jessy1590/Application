@@ -110,6 +110,11 @@
     return { nom_commercial: nom, dci };
   }
 
+  function normKey(s) {
+    return String(s || '').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
   /**
    * Heuristique CIS recommandé : mono-substance, commercialisé, forme orale préférée.
    * @param {object[]} rows lignes search_products
@@ -118,8 +123,7 @@
    */
   function pickRecommendedCis(rows, dciHint) {
     const list = Array.isArray(rows) ? rows : [];
-    const hint = String(dciHint || '').trim().toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const hint = normKey(dciHint);
     const scored = [];
     for (const r of list) {
       const subs = String(r.substances || '').split(', ').map((s) => s.trim()).filter(Boolean);
@@ -131,7 +135,7 @@
       if (/comprim|g[eé]lule|capsule|solution buvable|goutte/.test(forme)) score += 10;
       else if (/injectable|perfusion|intraveineuse/.test(forme)) score -= 2;
       if (hint) {
-        const sn = subs[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const sn = normKey(subs[0]);
         if (sn === hint || sn.includes(hint) || hint.includes(sn)) score += 8;
       }
       if (String(r.match_reason || '') === 'dci') score += 4;
@@ -139,6 +143,133 @@
     }
     scored.sort((a, b) => b.score - a.score);
     return scored[0]?.r || list.find((r) => String(r.substances || '').split(', ').filter(Boolean).length === 1) || list[0] || null;
+  }
+
+  /**
+   * Annotation courte de forme pour libellés multi-formes : "(oral)", "(crème)"…
+   * @param {string} forme
+   * @returns {string}
+   */
+  function formeAnnotation(forme) {
+    const f = String(forme || '').toLowerCase();
+    if (!f) return '';
+    if (/cr[eè]me|pommade|gel\b/.test(f)) return 'crème';
+    if (/patch|dispositif/.test(f)) return 'patch';
+    if (/collyre|ophtalm/.test(f)) return 'collyre';
+    if (/injectable|perfusion|intraveineuse|i\.?\s*v/.test(f)) return 'IV';
+    if (/intramusculaire|i\.?\s*m/.test(f)) return 'IM';
+    if (/sous.?cutan|s\.?\s*c/.test(f)) return 'SC';
+    if (/suppositoire|rectal/.test(f)) return 'rectal';
+    if (/spray|nasal/.test(f)) return 'nasal';
+    if (/comprim|g[eé]lule|capsule|sachet|solution buvable|sirop|goutte|orale/.test(f)) return 'oral';
+    const short = String(forme || '').trim().split(/[,\s]+/)[0];
+    return short ? short.slice(0, 24).toLowerCase() : '';
+  }
+
+  /**
+   * Agrège toutes les spécialités mono-substance d’une DCI (1 fiche = toutes formes).
+   * @param {string} dci
+   * @param {number} [lim=40]
+   * @returns {Promise<{
+   *   dci: string,
+   *   specialites: object[],
+   *   formes: string[],
+   *   noms: string[],
+   *   voies: string[],
+   *   cis_list: string[],
+   *   recommended: object|null,
+   *   resume: string,
+   *   contexte_bdm: object
+   * }>}
+   */
+  async function listByDci(dci, lim = 40) {
+    const label = String(dci || '').trim();
+    if (!label) {
+      return {
+        dci: '', specialites: [], formes: [], noms: [], voies: [],
+        cis_list: [], recommended: null, resume: '', contexte_bdm: {},
+      };
+    }
+    const rows = await searchProducts(label, Math.max(10, Math.min(Number(lim) || 40, 50)));
+    const hint = normKey(label);
+    const mono = (rows || []).filter((r) => {
+      const subs = String(r.substances || '').split(', ').map((s) => s.trim()).filter(Boolean);
+      if (subs.length !== 1) return false;
+      const sn = normKey(subs[0]);
+      return !hint || sn === hint || sn.includes(hint) || hint.includes(sn);
+    });
+    const seenCis = new Set();
+    const specialites = [];
+    for (const r of mono) {
+      const cis = String(r.cis || '').trim();
+      if (!cis || seenCis.has(cis)) continue;
+      seenCis.add(cis);
+      specialites.push(r);
+    }
+
+    const formesSet = new Set();
+    const nomsSet = new Set();
+    const voiesSet = new Set();
+    const cis_list = [];
+    for (const r of specialites) {
+      const forme = String(r.forme_pharmaceutique || '').trim();
+      if (forme) formesSet.add(forme);
+      const brand = String(r.denomination || '').trim().match(/^([A-Za-zÀ-ÿ0-9'’\-]+)/);
+      if (brand?.[1]) nomsSet.add(brand[1].slice(0, 80));
+      String(r.voies_administration || '').split(/[,;\/]+/).map((s) => s.trim()).filter(Boolean)
+        .forEach((v) => voiesSet.add(v));
+      if (r.cis) cis_list.push(String(r.cis));
+    }
+
+    // Enrichir voies via détail du CIS recommandé si manquant
+    const recommended = pickRecommendedCis(specialites, label);
+    if (recommended?.cis) {
+      try {
+        const detail = await getSpecialite(recommended.cis);
+        String(detail?.voies_administration || '').split(/[,;\/]+/).map((s) => s.trim()).filter(Boolean)
+          .forEach((v) => voiesSet.add(v));
+        if (detail?.forme_pharmaceutique) formesSet.add(String(detail.forme_pharmaceutique).trim());
+        if (detail?.numero_autorisation_europeenne) {
+          recommended._eu = detail.numero_autorisation_europeenne;
+        }
+      } catch (_) { /* optionnel */ }
+    }
+
+    const formes = [...formesSet];
+    const noms = [...nomsSet].slice(0, 12);
+    const voies = [...voiesSet];
+    const annos = [...new Set(formes.map(formeAnnotation).filter(Boolean))];
+    const resume = [
+      specialites.length + ' spécialité(s) mono-substance',
+      formes.length ? formes.length + ' forme(s)' : '',
+      annos.length ? 'annotations : ' + annos.map((a) => '(' + a + ')').join(' ') : '',
+    ].filter(Boolean).join(' · ');
+
+    const contexte_bdm = {
+      denomination: recommended?.denomination || specialites[0]?.denomination || '',
+      forme_pharmaceutique: recommended?.forme_pharmaceutique || formes[0] || '',
+      voies_administration: voies.join(', '),
+      etat_commercialisation: recommended?.etat_commercialisation || '',
+      numero_autorisation_europeenne: recommended?._eu || '',
+      substances: label,
+      formes,
+      noms_commerciaux_bdm: noms,
+      cis_list: cis_list.slice(0, 20),
+      resume_formes: resume,
+      nb_specialites: specialites.length,
+    };
+
+    return {
+      dci: label,
+      specialites,
+      formes,
+      noms,
+      voies,
+      cis_list,
+      recommended,
+      resume,
+      contexte_bdm,
+    };
   }
 
   global.JpBdm = {
@@ -149,5 +280,7 @@
     getSpecialite,
     pickToPrefill,
     pickRecommendedCis,
+    formeAnnotation,
+    listByDci,
   };
 })(window);

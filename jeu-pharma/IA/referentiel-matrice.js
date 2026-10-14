@@ -27,6 +27,11 @@
       codes: ['indications', 'contre_indications', 'effets_indesirables', 'precautions_emploi'],
     },
     {
+      id: 'delivrance',
+      titre: 'Délivrance',
+      codes: ['conditions_prescription_delivrance', 'conseils_delivrance'],
+    },
+    {
       id: 'suivi',
       titre: 'Interactions & suivi',
       codes: ['interactions', 'surveillances', 'grossesse_allaitement'],
@@ -80,8 +85,24 @@
     return { statut: 'nouveau', valeur: v, suggestions: (suggestions || []).slice(0, 5) };
   }
 
+  function newItemKey(code) {
+    return code + ':' + Math.random().toString(36).slice(2, 9);
+  }
+
+  function emptyItem(code, valeur) {
+    return {
+      key: newItemKey(code),
+      statut: 'nouveau',
+      id: '',
+      valeur: String(valeur || ''),
+      suggestions: [],
+      kept: true,
+      originalValeur: String(valeur || ''),
+    };
+  }
+
   async function buildReviewState(iaChamps) {
-    const state = { lines: [] }; // { code, card, libelle, items: [{key, statut, id, valeur, suggestions, kept}] }
+    const state = { lines: [] }; // { code, card, libelle, items: [...] }
     for (const c of champsWizard()) {
       const raw = iaChamps?.[c.code];
       const values = c.card === 1
@@ -92,19 +113,28 @@
         const m = await matchItem(c.table, val);
         if (!m) continue;
         items.push({
-          key: c.code + ':' + items.length + ':' + Math.random().toString(36).slice(2, 7),
+          key: newItemKey(c.code),
           statut: m.statut,
           id: m.id || '',
           valeur: m.valeur,
           suggestions: m.suggestions || [],
           kept: true,
+          originalValeur: m.valeur,
         });
       }
-      if (items.length) {
-        state.lines.push({ code: c.code, card: c.card, libelle: c.libelle, table: c.table, items });
-      }
+      // Toujours une ligne par champ actif (même vide) pour pouvoir ajouter / restaurer
+      state.lines.push({ code: c.code, card: c.card, libelle: c.libelle, table: c.table, items });
     }
     return state;
+  }
+
+  function splitValeur(valeur) {
+    const s = String(valeur || '').trim();
+    if (!s) return [];
+    const parts = s.split(/\n+|;\s+|\s+[•·]\s+/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length >= 2) return parts;
+    const slash = s.split(/\s+\/\s+/).map((p) => p.trim()).filter(Boolean);
+    return slash.length >= 2 ? slash : [s];
   }
 
   function collectSavePayload(review) {
@@ -272,31 +302,67 @@
       } catch (_) { /* détail optionnel */ }
       const dci = pre.dci || (detail?.substances_list?.[0] || '');
       const nom = brandFromDenom(pre.nom_commercial || row.denomination);
-      pick = {
-        cis: row.cis || detail?.cis || '',
-        dci,
-        noms: nom ? [nom] : [],
-        row,
-        detail,
-        contexte_bdm: {
+      const multi = (detail && detail.mono_substance === false)
+        || String(row.substances || '').split(', ').filter(Boolean).length > 1;
+
+      let agg = null;
+      if (dci && !multi && typeof global.JpBdm.listByDci === 'function') {
+        try {
+          agg = await global.JpBdm.listByDci(dci, 40);
+        } catch (_) { /* agrégation optionnelle */ }
+      }
+
+      const noms = [...new Set([
+        ...(nom ? [nom] : []),
+        ...((agg && agg.noms) || []),
+      ])].slice(0, 12);
+
+      const contexte_bdm = agg?.contexte_bdm
+        ? {
+          ...agg.contexte_bdm,
+          denomination: row.denomination || agg.contexte_bdm.denomination || '',
+          forme_pharmaceutique: row.forme_pharmaceutique
+            || detail?.forme_pharmaceutique
+            || agg.contexte_bdm.forme_pharmaceutique || '',
+          etat_commercialisation: row.etat_commercialisation
+            || detail?.etat_commercialisation
+            || agg.contexte_bdm.etat_commercialisation || '',
+          numero_autorisation_europeenne: detail?.numero_autorisation_europeenne
+            || agg.contexte_bdm.numero_autorisation_europeenne || '',
+          substances: row.substances || detail?.substances || dci,
+        }
+        : {
           denomination: row.denomination || detail?.denomination || '',
           forme_pharmaceutique: row.forme_pharmaceutique || detail?.forme_pharmaceutique || '',
           voies_administration: detail?.voies_administration || '',
           etat_commercialisation: row.etat_commercialisation || detail?.etat_commercialisation || '',
           numero_autorisation_europeenne: detail?.numero_autorisation_europeenne || '',
           substances: row.substances || detail?.substances || '',
-        },
+        };
+
+      const cisPrincipal = (agg?.recommended?.cis) || row.cis || detail?.cis || '';
+      pick = {
+        cis: cisPrincipal,
+        dci,
+        noms,
+        row,
+        detail,
+        agg,
+        contexte_bdm,
       };
       const host = $('iaMatPick');
-      const multi = (detail && detail.mono_substance === false)
-        || String(row.substances || '').split(', ').filter(Boolean).length > 1;
+      const formesHint = (agg?.formes || []).slice(0, 6).join(', ');
       host.innerHTML = '<p><strong>Sélection</strong> — ' + esc(dci || 'DCI ?')
-        + (nom ? ' · ' + esc(nom) : '')
-        + ' · CIS ' + esc(pick.cis || '—') + '</p>'
+        + (noms.length ? ' · ' + esc(noms.slice(0, 3).join(', ')) : '')
+        + ' · CIS RCP ' + esc(pick.cis || '—') + '</p>'
         + (multi ? '<p class="jp-ia-warn-inline">Association multi-substances : privilégiez un CIS mono-substance.</p>' : '')
-        + '<p class="jp-field-hint">' + esc(pick.contexte_bdm.forme_pharmaceutique || '')
-        + (pick.contexte_bdm.voies_administration ? ' · ' + esc(pick.contexte_bdm.voies_administration) : '')
-        + '</p>';
+        + (agg && !multi
+          ? '<p class="jp-field-hint">1 fiche pour toutes les formes : ' + esc(agg.resume || '')
+            + (formesHint ? ' — ' + esc(formesHint) : '')
+            + '. Annoter (forme) si une info est spécifique.</p>'
+          : '<p class="jp-field-hint">' + esc(pick.contexte_bdm.forme_pharmaceutique || '')
+            + (pick.contexte_bdm.voies_administration ? ' · ' + esc(pick.contexte_bdm.voies_administration) : '')
+            + '</p>');
       host.hidden = false;
       $('iaMatNext').disabled = !pick.dci;
     }
@@ -336,10 +402,13 @@
     /* Step 2 — generate */
     function renderGenInfo() {
       if (!pick) return;
+      const nFormes = pick.agg?.formes?.length || 0;
       $('iaMatGenInfo').innerHTML = '<p>DCI <strong>' + esc(pick.dci) + '</strong>'
         + (pick.cis ? ' · CIS <strong>' + esc(pick.cis) + '</strong>' : '')
+        + (nFormes > 1 ? ' · <strong>' + nFormes + ' formes</strong> BDM' : '')
         + '</p>'
-        + '<p class="jp-field-hint">Fetch ANSM (extrait public) puis condensation Gemini. '
+        + '<p class="jp-field-hint">Fetch ANSM (extrait public) + Meddispar CPD (best-effort) puis condensation Gemini. '
+        + 'Une fiche pour toutes les formes ; annoter (forme) si besoin. '
         + 'Si le RCP manque, collez-le ci-dessous.</p>';
     }
 
@@ -474,6 +543,9 @@
         for (const line of lines) {
           html += '<div class="jp-ia-review-field" data-code="' + esc(line.code) + '">'
             + '<h4>' + esc(line.libelle) + '</h4>';
+          if (!line.items.length) {
+            html += '<p class="jp-field-hint">Aucune suggestion — ajoutez une ligne.</p>';
+          }
           for (const it of line.items) {
             html += '<div class="jp-ia-chip' + (it.kept ? '' : ' is-dropped') + '" data-key="' + esc(it.key) + '">'
               + '<label class="jp-ia-chip-keep"><input type="checkbox" data-act="keep"'
@@ -486,12 +558,39 @@
                   + '" data-val="' + esc(s.valeur) + '">Réutiliser « ' + esc(s.valeur) + ' »</button>').join(' ')
                 + '</div>'
                 : '')
-              + '<button type="button" class="jp-link-btn" data-act="drop">Retirer</button>'
-              + '</div>';
+              + '<div class="jp-ia-chip-actions">'
+              + (it.kept
+                ? '<button type="button" class="jp-link-btn" data-act="drop">Retirer</button>'
+                : '<button type="button" class="jp-link-btn" data-act="restore">Restaurer</button>')
+              + (it.kept && String(it.valeur || '').trim()
+                ? '<button type="button" class="jp-link-btn" data-act="split">Découper</button>'
+                : '')
+              + (it.kept
+                ? '<button type="button" class="jp-link-btn" data-act="rematch">Re-matcher</button>'
+                : '')
+              + '</div></div>';
           }
-          if (line.card === 'N') {
+          if (line.card === 'N' || !line.items.some((it) => it.kept)) {
             html += '<button type="button" class="jp-link-btn" data-act="add-line" data-code="'
               + esc(line.code) + '">+ Ajouter une ligne</button>';
+          }
+          html += '</div>';
+        }
+        html += '</section>';
+      }
+      // Champs hors sections connues
+      const known = new Set(SECTION_DEFS.flatMap((s) => s.codes));
+      const orphan = review.lines.filter((l) => !known.has(l.code) && l.items.length);
+      if (orphan.length) {
+        html += '<section class="jp-ia-review-sec"><h3>Autres</h3>';
+        for (const line of orphan) {
+          html += '<div class="jp-ia-review-field" data-code="' + esc(line.code) + '">'
+            + '<h4>' + esc(line.libelle) + '</h4>';
+          for (const it of line.items) {
+            html += '<div class="jp-ia-chip' + (it.kept ? '' : ' is-dropped') + '" data-key="' + esc(it.key) + '">'
+              + badgeHtml(it.statut)
+              + '<input type="text" class="jp-ia-chip-val" data-act="edit" value="' + esc(it.valeur) + '">'
+              + '</div>';
           }
           html += '</div>';
         }
@@ -501,34 +600,62 @@
       $('iaMatNext').disabled = !canSave();
     }
 
+    function findItem(key) {
+      if (!review || !key) return null;
+      for (const line of review.lines) {
+        const item = line.items.find((it) => it.key === key);
+        if (item) return { line, item };
+      }
+      return null;
+    }
+
+    async function rematchItem(line, item) {
+      const m = await matchItem(line.table, item.valeur);
+      if (!m) {
+        item.statut = 'nouveau';
+        item.id = '';
+        item.suggestions = [];
+        return;
+      }
+      item.statut = m.statut;
+      item.id = m.id || '';
+      item.valeur = m.valeur || item.valeur;
+      item.suggestions = m.suggestions || [];
+    }
+
     $('iaMatReview').addEventListener('click', (e) => {
-      const chip = e.target.closest('.jp-ia-chip');
       const act = e.target.getAttribute('data-act') || e.target.closest('[data-act]')?.getAttribute('data-act');
+      if (!act || !review) return;
+
       if (act === 'add-line') {
-        const code = e.target.getAttribute('data-code') || e.target.closest('[data-code]')?.getAttribute('data-code');
+        const code = e.target.getAttribute('data-code')
+          || e.target.closest('[data-code]')?.getAttribute('data-code');
         const line = review.lines.find((l) => l.code === code);
         if (!line) return;
-        line.items.push({
-          key: code + ':new:' + Math.random().toString(36).slice(2, 7),
-          statut: 'nouveau',
-          id: '',
-          valeur: '',
-          suggestions: [],
-          kept: true,
-        });
+        if (line.card === 1) {
+          line.items = line.items.filter((it) => it.kept);
+          if (line.items.some((it) => it.kept)) return;
+          line.items.push(emptyItem(code, ''));
+        } else {
+          line.items.push(emptyItem(code, ''));
+        }
         renderReview();
         return;
       }
-      if (!chip || !review) return;
-      const key = chip.getAttribute('data-key');
-      let item = null;
-      for (const line of review.lines) {
-        item = line.items.find((it) => it.key === key);
-        if (item) break;
-      }
-      if (!item) return;
+
+      const chip = e.target.closest('.jp-ia-chip');
+      if (!chip) return;
+      const found = findItem(chip.getAttribute('data-key'));
+      if (!found) return;
+      const { line, item } = found;
+
       if (act === 'drop') {
         item.kept = false;
+        renderReview();
+        return;
+      }
+      if (act === 'restore') {
+        item.kept = true;
         renderReview();
         return;
       }
@@ -540,6 +667,38 @@
         item.suggestions = [];
         item.kept = true;
         renderReview();
+        return;
+      }
+      if (act === 'split') {
+        const parts = splitValeur(item.valeur);
+        if (parts.length < 2) {
+          global.JpToast?.warn?.('Rien à découper (utilisez ; ou retours ligne)');
+          return;
+        }
+        const idx = line.items.indexOf(item);
+        const neu = parts.map((p, i) => {
+          if (i === 0) {
+            item.valeur = p;
+            item.id = '';
+            item.statut = 'nouveau';
+            item.suggestions = [];
+            item.kept = true;
+            return null;
+          }
+          return emptyItem(line.code, p);
+        }).filter(Boolean);
+        line.items.splice(idx + 1, 0, ...neu);
+        void (async () => {
+          for (const it of [item, ...neu]) await rematchItem(line, it);
+          renderReview();
+        })();
+        return;
+      }
+      if (act === 'rematch') {
+        void (async () => {
+          await rematchItem(line, item);
+          renderReview();
+        })();
       }
     });
 
@@ -547,33 +706,51 @@
       if (e.target.getAttribute('data-act') !== 'keep') return;
       const chip = e.target.closest('.jp-ia-chip');
       if (!chip || !review) return;
-      const key = chip.getAttribute('data-key');
-      for (const line of review.lines) {
-        const item = line.items.find((it) => it.key === key);
-        if (item) {
-          item.kept = !!e.target.checked;
-          $('iaMatNext').disabled = !canSave();
-          chip.classList.toggle('is-dropped', !item.kept);
-          break;
-        }
-      }
+      const found = findItem(chip.getAttribute('data-key'));
+      if (!found) return;
+      found.item.kept = !!e.target.checked;
+      $('iaMatNext').disabled = !canSave();
+      chip.classList.toggle('is-dropped', !found.item.kept);
     });
 
+    let rematchTimer = null;
     $('iaMatReview').addEventListener('input', (e) => {
       if (e.target.getAttribute('data-act') !== 'edit') return;
       const chip = e.target.closest('.jp-ia-chip');
       if (!chip || !review) return;
-      const key = chip.getAttribute('data-key');
-      for (const line of review.lines) {
-        const item = line.items.find((it) => it.key === key);
-        if (item) {
-          item.valeur = e.target.value;
-          item.id = ''; // édition manuelle → ne plus forcer l’id tant que non réutilisé
-          if (item.statut === 'existant') item.statut = 'nouveau';
-          $('iaMatNext').disabled = !canSave();
-          break;
-        }
-      }
+      const found = findItem(chip.getAttribute('data-key'));
+      if (!found) return;
+      const { line, item } = found;
+      item.valeur = e.target.value;
+      item.id = '';
+      if (item.statut === 'existant') item.statut = 'nouveau';
+      $('iaMatNext').disabled = !canSave();
+      clearTimeout(rematchTimer);
+      rematchTimer = setTimeout(() => {
+        void (async () => {
+          await rematchItem(line, item);
+          // Mise à jour légère badge / suggestions sans perdre le focus
+          const badge = chip.querySelector('.jp-ia-badge');
+          if (badge) {
+            badge.outerHTML = badgeHtml(item.statut);
+          }
+          let sugs = chip.querySelector('.jp-ia-sugs');
+          if (item.suggestions.length) {
+            const htmlS = '<div class="jp-ia-sugs">' + item.suggestions.map((s) =>
+              '<button type="button" class="jp-link-btn" data-act="reuse" data-id="' + esc(s.id)
+              + '" data-val="' + esc(s.valeur) + '">Réutiliser « ' + esc(s.valeur) + ' »</button>').join(' ')
+              + '</div>';
+            if (sugs) sugs.outerHTML = htmlS;
+            else {
+              const actions = chip.querySelector('.jp-ia-chip-actions');
+              if (actions) actions.insertAdjacentHTML('beforebegin', htmlS);
+              else chip.insertAdjacentHTML('beforeend', htmlS);
+            }
+          } else if (sugs) {
+            sugs.remove();
+          }
+        })();
+      }, 450);
     });
 
     async function runSave() {
