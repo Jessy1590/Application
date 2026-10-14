@@ -764,7 +764,13 @@
   }
 
   async function createParcours() {
-    const libelle = prompt('Nom du parcours');
+    const libelle = await global.JpModal.ask({
+      title: 'Nouveau parcours',
+      label: 'Nom du parcours',
+      placeholder: 'Ex. Cardiovasculaires',
+      confirmLabel: 'Créer',
+      emptyMessage: 'Indiquez un nom de parcours',
+    });
     if (!libelle) return;
     try {
       await flushAll();
@@ -846,7 +852,13 @@
   }
 
   async function addModule({ est_groupe }) {
-    const titre = prompt(est_groupe ? 'Chapitre' : 'Leçon');
+    const titre = await global.JpModal.ask({
+      title: est_groupe ? 'Nouveau chapitre' : 'Nouvelle leçon',
+      label: est_groupe ? 'Titre du chapitre' : 'Titre de la leçon',
+      placeholder: est_groupe ? 'Ex. Hypertension' : 'Ex. Diurétiques thiazidiques',
+      confirmLabel: 'Ajouter',
+      emptyMessage: est_groupe ? 'Indiquez un titre de chapitre' : 'Indiquez un titre de leçon',
+    });
     if (!titre) return;
     const parent = selectedModule();
     const parentId = parent?.est_groupe ? parent.id : (parent?.parent_id || null);

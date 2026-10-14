@@ -719,6 +719,34 @@
   gap: 0.5rem;
   margin-top: 1rem;
 }
+.jp-modal-ask .jp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+.jp-modal-ask .jp-field > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(15, 46, 40, 0.75);
+}
+.jp-modal-ask input,
+.jp-modal-ask textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.55rem;
+  background: #fff;
+}
+.jp-modal-ask input:focus,
+.jp-modal-ask textarea:focus {
+  outline: 2px solid rgba(15, 107, 92, 0.35);
+  outline-offset: 1px;
+  border-color: #0f6b5c;
+}
 
 @keyframes jpFade {
   from { opacity: 0; }

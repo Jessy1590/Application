@@ -177,8 +177,18 @@
     linkBtn.title = 'Lien';
     linkBtn.setAttribute('aria-label', 'Lien');
     linkBtn.addEventListener('mousedown', (e) => { saveRange(); e.preventDefault(); });
-    linkBtn.addEventListener('click', () => {
-      const url = prompt('URL du lien');
+    linkBtn.addEventListener('click', async () => {
+      saveRange();
+      const ask = global.JpModal?.ask;
+      const url = ask
+        ? await ask({
+          title: 'Insérer un lien',
+          label: 'URL',
+          placeholder: 'https://…',
+          confirmLabel: 'Insérer',
+          emptyMessage: 'Indiquez une URL',
+        })
+        : window.prompt('URL du lien');
       if (!url) return;
       restoreRange();
       document.execCommand('createLink', false, url);
