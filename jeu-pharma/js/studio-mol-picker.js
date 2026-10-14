@@ -223,7 +223,12 @@
         .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
       const sampleInd = list.filter((r) => r.champ_code === 'indications').slice(0, 2)
         .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
-      const __dbgPayload = {sessionId:'257be1',runId:'pre2',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0},timestamp:Date.now()};
+      const matchCi = !!(matriceSample?.ci0 && sampleCi.some((s) => s.t && matriceSample.ci0.startsWith(String(s.t).slice(0, 20))));
+      const matchDetail = !!(matriceSample?.detail && sampleInd /* placeholder */);
+      const detailConn = list.find((r) => r.champ_code === 'detail_pharmacologie');
+      const detailAligned = !!(matriceSample?.detail && detailConn?.texte
+        && String(detailConn.texte).slice(0, 40) === String(matriceSample.detail).slice(0, 40));
+      const __dbgPayload = {sessionId:'257be1',runId:'post-fix',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0,detailAligned,matchCi,detailConn0:(detailConn?.texte||'').slice(0,80)},timestamp:Date.now()};
       try { global.__JP_DBG_MOL = __dbgPayload; console.info('[jp-dbg-mol]', __dbgPayload); } catch (_) { /* ignore */ }
       fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'257be1'},body:JSON.stringify(__dbgPayload)}).catch(()=>{});
       // #endregion
@@ -295,6 +300,16 @@
         else unchecked.push(c.getAttribute('data-cid'));
       });
       try {
+        // Dépublier aussi d’anciennes connaissances RCP de cette matrice non listées (hors référentiel actuel)
+        const { data: allC } = await sb()
+          .from('connaissances')
+          .select('id')
+          .eq('matrice_id', matriceId)
+          .eq('statut', 'valide');
+        const keep = new Set(checked);
+        const orphans = (allC || []).map((c) => c.id).filter((id) => id && !keep.has(id));
+        const toDepub = [...new Set([...unchecked, ...orphans])];
+
         if (checked.length) {
           await rpc('v2_publier_connaissances', {
             p_module_id: moduleId,
@@ -304,10 +319,10 @@
         } else {
           pubByMatrice[matriceId] = new Set();
         }
-        if (unchecked.length) {
+        if (toDepub.length) {
           await rpc('v2_depublier_connaissances', {
             p_module_id: moduleId,
-            p_connaissance_ids: unchecked,
+            p_connaissance_ids: toDepub,
           });
         }
         global.JpToast?.ok?.('Programme mis à jour');
