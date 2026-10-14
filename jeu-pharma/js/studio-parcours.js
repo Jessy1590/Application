@@ -1494,17 +1494,7 @@
         + renderRecoReference(b, p);
     }
     if (b.type_bloc === 'jeu') {
-      const typeLab = p.type_jeu ? (TYPE_JEU_LABELS[p.type_jeu] || p.type_jeu) : '';
-      return '<p class="jp-bloc-jeu-line"><code>' + esc(p.code_unique || '—') + '</code>'
-        + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '') + '</p>'
-        + (effTitre(b) ? '<p class="jp-muted jp-bloc-jeu-titre">' + esc(effTitre(b)) + '</p>' : '')
-        + '<div class="jp-bloc-jeu-actions">'
-        + '<button type="button" class="jp-btn jp-btn-ghost" data-change-jeu="' + b.id + '">Changer le jeu</button>'
-        + '<button type="button" class="jp-btn jp-btn-ghost" data-new-jeu="' + b.id + '">Créer un nouveau</button>'
-        + (p.modele_id
-          ? '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + b.id + '">Modifier les paramètres</button>'
-          : '')
-        + '</div>';
+      return jeuBlocPanelHtml(b, { showTitle: true });
     }
     return '';
   }
@@ -1674,6 +1664,34 @@
       btn.addEventListener('click', () => void addFromProgramme(btn.getAttribute('data-mol-from-prog')));
     });
     bindJeuBlocActions(card, b);
+  }
+
+  /** Panneau jeu lié (canvas Contenu + inspecteur) — code JP, type, actions. */
+  function jeuBlocPanelHtml(b, opts) {
+    const o = opts || {};
+    const p = effPayload(b);
+    const typeLab = p.type_jeu ? (TYPE_JEU_LABELS[p.type_jeu] || p.type_jeu) : '';
+    const titre = o.showTitle ? effTitre(b) : '';
+    const empty = !p.modele_id && !(p.code_unique || '').trim();
+    let html = (o.bare ? '' : '<div class="jp-bloc-jeu">')
+      + '<div class="jp-bloc-jeu-meta">'
+      + (empty
+        ? '<p class="jp-muted jp-bloc-jeu-empty">Aucun jeu lié — changez ou créez-en un.</p>'
+        : '<p class="jp-bloc-jeu-line"><code>' + esc(p.code_unique || '—') + '</code>'
+          + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '') + '</p>')
+      + (titre ? '<p class="jp-bloc-jeu-titre">' + esc(titre) + '</p>' : '')
+      + '</div>'
+      + '<div class="jp-bloc-jeu-actions">';
+    if (p.modele_id) {
+      html += '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + b.id
+        + '">Modifier les paramètres</button>';
+    }
+    html += '<div class="jp-bloc-jeu-actions-sec">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-change-jeu="' + b.id + '">Changer</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-new-jeu="' + b.id + '">Créer</button>'
+      + '</div></div>'
+      + (o.bare ? '' : '</div>');
+    return html;
   }
 
   function bindJeuBlocActions(root, b) {
@@ -2266,18 +2284,10 @@
       const pj = effPayload(bloc);
       let jeuInsp = '';
       if (bloc.type_bloc === 'jeu') {
-        const typeLab = pj.type_jeu ? (TYPE_JEU_LABELS[pj.type_jeu] || pj.type_jeu) : '';
-        jeuInsp = '<div class="jp-inspector-cta" style="margin-top:0.75rem">'
+        jeuInsp = '<div class="jp-inspector-cta jp-inspector-jeu">'
           + '<strong class="jp-inspector-title">Jeu lié</strong>'
-          + '<p class="jp-bloc-jeu-line" style="margin-top:0.35rem"><code>' + esc(pj.code_unique || '—') + '</code>'
-          + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '') + '</p>'
-          + '<div class="jp-bloc-jeu-actions">'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-change-jeu="' + bloc.id + '">Changer le jeu</button>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-new-jeu="' + bloc.id + '">Créer un nouveau</button>'
-          + (pj.modele_id
-            ? '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + bloc.id + '">Modifier les paramètres</button>'
-            : '')
-          + '</div></div>';
+          + jeuBlocPanelHtml(bloc, { showTitle: false, bare: true })
+          + '</div>';
       }
       body.innerHTML = '<div class="jp-inspector-cta">'
         + '<strong class="jp-inspector-title">' + esc(TYPE_LABELS[bloc.type_bloc] || bloc.type_bloc) + '</strong>'
@@ -2382,10 +2392,16 @@
       .eq('actif', true)
       .contains('module_ids', [m.id]);
     const rows = data || [];
-    box.innerHTML = rows.map((r) =>
-      '<div class="jp-list-row" style="margin-top:0.4rem"><span><code>' + esc(r.code_unique)
-      + '</code><br>' + esc(r.titre) + '</span></div>'
-    ).join('') || '<p class="jp-muted" style="margin:0.5rem 0 0">Aucun</p>';
+    box.innerHTML = rows.length
+      ? '<div class="jp-jeux-lies">' + rows.map((r) => {
+        const typeLab = TYPE_JEU_LABELS[r.type_jeu] || r.type_jeu || '';
+        return '<div class="jp-jeux-lies-item">'
+          + '<code>' + esc(r.code_unique || '—') + '</code>'
+          + (typeLab ? '<span class="jp-bloc-jeu-type">' + esc(typeLab) + '</span>' : '')
+          + '<span class="jp-jeux-lies-titre">' + esc(r.titre || 'Sans titre') + '</span>'
+          + '</div>';
+      }).join('') + '</div>'
+      : '<p class="jp-muted jp-jeux-lies-empty">Aucun jeu lié à cette leçon</p>';
   }
 
   /** Lie un modèle de jeu au bloc (brouillon si déjà publié, sinon payload direct). */
@@ -2445,15 +2461,17 @@
 
     const overlay = document.createElement('div');
     overlay.className = 'jp-studio-overlay';
-    overlay.innerHTML = '<div class="jp-studio-sheet jp-jeu-pick-sheet" role="dialog" aria-modal="true" aria-labelledby="jpChangeJeuTitle">'
+    overlay.innerHTML = '<div class="jp-jeu-change-sheet" role="dialog" aria-modal="true" aria-labelledby="jpChangeJeuTitle">'
       + '<header class="jp-studio-sheet-head"><h2 id="jpChangeJeuTitle">Changer le jeu</h2>'
       + '<button type="button" class="jp-btn jp-btn-ghost" data-close aria-label="Fermer">×</button></header>'
-      + '<p class="jp-muted" style="margin:0 0 0.75rem">Choisissez un jeu existant du parcours (code JP-***** ou titre).</p>'
+      + '<div class="jp-jeu-change-body">'
+      + '<p class="jp-muted jp-jeu-change-hint">Choisissez un jeu existant du parcours (code JP-***** ou titre).</p>'
       + '<div class="jp-field"><label for="jpChangeJeuTa">Jeu</label><div id="jpChangeJeuTa"></div></div>'
-      + '<div class="jp-jeu-pick-actions">'
+      + '</div>'
+      + '<footer class="jp-studio-sheet-foot jp-jeu-pick-actions">'
       + '<button type="button" class="jp-btn jp-btn-ghost" data-close>Annuler</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="jpChangeJeuOk" disabled>Lier à ce bloc</button>'
-      + '</div></div>';
+      + '</footer></div>';
     document.body.appendChild(overlay);
 
     let picked = null;
