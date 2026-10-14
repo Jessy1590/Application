@@ -303,6 +303,8 @@
     chipsEl.addEventListener('click', function (e) {
       const b = e.target.closest('.jp-ta-chip-x');
       if (!b) return;
+      e.preventDefault();
+      e.stopPropagation();
       sel.delete(String(b.getAttribute('data-id')));
       changed();
     });

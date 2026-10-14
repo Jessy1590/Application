@@ -304,6 +304,7 @@
 
   function clearEditors() {
     Object.keys(state.variantScratch).forEach((id) => flushVariantEditor(id));
+    syncMolChipsToState();
     Object.values(state.editors).forEach((ed) => ed?.destroy?.());
     state.editors = {};
     state.molChips = {};
@@ -321,23 +322,32 @@
     if (!sameBloc) state.variantTab = 'base';
     state.selectedBlocId = id || null;
 
-    // Contenu déjà affiché : ne pas tout reconstruire (scroll outline + focus RTE).
-    if (sameMode && document.querySelector('.jp-contenu-layout')) {
-      if (!sameBloc) {
-        const outline = document.querySelector('.jp-outline');
-        const scrollTop = outline ? outline.scrollTop : 0;
-        flushVariantEditor(prevId);
-        paintContenuEditorOnly();
-        syncOutlineActive();
-        if (outline) outline.scrollTop = scrollTop;
+    const afterFlush = () => {
+      // Contenu déjà affiché : ne pas tout reconstruire (scroll outline + focus RTE).
+      if (sameMode && document.querySelector('.jp-contenu-layout')) {
+        if (!sameBloc) {
+          const outline = document.querySelector('.jp-outline');
+          const scrollTop = outline ? outline.scrollTop : 0;
+          flushVariantEditor(prevId);
+          paintContenuEditorOnly();
+          syncOutlineActive();
+          if (outline) outline.scrollTop = scrollTop;
+          ensureOutlineVisible(id);
+        }
+      } else {
+        paintBlocks();
         ensureOutlineVisible(id);
       }
-    } else {
-      paintBlocks();
-      ensureOutlineVisible(id);
+      const m = selectedModule();
+      if (m && !m.est_groupe) void renderInspector(m);
+    };
+
+    // Flush molécules avant destruction des chips (sinon retrait → fallback ancienne liste).
+    if (!sameBloc && prevId && state.molChips[prevId]) {
+      void flushMolChips(prevId).then(afterFlush, afterFlush);
+      return;
     }
-    const m = selectedModule();
-    if (m && !m.est_groupe) void renderInspector(m);
+    afterFlush();
   }
 
   function syncOutlineActive() {
@@ -643,9 +653,46 @@
   const isHidden = (b) => b?.visible === false;
   const hasPending = (b) => !!draftOf(b) || isHidden(b);
 
+  /** Si `matrice_ids` est un tableau (même vide), il prime — ne pas retomber sur `matrice_id` publié. */
   function matriceIdsOf(payload) {
-    if (Array.isArray(payload.matrice_ids) && payload.matrice_ids.length) return payload.matrice_ids.filter(Boolean);
-    return payload.matrice_id ? [payload.matrice_id] : [];
+    const p = payload || {};
+    if (Array.isArray(p.matrice_ids)) return p.matrice_ids.filter(Boolean);
+    return p.matrice_id ? [p.matrice_id] : [];
+  }
+
+  /** Écrit les chips molécule dans le brouillon local avant destruction du DOM (sinon retrait perdu). */
+  function syncMolChipsToState(blocId) {
+    const ids = blocId
+      ? (state.molChips[blocId] ? [blocId] : [])
+      : Object.keys(state.molChips);
+    ids.forEach((id) => {
+      const chips = state.molChips[id];
+      const b = state.blocs.find((x) => x.id === id);
+      if (!chips || !b || b.type_bloc !== 'molecule') return;
+      const matIds = (chips.getIds?.() || []).filter(Boolean);
+      const payload = { matrice_ids: matIds, matrice_id: matIds[0] || '', mode: 'fiche' };
+      const titre = effTitre(b);
+      const pub = pubPayload(b);
+      const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
+      const pj = Object.assign({}, pub);
+      if (!same || isHidden(b)) pj._brouillon = { titre, payload };
+      b.payload_json = pj;
+    });
+  }
+
+  function flushMolChips(blocId) {
+    syncMolChipsToState(blocId || null);
+    if (!blocId) return flushAll();
+    if (state.timers[blocId]) {
+      clearTimeout(state.timers[blocId]);
+      delete state.timers[blocId];
+    }
+    const b = state.blocs.find((x) => x.id === blocId);
+    // Sauvegarder si chips encore montées, timer annulé, ou brouillon local présent.
+    if (state.molChips[blocId] || draftOf(b) || b?.type_bloc === 'molecule') {
+      return saveDraft(blocId);
+    }
+    return Promise.resolve();
   }
 
   /* ——— Statut d’enregistrement (chip en haut) ——— */
@@ -1562,6 +1609,7 @@
         chipEditHref: referentielEditHref,
         onChange: (items) => {
           items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
+          syncMolChipsToState(id);
           scheduleSave(id);
         },
       });
@@ -1805,7 +1853,10 @@
       };
     }
     if (type === 'molecule') {
-      const ids = state.molChips[blocId]?.getIds?.() || matriceIdsOf(effPayload(b));
+      // Toujours lire les chips si montées ; sinon l’état local déjà synchronisé.
+      const ids = state.molChips[blocId]
+        ? (state.molChips[blocId].getIds?.() || []).filter(Boolean)
+        : matriceIdsOf(effPayload(b));
       return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
     }
     if (type === 'conseil') {
@@ -1897,22 +1948,12 @@
 
   /* ——— Publication ——— */
 
-  /** Fiches choisies dans un bloc molécule : si aucune valeur n’est au programme, tout publier (identité incluse). */
-  async function ensureProgramme(m) {
-    const ids = [];
-    state.blocs.filter((b) => b.type_bloc === 'molecule').forEach((b) => {
-      matriceIdsOf(effPayload(b)).forEach((id) => { if (ids.indexOf(id) === -1) ids.push(id); });
-    });
-    for (const mid of ids) {
-      const rows = await rpc('v2_lister_connaissances_matrice', { p_matrice_id: mid, p_module_id: m.id });
-      const list = Array.isArray(rows) ? rows : [];
-      if (!list.length || list.some((r) => r.publie)) continue;
-      await rpc('v2_publier_connaissances', {
-        p_module_id: m.id,
-        p_connaissance_ids: list.map((r) => r.connaissance_id),
-      });
-    }
-  }
+  /**
+   * Ne plus auto-publier toutes les connaissances d’une matrice au « Publier ».
+   * La fiche leçon lit la matrice référentiel via v2_fiche_resolue (matrice_ids du bloc).
+   * Les pubs restent manuelles (« Valeurs affichées… »).
+   */
+  async function ensureProgramme(_m) { /* no-op */ }
 
   async function publishLesson() {
     const m = selectedModule();
@@ -1921,10 +1962,17 @@
     if (btn) btn.disabled = true;
     try {
       await flushAll();
+      syncMolChipsToState();
       await ensureProgramme(m);
       for (const b of state.blocs.filter(hasPending)) {
+        const payload = b.type_bloc === 'molecule'
+          ? (() => {
+            const ids = matriceIdsOf(effPayload(b));
+            return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
+          })()
+          : effPayload(b);
         await rpc('v2_upsert_bloc', {
-          p_payload: { id: b.id, titre: effTitre(b), payload_json: effPayload(b), visible: true },
+          p_payload: { id: b.id, titre: effTitre(b), payload_json: payload, visible: true },
         });
       }
       await rpc('v2_upsert_module', { p_payload: { id: m.id, publie: true, statut: 'publie' } });

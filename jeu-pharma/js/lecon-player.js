@@ -64,8 +64,9 @@
     });
   }
 
+  /** Tableau `matrice_ids` (même vide) prime sur le scalaire legacy `matrice_id`. */
   function matriceIds(p) {
-    if (Array.isArray(p.matrice_ids) && p.matrice_ids.length) return p.matrice_ids.filter(Boolean);
+    if (Array.isArray(p.matrice_ids)) return p.matrice_ids.filter(Boolean);
     return p.matrice_id ? [p.matrice_id] : [];
   }
 
