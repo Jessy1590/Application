@@ -3,7 +3,7 @@
  * Données (lecture admin via RLS, clé anon) : inscriptions_parcours, parcours_apprentissage, modules_cours,
  * progression_modules, modeles_jeu, tentatives_jeu ; noms via portail.profiles.
  * Actions : RPC v2_traiter_demande_parcours (accepte | refuse, ★1–5 si accepte),
- * v2_maj_niveau_parcours — security definer, réservé admin portail.
+ * v2_maj_niveau_parcours, v2_reinit_parcours_joueur — security definer, réservé admin portail.
  *
  * Avancement = jeux terminés (distincts) / jeux actifs du parcours ; leçons = progression_modules.statut = 'termine'
  * sur les leçons publiées (feuilles). Les deux sont affichés : la table de progression des leçons n'est alimentée
@@ -244,6 +244,7 @@
             + '<td><div class="jp-jx-actions">'
             + '<button type="button" class="jp-btn jp-btn-ghost" data-act="niveau" data-id="' + esc(r.id) + '" data-niveau="' + niv + '">Modifier ★</button>'
             + '<button type="button" class="jp-btn jp-btn-ghost" data-act="detail" data-id="' + esc(r.id) + '">' + (open ? 'Masquer' : 'Détail') + '</button>'
+            + '<button type="button" class="jp-btn jp-btn-ghost" data-act="reinit" data-id="' + esc(r.id) + '">Réinitialiser</button>'
             + '<button type="button" class="jp-btn jp-btn-ghost" data-act="revoke" data-id="' + esc(r.id) + '">Retirer l’accès</button>'
             + '</div></td></tr>'
             + (open ? detailRow(r, pr, 8) : '');
@@ -329,6 +330,25 @@
     render();
   }
 
+  async function reinitParcours(id) {
+    const { data, error } = await sb().rpc('v2_reinit_parcours_joueur', { p_inscription_id: id });
+    if (error) throw error;
+    const nTent = data && data.tentatives_supprimees != null ? data.tentatives_supprimees : 0;
+    const nProg = data && data.progression_supprimee != null ? data.progression_supprimee : 0;
+    void global.JpLogs?.action?.('v2_reinit_parcours_joueur', {
+      id,
+      tentatives_supprimees: nTent,
+      progression_supprimee: nProg,
+      scores_fiche_supprimes: data && data.scores_fiche_supprimes,
+    });
+    await loadAll();
+    global.JpToast.ok(
+      'Parcours réinitialisé (' + nTent + ' tentative' + (nTent === 1 ? '' : 's')
+        + ', ' + nProg + ' leçon' + (nProg === 1 ? '' : 's') + ')'
+    );
+    render();
+  }
+
   function onClick(e) {
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -366,6 +386,22 @@
       );
     } else if (act === 'refuse') {
       void traiter(id, 'refuse', null, 'Demande refusée').catch((err) => global.JpToast.fromError(err));
+    } else if (act === 'reinit') {
+      const r = state.inscr.find((x) => x.id === id);
+      const qui = r ? nameOf(r.user_id) : 'Cette personne';
+      const parc = r ? parcoursLabel(r.parcours_id) : 'ce parcours';
+      global.JpModal.open({
+        title: 'Réinitialiser le parcours ?',
+        body: [
+          qui + ' — « ' + parc + ' ».',
+          'Efface la progression (leçons lues / déblocage) et toutes les tentatives / scores des jeux de ce parcours, y compris les notes fiche aléatoire sur les molécules publiées ici.',
+          'L’accès et le niveau ★ sont conservés. Cette action est irréversible.',
+        ],
+        confirmLabel: 'Réinitialiser',
+        onConfirm: async () => {
+          try { await reinitParcours(id); } catch (err) { global.JpToast.fromError(err); }
+        },
+      });
     } else if (act === 'revoke') {
       const r = state.inscr.find((x) => x.id === id);
       global.JpModal.open({

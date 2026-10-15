@@ -38,7 +38,7 @@
   <script src="../js/ui.js?v=059"></script>
   <script src="../js/ui-modal.js"></script>
   <script src="../js/typeahead.js"></script>
-  <script src="../js/admin-acces.js?v=047"></script>
+  <script src="../js/admin-acces.js?v=061"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       JpUi.bootPage({ module: 'admin-acces', homeHref: JpFab.PORTAIL_URL });
@@ -46,6 +46,7 @@
         'Demandes : les joueurs demandent un parcours ; accordez ou refusez ici.',
         'Accès accordés : liste des personnes autorisées avec leur avancement (jeux terminés / jeux actifs, leçons terminées, moyenne).',
         '« Détail » montre le meilleur score par jeu et l’état de chaque leçon. « Retirer l’accès » conserve les scores.',
+        '« Réinitialiser » efface progression et scores des jeux de ce parcours (accès + ★ conservés).',
       ]));
       void JpAdminAcces.boot();
     });
