@@ -1051,14 +1051,14 @@
 .jp-comparaison[hidden] { display: none !important; }
 .jp-comparaison-inner {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
   gap: 0.75rem;
   max-width: 100%;
   min-height: calc(100vh - 2rem);
 }
 .jp-comparaison.has-valeurs .jp-comparaison-inner {
   grid-template-columns: 1fr min(26rem, 38vw);
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto auto auto 1fr;
 }
 .jp-comparaison-head {
   display: flex;
@@ -1081,13 +1081,57 @@
   grid-column: 1 / -1;
 }
 .jp-comparaison-toolbar #cmpSelInfo { flex: 1 1 12rem; font-size: 0.88rem; }
+.jp-comparaison-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.55rem 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+  grid-column: 1 / -1;
+}
+.jp-comparaison-filters[hidden] { display: none !important; }
+.jp-comparaison-filters-label {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3d6b62;
+}
+.jp-comparaison-filter {
+  flex: 1 1 12rem;
+  min-width: min(14rem, 100%);
+  max-width: 22rem;
+}
+.jp-comparaison-filters #cmpFiltClear {
+  align-self: center;
+  font-size: 0.82rem;
+}
+.jp-cmp-edit { display: grid; gap: 0.65rem; }
+.jp-cmp-edit-field {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.jp-cmp-edit-input {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.45rem;
+  width: 100%;
+  box-sizing: border-box;
+}
 .jp-comparaison-body {
   min-width: 0;
   min-height: 0;
 }
 .jp-comparaison-table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 11rem);
+  max-height: calc(100vh - 14rem);
   border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
   border-radius: var(--jp-radius, 0.75rem);
   background: var(--jp-bg-elevated, #fff);
@@ -1180,9 +1224,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
-  max-height: calc(100vh - 11rem);
+  max-height: calc(100vh - 14rem);
   overflow: auto;
-  grid-row: 3;
+  grid-row: 4;
   grid-column: 2;
 }
 .jp-comparaison-valeurs[hidden] { display: none !important; }

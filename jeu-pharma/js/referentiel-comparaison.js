@@ -1,6 +1,6 @@
 /**
  * Admin Référentiel — vue plein page Comparaison (scope parcours/chapitre/leçon).
- * Fusion / suppression d’entités + édition des valeurs ★ d’une leçon.
+ * Modifier / fusion / suppression d’entités + filtres catégorie + valeurs ★.
  * Dépend : JpApp, JpConstants, JpUi, JpToast, JpModal, JpTypeahead, JpMedicaments.
  */
 (function (global) {
@@ -67,15 +67,25 @@
     modules: [],
     scopeItems: [],
     scope: null,
+    fichesAll: [],
     fiches: [],
     selected: new Map(), // key `${code}:${id}` -> { code, table, id, valeur }
     activeCol: null,
+    molFilters: { secteur: [], classeTh: [], classePh: [] },
+    filterCtrls: null,
+    filtSilent: false,
     valeursMode: false,
     valeursNiveau: 2,
     valeursLeconId: null,
     valeursData: null,
     valeursLocal: {}, // matriceId -> Set(cid)
   };
+
+  const FILTER_CHAMPS = [
+    { key: 'secteur', code: 'secteur_therapeutique', hostId: 'cmpFiltSecteur', placeholder: 'Secteur…' },
+    { key: 'classeTh', code: 'classe_therapeutique', hostId: 'cmpFiltClasseTh', placeholder: 'Classe thérapeutique…' },
+    { key: 'classePh', code: 'classe_pharmacologique', hostId: 'cmpFiltClassePh', placeholder: 'Classe pharmacologique…' },
+  ];
 
   function selKey(code, id) {
     return code + ':' + id;
@@ -98,14 +108,18 @@
     const colOk = state.activeCol && n >= 2;
     const oneOk = n >= 1;
     const btnMerge = state.host.querySelector('#cmpMerge');
+    const btnEdit = state.host.querySelector('#cmpEdit');
     const btnDel = state.host.querySelector('#cmpDelete');
     if (btnMerge) btnMerge.disabled = !colOk;
+    if (btnEdit) btnEdit.disabled = !oneOk;
     if (btnDel) btnDel.disabled = !oneOk;
+    const clearBtn = state.host.querySelector('#cmpClearSel');
+    if (clearBtn) clearBtn.hidden = n === 0;
     const info = state.host.querySelector('#cmpSelInfo');
     if (info) {
       info.textContent = n
         ? (n + ' sélectionnée(s)' + (state.activeCol ? ' · ' + (champByCode(state.activeCol)?.libelle || state.activeCol) : ''))
-        : 'Sélectionnez 2+ valeurs d’une même colonne pour fusionner';
+        : 'Sélectionnez une valeur pour modifier, ou 2+ pour fusionner';
     }
   }
 
@@ -172,15 +186,108 @@
     state.scopeItems = items;
   }
 
-  async function loadScope(kind, id) {
+  async function loadScope(kind, id, opts) {
+    const keepFilters = !!(opts && opts.keepFilters);
+    const savedFilt = keepFilters
+      ? {
+        secteur: [...(state.molFilters.secteur || [])],
+        classeTh: [...(state.molFilters.classeTh || [])],
+        classePh: [...(state.molFilters.classePh || [])],
+      }
+      : { secteur: [], classeTh: [], classePh: [] };
+
     state.scope = await rpc('v2_comparaison_scope', { p_kind: kind, p_id: id });
     const mids = (state.scope?.matrice_ids || []).map(String);
+    state.molFilters = { secteur: [], classeTh: [], classePh: [] };
+    state.filterCtrls = null;
     if (!mids.length) {
+      state.fichesAll = [];
       state.fiches = [];
+      mountMolFilters();
       return;
     }
     const data = await rpc('v2_comparaison_fiches', { p_matrice_ids: mids });
-    state.fiches = Array.isArray(data) ? data : [];
+    state.fichesAll = Array.isArray(data) ? data : [];
+    mountMolFilters();
+    if (keepFilters) {
+      state.filtSilent = true;
+      try {
+        FILTER_CHAMPS.forEach(({ key, code }) => {
+          const ids = savedFilt[key] || [];
+          const ctrl = state.filterCtrls?.[key];
+          if (!ctrl || !ids.length) return;
+          const optsList = entityOptionsFromFiches(code);
+          ids.forEach((eid) => {
+            const it = optsList.find((o) => String(o.id) === String(eid));
+            if (it) ctrl.add(it);
+          });
+        });
+      } finally {
+        state.filtSilent = false;
+      }
+    }
+    applyMolFilters();
+  }
+
+  function entityOptionsFromFiches(code) {
+    const champ = champByCode(code);
+    const map = new Map();
+    (state.fichesAll || []).forEach((row) => {
+      entitiesOfRow(row, champ).forEach((e) => {
+        if (e.id && e.valeur) map.set(String(e.id), { id: e.id, label: e.valeur });
+      });
+    });
+    return [...map.values()].sort((a, b) =>
+      String(a.label).localeCompare(String(b.label), 'fr', { sensitivity: 'base' }));
+  }
+
+  function ficheMatchesFilters(row) {
+    return FILTER_CHAMPS.every(({ key, code }) => {
+      const ids = state.molFilters[key] || [];
+      if (!ids.length) return true;
+      const set = new Set(ids.map(String));
+      return entitiesOfRow(row, champByCode(code)).some((e) => e.id && set.has(String(e.id)));
+    });
+  }
+
+  function applyMolFilters() {
+    state.fiches = (state.fichesAll || []).filter(ficheMatchesFilters);
+  }
+
+  function mountMolFilters() {
+    const bar = state.host?.querySelector('#cmpFilters');
+    if (!bar) return;
+    const TA = global.JpTypeahead;
+    const ctrls = {};
+    FILTER_CHAMPS.forEach(({ key, code, hostId, placeholder }) => {
+      const host = bar.querySelector('#' + hostId);
+      if (!host) return;
+      host.innerHTML = '';
+      if (!TA) return;
+      const items = entityOptionsFromFiches(code);
+      ctrls[key] = TA.chips(host, {
+        search: TA.localSource(items, { limit: 20 }),
+        placeholder,
+        ariaLabel: placeholder,
+        minChars: 0,
+        onChange: (sel) => {
+          state.molFilters[key] = (sel || []).map((it) => it.id);
+          if (state.filtSilent) return;
+          applyMolFilters();
+          renderTable();
+        },
+      });
+    });
+    state.filterCtrls = ctrls;
+    const clearBtn = bar.querySelector('#cmpFiltClear');
+    if (clearBtn) {
+      clearBtn.onclick = () => {
+        state.molFilters = { secteur: [], classeTh: [], classePh: [] };
+        Object.values(ctrls).forEach((c) => c?.clear?.());
+        applyMolFilters();
+        renderTable();
+      };
+    }
   }
 
   /* ——— Render ——— */
@@ -205,11 +312,19 @@
       + '<span class="jp-muted" id="cmpCount"></span>'
       + '</header>'
       + '<div class="jp-comparaison-toolbar">'
-      + '<span class="jp-muted" id="cmpSelInfo">Sélectionnez 2+ valeurs d’une même colonne pour fusionner</span>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="cmpMerge" disabled>Fusionner</button>'
+      + '<span class="jp-muted" id="cmpSelInfo">Sélectionnez une valeur pour modifier, ou 2+ pour fusionner</span>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="cmpEdit" disabled>Modifier</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpMerge" disabled>Fusionner</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpDelete" disabled>Supprimer l’entité</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpValeurs">Voir les valeurs</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpClearSel" hidden>Effacer sélection</button>'
+      + '</div>'
+      + '<div class="jp-comparaison-filters" id="cmpFilters" hidden>'
+      + '<span class="jp-comparaison-filters-label">Filtrer molécules</span>'
+      + '<div id="cmpFiltSecteur" class="jp-comparaison-filter"></div>'
+      + '<div id="cmpFiltClasseTh" class="jp-comparaison-filter"></div>'
+      + '<div id="cmpFiltClassePh" class="jp-comparaison-filter"></div>'
+      + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="cmpFiltClear">Effacer filtres</button>'
       + '</div>'
       + '<div class="jp-comparaison-body" id="cmpBody">'
       + '<p class="jp-muted">Choisissez un parcours, un chapitre ou une leçon.</p>'
@@ -221,18 +336,27 @@
   function renderTable() {
     const body = state.host.querySelector('#cmpBody');
     const count = state.host.querySelector('#cmpCount');
+    const filtBar = state.host.querySelector('#cmpFilters');
     if (!state.scope) {
       body.innerHTML = '<p class="jp-muted">Choisissez un parcours, un chapitre ou une leçon.</p>';
       if (count) count.textContent = '';
+      if (filtBar) filtBar.hidden = true;
       return;
     }
+    if (filtBar) filtBar.hidden = false;
     const cols = colonnesComparaison();
+    const nAll = state.fichesAll.length;
     const n = state.fiches.length;
+    const filtered = n !== nAll;
     if (count) {
-      count.textContent = n + ' molécule(s) · ' + (state.scope.label || '');
+      count.textContent = (filtered ? n + ' / ' + nAll : n) + ' molécule(s) · ' + (state.scope.label || '');
+    }
+    if (!nAll) {
+      body.innerHTML = '<p class="jp-muted">Aucune molécule dans ce scope (pubs ou blocs molécule).</p>';
+      return;
     }
     if (!n) {
-      body.innerHTML = '<p class="jp-muted">Aucune molécule dans ce scope (pubs ou blocs molécule).</p>';
+      body.innerHTML = '<p class="jp-muted">Aucune molécule ne correspond aux filtres catégorie.</p>';
       return;
     }
 
@@ -281,13 +405,101 @@
           btn.getAttribute('data-eid'),
           btn.textContent
         );
-        state.host.querySelector('#cmpClearSel').hidden = state.selected.size === 0;
       });
     });
     paintSelectionUi();
   }
 
-  /* ——— Fusion / suppression ——— */
+  /* ——— Modifier / Fusion / suppression ——— */
+  async function doEdit() {
+    if (!state.selected.size) return;
+    const items = [...state.selected.values()];
+    if (items.some((x) => x.code !== items[0].code)) {
+      global.JpToast?.warn?.('Sélectionnez des valeurs d’une seule colonne');
+      return;
+    }
+    const champ = champByCode(items[0].code);
+    if (!champ) return;
+    const multi = items.length > 1;
+    const wrap = document.createElement('div');
+    wrap.className = 'jp-cmp-edit';
+    let html = '';
+    if (multi) {
+      html += '<p>Entités sélectionnées — choisissez celle à conserver ; les autres seront fusionnées. '
+        + 'Le texte saisi devient la valeur finale.</p>'
+        + '<div class="jp-cmp-keep-list" role="radiogroup">'
+        + items.map((it, i) => (
+          '<label class="jp-cmp-keep-opt">'
+          + '<input type="radio" name="cmpEditKeep" value="' + esc(it.id) + '"'
+          + (i === 0 ? ' checked' : '') + '>'
+          + '<span>' + esc(it.valeur) + '</span></label>'
+        )).join('')
+        + '</div>';
+    } else {
+      html += '<p>Modifier le libellé de « ' + esc(items[0].valeur) + ' ».</p>';
+    }
+    html += '<label class="jp-cmp-edit-field">Valeur finale'
+      + '<input type="text" id="cmpEditVal" class="jp-cmp-edit-input" autocomplete="off" '
+      + 'value="' + esc(items[0].valeur) + '"></label>';
+    wrap.innerHTML = html;
+
+    const syncValFromKeep = () => {
+      const keepId = wrap.querySelector('input[name=cmpEditKeep]:checked')?.value;
+      const it = items.find((x) => x.id === keepId) || items[0];
+      const input = wrap.querySelector('#cmpEditVal');
+      if (input && document.activeElement !== input) input.value = it.valeur;
+    };
+    wrap.querySelectorAll('input[name=cmpEditKeep]').forEach((r) => {
+      r.addEventListener('change', syncValFromKeep);
+    });
+
+    global.JpModal.open({
+      title: (multi ? 'Modifier et fusionner — ' : 'Modifier — ') + (champ.libelle || champ.code),
+      body: wrap,
+      confirmLabel: multi ? 'Modifier et fusionner' : 'Enregistrer',
+      onConfirm: async () => {
+        const keep = multi
+          ? (wrap.querySelector('input[name=cmpEditKeep]:checked')?.value || items[0].id)
+          : items[0].id;
+        const nouvelle = String(wrap.querySelector('#cmpEditVal')?.value || '').trim();
+        if (!nouvelle) {
+          global.JpToast?.warn?.('Saisissez une valeur');
+          return false;
+        }
+        const drops = items.map((x) => x.id).filter((id) => id !== keep);
+        const unchanged = !drops.length && nouvelle === items.find((x) => x.id === keep)?.valeur;
+        if (unchanged) {
+          global.JpToast?.warn?.('Aucune modification');
+          return false;
+        }
+        try {
+          await rpc('v2_modifier_entites', {
+            p_table_name: champ.table,
+            p_id_keep: keep,
+            p_id_drops: drops,
+            p_nouvelle_valeur: nouvelle,
+          });
+          global.JpToast?.ok?.(
+            drops.length
+              ? 'Modifié et fusionné (' + drops.length + ')'
+              : 'Libellé mis à jour'
+          );
+          void global.JpLogs?.action?.('comparaison_modifier', {
+            table: champ.table, keep, drops, valeur: nouvelle,
+          });
+          clearSelection();
+          if (state.scope) await loadScope(state.scope.kind, state.scope.id, { keepFilters: true });
+          renderTable();
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+          return false;
+        }
+        return undefined;
+      },
+    });
+    setTimeout(() => wrap.querySelector('#cmpEditVal')?.focus(), 50);
+  }
+
   async function doMerge() {
     if (!state.activeCol || state.selected.size < 2) return;
     const champ = champByCode(state.activeCol);
@@ -325,7 +537,7 @@
             table: champ.table, keep, drops,
           });
           clearSelection();
-          if (state.scope) await loadScope(state.scope.kind, state.scope.id);
+          if (state.scope) await loadScope(state.scope.kind, state.scope.id, { keepFilters: true });
           renderTable();
         } catch (e) {
           global.JpToast?.fromError?.(e);
@@ -366,7 +578,7 @@
             ids: items.map((x) => x.id),
           });
           clearSelection();
-          if (state.scope) await loadScope(state.scope.kind, state.scope.id);
+          if (state.scope) await loadScope(state.scope.kind, state.scope.id, { keepFilters: true });
           renderTable();
         } catch (e) {
           global.JpToast?.fromError?.(e);
@@ -654,12 +866,12 @@
     }
 
     host.querySelector('#cmpBack').addEventListener('click', close);
+    host.querySelector('#cmpEdit').addEventListener('click', () => void doEdit());
     host.querySelector('#cmpMerge').addEventListener('click', () => void doMerge());
     host.querySelector('#cmpDelete').addEventListener('click', () => void doDelete());
     host.querySelector('#cmpValeurs').addEventListener('click', openValeursPane);
     host.querySelector('#cmpClearSel').addEventListener('click', () => {
       clearSelection();
-      host.querySelector('#cmpClearSel').hidden = true;
     });
 
     try {
@@ -681,7 +893,10 @@
     if (state.mainEl) state.mainEl.hidden = false;
     state.open = false;
     state.scope = null;
+    state.fichesAll = [];
     state.fiches = [];
+    state.molFilters = { secteur: [], classeTh: [], classePh: [] };
+    state.filterCtrls = null;
     document.body.classList.remove('jp-comparaison-open');
     if (location.hash === '#comparaison') {
       history.replaceState(null, '', location.pathname + location.search);
