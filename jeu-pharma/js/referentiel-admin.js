@@ -1019,7 +1019,6 @@
     $('form').addEventListener('submit', (e) => { e.preventDefault(); void doSave(false); });
     $('btnSaveVal').addEventListener('click', () => void doSave(true));
     $('btnCancel').addEventListener('click', () => closeEditor());
-    document.querySelector('[data-close-editor]').addEventListener('click', () => closeEditor());
     ['fStatutEd'].forEach((id) => $(id).addEventListener('change', () => { dirty = true; }));
 
     $('valOk').addEventListener('click', () => void queueValidate());

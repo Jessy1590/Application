@@ -106,7 +106,7 @@
   </main>
 
   <div id="editorModal" class="jp-catalogue-fiche-modal" hidden>
-    <div class="jp-catalogue-fiche-modal-backdrop" data-close-editor></div>
+    <div class="jp-catalogue-fiche-modal-backdrop" aria-hidden="true"></div>
     <section id="editor" class="jp-catalogue-fiche-modal-panel jp-med-editor" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
       <div class="jp-med-editor-head">
         <h2 class="jp-title" id="editorTitle">Nouvelle fiche</h2>
@@ -144,7 +144,7 @@
   </div>
 
   <div id="valModal" class="jp-validation-modal" hidden role="dialog" aria-modal="true" aria-labelledby="valTitle">
-    <div class="jp-validation-modal-backdrop" data-close-validation></div>
+    <div class="jp-validation-modal-backdrop" aria-hidden="true"></div>
     <section class="jp-validation-modal-panel">
       <header class="jp-validation-head">
         <h2 class="jp-title" id="valTitle" style="margin:0">Valider</h2>
@@ -172,8 +172,8 @@
   <script src="../js/entites.js"></script>
   <script src="../js/medicaments.js"></script>
   <script src="../IA/gemini-client.js"></script>
-  <script src="../IA/referentiel-matrice.js?v=046"></script>
-  <script src="../js/referentiel-admin.js?v=046"></script>
+  <script src="../IA/referentiel-matrice.js?v=047"></script>
+  <script src="../js/referentiel-admin.js?v=047"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       JpReferentielAdmin.boot().catch(function (e) { JpToast.fromError(e); });

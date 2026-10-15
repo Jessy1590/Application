@@ -230,7 +230,6 @@
     }
     document.addEventListener('keydown', onKey);
     $('iaMatCancel').addEventListener('click', () => { if (!busy) close(); });
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop && !busy) close(); });
 
     function setStatus(msg, kind) {
       statusEl.hidden = !msg;
