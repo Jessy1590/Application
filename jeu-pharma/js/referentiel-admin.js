@@ -1105,6 +1105,13 @@
     });
 
     $('btnNew').addEventListener('click', () => void openEditor(null));
+    $('btnComparaison')?.addEventListener('click', () => {
+      if (!global.JpReferentielComparaison) {
+        global.JpToast.warn('Module Comparaison indisponible');
+        return;
+      }
+      void global.JpReferentielComparaison.open();
+    });
     $('btnIa')?.addEventListener('click', () => {
       if (!global.JpReferentielIA) {
         global.JpToast.warn('Module IA référentiel indisponible');
@@ -1136,6 +1143,7 @@
     document.querySelectorAll('[data-close-validation]').forEach((el) => el.addEventListener('click', closeQueue));
 
     document.addEventListener('keydown', (e) => {
+      if (document.body.classList.contains('jp-comparaison-open')) return;
       if (e.key === 'Escape') {
         if (!$('valModal').hidden) closeQueue();
         else if (isEditorOpen() && !acActive) closeEditor();
@@ -1158,6 +1166,7 @@
       'Toute modification remet la fiche « à valider » ; « Enregistrer et valider » la valide.',
       'Renommer une valeur (clic sur le libellé) la change pour toutes les fiches liées.',
       'Ce qui est visible par les apprenants se règle dans Modif parcours.',
+      'Comparaison : tableau des molécules d’un parcours / chapitre / leçon, fusion et valeurs ★.',
     ]));
     fillStaticSelects();
     buildFields();
@@ -1171,6 +1180,7 @@
         const row = all.find((r) => r.id === id) || await MED().getById(id);
         if (row) await openEditor(row); else global.JpToast.warn('Fiche introuvable');
       }
+      global.JpReferentielComparaison?.bootFromHash?.();
     } catch (e) {
       global.JpToast.fromError(e);
       void global.JpLogs?.error?.('referentiel_list', { message: e?.message });

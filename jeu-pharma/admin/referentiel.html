@@ -15,7 +15,7 @@
 <script src="../../protect.js"></script>
 <script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
 <link rel="stylesheet" href="../css/app.css?v=059">
-<link rel="stylesheet" href="../css/v2.css?v=028">
+<link rel="stylesheet" href="../css/v2.css?v=068">
 <link rel="stylesheet" href="../IA/ia.css?v=046">
 </head>
 <body>
@@ -26,6 +26,7 @@
     <div class="jp-admin-cat-actions">
       <button type="button" class="jp-btn jp-btn-primary" id="btnNew">Nouvelle fiche</button>
       <button type="button" class="jp-btn jp-btn-ia" id="btnIa" title="Proposer une fiche depuis le RCP (BDPM)">IA</button>
+      <button type="button" class="jp-btn jp-btn-ghost" id="btnComparaison" title="Comparer les molécules d’un parcours / chapitre / leçon">Comparaison</button>
       <button type="button" class="jp-btn jp-btn-ghost" id="btnValider">Valider fiches</button>
       <span class="jp-admin-cat-validation-count jp-muted" id="valCount" aria-live="polite"></span>
     </div>
@@ -168,12 +169,14 @@
   <script src="../js/fab.js?v=059"></script>
   <script src="../js/ui.js?v=059"></script>
   <script src="../js/ui-modal.js"></script>
+  <script src="../js/typeahead.js?v=068"></script>
   <script src="../js/bdm.js?v=046"></script>
   <script src="../js/entites.js"></script>
   <script src="../js/medicaments.js"></script>
   <script src="../IA/gemini-client.js"></script>
   <script src="../IA/referentiel-matrice.js?v=066"></script>
-  <script src="../js/referentiel-admin.js?v=047"></script>
+  <script src="../js/referentiel-comparaison.js?v=068"></script>
+  <script src="../js/referentiel-admin.js?v=068"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       JpReferentielAdmin.boot().catch(function (e) { JpToast.fromError(e); });

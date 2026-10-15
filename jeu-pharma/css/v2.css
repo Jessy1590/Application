@@ -1040,3 +1040,212 @@
 .jp-photo-empty { margin: 0; padding: 1rem; border: 1px dashed rgba(15, 107, 92, 0.3); border-radius: 0.8rem; text-align: center; }
 .jp-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0 0 0.9rem; }
 .jp-photo-pick { cursor: pointer; }
+
+/* ——— Référentiel Comparaison (plein page) ——— */
+.jp-comparaison {
+  min-height: 100vh;
+  padding: 1rem 1.25rem 2.5rem;
+  background: var(--jp-bg, #f4f7f6);
+  color: var(--jp-ink, #122);
+}
+.jp-comparaison[hidden] { display: none !important; }
+.jp-comparaison-inner {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0.75rem;
+  max-width: 100%;
+  min-height: calc(100vh - 2rem);
+}
+.jp-comparaison.has-valeurs .jp-comparaison-inner {
+  grid-template-columns: 1fr min(26rem, 38vw);
+  grid-template-rows: auto auto 1fr;
+}
+.jp-comparaison-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  grid-column: 1 / -1;
+}
+.jp-comparaison-head .jp-title { margin: 0; font-size: 1.35rem; }
+.jp-comparaison-scope { min-width: min(22rem, 100%); flex: 1 1 16rem; }
+.jp-comparaison-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+  grid-column: 1 / -1;
+}
+.jp-comparaison-toolbar #cmpSelInfo { flex: 1 1 12rem; font-size: 0.88rem; }
+.jp-comparaison-body {
+  min-width: 0;
+  min-height: 0;
+}
+.jp-comparaison-table-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 11rem);
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+}
+.jp-comparaison-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-size: 0.82rem;
+}
+.jp-comparaison-table th,
+.jp-comparaison-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.1);
+  border-right: 1px solid rgba(15, 107, 92, 0.08);
+  vertical-align: top;
+  text-align: left;
+}
+.jp-comparaison-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e8f3f0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.jp-comparaison-table .jp-cmp-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #f7fbfa;
+  min-width: 10rem;
+  max-width: 14rem;
+}
+.jp-comparaison-table thead .jp-cmp-sticky { z-index: 3; background: #dceee9; }
+.jp-comparaison-table .jp-cmp-sticky strong { display: block; }
+.jp-comparaison-table .jp-cmp-sticky .jp-muted {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-top: 0.15rem;
+}
+.jp-cmp-empty { color: #8aa; }
+.jp-cmp-chip {
+  display: inline-block;
+  margin: 0.12rem 0.2rem 0.12rem 0;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  max-width: 16rem;
+  white-space: normal;
+  line-height: 1.25;
+}
+.jp-cmp-chip:hover { border-color: var(--jp-accent, #0f6b5c); background: #f0faf7; }
+.jp-cmp-chip.is-selected {
+  border-color: var(--jp-accent, #0f6b5c);
+  background: rgba(15, 107, 92, 0.14);
+  box-shadow: inset 0 0 0 1px var(--jp-accent, #0f6b5c);
+}
+.jp-cmp-chip-static {
+  cursor: default;
+  border-style: dashed;
+  opacity: 0.85;
+}
+.jp-cmp-keep-list { display: grid; gap: 0.45rem; margin-top: 0.75rem; }
+.jp-cmp-keep-opt {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(15, 107, 92, 0.2);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+.jp-cmp-keep-opt:has(input:checked) {
+  border-color: var(--jp-accent, #0f6b5c);
+  background: rgba(15, 107, 92, 0.08);
+}
+.jp-comparaison-valeurs {
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: calc(100vh - 11rem);
+  overflow: auto;
+  grid-row: 3;
+  grid-column: 2;
+}
+.jp-comparaison-valeurs[hidden] { display: none !important; }
+.jp-cmp-val-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.jp-cmp-val-head h2 { margin: 0; font-size: 1.05rem; }
+.jp-cmp-val-field {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.jp-cmp-val-field select {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(15, 107, 92, 0.25);
+}
+.jp-cmp-val-mol { margin: 0 0 0.85rem; }
+.jp-cmp-val-mol h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.jp-cmp-val-champ { margin: 0 0 0.55rem; }
+.jp-cmp-val-champ header {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #3d6b62;
+  margin-bottom: 0.25rem;
+}
+.jp-cmp-val-chip {
+  display: inline-block;
+  margin: 0.12rem 0.2rem 0.12rem 0;
+  padding: 0.22rem 0.5rem;
+  border: 1px solid rgba(15, 107, 92, 0.25);
+  border-radius: 0.4rem;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+}
+.jp-cmp-val-chip.is-on {
+  background: rgba(15, 107, 92, 0.16);
+  border-color: var(--jp-accent, #0f6b5c);
+  font-weight: 600;
+}
+.jp-cmp-val-foot {
+  position: sticky;
+  bottom: 0;
+  padding-top: 0.5rem;
+  background: linear-gradient(transparent, #fff 35%);
+}
+@media (max-width: 960px) {
+  .jp-comparaison.has-valeurs .jp-comparaison-inner {
+    grid-template-columns: 1fr;
+  }
+  .jp-comparaison-valeurs {
+    grid-row: auto;
+    grid-column: 1;
+    max-height: none;
+  }
+}
