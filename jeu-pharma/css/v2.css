@@ -702,6 +702,10 @@
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
   font-family: var(--jp-font-ui, "DM Sans", system-ui, sans-serif);
 }
+.jp-modal.jp-modal-wide {
+  width: min(560px, 100%);
+  max-height: min(90vh, 640px);
+}
 .jp-modal h2 {
   margin: 0 0 0.65rem;
   font-size: 1.1rem;
@@ -1056,10 +1060,6 @@
   max-width: 100%;
   min-height: calc(100vh - 2rem);
 }
-.jp-comparaison.has-valeurs .jp-comparaison-inner {
-  grid-template-columns: 1fr min(26rem, 38vw);
-  grid-template-rows: auto auto auto 1fr;
-}
 .jp-comparaison-head {
   display: flex;
   flex-wrap: wrap;
@@ -1069,6 +1069,34 @@
 }
 .jp-comparaison-head .jp-title { margin: 0; font-size: 1.35rem; }
 .jp-comparaison-scope { min-width: min(22rem, 100%); flex: 1 1 16rem; }
+.jp-comparaison-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+.jp-comparaison-head-actions .jp-help-btn { margin-left: 0; }
+.jp-cmp-filt-btn {
+  position: relative;
+}
+.jp-cmp-filt-btn.is-active {
+  border-color: var(--jp-accent, #0f6b5c);
+  color: var(--jp-accent, #0f6b5c);
+  background: rgba(15, 107, 92, 0.1);
+}
+.jp-cmp-filt-badge {
+  position: absolute;
+  top: -0.35rem;
+  right: -0.35rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--jp-accent, #0f6b5c);
+  color: #fff;
+  font: 700 0.65rem/1rem var(--jp-font-ui, "DM Sans", system-ui, sans-serif);
+  text-align: center;
+}
 .jp-comparaison-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1080,19 +1108,11 @@
   background: var(--jp-bg-elevated, #fff);
   grid-column: 1 / -1;
 }
-.jp-comparaison-toolbar #cmpSelInfo { flex: 1 1 12rem; font-size: 0.88rem; }
-.jp-comparaison-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.55rem 0.75rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
-  border-radius: var(--jp-radius, 0.75rem);
-  background: var(--jp-bg-elevated, #fff);
-  grid-column: 1 / -1;
+.jp-comparaison-toolbar #cmpSelInfo {
+  flex: 1 1 12rem;
+  font-size: 0.88rem;
+  min-height: 1.25rem;
 }
-.jp-comparaison-filters[hidden] { display: none !important; }
 .jp-comparaison-filters-label {
   flex: 0 0 auto;
   align-self: center;
@@ -1100,14 +1120,26 @@
   font-weight: 600;
   color: #3d6b62;
 }
+.jp-comparaison-filters-modal {
+  display: grid;
+  gap: 0.75rem;
+}
+.jp-comparaison-filters-modal .jp-cmp-filt-field {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3d6b62;
+}
+.jp-comparaison-filters-modal .jp-comparaison-filter {
+  font-weight: 400;
+  min-width: 0;
+  max-width: none;
+}
 .jp-comparaison-filter {
   flex: 1 1 12rem;
   min-width: min(14rem, 100%);
   max-width: 22rem;
-}
-.jp-comparaison-filters #cmpFiltClear {
-  align-self: center;
-  font-size: 0.82rem;
 }
 .jp-cmp-edit { display: grid; gap: 0.65rem; }
 .jp-cmp-edit-field {
@@ -1131,7 +1163,7 @@
 }
 .jp-comparaison-table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 14rem);
+  max-height: calc(100vh - 12rem);
   border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
   border-radius: var(--jp-radius, 0.75rem);
   background: var(--jp-bg-elevated, #fff);
@@ -1197,10 +1229,50 @@
   background: rgba(15, 107, 92, 0.14);
   box-shadow: inset 0 0 0 1px var(--jp-accent, #0f6b5c);
 }
+.jp-comparaison.is-valeurs-mode .jp-cmp-chip.is-val-on {
+  border-color: var(--jp-accent, #0f6b5c);
+  background: rgba(15, 107, 92, 0.2);
+  box-shadow: inset 0 0 0 1px var(--jp-accent, #0f6b5c);
+  font-weight: 600;
+}
+.jp-comparaison.is-valeurs-mode .jp-cmp-chip:not(.is-val-on):not(.jp-cmp-chip-static) {
+  opacity: 0.72;
+}
+.jp-cmp-chip-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .jp-cmp-chip-static {
   cursor: default;
   border-style: dashed;
   opacity: 0.85;
+}
+.jp-comparaison-valeurs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: var(--jp-radius, 0.75rem);
+  background: #e8f3f0;
+  grid-column: 1 / -1;
+}
+.jp-comparaison-valeurs-bar[hidden] { display: none !important; }
+.jp-cmp-val-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.jp-cmp-val-inline select {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.3rem 0.45rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  background: #fff;
 }
 .jp-cmp-keep-list { display: grid; gap: 0.45rem; margin-top: 0.75rem; }
 .jp-cmp-keep-opt {
@@ -1215,81 +1287,4 @@
 .jp-cmp-keep-opt:has(input:checked) {
   border-color: var(--jp-accent, #0f6b5c);
   background: rgba(15, 107, 92, 0.08);
-}
-.jp-comparaison-valeurs {
-  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
-  border-radius: var(--jp-radius, 0.75rem);
-  background: var(--jp-bg-elevated, #fff);
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  max-height: calc(100vh - 14rem);
-  overflow: auto;
-  grid-row: 4;
-  grid-column: 2;
-}
-.jp-comparaison-valeurs[hidden] { display: none !important; }
-.jp-cmp-val-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-.jp-cmp-val-head h2 { margin: 0; font-size: 1.05rem; }
-.jp-cmp-val-field {
-  display: grid;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.jp-cmp-val-field select {
-  font: inherit;
-  font-weight: 400;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.45rem;
-  border: 1px solid rgba(15, 107, 92, 0.25);
-}
-.jp-cmp-val-mol { margin: 0 0 0.85rem; }
-.jp-cmp-val-mol h3 { margin: 0 0 0.4rem; font-size: 0.95rem; }
-.jp-cmp-val-champ { margin: 0 0 0.55rem; }
-.jp-cmp-val-champ header {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #3d6b62;
-  margin-bottom: 0.25rem;
-}
-.jp-cmp-val-chip {
-  display: inline-block;
-  margin: 0.12rem 0.2rem 0.12rem 0;
-  padding: 0.22rem 0.5rem;
-  border: 1px solid rgba(15, 107, 92, 0.25);
-  border-radius: 0.4rem;
-  background: #fff;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-  text-align: left;
-  max-width: 100%;
-}
-.jp-cmp-val-chip.is-on {
-  background: rgba(15, 107, 92, 0.16);
-  border-color: var(--jp-accent, #0f6b5c);
-  font-weight: 600;
-}
-.jp-cmp-val-foot {
-  position: sticky;
-  bottom: 0;
-  padding-top: 0.5rem;
-  background: linear-gradient(transparent, #fff 35%);
-}
-@media (max-width: 960px) {
-  .jp-comparaison.has-valeurs .jp-comparaison-inner {
-    grid-template-columns: 1fr;
-  }
-  .jp-comparaison-valeurs {
-    grid-row: auto;
-    grid-column: 1;
-    max-height: none;
-  }
 }

@@ -23,9 +23,9 @@
     return (global.JpConstants?.CHAMP_CODES || []).filter((c) => c.actif !== false);
   }
 
-  /** Colonnes tableau (hors identité déjà en 1re colonne). */
+  /** Colonnes tableau (inclut noms commerciaux pour Modifier / Fusionner / Supprimer). */
   function colonnesComparaison() {
-    return champsActifs().filter((c) => c.code !== 'nom_commercial');
+    return champsActifs();
   }
 
   function champByCode(code) {
@@ -79,13 +79,24 @@
     valeursLeconId: null,
     valeursData: null,
     valeursLocal: {}, // matriceId -> Set(cid)
+    cidByEntite: {}, // `${mid}|${entiteId}` -> connaissance_id
   };
 
   const FILTER_CHAMPS = [
-    { key: 'secteur', code: 'secteur_therapeutique', hostId: 'cmpFiltSecteur', placeholder: 'Secteur…' },
-    { key: 'classeTh', code: 'classe_therapeutique', hostId: 'cmpFiltClasseTh', placeholder: 'Classe thérapeutique…' },
-    { key: 'classePh', code: 'classe_pharmacologique', hostId: 'cmpFiltClassePh', placeholder: 'Classe pharmacologique…' },
+    { key: 'secteur', code: 'secteur_therapeutique', hostId: 'cmpFiltSecteur', placeholder: 'Secteur…', short: 'Secteur' },
+    { key: 'classeTh', code: 'classe_therapeutique', hostId: 'cmpFiltClasseTh', placeholder: 'Classe thérapeutique…', short: 'Classe théra' },
+    { key: 'classePh', code: 'classe_pharmacologique', hostId: 'cmpFiltClassePh', placeholder: 'Classe pharma…', short: 'Classe pharma' },
   ];
+
+  const HELP_LINES = [
+    'Cliquez une valeur (chip) pour la sélectionner — Modifier ou Supprimer.',
+    'Sélectionnez 2+ valeurs de la même colonne pour Fusionner.',
+    'Modifier : renomme l’entité (et fusionne les autres si plusieurs).',
+    'Voir les valeurs : afficher / retirer les connaissances publiées par niveau ★.',
+    'Filtre (icône) : restreindre les molécules par secteur ou classes.',
+  ];
+
+  const FILTER_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>';
 
   function selKey(code, id) {
     return code + ':' + id;
@@ -99,10 +110,15 @@
 
   function paintSelectionUi() {
     if (!state.host) return;
-    state.host.querySelectorAll('.jp-cmp-chip').forEach((el) => {
+    if (state.valeursMode) {
+      paintValeursUi();
+      return;
+    }
+    state.host.querySelectorAll('.jp-cmp-chip[data-eid]').forEach((el) => {
       const code = el.getAttribute('data-code');
       const id = el.getAttribute('data-eid');
       el.classList.toggle('is-selected', !!(id && state.selected.has(selKey(code, id))));
+      el.classList.remove('is-val-on');
     });
     const n = state.selected.size;
     const colOk = state.activeCol && n >= 2;
@@ -115,15 +131,93 @@
     if (btnDel) btnDel.disabled = !oneOk;
     const clearBtn = state.host.querySelector('#cmpClearSel');
     if (clearBtn) clearBtn.hidden = n === 0;
-    const info = state.host.querySelector('#cmpSelInfo');
-    if (info) {
-      info.textContent = n
-        ? (n + ' sélectionnée(s)' + (state.activeCol ? ' · ' + (champByCode(state.activeCol)?.libelle || state.activeCol) : ''))
-        : 'Sélectionnez une valeur pour modifier, ou 2+ pour fusionner';
+    paintSelInfo();
+  }
+
+  function activeFilterLabels() {
+    const parts = [];
+    FILTER_CHAMPS.forEach(({ key, code, short }) => {
+      const ids = state.molFilters[key] || [];
+      if (!ids.length) return;
+      const opts = entityOptionsFromFiches(code);
+      const names = ids.map((eid) => {
+        const it = opts.find((o) => String(o.id) === String(eid));
+        return it?.label || String(eid);
+      });
+      parts.push(short + ' : ' + names.join(', '));
+    });
+    return parts;
+  }
+
+  function molFilterCount() {
+    return FILTER_CHAMPS.reduce((acc, { key }) => acc + (state.molFilters[key]?.length || 0), 0);
+  }
+
+  function syncFilterBtn() {
+    const btn = state.host?.querySelector('#cmpFiltBtn');
+    if (!btn) return;
+    const n = molFilterCount();
+    btn.classList.toggle('is-active', n > 0);
+    btn.title = n ? ('Filtres actifs (' + n + ')') : 'Filtrer les molécules';
+    const badge = btn.querySelector('.jp-cmp-filt-badge');
+    if (badge) {
+      badge.hidden = n === 0;
+      badge.textContent = String(n);
     }
   }
 
+  function paintSelInfo() {
+    const info = state.host?.querySelector('#cmpSelInfo');
+    if (!info) return;
+    if (state.valeursMode) {
+      let onCount = 0;
+      Object.keys(state.valeursLocal).forEach((mid) => {
+        onCount += state.valeursLocal[mid]?.size || 0;
+      });
+      const nivLabel = state.valeursNiveau ? ('★' + state.valeursNiveau) : 'Base';
+      info.textContent = 'Mode valeurs (' + nivLabel + ') — cliquez pour afficher / retirer · '
+        + onCount + ' sélectionnée(s)';
+      return;
+    }
+    const filt = activeFilterLabels();
+    const n = state.selected.size;
+    const selBit = n
+      ? (n + ' sélectionnée(s)'
+        + (state.activeCol ? ' · ' + (champByCode(state.activeCol)?.libelle || state.activeCol) : ''))
+      : '';
+    if (filt.length) {
+      info.textContent = filt.join(' · ') + (selBit ? ' · ' + selBit : '');
+      return;
+    }
+    info.textContent = selBit;
+  }
+
+  function paintValeursUi() {
+    state.host.querySelectorAll('.jp-cmp-chip[data-cid]').forEach((el) => {
+      const mid = el.getAttribute('data-mid');
+      const cid = el.getAttribute('data-cid');
+      const on = !!(mid && cid && state.valeursLocal[mid]?.has(String(cid)));
+      el.classList.toggle('is-val-on', on);
+      el.classList.remove('is-selected');
+    });
+    paintSelInfo();
+    const btnSave = state.host.querySelector('#cmpValSave');
+    if (btnSave) btnSave.disabled = !state.valeursData?.bloc_id;
+  }
+
+  function syncToolbarMode() {
+    if (!state.host) return;
+    const bar = state.host.querySelector('#cmpValeursBar');
+    if (bar) bar.hidden = !state.valeursMode;
+    ['#cmpEdit', '#cmpMerge', '#cmpDelete', '#cmpClearSel', '#cmpValeurs'].forEach((sel) => {
+      const el = state.host.querySelector(sel);
+      if (el) el.hidden = state.valeursMode;
+    });
+    state.host.classList.toggle('is-valeurs-mode', !!state.valeursMode);
+  }
+
   function toggleEntity(code, table, id, valeur) {
+    if (state.valeursMode) return;
     if (!id) return;
     if (state.activeCol && state.activeCol !== code) clearSelection();
     state.activeCol = code;
@@ -203,30 +297,16 @@
     if (!mids.length) {
       state.fichesAll = [];
       state.fiches = [];
-      mountMolFilters();
+      syncFilterBtn();
+      paintSelInfo();
       return;
     }
     const data = await rpc('v2_comparaison_fiches', { p_matrice_ids: mids });
     state.fichesAll = Array.isArray(data) ? data : [];
-    mountMolFilters();
-    if (keepFilters) {
-      state.filtSilent = true;
-      try {
-        FILTER_CHAMPS.forEach(({ key, code }) => {
-          const ids = savedFilt[key] || [];
-          const ctrl = state.filterCtrls?.[key];
-          if (!ctrl || !ids.length) return;
-          const optsList = entityOptionsFromFiches(code);
-          ids.forEach((eid) => {
-            const it = optsList.find((o) => String(o.id) === String(eid));
-            if (it) ctrl.add(it);
-          });
-        });
-      } finally {
-        state.filtSilent = false;
-      }
-    }
+    if (keepFilters) state.molFilters = savedFilt;
     applyMolFilters();
+    syncFilterBtn();
+    paintSelInfo();
   }
 
   function entityOptionsFromFiches(code) {
@@ -254,40 +334,82 @@
     state.fiches = (state.fichesAll || []).filter(ficheMatchesFilters);
   }
 
-  function mountMolFilters() {
-    const bar = state.host?.querySelector('#cmpFilters');
-    if (!bar) return;
+  function openFilterModal() {
+    if (!state.scope) {
+      global.JpToast?.warn?.('Choisissez d’abord un scope');
+      return;
+    }
+    if (!state.fichesAll.length) {
+      global.JpToast?.warn?.('Aucune molécule à filtrer dans ce scope');
+      return;
+    }
     const TA = global.JpTypeahead;
+    if (!TA) {
+      global.JpToast?.warn?.('Typeahead indisponible');
+      return;
+    }
+
+    const draft = {
+      secteur: [...(state.molFilters.secteur || [])],
+      classeTh: [...(state.molFilters.classeTh || [])],
+      classePh: [...(state.molFilters.classePh || [])],
+    };
+
+    const wrap = document.createElement('div');
+    wrap.className = 'jp-comparaison-filters-modal';
+    wrap.innerHTML = '<p class="jp-muted">Restreindre les molécules affichées par catégorie.</p>'
+      + FILTER_CHAMPS.map(({ hostId, short }) => (
+        '<label class="jp-cmp-filt-field"><span>' + esc(short) + '</span>'
+        + '<div id="' + hostId + '" class="jp-comparaison-filter"></div></label>'
+      )).join('')
+      + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="cmpFiltClear">Effacer filtres</button>';
+
     const ctrls = {};
     FILTER_CHAMPS.forEach(({ key, code, hostId, placeholder }) => {
-      const host = bar.querySelector('#' + hostId);
-      if (!host) return;
-      host.innerHTML = '';
-      if (!TA) return;
+      const hostEl = wrap.querySelector('#' + hostId);
+      if (!hostEl) return;
       const items = entityOptionsFromFiches(code);
-      ctrls[key] = TA.chips(host, {
+      ctrls[key] = TA.chips(hostEl, {
         search: TA.localSource(items, { limit: 20 }),
         placeholder,
         ariaLabel: placeholder,
         minChars: 0,
         onChange: (sel) => {
-          state.molFilters[key] = (sel || []).map((it) => it.id);
-          if (state.filtSilent) return;
-          applyMolFilters();
-          renderTable();
+          draft[key] = (sel || []).map((it) => it.id);
         },
       });
+      const ids = draft[key] || [];
+      ids.forEach((eid) => {
+        const it = items.find((o) => String(o.id) === String(eid));
+        if (it) ctrls[key].add(it);
+      });
     });
-    state.filterCtrls = ctrls;
-    const clearBtn = bar.querySelector('#cmpFiltClear');
-    if (clearBtn) {
-      clearBtn.onclick = () => {
-        state.molFilters = { secteur: [], classeTh: [], classePh: [] };
-        Object.values(ctrls).forEach((c) => c?.clear?.());
+
+    wrap.querySelector('#cmpFiltClear')?.addEventListener('click', () => {
+      draft.secteur = [];
+      draft.classeTh = [];
+      draft.classePh = [];
+      Object.values(ctrls).forEach((c) => c?.clear?.());
+    });
+
+    global.JpModal.open({
+      title: 'Filtrer les molécules',
+      body: wrap,
+      confirmLabel: 'Appliquer',
+      cancelLabel: 'Fermer',
+      panelClass: 'jp-modal-wide',
+      onConfirm: () => {
+        state.molFilters = {
+          secteur: [...draft.secteur],
+          classeTh: [...draft.classeTh],
+          classePh: [...draft.classePh],
+        };
         applyMolFilters();
+        syncFilterBtn();
+        paintSelInfo();
         renderTable();
-      };
-    }
+      },
+    });
   }
 
   /* ——— Render ——— */
@@ -309,54 +431,84 @@
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpBack">← Retour référentiel</button>'
       + '<h1 class="jp-title">Comparaison</h1>'
       + '<div id="cmpScopeCombo" class="jp-comparaison-scope"></div>'
+      + '<div class="jp-comparaison-head-actions">'
+      + '<button type="button" class="jp-icon-btn jp-cmp-filt-btn" id="cmpFiltBtn" '
+      + 'title="Filtrer les molécules" aria-label="Filtrer les molécules">'
+      + FILTER_ICON_SVG
+      + '<span class="jp-cmp-filt-badge" hidden>0</span>'
+      + '</button>'
+      + '<span id="cmpHelpHost"></span>'
+      + '</div>'
       + '<span class="jp-muted" id="cmpCount"></span>'
       + '</header>'
       + '<div class="jp-comparaison-toolbar">'
-      + '<span class="jp-muted" id="cmpSelInfo">Sélectionnez une valeur pour modifier, ou 2+ pour fusionner</span>'
+      + '<span class="jp-muted" id="cmpSelInfo"></span>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="cmpEdit" disabled>Modifier</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpMerge" disabled>Fusionner</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpDelete" disabled>Supprimer l’entité</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpValeurs">Voir les valeurs</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpClearSel" hidden>Effacer sélection</button>'
       + '</div>'
-      + '<div class="jp-comparaison-filters" id="cmpFilters" hidden>'
-      + '<span class="jp-comparaison-filters-label">Filtrer molécules</span>'
-      + '<div id="cmpFiltSecteur" class="jp-comparaison-filter"></div>'
-      + '<div id="cmpFiltClasseTh" class="jp-comparaison-filter"></div>'
-      + '<div id="cmpFiltClassePh" class="jp-comparaison-filter"></div>'
-      + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="cmpFiltClear">Effacer filtres</button>'
+      + '<div class="jp-comparaison-valeurs-bar" id="cmpValeursBar" hidden>'
+      + '<span class="jp-comparaison-filters-label">Valeurs leçon</span>'
+      + '<label class="jp-cmp-val-inline">Leçon'
+      + '<select id="cmpValLecon"></select></label>'
+      + '<label class="jp-cmp-val-inline">Niveau'
+      + '<select id="cmpValNiveau">'
+      + '<option value="0">Base</option>'
+      + '<option value="1">★1</option><option value="2" selected>★2</option>'
+      + '<option value="3">★3</option><option value="4">★4</option><option value="5">★5</option>'
+      + '</select></label>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="cmpValSave" disabled>Enregistrer</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpValQuit">Quitter</button>'
       + '</div>'
       + '<div class="jp-comparaison-body" id="cmpBody">'
       + '<p class="jp-muted">Choisissez un parcours, un chapitre ou une leçon.</p>'
       + '</div>'
-      + '<aside class="jp-comparaison-valeurs" id="cmpValeursPane" hidden></aside>'
       + '</div>';
+  }
+
+  function fichesForTable() {
+    let rows = state.fiches;
+    if (state.valeursMode && state.valeursData?.matrice_ids) {
+      const allow = new Set((state.valeursData.matrice_ids || []).map(String));
+      if (allow.size) rows = rows.filter((r) => allow.has(String(r.id)));
+    }
+    return rows;
   }
 
   function renderTable() {
     const body = state.host.querySelector('#cmpBody');
     const count = state.host.querySelector('#cmpCount');
-    const filtBar = state.host.querySelector('#cmpFilters');
     if (!state.scope) {
       body.innerHTML = '<p class="jp-muted">Choisissez un parcours, un chapitre ou une leçon.</p>';
       if (count) count.textContent = '';
-      if (filtBar) filtBar.hidden = true;
+      syncFilterBtn();
+      paintSelInfo();
       return;
     }
-    if (filtBar) filtBar.hidden = false;
     const cols = colonnesComparaison();
+    const rows = fichesForTable();
     const nAll = state.fichesAll.length;
-    const n = state.fiches.length;
-    const filtered = n !== nAll;
+    const nFilt = state.fiches.length;
+    const n = rows.length;
     if (count) {
-      count.textContent = (filtered ? n + ' / ' + nAll : n) + ' molécule(s) · ' + (state.scope.label || '');
+      let label = (nFilt !== nAll ? nFilt + ' / ' + nAll : String(nFilt)) + ' molécule(s)';
+      if (state.valeursMode) label += ' · valeurs ' + (state.valeursNiveau ? '★' + state.valeursNiveau : 'base');
+      label += ' · ' + (state.scope.label || '');
+      count.textContent = label;
     }
     if (!nAll) {
       body.innerHTML = '<p class="jp-muted">Aucune molécule dans ce scope (pubs ou blocs molécule).</p>';
       return;
     }
-    if (!n) {
+    if (!nFilt) {
       body.innerHTML = '<p class="jp-muted">Aucune molécule ne correspond aux filtres catégorie.</p>';
+      return;
+    }
+    if (state.valeursMode && !n) {
+      body.innerHTML = '<p class="jp-muted">Aucune molécule du bloc pour ce niveau. '
+        + 'Ajoutez des molécules dans Modif parcours (Base / ★).</p>';
       return;
     }
 
@@ -367,9 +519,10 @@
     });
     html += '</tr></thead><tbody>';
 
-    state.fiches.forEach((row) => {
+    rows.forEach((row) => {
+      const mid = String(row.id);
       const { dci, noms } = dciLabel(row);
-      html += '<tr data-mid="' + esc(row.id) + '">'
+      html += '<tr data-mid="' + esc(mid) + '">'
         + '<th class="jp-cmp-sticky" scope="row">'
         + '<strong>' + esc(dci) + '</strong>'
         + (noms ? '<span class="jp-muted">' + esc(noms) + '</span>' : '')
@@ -385,9 +538,15 @@
               html += '<span class="jp-cmp-chip jp-cmp-chip-static">' + esc(e.valeur) + '</span>';
               return;
             }
+            const cid = state.valeursMode
+              ? state.cidByEntite[mid + '|' + e.id]
+              : null;
             html += '<button type="button" class="jp-cmp-chip" data-code="' + esc(c.code)
               + '" data-table="' + esc(c.table) + '" data-eid="' + esc(e.id)
-              + '" title="Sélectionner">' + esc(e.valeur) + '</button>';
+              + '" data-mid="' + esc(mid) + '"'
+              + (cid ? ' data-cid="' + esc(cid) + '"' : '')
+              + ' title="' + (state.valeursMode ? 'Afficher / retirer' : 'Sélectionner') + '">'
+              + esc(e.valeur) + '</button>';
           });
         }
         html += '</td>';
@@ -397,17 +556,41 @@
     html += '</tbody></table></div>';
     body.innerHTML = html;
 
-    body.querySelectorAll('.jp-cmp-chip[data-eid]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        toggleEntity(
-          btn.getAttribute('data-code'),
-          btn.getAttribute('data-table'),
-          btn.getAttribute('data-eid'),
-          btn.textContent
-        );
+    if (state.valeursMode) {
+      body.querySelectorAll('.jp-cmp-chip[data-cid]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          toggleValeurChip(btn.getAttribute('data-mid'), btn.getAttribute('data-cid'));
+        });
       });
-    });
+      body.querySelectorAll('.jp-cmp-chip[data-eid]:not([data-cid])').forEach((btn) => {
+        btn.classList.add('jp-cmp-chip-disabled');
+        btn.title = 'Pas de connaissance liée';
+        btn.addEventListener('click', () => {
+          global.JpToast?.warn?.('Impossible de lier cette valeur (pas de connaissance)');
+        });
+      });
+    } else {
+      body.querySelectorAll('.jp-cmp-chip[data-eid]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          toggleEntity(
+            btn.getAttribute('data-code'),
+            btn.getAttribute('data-table'),
+            btn.getAttribute('data-eid'),
+            btn.textContent
+          );
+        });
+      });
+    }
     paintSelectionUi();
+  }
+
+  function toggleValeurChip(mid, cid) {
+    if (!mid || !cid) return;
+    const set = state.valeursLocal[mid] || (state.valeursLocal[mid] = new Set());
+    const key = String(cid);
+    if (set.has(key)) set.delete(key);
+    else set.add(key);
+    paintValeursUi();
   }
 
   /* ——— Modifier / Fusion / suppression ——— */
@@ -589,100 +772,71 @@
     });
   }
 
-  /* ——— Valeurs ★ ——— */
+  /* ——— Valeurs ★ (sélection directe dans le tableau) ——— */
   function resolveValeursLeconId() {
     if (state.scope?.kind === 'lecon') return state.scope.id;
     return state.valeursLeconId;
   }
 
-  function openValeursPane() {
+  function fillValeursBar() {
+    const bar = state.host.querySelector('#cmpValeursBar');
+    if (!bar) return;
+    const leconSel = bar.querySelector('#cmpValLecon');
+    const nivSel = bar.querySelector('#cmpValNiveau');
+    const lecons = state.scope?.lecons || [];
+    const needLecon = state.scope?.kind !== 'lecon';
+    const leconWrap = leconSel?.closest('label');
+    if (leconWrap) leconWrap.hidden = !needLecon;
+    if (leconSel) {
+      const cur = resolveValeursLeconId();
+      leconSel.innerHTML = lecons.map((l) => (
+        '<option value="' + esc(l.id) + '"'
+        + (String(l.id) === String(cur) ? ' selected' : '') + '>'
+        + esc(l.titre) + '</option>'
+      )).join('');
+    }
+    if (nivSel) nivSel.value = String(state.valeursNiveau || 0);
+  }
+
+  function openValeursMode() {
     if (!state.scope) {
       global.JpToast?.warn?.('Choisissez d’abord un scope');
       return;
     }
-    state.valeursMode = true;
+    clearSelection();
     if (state.scope.kind === 'lecon') {
       state.valeursLeconId = state.scope.id;
     } else if (!state.valeursLeconId) {
       const first = (state.scope.lecons || [])[0];
       state.valeursLeconId = first?.id || null;
     }
-    void refreshValeursPane();
-  }
-
-  function closeValeursPane() {
-    state.valeursMode = false;
-    state.valeursData = null;
-    const pane = state.host?.querySelector('#cmpValeursPane');
-    if (pane) {
-      pane.hidden = true;
-      pane.innerHTML = '';
-    }
-    state.host?.classList.remove('has-valeurs');
-  }
-
-  async function refreshValeursPane() {
-    const pane = state.host.querySelector('#cmpValeursPane');
-    state.host.classList.add('has-valeurs');
-    pane.hidden = false;
-
-    const lecons = state.scope.lecons || [];
-    const needLeconPick = state.scope.kind !== 'lecon';
-    const leconId = resolveValeursLeconId();
-
-    let html = '<header class="jp-cmp-val-head">'
-      + '<h2>Valeurs affichées</h2>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpValClose">Fermer</button>'
-      + '</header>';
-
-    if (needLeconPick) {
-      html += '<label class="jp-cmp-val-field">Leçon cible'
-        + '<select id="cmpValLecon">'
-        + lecons.map((l) => (
-          '<option value="' + esc(l.id) + '"'
-          + (l.id === leconId ? ' selected' : '') + '>' + esc(l.titre) + '</option>'
-        )).join('')
-        + '</select></label>';
-    }
-
-    html += '<label class="jp-cmp-val-field">Niveau'
-      + '<select id="cmpValNiveau">'
-      + '<option value="0"' + (state.valeursNiveau === 0 ? ' selected' : '') + '>Base</option>'
-      + [1, 2, 3, 4, 5].map((n) => (
-        '<option value="' + n + '"' + (state.valeursNiveau === n ? ' selected' : '') + '>★' + n + '</option>'
-      )).join('')
-      + '</select></label>';
-
-    html += '<div id="cmpValBody"><p class="jp-muted">Chargement…</p></div>'
-      + '<footer class="jp-cmp-val-foot">'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="cmpValSave" disabled>Enregistrer</button>'
-      + '</footer>';
-
-    pane.innerHTML = html;
-    pane.querySelector('#cmpValClose').addEventListener('click', closeValeursPane);
-    pane.querySelector('#cmpValNiveau').addEventListener('change', (e) => {
-      state.valeursNiveau = Number(e.target.value) || 0;
-      void loadAndPaintValeurs();
-    });
-    pane.querySelector('#cmpValLecon')?.addEventListener('change', (e) => {
-      state.valeursLeconId = e.target.value || null;
-      void loadAndPaintValeurs();
-    });
-    pane.querySelector('#cmpValSave').addEventListener('click', () => void saveValeurs());
-
-    await loadAndPaintValeurs();
-  }
-
-  async function loadAndPaintValeurs() {
-    const body = state.host.querySelector('#cmpValBody');
-    const btnSave = state.host.querySelector('#cmpValSave');
-    const leconId = resolveValeursLeconId();
-    if (!leconId) {
-      body.innerHTML = '<p class="jp-muted">Choisissez une leçon cible pour enregistrer les valeurs.</p>';
-      if (btnSave) btnSave.disabled = true;
+    if (!resolveValeursLeconId()) {
+      global.JpToast?.warn?.('Aucune leçon cible dans ce scope');
       return;
     }
-    body.innerHTML = '<p class="jp-muted">Chargement…</p>';
+    state.valeursMode = true;
+    fillValeursBar();
+    syncToolbarMode();
+    void loadValeursIntoTable();
+  }
+
+  function closeValeursMode() {
+    state.valeursMode = false;
+    state.valeursData = null;
+    state.valeursLocal = {};
+    state.cidByEntite = {};
+    syncToolbarMode();
+    renderTable();
+  }
+
+  async function loadValeursIntoTable() {
+    const leconId = resolveValeursLeconId();
+    const body = state.host.querySelector('#cmpBody');
+    if (!leconId) {
+      global.JpToast?.warn?.('Choisissez une leçon cible');
+      return;
+    }
+    body.innerHTML = '<p class="jp-muted">Chargement des valeurs…</p>';
     try {
       const data = await rpc('v2_comparaison_valeurs_lecon', {
         p_module_id: leconId,
@@ -693,6 +847,7 @@
       if (!data?.ok) {
         body.innerHTML = '<p class="jp-muted">Aucun bloc molécule sur cette leçon. '
           + 'Ajoutez-en un dans Modif parcours.</p>';
+        const btnSave = state.host.querySelector('#cmpValSave');
         if (btnSave) btnSave.disabled = true;
         return;
       }
@@ -701,13 +856,15 @@
       const sel = data.selected || {};
       Object.keys(sel).forEach((mid) => {
         const arr = Array.isArray(sel[mid]) ? sel[mid] : [];
-        state.valeursLocal[mid] = new Set(arr.map(String));
+        state.valeursLocal[String(mid)] = new Set(arr.map(String));
       });
 
       const mids = (data.matrice_ids || []).map(String);
       let available = Array.isArray(data.available) ? data.available.slice() : [];
-      if (available.length && !available[0].matrice_id && !available[0].matriceId) {
-        available = [];
+      available.forEach((r) => {
+        if (!r.matrice_id && r.matriceId) r.matrice_id = r.matriceId;
+      });
+      if (!available.length && mids.length) {
         for (const mid of mids) {
           const rows = await rpc('v2_lister_connaissances_matrice', {
             p_matrice_id: mid,
@@ -717,77 +874,23 @@
             available.push(Object.assign({ matrice_id: mid }, r));
           });
         }
-      } else {
-        available.forEach((r) => {
-          if (!r.matrice_id && r.matriceId) r.matrice_id = r.matriceId;
-        });
       }
 
-      const ficheById = {};
-      state.fiches.forEach((f) => { ficheById[f.id] = f; });
-
-      const grouped = {};
+      state.cidByEntite = {};
       available.forEach((r) => {
         const mid = String(r.matrice_id || '');
-        if (!mid) return;
-        if (r.champ_code === 'dci' || r.champ_code === 'nom_commercial') return;
-        (grouped[mid] = grouped[mid] || []).push(r);
+        const eid = r.entite_id ? String(r.entite_id) : '';
+        const cid = r.connaissance_id ? String(r.connaissance_id) : '';
+        if (!mid || !eid || !cid) return;
+        // DCI déjà en colonne identité sticky ; noms commerciaux restent sélectionnables ★
+        if (r.champ_code === 'dci') return;
+        state.cidByEntite[mid + '|' + eid] = cid;
       });
 
-      let html = '';
-      mids.forEach((mid) => {
-        const f = ficheById[mid];
-        const title = f ? (f.dci || mid.slice(0, 8)) : mid.slice(0, 8);
-        const rows = grouped[mid] || [];
-        const set = state.valeursLocal[mid] || (state.valeursLocal[mid] = new Set());
-        html += '<section class="jp-cmp-val-mol" data-mid="' + esc(mid) + '">'
-          + '<h3>' + esc(title) + '</h3>';
-        if (!rows.length) {
-          html += '<p class="jp-muted">Aucune valeur référentiel</p></section>';
-          return;
-        }
-        const byChamp = {};
-        rows.forEach((r) => {
-          (byChamp[r.champ_code] = byChamp[r.champ_code] || []).push(r);
-        });
-        Object.keys(byChamp).sort().forEach((code) => {
-          const lib = champByCode(code)?.libelle || code;
-          html += '<div class="jp-cmp-val-champ"><header>' + esc(lib) + '</header>';
-          byChamp[code].forEach((r) => {
-            const cid = String(r.connaissance_id);
-            const on = set.has(cid);
-            html += '<button type="button" class="jp-cmp-val-chip' + (on ? ' is-on' : '')
-              + '" data-mid="' + esc(mid) + '" data-cid="' + esc(cid) + '">'
-              + esc(r.texte || '—') + '</button>';
-          });
-          html += '</div>';
-        });
-        html += '</section>';
-      });
-
-      if (!mids.length) {
-        html = '<p class="jp-muted">Aucune molécule dans le bloc pour ce niveau. '
-          + 'Ajoutez des molécules dans Modif parcours (onglet Base / ★).</p>';
-        if (btnSave) btnSave.disabled = true;
-      } else if (btnSave) {
-        btnSave.disabled = false;
-      }
-
-      body.innerHTML = html || '<p class="jp-muted">Rien à afficher</p>';
-      body.querySelectorAll('.jp-cmp-val-chip').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const mid = btn.getAttribute('data-mid');
-          const cid = btn.getAttribute('data-cid');
-          const set = state.valeursLocal[mid] || (state.valeursLocal[mid] = new Set());
-          if (set.has(cid)) set.delete(cid);
-          else set.add(cid);
-          btn.classList.toggle('is-on', set.has(cid));
-        });
-      });
+      renderTable();
     } catch (e) {
       body.innerHTML = '<p class="jp-muted">Erreur de chargement</p>';
       global.JpToast?.fromError?.(e);
-      if (btnSave) btnSave.disabled = true;
     }
   }
 
@@ -812,10 +915,26 @@
         module_id: leconId,
         niveau: state.valeursNiveau,
       });
-      await loadAndPaintValeurs();
+      await loadValeursIntoTable();
     } catch (e) {
       global.JpToast?.fromError?.(e);
     }
+  }
+
+  function wireValeursBar() {
+    const bar = state.host.querySelector('#cmpValeursBar');
+    if (!bar || bar.dataset.wired === '1') return;
+    bar.dataset.wired = '1';
+    bar.querySelector('#cmpValNiveau')?.addEventListener('change', (e) => {
+      state.valeursNiveau = Number(e.target.value) || 0;
+      if (state.valeursMode) void loadValeursIntoTable();
+    });
+    bar.querySelector('#cmpValLecon')?.addEventListener('change', (e) => {
+      state.valeursLeconId = e.target.value || null;
+      if (state.valeursMode) void loadValeursIntoTable();
+    });
+    bar.querySelector('#cmpValSave')?.addEventListener('click', () => void saveValeurs());
+    bar.querySelector('#cmpValQuit')?.addEventListener('click', closeValeursMode);
   }
 
   /* ——— Open / close ——— */
@@ -843,7 +962,7 @@
           try {
             state.host.querySelector('#cmpBody').innerHTML = '<p class="jp-muted">Chargement…</p>';
             clearSelection();
-            closeValeursPane();
+            if (state.valeursMode) closeValeursMode();
             await loadScope(it.data.kind, it.data.id);
             renderTable();
           } catch (e) {
@@ -866,13 +985,21 @@
     }
 
     host.querySelector('#cmpBack').addEventListener('click', close);
+    host.querySelector('#cmpFiltBtn')?.addEventListener('click', openFilterModal);
+    const helpHost = host.querySelector('#cmpHelpHost');
+    if (helpHost && global.JpModal?.helpButton) {
+      helpHost.appendChild(global.JpModal.helpButton('Comparaison', HELP_LINES));
+    }
     host.querySelector('#cmpEdit').addEventListener('click', () => void doEdit());
     host.querySelector('#cmpMerge').addEventListener('click', () => void doMerge());
     host.querySelector('#cmpDelete').addEventListener('click', () => void doDelete());
-    host.querySelector('#cmpValeurs').addEventListener('click', openValeursPane);
+    host.querySelector('#cmpValeurs').addEventListener('click', openValeursMode);
     host.querySelector('#cmpClearSel').addEventListener('click', () => {
       clearSelection();
     });
+    wireValeursBar();
+    syncToolbarMode();
+    syncFilterBtn();
 
     try {
       await loadParcoursTree();
@@ -884,7 +1011,7 @@
 
   function close() {
     if (!state.open) return;
-    closeValeursPane();
+    if (state.valeursMode) closeValeursMode();
     clearSelection();
     if (state.host) {
       state.host.hidden = true;
@@ -905,10 +1032,11 @@
 
   function onKeydown(e) {
     if (!state.open) return;
-    if (e.key === 'Escape') {
-      if (state.valeursMode) closeValeursPane();
-      else close();
-    }
+    if (e.key !== 'Escape') return;
+    // Laisser JpModal gérer Escape si une modale est ouverte
+    if (document.getElementById('jp-modal-root')?.querySelector('.jp-modal-backdrop')) return;
+    if (state.valeursMode) closeValeursMode();
+    else close();
   }
 
   function bootFromHash() {
