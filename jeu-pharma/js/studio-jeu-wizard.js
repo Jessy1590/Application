@@ -82,8 +82,24 @@
     return !!(it && it.entite && it.entite_id && it.source !== 'manuel');
   }
 
+  /** Cache session : clés triées → résultat (évite re-RPC sur le même pool). */
+  const _liensMatriceCache = new Map();
+  const _liensEntiteCache = new Map();
+
+  function cloneLinksMap(src) {
+    const out = {};
+    Object.keys(src || {}).forEach((k) => {
+      out[k] = {};
+      Object.keys(src[k] || {}).forEach((t) => {
+        out[k][t] = (src[k][t] || []).slice();
+      });
+    });
+    return out;
+  }
+
   /**
    * Charge les ids d’entités liés à chaque matrice (ordre fiche).
+   * Préfère RPC `v2_liens_matrices_entites` (1 RTT) ; fallback 8 selects // + cache session.
    * @returns {Promise<Record<string, Record<string, string[]>>>} matriceId → entiteTable → [entityIds]
    */
   async function loadMatriceEntityLinks(matriceIds) {
@@ -91,6 +107,29 @@
     const out = {};
     ids.forEach((id) => { out[id] = {}; });
     if (!ids.length) return out;
+
+    const cacheKey = ids.slice().sort().join(',');
+    if (_liensMatriceCache.has(cacheKey)) return cloneLinksMap(_liensMatriceCache.get(cacheKey));
+
+    try {
+      const { data, error } = await sb().rpc('v2_liens_matrices_entites', {
+        p_matrice_ids: ids,
+      });
+      if (error) throw error;
+      const raw = data && typeof data === 'object' ? data : {};
+      ids.forEach((id) => {
+        const tables = raw[id] || {};
+        out[id] = {};
+        Object.keys(ENTITE_LIAISON).forEach((table) => {
+          const arr = tables[table];
+          if (Array.isArray(arr) && arr.length) out[id][table] = arr.map(String);
+        });
+      });
+      _liensMatriceCache.set(cacheKey, cloneLinksMap(out));
+      return out;
+    } catch (_) {
+      /* fallback selects parallèles si RPC absente / erreur */
+    }
 
     await Promise.all(Object.keys(ENTITE_LIAISON).map(async (table) => {
       const meta = ENTITE_LIAISON[table];
@@ -108,6 +147,7 @@
         out[mid][table].push(eid);
       });
     }));
+    _liensMatriceCache.set(cacheKey, cloneLinksMap(out));
     return out;
   }
 
@@ -154,6 +194,31 @@
     const out = {};
     uniq.forEach((id) => { out[id] = []; });
     if (!meta || !uniq.length) return out;
+
+    const cacheKey = entiteTable + ':' + uniq.slice().sort().join(',');
+    if (_liensEntiteCache.has(cacheKey)) {
+      const cached = _liensEntiteCache.get(cacheKey);
+      uniq.forEach((id) => { out[id] = (cached[id] || []).slice(); });
+      return out;
+    }
+
+    try {
+      const { data, error } = await sb().rpc('v2_liens_matrices_entites', {
+        p_entite_table: entiteTable,
+        p_entite_ids: uniq,
+      });
+      if (error) throw error;
+      const raw = data && typeof data === 'object' ? data : {};
+      uniq.forEach((id) => {
+        const arr = raw[id];
+        out[id] = Array.isArray(arr) ? arr.map(String) : [];
+      });
+      _liensEntiteCache.set(cacheKey, Object.fromEntries(uniq.map((id) => [id, out[id].slice()])));
+      return out;
+    } catch (_) {
+      /* fallback select */
+    }
+
     const { data, error } = await sb()
       .from(meta.liaison)
       .select('matrice_id, ' + meta.fk + ', ordre')
@@ -166,6 +231,7 @@
       if (!eid || !mid || !out[eid]) return;
       if (out[eid].indexOf(mid) < 0) out[eid].push(mid);
     });
+    _liensEntiteCache.set(cacheKey, Object.fromEntries(uniq.map((id) => [id, out[id].slice()])));
     return out;
   }
 

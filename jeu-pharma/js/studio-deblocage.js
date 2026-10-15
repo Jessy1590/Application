@@ -1,11 +1,9 @@
 /**
- * Studio — critères de déblocage (migration 028).
+ * Studio — critères de déblocage (migration 028 + 065 par niveau ★).
  *
- * - Leçon / chapitre : prérequis (`prerequis_module_id`) + critères de validation (`criteres_json`).
- * - Parcours : prérequis parcours + progression minimale + jeux exigés (RPC v2_maj_parcours_criteres).
- *
- * Un élément est « validé » quand ses critères sont remplis (lecture jusqu’en bas et / ou score minimum à un jeu) ;
- * l’élément qui l’a pour prérequis s’ouvre alors. La RLS / les RPC restent la source de vérité.
+ * - Leçon / chapitre : prérequis + critères de validation (`criteres_json`).
+ * - Par niveau ★1–★5 : overrides dans `criteres_json.niveaux["N"]` ; base = fallback.
+ * - Parcours : prérequis parcours + progression minimale + jeux (RPC v2_maj_parcours_criteres).
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -30,32 +28,68 @@
 
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
   const fmt10 = (v) => (Number.isInteger(v) ? String(v) : String(v).replace('.', ','));
+  const NIVEAUX = ['1', '2', '3', '4', '5'];
+
+  /** Critères plats (sans `niveaux` / prérequis). */
+  function platOf(crit) {
+    const c = crit && typeof crit === 'object' ? crit : {};
+    return {
+      lecture: c.lecture,
+      jeux: Array.isArray(c.jeux) ? c.jeux.map((j) => ({
+        modele_id: j.modele_id,
+        score_min_pct: j.score_min_pct,
+      })) : [],
+      logique: c.logique === 'ou' ? 'ou' : 'et',
+      progression_min_pct: c.progression_min_pct,
+    };
+  }
+
+  function hasNiveauOverride(crit, n) {
+    const o = crit && crit.niveaux && crit.niveaux[String(n)];
+    return !!(o && typeof o === 'object' && Object.keys(o).length);
+  }
 
   /* ——— Éditeur de critères ——— */
 
   /**
    * @param {HTMLElement} host
    * @param {{ criteres: object, jeux: Array, kind: 'lecon'|'chapitre'|'parcours', onChange?: Function }} o
-   * @returns {{ get: () => object, summary: () => string, count: () => number }}
+   * @returns {{ get: () => object, summary: () => string, count: () => number, set: (c: object) => void }}
    */
   function criteresEditor(host, o) {
     const kind = o.kind;
-    const crit = o.criteres || {};
     const jeuxById = {};
     (o.jeux || []).forEach((j) => { jeuxById[j.id] = j; });
     const st = {
-      lecture: kind === 'lecon' ? crit.lecture !== false : null,
-      jeux: (crit.jeux || []).map((j) => ({ modele_id: j.modele_id, min10: (Number(j.score_min_pct) || 0) / 10 })),
-      logique: crit.logique === 'ou' ? 'ou' : 'et',
-      progMin: kind === 'parcours' ? (crit.progression_min_pct != null ? Number(crit.progression_min_pct) : 100) : null,
+      lecture: null,
+      jeux: [],
+      logique: 'et',
+      progMin: null,
     };
+
+    function loadFrom(crit) {
+      const c = platOf(crit);
+      st.lecture = kind === 'lecon' ? c.lecture !== false : null;
+      st.jeux = (c.jeux || []).map((j) => ({
+        modele_id: j.modele_id,
+        min10: (Number(j.score_min_pct) || 0) / 10,
+      }));
+      st.logique = c.logique === 'ou' ? 'ou' : 'et';
+      st.progMin = kind === 'parcours'
+        ? (c.progression_min_pct != null ? Number(c.progression_min_pct) : 100)
+        : null;
+    }
+    loadFrom(o.criteres || {});
 
     const count = () => (st.lecture ? 1 : 0) + st.jeux.length;
 
     function get() {
       const out = {};
       if (kind === 'lecon') out.lecture = !!st.lecture;
-      out.jeux = st.jeux.map((j) => ({ modele_id: j.modele_id, score_min_pct: Math.round(clamp(Number(j.min10) || 0, 0, 10) * 10) }));
+      out.jeux = st.jeux.map((j) => ({
+        modele_id: j.modele_id,
+        score_min_pct: Math.round(clamp(Number(j.min10) || 0, 0, 10) * 10),
+      }));
       out.logique = st.logique;
       if (kind === 'parcours') out.progression_min_pct = Math.round(clamp(Number(st.progMin) || 0, 0, 100));
       return out;
@@ -169,7 +203,16 @@
     }
 
     paint();
-    return { get, summary, count };
+    return {
+      get,
+      summary,
+      count,
+      set(crit) {
+        loadFrom(crit || {});
+        paint();
+        emit();
+      },
+    };
   }
 
   /* ——— Prérequis (leçons / chapitres) ——— */
@@ -185,14 +228,27 @@
     }
     function descendants(id) {
       const out = [];
-      modules.filter((m) => m.parent_id === id).forEach((c) => { out.push(c.id); descendants(c.id).forEach((d) => out.push(d)); });
+      modules.filter((m) => m.parent_id === id).forEach((c) => {
+        out.push(c.id);
+        descendants(c.id).forEach((d) => out.push(d));
+      });
       return out;
     }
     function depsOf(id) {
       const m = byId[id];
       const out = [];
       let a = m;
-      while (a) { if (a.prerequis_module_id) out.push(a.prerequis_module_id); a = byId[a.parent_id]; }
+      while (a) {
+        if (a.prerequis_module_id) out.push(a.prerequis_module_id);
+        const nivs = a.criteres_json && a.criteres_json.niveaux;
+        if (nivs && typeof nivs === 'object') {
+          NIVEAUX.forEach((k) => {
+            const ov = nivs[k];
+            if (ov && ov.prerequis_module_id) out.push(ov.prerequis_module_id);
+          });
+        }
+        a = byId[a.parent_id];
+      }
       if (m && m.est_groupe) descendants(id).forEach((d) => out.push(d));
       return out;
     }
@@ -201,28 +257,31 @@
       const stack = [id];
       while (stack.length) {
         const cur = stack.pop();
-        depsOf(cur).forEach((d) => { if (!seen.has(d)) { seen.add(d); stack.push(d); } });
+        depsOf(cur).forEach((d) => {
+          if (!seen.has(d)) { seen.add(d); stack.push(d); }
+        });
       }
       return seen;
     }
     return { byId, ancestors, descendants, reach };
   }
 
-  /** Candidats prérequis : jamais soi-même, ses parents / enfants, ni un élément qui dépendrait de soi (blocage mutuel). */
+  /** Candidats prérequis : jamais soi-même, ses parents / enfants, ni un élément qui dépendrait de soi. */
   function prereqCandidates(self, modules) {
     const g = buildGraph(modules);
     const banned = new Set([self.id].concat(g.ancestors(self.id), g.descendants(self.id)));
     return modules.filter((m) => !banned.has(m.id) && !g.reach(m.id).has(self.id)).map((m) => ({
       id: m.id,
       label: m.titre,
-      sub: (m.est_groupe ? 'Chapitre' : 'Leçon') + (m.parent_id && g.byId[m.parent_id] ? ' · ' + g.byId[m.parent_id].titre : ''),
+      sub: (m.est_groupe ? 'Chapitre' : 'Leçon')
+        + (m.parent_id && g.byId[m.parent_id] ? ' · ' + g.byId[m.parent_id].titre : ''),
     }));
   }
 
   /**
-   * Panneau « Déblocage » d’une leçon ou d’un chapitre.
+   * Panneau « Déblocage » d’une leçon ou d’un chapitre — Base + overrides ★1–★5.
    * @param {HTMLElement} host
-   * @param {{ module: object, modules: Array, parcoursId: string, onSaved?: Function }} o
+   * @param {{ module: object, modules: Array, parcoursId: string, onSaved?: Function, noHead?: boolean }} o
    */
   async function mountModule(host, o) {
     const m = o.module;
@@ -231,54 +290,253 @@
     try { jeux = await loadJeux(o.parcoursId); } catch (_) { /* éditeur sans jeux */ }
     if (!host.isConnected) return;
 
-    host.innerHTML = '<div class="jp-inspector-head"><strong class="jp-inspector-title">Déblocage</strong><span data-help></span></div>'
+    const raw = m.criteres_json && typeof m.criteres_json === 'object' ? m.criteres_json : {};
+    const baseCrit = platOf(raw);
+    const overrides = {};
+    NIVEAUX.forEach((n) => {
+      if (hasNiveauOverride(raw, n)) {
+        const ov = raw.niveaux[n];
+        overrides[n] = {
+          crit: platOf(ov),
+          prereqId: Object.prototype.hasOwnProperty.call(ov, 'prerequis_module_id')
+            ? (ov.prerequis_module_id || null)
+            : undefined,
+        };
+      }
+    });
+
+    let tab = 'base';
+    let basePrereqId = m.prerequis_module_id || null;
+    const cands = prereqCandidates(m, o.modules);
+
+    const head = o.noHead
+      ? ''
+      : '<div class="jp-inspector-head"><strong class="jp-inspector-title">Déblocage</strong><span data-help></span></div>';
+
+    host.innerHTML = head
+      + '<div class="jp-unlock-niv-bar">'
+      + '<div class="jp-vtabs jp-unlock-vtabs" role="tablist" data-niv-tabs></div>'
+      + '<p class="jp-muted jp-field-hint" data-niv-hint></p>'
+      + '</div>'
+      + '<div data-niv-actions></div>'
       + '<div class="jp-field jp-field-tight"><label>S’ouvre après validation de</label><div data-prereq></div>'
       + '<small class="jp-field-hint" data-prereq-hint></small></div>'
       + '<div class="jp-field jp-field-tight"><span class="jp-field-label">'
       + (m.est_groupe ? 'Pour valider ce chapitre' : 'Pour valider cette leçon') + '</span><div data-crit></div></div>'
       + '<button type="button" class="jp-btn jp-btn-primary" data-save>Enregistrer le déblocage</button>';
 
-    host.querySelector('[data-help]').appendChild(global.JpModal.helpButton('Déblocage', [
-      'Choisissez ce qu’il faut avoir terminé avant d’ouvrir cet élément : sans prérequis, il est ouvert d’emblée.',
-      'Une leçon est validée quand elle est lue jusqu’en bas et / ou quand un jeu atteint le score minimum (au choix ET / OU).',
-      'Un chapitre est validé quand toutes ses leçons publiées le sont ; un prérequis non publié est ignoré.',
-      'Le joueur voit exactement ce qu’il lui reste à faire (« veuillez faire le jeu … pour passer à la leçon suivante »).',
-    ]));
-
-    let prereqId = m.prerequis_module_id || null;
-    const cands = prereqCandidates(m, o.modules);
-    const current = prereqId ? o.modules.find((x) => x.id === prereqId) : null;
-    const initial = current ? { id: current.id, label: current.titre, sub: current.est_groupe ? 'Chapitre' : 'Leçon' } : null;
-    const hint = host.querySelector('[data-prereq-hint]');
-    function paintHint() {
-      const p = prereqId ? o.modules.find((x) => x.id === prereqId) : null;
-      hint.textContent = !prereqId ? 'Aucun : ouvert dès le début.'
-        : (p && !p.publie ? 'Ce prérequis n’est pas publié : il est ignoré pour les joueurs.' : '');
+    if (!o.noHead) {
+      host.querySelector('[data-help]')?.appendChild(global.JpModal.helpButton('Déblocage', [
+        'Base = critères communs à tous les niveaux ★ sans personnalisation.',
+        '★N = override optionnel (prérequis, lecture, jeux, ET/OU) pour les joueurs inscrits en ★N.',
+        'Sans override ★N, le joueur hérite de la base. Un prérequis hors plage ★ est ignoré.',
+        'Le joueur voit exactement ce qu’il lui reste à faire pour débloquer la suite.',
+      ]));
     }
-    global.JpTypeahead.combo(host.querySelector('[data-prereq]'), {
-      search: global.JpTypeahead.localSource(cands, { limit: 12 }),
-      placeholder: 'Aucun (ouvert d’emblée) — chercher…',
-      ariaLabel: 'Prérequis',
-      initial,
-      onChange: (it) => { prereqId = it ? it.id : null; paintHint(); },
-    });
-    paintHint();
 
-    const ed = criteresEditor(host.querySelector('[data-crit]'), {
-      criteres: m.criteres_json || {},
-      jeux,
-      kind,
-    });
+    const hintEl = host.querySelector('[data-niv-hint]');
+    const actionsEl = host.querySelector('[data-niv-actions]');
+    const prereqHost = host.querySelector('[data-prereq]');
+    const hintPrereq = host.querySelector('[data-prereq-hint]');
+    let prereqCombo = null;
+    let ed = null;
+    let suppress = false;
+
+    function currentPrereqId() {
+      if (tab === 'base') return basePrereqId;
+      const ov = overrides[tab];
+      if (ov && ov.prereqId !== undefined) return ov.prereqId;
+      return basePrereqId;
+    }
+
+    function currentCrit() {
+      if (tab === 'base') return baseCrit;
+      const ov = overrides[tab];
+      return ov ? ov.crit : baseCrit;
+    }
+
+    function isCustom() {
+      return tab !== 'base' && !!overrides[tab];
+    }
+
+    function paintTabs() {
+      const tabs = host.querySelector('[data-niv-tabs]');
+      const items = [['base', 'Base']].concat(NIVEAUX.map((n) => [n, '★' + n]));
+      tabs.innerHTML = items.map(([id, lab]) => {
+        const on = tab === id ? ' is-active' : '';
+        const custom = id !== 'base' && overrides[id] ? ' is-published' : '';
+        const badge = id !== 'base' && overrides[id]
+          ? '<span class="jp-vtab-dot" title="Personnalisé pour ce niveau" aria-hidden="true"></span>'
+          : '';
+        return '<button type="button" class="jp-vtab' + on + custom + '" data-niv="' + id + '" role="tab">'
+          + '<span class="jp-vtab-label">' + lab + '</span>' + badge + '</button>';
+      }).join('');
+      tabs.querySelectorAll('[data-niv]').forEach((b) => {
+        b.addEventListener('click', () => {
+          if (tab === b.getAttribute('data-niv')) return;
+          commitTab();
+          tab = b.getAttribute('data-niv');
+          paintAll();
+        });
+      });
+    }
+
+    function paintHint() {
+      if (tab === 'base') {
+        hintEl.textContent = 'Base = appliquée à tous les ★ sans personnalisation.';
+      } else if (overrides[tab]) {
+        hintEl.textContent = '★' + tab + ' personnalisé — les joueurs ★' + tab + ' utilisent ces critères.';
+      } else {
+        hintEl.textContent = '★' + tab + ' hérite de la base. Cliquez « Personnaliser » pour un déblocage distinct.';
+      }
+    }
+
+    function paintActions() {
+      if (tab === 'base') {
+        actionsEl.innerHTML = '';
+        return;
+      }
+      if (overrides[tab]) {
+        actionsEl.innerHTML = '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" data-reset-niv>'
+          + 'Réinitialiser (hériter de la base)</button>';
+        actionsEl.querySelector('[data-reset-niv]').addEventListener('click', () => {
+          delete overrides[tab];
+          paintAll();
+        });
+      } else {
+        actionsEl.innerHTML = '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" data-custom-niv>'
+          + 'Personnaliser ★' + tab + '</button>';
+        actionsEl.querySelector('[data-custom-niv]').addEventListener('click', () => {
+          overrides[tab] = {
+            crit: JSON.parse(JSON.stringify(baseCrit)),
+            prereqId: undefined,
+          };
+          paintAll();
+        });
+      }
+    }
+
+    function paintPrereqHint() {
+      const pid = currentPrereqId();
+      const p = pid ? o.modules.find((x) => x.id === pid) : null;
+      const inherit = tab !== 'base' && (!overrides[tab] || overrides[tab].prereqId === undefined);
+      let t = !pid ? 'Aucun : ouvert dès le début.' : '';
+      if (p && !p.publie) t = 'Ce prérequis n’est pas publié : il est ignoré pour les joueurs.';
+      if (inherit && tab !== 'base') t = (t ? t + ' ' : '') + '(hérité de la base)';
+      hintPrereq.textContent = t;
+    }
+
+    function mountPrereq() {
+      const pid = currentPrereqId();
+      const current = pid ? o.modules.find((x) => x.id === pid) : null;
+      const initial = current
+        ? { id: current.id, label: current.titre, sub: current.est_groupe ? 'Chapitre' : 'Leçon' }
+        : null;
+      const disabled = tab !== 'base' && !overrides[tab];
+      prereqHost.innerHTML = '';
+      if (disabled) {
+        prereqHost.innerHTML = '<p class="jp-muted jp-crit-none" style="margin:0">'
+          + (initial ? esc(initial.label) : 'Aucun (ouvert d’emblée)') + '</p>';
+        paintPrereqHint();
+        return;
+      }
+      prereqCombo = global.JpTypeahead.combo(prereqHost, {
+        search: global.JpTypeahead.localSource(cands, { limit: 12 }),
+        placeholder: 'Aucun (ouvert d’emblée) — chercher…',
+        ariaLabel: 'Prérequis',
+        initial,
+        onChange: (it) => {
+          const id = it ? it.id : null;
+          if (tab === 'base') basePrereqId = id;
+          else if (overrides[tab]) overrides[tab].prereqId = id;
+          paintPrereqHint();
+        },
+      });
+      paintPrereqHint();
+    }
+
+    function mountCrit() {
+      const disabled = tab !== 'base' && !overrides[tab];
+      const critHost = host.querySelector('[data-crit]');
+      if (disabled) {
+        critHost.innerHTML = '<p class="jp-muted jp-field-hint" style="margin:0">Hérite des critères de la base.</p>';
+        ed = null;
+        return;
+      }
+      ed = criteresEditor(critHost, {
+        criteres: currentCrit(),
+        jeux,
+        kind,
+        onChange: () => {
+          if (suppress) return;
+          commitTab();
+        },
+      });
+    }
+
+    function commitTab() {
+      if (!ed) return;
+      const got = ed.get();
+      if (tab === 'base') {
+        Object.assign(baseCrit, got);
+      } else if (overrides[tab]) {
+        overrides[tab].crit = got;
+      }
+    }
+
+    function paintAll() {
+      suppress = true;
+      paintTabs();
+      paintHint();
+      paintActions();
+      mountPrereq();
+      mountCrit();
+      suppress = false;
+    }
+
+    function buildPayload() {
+      commitTab();
+      const out = {
+        lecture: kind === 'lecon' ? baseCrit.lecture !== false : undefined,
+        jeux: baseCrit.jeux || [],
+        logique: baseCrit.logique === 'ou' ? 'ou' : 'et',
+      };
+      if (kind !== 'lecon') delete out.lecture;
+      const niveaux = {};
+      NIVEAUX.forEach((n) => {
+        const ov = overrides[n];
+        if (!ov) return;
+        const entry = {
+          lecture: kind === 'lecon' ? ov.crit.lecture !== false : undefined,
+          jeux: ov.crit.jeux || [],
+          logique: ov.crit.logique === 'ou' ? 'ou' : 'et',
+        };
+        if (kind !== 'lecon') delete entry.lecture;
+        if (ov.prereqId !== undefined) {
+          entry.prerequis_module_id = ov.prereqId;
+        }
+        niveaux[n] = entry;
+      });
+      if (Object.keys(niveaux).length) out.niveaux = niveaux;
+      return out;
+    }
+
+    paintAll();
 
     host.querySelector('[data-save]').addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
       try {
+        const criteres_json = buildPayload();
         await rpc('v2_upsert_module', {
-          p_payload: { id: m.id, prerequis_module_id: prereqId, criteres_json: ed.get() },
+          p_payload: {
+            id: m.id,
+            prerequis_module_id: basePrereqId,
+            criteres_json,
+          },
         });
-        m.prerequis_module_id = prereqId;
-        m.criteres_json = ed.get();
+        m.prerequis_module_id = basePrereqId;
+        m.criteres_json = criteres_json;
         global.JpToast?.ok?.('Déblocage enregistré');
         if (o.onSaved) await o.onSaved();
       } catch (err) {
@@ -330,7 +588,11 @@
       initial: cur || null,
       onChange: (it) => { prereqId = it ? it.id : null; },
     });
-    const ed = criteresEditor(overlay.querySelector('[data-crit]'), { criteres: p.criteres_json || {}, jeux, kind: 'parcours' });
+    const ed = criteresEditor(overlay.querySelector('[data-crit]'), {
+      criteres: p.criteres_json || {},
+      jeux,
+      kind: 'parcours',
+    });
 
     overlay.querySelector('[data-save]').addEventListener('click', async (e) => {
       const btn = e.currentTarget;

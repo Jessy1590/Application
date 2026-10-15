@@ -14,6 +14,7 @@
   const DEFAULT_COLS = ['nom_commercial', 'dci', 'secteur_therapeutique', 'classe_pharmacologique', 'indications'];
   const PAGE_STEP = 200;
   const AC_MAX = 12;
+  const AC_DEBOUNCE_MS = 280;
 
   const CHAMPS = (typeof global.JpConstants.champsActifs === 'function'
     ? global.JpConstants.champsActifs()
@@ -46,6 +47,10 @@
   let queueIdx = 0;
   let queueActive = false;
   let queueResume = false;
+  let queueUser = null;
+  let queueFull = null;
+  let acDebounce = null;
+  let lieDebounce = null;
 
   /* ——— Préférences ——— */
   function defaultPrefs() {
@@ -168,15 +173,47 @@
         : ' <span class="jp-badge jp-badge-a-valider">À valider</span>');
   }
 
-  function render() {
-    const host = $('list');
+  function updateListChrome() {
     const rows = filtered();
-    const cols = CHAMPS.filter((c) => prefs.columns.includes(c.code));
     const nValid = rows.filter(isValidee).length;
     $('refCount').textContent = rows.length === all.length ? rows.length + ' fiches' : rows.length + ' / ' + all.length;
     $('valCount').textContent = nValid + ' / ' + rows.length + ' validées';
     $('btnResetVal').disabled = !rows.length;
     $('toolbar').hidden = !all.length;
+    return rows;
+  }
+
+  /** Met à jour le badge statut d’une ligne sans réécrire toute la table. */
+  function patchRowBadges(id) {
+    const row = all.find((r) => r.id === id);
+    if (!row) return;
+    if (prefs.validation === 'a_valider' || prefs.validation === 'validee') {
+      render();
+      return;
+    }
+    updateListChrome();
+    const tr = document.querySelector('#list tbody tr[data-id="' + CSS.escape(String(id)) + '"]');
+    if (!tr) return;
+    const td = tr.querySelector('td:last-child');
+    if (td) td.innerHTML = badges(row);
+  }
+
+  /** Patch local après save / IA — pas de refreshAll réseau. */
+  function upsertLocal(saved, prevId) {
+    if (!saved?.id) return;
+    decorate([saved]);
+    if (prevId && prevId !== saved.id) all = all.filter((r) => r.id !== prevId);
+    const i = all.findIndex((r) => r.id === saved.id);
+    if (i >= 0) all[i] = saved;
+    else all.unshift(saved);
+    syncFilterOptions();
+    render();
+  }
+
+  function render() {
+    const host = $('list');
+    const rows = updateListChrome();
+    const cols = CHAMPS.filter((c) => prefs.columns.includes(c.code));
 
     if (!all.length) {
       global.JpUi.emptyState(host, { title: 'Aucune fiche' });
@@ -335,9 +372,14 @@
     input.addEventListener('input', () => {
       $('fLieEntityId').value = '';
       $('fLieClear').hidden = !input.value;
+      clearTimeout(lieDebounce);
+      lieDebounce = setTimeout(() => void updateLie(), AC_DEBOUNCE_MS);
+    });
+    input.addEventListener('focus', () => {
+      clearTimeout(lieBlur);
+      clearTimeout(lieDebounce);
       void updateLie();
     });
-    input.addEventListener('focus', () => { clearTimeout(lieBlur); void updateLie(); });
     input.addEventListener('blur', () => { lieBlur = setTimeout(hideLie, 160); });
     input.addEventListener('keydown', (e) => {
       const list = $('sug_lie');
@@ -549,12 +591,14 @@
       const code = el.getAttribute('data-ac-code');
       dirty = true;
       if (champBy(code)?.card === 1) { el.dataset.entityId = ''; syncSingular(code); }
-      void updateSug(code);
+      clearTimeout(acDebounce);
+      acDebounce = setTimeout(() => void updateSug(code), AC_DEBOUNCE_MS);
     });
     host.addEventListener('focusin', (e) => {
       const el = e.target.closest('[data-ac-code]');
       if (!el) return;
       clearTimeout(acBlur);
+      clearTimeout(acDebounce);
       void updateSug(el.getAttribute('data-ac-code'));
     });
     host.addEventListener('focusout', (e) => {
@@ -668,17 +712,48 @@
     }
   }
 
-  function openEditor(row) {
+  /** True si la ligne a déjà les agrégats complets (pas seulement v_medicaments_liste). */
+  function isFullRow(row) {
+    return !!(row && (Array.isArray(row.contre_indications) || Array.isArray(row.effets_indesirables)
+      || Array.isArray(row.interactions) || Array.isArray(row.surveillances)));
+  }
+
+  async function openEditor(rowOrStub) {
     $('editorModal').hidden = false;
     $('editor').scrollTop = 0;
     document.querySelector('.jp-med-editor-body')?.scrollTo(0, 0);
     clearBdm();
-    if (!row) {
+    if (!rowOrStub) {
       resetForm();
       highlightRow(null);
       dirty = false;
       $('bdmQ').focus();
       return;
+    }
+    let row = rowOrStub;
+    // Liste = vue légère ; fiche complète à l’ouverture éditeur (sauf si déjà chargée).
+    if (row.id && !isFullRow(row)) {
+      try {
+        const full = await MED().getById(row.id);
+        if (!full) {
+          global.JpToast.warn('Fiche introuvable');
+          closeEditor(true);
+          return;
+        }
+        row = full;
+        const idx = all.findIndex((r) => r.id === full.id);
+        if (idx >= 0) {
+          decorate([full]);
+          all[idx] = full;
+        }
+      } catch (e) {
+        global.JpToast.fromError(e);
+        return;
+      }
+    } else if (isFullRow(row)) {
+      decorate([row]);
+      const idx = all.findIndex((r) => r.id === row.id);
+      if (idx >= 0) all[idx] = row;
     }
     resetForm();
     editingId = row.id;
@@ -711,7 +786,7 @@
     editingId = null;
     dirty = false;
     highlightRow(null);
-    if (queueActive && queueResume) resumeQueue();
+    if (queueActive && queueResume) void resumeQueue();
   }
 
   function collectPayload(validee) {
@@ -749,13 +824,14 @@
         global.JpToast.warn('DCI ou nom commercial requis');
         return;
       }
+      const prevId = editingId;
       const saved = await MED().save(payload, editingId);
       global.JpToast.ok(validee ? 'Enregistrée et validée' : 'Enregistrée');
       dirty = false;
-      await refreshAll();
+      upsertLocal(saved, prevId);
       if (validee) { closeEditor(true); return; }
-      const row = all.find((r) => r.id === (saved?.id || editingId));
-      if (row) openEditor(row); else closeEditor(true);
+      if (saved?.id) await openEditor(saved);
+      else closeEditor(true);
     } catch (e) {
       global.JpToast.fromError(e);
       void global.JpLogs?.error?.('medicament_save', { message: e?.message });
@@ -822,7 +898,7 @@
         dciEnt = await ENT().findOrCreate('dcis', pre.dci);
         const existing = dciEnt?.id ? await MED().findByDciId(dciEnt.id, editingId) : null;
         if (existing) {
-          openEditor(existing);
+          await openEditor(existing);
           if (pre.nom_commercial) await addNom(pre.nom_commercial);
           global.JpToast.ok('DCI existante — nom ajouté');
           return;
@@ -863,10 +939,11 @@
   /* ——— Revue « Valider fiches » ——— */
   const queueRow = () => all.find((r) => r.id === queue[queueIdx]) || null;
 
-  function renderQueue() {
+  async function renderQueue() {
     const total = queue.length;
-    const row = queueRow();
-    if (!total || queueIdx >= total || !row) {
+    const stub = queueRow();
+    if (!total || queueIdx >= total || !stub) {
+      queueFull = null;
       $('valProgress').textContent = 'Terminé';
       $('valBody').innerHTML = '<p class="jp-title" style="font-size:1.1rem">Revue terminée</p>';
       $('valOk').disabled = true;
@@ -874,6 +951,29 @@
       return;
     }
     $('valProgress').textContent = (queueIdx + 1) + ' / ' + total;
+    $('valOk').disabled = true;
+    $('valEdit').disabled = true;
+    $('valBody').innerHTML = '<p class="jp-muted">Chargement…</p>';
+    try {
+      queueFull = await MED().getById(stub.id);
+      if (!queueFull) throw new Error('Fiche introuvable');
+      const idx = all.findIndex((r) => r.id === stub.id);
+      if (idx >= 0) {
+        decorate([queueFull]);
+        all[idx] = Object.assign(all[idx], {
+          fiche_validee: queueFull.fiche_validee,
+          dci: queueFull.dci,
+          noms_commerciaux: queueFull.noms_commerciaux,
+          nom_commercial: queueFull.nom_commercial,
+          statut: queueFull.statut,
+        });
+      }
+    } catch (e) {
+      global.JpToast.fromError(e);
+      $('valBody').innerHTML = '<p class="jp-muted">Erreur de chargement</p>';
+      return;
+    }
+    const row = queueFull;
     const lines = CHAMPS.map((c) => {
       const v = cellValue(row, c.code);
       const empty = v === '—';
@@ -887,15 +987,17 @@
     $('valEdit').disabled = false;
   }
 
-  function openQueue() {
+  async function openQueue() {
     const base = filtered().filter((r) => !isValidee(r));
     if (!base.length) { global.JpToast.warn('Rien à valider (filtre actuel)'); return; }
     queue = base.map((r) => r.id);
     queueIdx = 0;
     queueActive = true;
     queueResume = false;
+    queueFull = null;
+    try { queueUser = await global.JpApp.getUser(); } catch (_) { queueUser = null; }
     $('valModal').hidden = false;
-    renderQueue();
+    await renderQueue();
     $('valOk').focus();
   }
 
@@ -905,16 +1007,18 @@
     queueResume = false;
     queue = [];
     queueIdx = 0;
+    queueFull = null;
+    queueUser = null;
   }
 
-  function resumeQueue() {
+  async function resumeQueue() {
     queueResume = false;
     const cur = queue[queueIdx];
     queue = queue.filter((id) => { const r = all.find((x) => x.id === id); return r && !isValidee(r); });
     const i = queue.indexOf(cur);
     queueIdx = queue.length ? Math.max(0, i < 0 ? Math.min(queueIdx, queue.length - 1) : i) : 0;
     $('valModal').hidden = false;
-    renderQueue();
+    await renderQueue();
   }
 
   async function queueValidate() {
@@ -922,11 +1026,12 @@
     if (!row) return;
     $('valOk').disabled = true;
     try {
-      await MED().setFicheValidee(row.id, true);
+      await MED().setFicheValidee(row.id, true, queueUser);
       row.fiche_validee = true;
+      if (queueFull && queueFull.id === row.id) queueFull.fiche_validee = true;
       queueIdx += 1;
-      render();
-      renderQueue();
+      patchRowBadges(row.id);
+      await renderQueue();
     } catch (e) {
       global.JpToast.fromError(e);
       $('valOk').disabled = false;
@@ -938,9 +1043,11 @@
     if (!rows.length) return;
     if (!global.confirm('Remettre à « à valider » : ' + rows.length + ' fiche(s) du filtre ?')) return;
     try {
-      await MED().resetFicheValidee(rows.map((r) => r.id));
+      const user = await global.JpApp.getUser();
+      await MED().resetFicheValidee(rows.map((r) => r.id), user);
+      for (const r of rows) r.fiche_validee = false;
       global.JpToast.ok('OK');
-      await refreshAll();
+      render();
     } catch (e) {
       global.JpToast.fromError(e);
     }
@@ -956,7 +1063,7 @@
     $('q').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         const first = filtered()[0];
-        if (first) openEditor(first);
+        if (first) void openEditor(first);
       } else if (e.key === 'ArrowDown') {
         document.querySelector('#list tbody tr')?.focus();
         e.preventDefault();
@@ -982,14 +1089,14 @@
       const tr = e.target.closest('tr[data-id]');
       if (!tr) return;
       const row = all.find((r) => r.id === tr.getAttribute('data-id'));
-      if (row) openEditor(row);
+      if (row) void openEditor(row);
     });
     $('list').addEventListener('keydown', (e) => {
       const tr = e.target.closest('tr[data-id]');
       if (!tr) return;
       if (e.key === 'Enter') {
         const row = all.find((r) => r.id === tr.getAttribute('data-id'));
-        if (row) openEditor(row);
+        if (row) void openEditor(row);
       } else if (e.key === 'ArrowDown') { e.preventDefault(); tr.nextElementSibling?.focus(); }
       else if (e.key === 'ArrowUp') {
         e.preventDefault();
@@ -997,7 +1104,7 @@
       }
     });
 
-    $('btnNew').addEventListener('click', () => openEditor(null));
+    $('btnNew').addEventListener('click', () => void openEditor(null));
     $('btnIa')?.addEventListener('click', () => {
       if (!global.JpReferentielIA) {
         global.JpToast.warn('Module IA référentiel indisponible');
@@ -1005,15 +1112,12 @@
       }
       global.JpReferentielIA.open({
         onSaved: async (saved) => {
-          await refreshAll();
-          if (saved?.id) {
-            const row = all.find((r) => r.id === saved.id);
-            if (row) openEditor(row);
-          }
+          upsertLocal(saved);
+          if (saved?.id) await openEditor(saved);
         },
       });
     });
-    $('btnValider').addEventListener('click', openQueue);
+    $('btnValider').addEventListener('click', () => void openQueue());
     $('btnResetVal').addEventListener('click', () => void resetValidation());
 
     $('form').addEventListener('submit', (e) => { e.preventDefault(); void doSave(false); });
@@ -1023,11 +1127,11 @@
 
     $('valOk').addEventListener('click', () => void queueValidate());
     $('valEdit').addEventListener('click', () => {
-      const row = queueRow();
+      const row = queueFull || queueRow();
       if (!row) return;
       queueResume = true;
       $('valModal').hidden = true;
-      openEditor(row);
+      void openEditor(row);
     });
     document.querySelectorAll('[data-close-validation]').forEach((el) => el.addEventListener('click', closeQueue));
 
@@ -1065,7 +1169,7 @@
       const id = new URLSearchParams(location.search).get('id');
       if (id) {
         const row = all.find((r) => r.id === id) || await MED().getById(id);
-        if (row) openEditor(row); else global.JpToast.warn('Fiche introuvable');
+        if (row) await openEditor(row); else global.JpToast.warn('Fiche introuvable');
       }
     } catch (e) {
       global.JpToast.fromError(e);

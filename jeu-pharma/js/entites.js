@@ -139,11 +139,20 @@
   /**
    * Trouve une entité active (norm / synonyme canonique) ou la crée.
    * Règle vocabulaire unique : HTA ≡ Hypertension ≡ Hypertension artérielle → même UUID.
+   * Si `existingId` est fourni (id stable déjà connu), le retourne sans lookup/create
+   * sauf si `valeur` force un rename (appelant doit alors passer par update).
    */
-  async function findOrCreate(table, valeur) {
+  async function findOrCreate(table, valeur, existingId) {
     assertTable(table);
+    if (existingId && (valeur == null || String(valeur).trim() === '')) {
+      return getById(table, existingId);
+    }
     const raw = String(valeur || '').trim();
     if (!raw) return null;
+    if (existingId) {
+      const cur = await getById(table, existingId);
+      if (cur && normaliser(cur.valeur) === normaliser(raw)) return cur;
+    }
     const canon = await resolveAliasCanonique(table, raw);
     const v = canon || raw;
     const existing = await findActiveByValeur(table, v);

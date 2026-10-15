@@ -1,6 +1,6 @@
 /**
  * Mon espace : progression par parcours (lecture + jeux + scores minimum) et graphiques SVG / CSS (sans librairie).
- * Source unique : RPC v2_mon_espace (même logique de validation que le déblocage des leçons).
+ * Source : RPC v2_mon_espace (sommaire) ; détail leçons via v2_progression_parcours à l’ouverture.
  */
 (function (global) {
   const esc = (s) => global.JpUi.escapeHtml(String(s == null ? '' : s));
@@ -130,13 +130,12 @@
       + (crit ? '<div class="jp-me-crit">' + crit + '</div>' : '') + note + '</div>' + link + '</div>';
   }
 
-  function parcoursCard(pc, open) {
+  function modulesBodyHtml(pc) {
     const p = pc.parcours || {};
     const modules = pc.modules || [];
     const byId = {};
     modules.forEach((m) => { byId[m.id] = m; });
     const leaves = P().orderedLeaves(modules);
-    const maj = P().majLabel(p.maj_at);
     const rows = leaves.map((m) => {
       const g = m.parent_id && byId[m.parent_id] ? byId[m.parent_id].titre : '';
       return lessonRow(m, g);
@@ -147,15 +146,25 @@
     if (p.progression_min_pct != null && P().clampPct(p.progression_min_pct) < 100) {
       minNote = '<p class="jp-pc-meta">Parcours validé à partir de ' + P().clampPct(p.progression_min_pct) + ' % de progression.</p>';
     }
-    return '<details class="jp-me-pc"' + (open ? ' open' : '') + '><summary>'
+    const pid = pc.parcours_id || p.id || '';
+    return lock + minNote
+      + (rows || (pc.sommaire ? '<p class="jp-muted jp-me-loading">Chargement du détail…</p>' : '<p class="jp-muted">—</p>'))
+      + '<a class="jp-btn jp-btn-primary jp-btn-touch jp-me-open" href="espace.html?parcours='
+      + encodeURIComponent(pid) + '">Ouvrir le parcours</a>';
+  }
+
+  function parcoursCard(pc, open) {
+    const p = pc.parcours || {};
+    const maj = P().majLabel(p.maj_at);
+    const pid = pc.parcours_id || p.id || '';
+    return '<details class="jp-me-pc" data-parcours="' + esc(pid) + '"' + (open ? ' open' : '') + '><summary>'
       + P().ring(p.pct, { size: 64 })
       + '<span class="jp-me-pc-title"><strong>' + esc(p.libelle || 'Parcours') + '</strong>'
       + '<small>' + (p.nb_valides || 0) + ' / ' + (p.nb_lecons || 0) + ' leçons validées'
       + (p.valide ? ' · parcours validé ✓' : '') + '</small>'
       + (maj ? '<small>' + esc(maj) + '</small>' : '') + '</span>'
       + '<span class="jp-me-chev" aria-hidden="true">▾</span></summary>'
-      + '<div class="jp-me-pc-body">' + lock + minNote + (rows || '<p class="jp-muted">—</p>')
-      + '<a class="jp-btn jp-btn-primary jp-btn-touch jp-me-open" href="espace.html?parcours=' + encodeURIComponent(pc.parcours_id || p.id || '') + '">Ouvrir le parcours</a></div></details>';
+      + '<div class="jp-me-pc-body">' + modulesBodyHtml(pc) + '</div></details>';
   }
 
   /* ——— Page ——— */
@@ -164,15 +173,28 @@
     return '<div class="jp-me-stat"><strong>' + esc(value) + '</strong><span>' + esc(label) + '</span></div>';
   }
 
+  function collectReqByModele(parcours) {
+    const reqByModele = {};
+    parcours.forEach((pc) => {
+      const seuils = pc.jeux_seuils;
+      if (seuils && typeof seuils === 'object') {
+        Object.keys(seuils).forEach((mid) => {
+          reqByModele[mid] = P().clampPct(seuils[mid]);
+        });
+      }
+      (pc.modules || []).forEach((m) => {
+        ((m.detail && m.detail.jeux) || []).forEach((j) => {
+          reqByModele[j.modele_id] = P().clampPct(j.score_min_pct);
+        });
+      });
+    });
+    return reqByModele;
+  }
+
   function render(data) {
     const parcours = (data.parcours || []).filter((pc) => pc && pc.parcours);
     const scores = data.scores || [];
-
-    // Seuils requis par jeu (critères de validation des leçons)
-    const reqByModele = {};
-    parcours.forEach((pc) => (pc.modules || []).forEach((m) => {
-      ((m.detail && m.detail.jeux) || []).forEach((j) => { reqByModele[j.modele_id] = P().clampPct(j.score_min_pct); });
-    }));
+    const reqByModele = collectReqByModele(parcours);
 
     const pcts = scores.map(pctScore).filter((x) => x != null);
     const avg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
@@ -208,6 +230,51 @@
         + (s.score_obtenu ?? '—') + ' / ' + (s.score_max ?? '—') + (ok ? ' ✓' : '') + '</span></li>';
     }).join('') + '</ul>' : '<p class="jp-muted">—</p>';
     root.innerHTML = html;
+
+    bindDetailLoaders(parcours);
+  }
+
+  /** Charge v2_progression_parcours à l’ouverture d’un <details> (sommaire). */
+  function bindDetailLoaders(parcours) {
+    const byId = {};
+    parcours.forEach((pc) => {
+      const id = pc.parcours_id || pc.parcours?.id;
+      if (id) byId[String(id)] = pc;
+    });
+
+    async function loadDetail(detailsEl) {
+      const pid = detailsEl.getAttribute('data-parcours');
+      const pc = pid ? byId[pid] : null;
+      if (!pc || !pc.sommaire) return;
+      if (pc._loadingDetail) return;
+      pc._loadingDetail = true;
+      const body = detailsEl.querySelector('.jp-me-pc-body');
+      try {
+        const full = await global.JpV2Resolver.progression(pid);
+        pc.modules = (full && full.modules) || [];
+        if (full && full.parcours) {
+          pc.parcours = Object.assign({}, pc.parcours || {}, full.parcours);
+        }
+        pc.sommaire = false;
+        if (body) body.innerHTML = modulesBodyHtml(pc);
+      } catch (e) {
+        if (body) {
+          body.innerHTML = '<p class="jp-muted">Impossible de charger le détail.</p>'
+            + '<a class="jp-btn jp-btn-primary jp-btn-touch jp-me-open" href="espace.html?parcours='
+            + encodeURIComponent(pid) + '">Ouvrir le parcours</a>';
+        }
+        global.JpToast?.fromError?.(e);
+      } finally {
+        pc._loadingDetail = false;
+      }
+    }
+
+    document.querySelectorAll('details.jp-me-pc[data-parcours]').forEach((el) => {
+      el.addEventListener('toggle', () => {
+        if (el.open) void loadDetail(el);
+      });
+      if (el.open) void loadDetail(el);
+    });
   }
 
   async function boot() {

@@ -814,6 +814,32 @@
 .jp-inspector-title { font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif); font-size: 1rem; }
 .jp-inspector-jeu .jp-bloc-jeu-actions { margin-top: 0.25rem; }
 
+/* Sections repliables (paramètres leçon / chapitre) */
+.jp-insp-fold { padding: 0; overflow: hidden; }
+.jp-insp-fold-sum {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.jp-insp-fold-sum::-webkit-details-marker { display: none; }
+.jp-insp-fold-sum::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 2px solid rgba(15, 46, 40, 0.45);
+  border-bottom: 2px solid rgba(15, 46, 40, 0.45);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex: none;
+}
+.jp-insp-fold[open] > .jp-insp-fold-sum::before { transform: rotate(45deg); }
+.jp-insp-fold-sum:hover { background: rgba(15, 107, 92, 0.04); }
+.jp-insp-fold-body { padding: 0 0.9rem 0.85rem; }
+
 /* Panneaux de paramètres de jeu (wizard) */
 .jp-jeu-wiz-body .jp-quiz-admin-champs-grid {
   padding: 0.7rem 0.8rem;
@@ -1137,6 +1163,15 @@
 /* ═══════════ Déblocage (prérequis + critères) ═══════════ */
 .jp-unlock .jp-inspector-head { margin-bottom: 0.65rem; }
 .jp-unlock .jp-btn-primary { width: 100%; justify-content: center; margin-top: 0.4rem; }
+.jp-unlock-niv-bar { margin-bottom: 0.55rem; }
+.jp-unlock-vtabs { flex-wrap: wrap; gap: 0.25rem; }
+.jp-unlock-niv-bar .jp-field-hint { margin: 0.35rem 0 0; }
+.jp-unlock [data-niv-actions] { margin-bottom: 0.45rem; }
+.jp-unlock .jp-btn-sm {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  min-height: 1.9rem;
+}
 .jp-crit-ed { display: grid; gap: 0.6rem; }
 .jp-crit-jeux { display: grid; gap: 0.45rem; }
 .jp-crit-row {

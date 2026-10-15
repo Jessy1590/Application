@@ -60,7 +60,57 @@
     return (m ? m[1] : s).slice(0, 80);
   }
 
-  /* ——— Matching entités ——— */
+  /* ——— Matching entités (parallèle + cache valeur_norm session) ——— */
+
+  const MATCH_CONCURRENCY = 6;
+  /** @type {Map<string, object|null>} table\\0norm → entité active ou null */
+  const valeurNormCache = new Map();
+  /** @type {Map<string, object[]>} table\\0q → suggestions list() */
+  const listSuggestCache = new Map();
+
+  async function mapPool(items, limit, fn) {
+    const list = items || [];
+    const out = new Array(list.length);
+    let next = 0;
+    const n = Math.min(limit, Math.max(list.length, 1));
+    const workers = Array.from({ length: n }, async () => {
+      while (next < list.length) {
+        const i = next++;
+        out[i] = await fn(list[i], i);
+      }
+    });
+    await Promise.all(workers);
+    return out;
+  }
+
+  function cacheNormKey(table, valeur) {
+    return table + '\0' + global.JpEntites.normaliser(valeur);
+  }
+
+  async function findActiveCached(table, valeur) {
+    const E = global.JpEntites;
+    const v = String(valeur || '').trim();
+    if (!v) return null;
+    const key = cacheNormKey(table, v);
+    if (valeurNormCache.has(key)) return valeurNormCache.get(key);
+    const hit = await E.findActiveByValeur(table, v);
+    valeurNormCache.set(key, hit || null);
+    if (hit?.valeur_norm) {
+      const k2 = table + '\0' + hit.valeur_norm;
+      if (!valeurNormCache.has(k2)) valeurNormCache.set(k2, hit);
+    }
+    return hit || null;
+  }
+
+  async function listSuggestCached(table, q) {
+    const term = String(q || '').trim().slice(0, 60);
+    const key = table + '\0' + term.toLowerCase();
+    if (listSuggestCache.has(key)) return listSuggestCache.get(key);
+    const rows = await global.JpEntites.list(table, { q: term, actif: true, limit: 8 });
+    const list = rows || [];
+    listSuggestCache.set(key, list);
+    return list;
+  }
 
   /**
    * @returns {Promise<{ statut: 'existant'|'proche'|'nouveau', id?: string, valeur: string, suggestions: object[] }>}
@@ -69,14 +119,14 @@
     const v = String(valeur || '').trim();
     if (!v) return null;
     const E = global.JpEntites;
-    const exact = await E.findActiveByValeur(table, v);
+    const exact = await findActiveCached(table, v);
     if (exact) {
       return { statut: 'existant', id: exact.id, valeur: exact.valeur || v, suggestions: [] };
     }
-    const suggestions = await E.list(table, { q: v.slice(0, 60), actif: true, limit: 8 });
+    const suggestions = await listSuggestCached(table, v.slice(0, 60));
+    const b = E.normaliser(v);
     const proches = (suggestions || []).filter((s) => {
       const a = E.normaliser(s.valeur);
-      const b = E.normaliser(v);
       return a && b && (a.includes(b) || b.includes(a) || a.slice(0, 8) === b.slice(0, 8));
     }).slice(0, 5);
     if (proches.length) {
@@ -103,28 +153,37 @@
 
   async function buildReviewState(iaChamps) {
     const state = { lines: [] }; // { code, card, libelle, items: [...] }
+    const jobs = []; // { lineIdx, code, table, val }
     for (const c of champsWizard()) {
       const raw = iaChamps?.[c.code];
       const values = c.card === 1
         ? (raw ? [String(raw)] : [])
         : (Array.isArray(raw) ? raw.map(String) : (raw ? [String(raw)] : []));
-      const items = [];
-      for (const val of values) {
-        const m = await matchItem(c.table, val);
-        if (!m) continue;
-        items.push({
-          key: newItemKey(c.code),
+      const lineIdx = state.lines.length;
+      state.lines.push({ code: c.code, card: c.card, libelle: c.libelle, table: c.table, items: [] });
+      values.forEach((val) => {
+        if (String(val || '').trim()) jobs.push({ lineIdx, code: c.code, table: c.table, val: String(val) });
+      });
+    }
+    const matched = await mapPool(jobs, MATCH_CONCURRENCY, async (job) => {
+      const m = await matchItem(job.table, job.val);
+      if (!m) return null;
+      return {
+        lineIdx: job.lineIdx,
+        item: {
+          key: newItemKey(job.code),
           statut: m.statut,
           id: m.id || '',
           valeur: m.valeur,
           suggestions: m.suggestions || [],
           kept: true,
           originalValeur: m.valeur,
-        });
-      }
-      // Toujours une ligne par champ actif (même vide) pour pouvoir ajouter / restaurer
-      state.lines.push({ code: c.code, card: c.card, libelle: c.libelle, table: c.table, items });
-    }
+        },
+      };
+    });
+    matched.forEach((row) => {
+      if (row) state.lines[row.lineIdx].items.push(row.item);
+    });
     return state;
   }
 
@@ -742,7 +801,7 @@
         }).filter(Boolean);
         line.items.splice(idx + 1, 0, ...neu);
         void (async () => {
-          for (const it of [item, ...neu]) await rematchItem(line, it);
+          await Promise.all([item, ...neu].map((it) => rematchItem(line, it)));
           renderReview();
         })();
         return;

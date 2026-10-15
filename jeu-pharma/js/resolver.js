@@ -28,9 +28,36 @@
     return data;
   }
 
+  /** Bulk : map { [matrice_id]: fiche } — 1 RPC (pubs visibles mutualisées). */
+  async function fichesResolues(matriceIds, opts = {}) {
+    const ids = Array.from(new Set((matriceIds || []).filter(Boolean)));
+    if (!ids.length) return {};
+    const args = {
+      p_matrice_ids: ids,
+      p_parcours: opts.parcoursId || null,
+      p_module_ids: opts.moduleIds || null,
+    };
+    const niv = opts.niveau != null && opts.niveau !== '' ? Number(opts.niveau) : null;
+    if (niv >= 1 && niv <= 5) args.p_niveau = niv;
+    const { data, error } = await sb().rpc('v2_fiches_resolues', args);
+    if (error) throw error;
+    return data && typeof data === 'object' ? data : {};
+  }
+
   async function progression(parcoursId) {
     const { data, error } = await sb().rpc('v2_progression_parcours', {
       p_parcours: parcoursId || null,
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  /** Critère d’un jeu pour une leçon — sans arbre progression complet. */
+  async function critereJeu(modeleId, opts = {}) {
+    const { data, error } = await sb().rpc('v2_critere_jeu', {
+      p_modele_id: modeleId,
+      p_module_id: opts.moduleId || null,
+      p_parcours: opts.parcoursId || null,
     });
     if (error) throw error;
     return data;
@@ -61,12 +88,15 @@
     return data;
   }
 
-  /** Active un parcours déjà accepté (pas d’auto-inscription). */
-  async function setParcoursActif(parcoursId) {
+  /**
+   * Active un parcours déjà accepté (pas d’auto-inscription).
+   * `opts.inscriptions` : réutilise un cache déjà chargé (évite un 2ᵉ mesInscriptions).
+   */
+  async function setParcoursActif(parcoursId, opts = {}) {
     const user = await global.JpApp.getUser();
     if (!user) throw new Error('Non connecté');
     if (parcoursId) {
-      const insc = await mesInscriptions();
+      const insc = Array.isArray(opts.inscriptions) ? opts.inscriptions : await mesInscriptions();
       const ok = insc.find((i) => i.parcours_id === parcoursId && i.statut === 'accepte');
       if (!ok) throw new Error('Parcours non autorisé');
     }
@@ -101,14 +131,13 @@
 
   /** Parcours actif si accepté ; sinon premier accepté. */
   async function ensureParcoursActif() {
-    const profil = await getProfilV2();
-    const insc = await mesInscriptions();
+    const [profil, insc] = await Promise.all([getProfilV2(), mesInscriptions()]);
     const accepted = insc.filter((i) => i.statut === 'accepte');
     if (profil?.parcours_id && accepted.some((i) => i.parcours_id === profil.parcours_id)) {
       return profil;
     }
     if (!accepted.length) return profil;
-    return setParcoursActif(accepted[0].parcours_id);
+    return setParcoursActif(accepted[0].parcours_id, { inscriptions: insc });
   }
 
   async function monEspace() {
@@ -140,7 +169,9 @@
   global.JpV2Resolver = {
     listerMedicaments,
     ficheResolue,
+    fichesResolues,
     progression,
+    critereJeu,
     listParcours,
     mesInscriptions,
     demanderParcours,

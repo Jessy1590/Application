@@ -117,12 +117,23 @@
       }
 
       try {
-        await JpV2Resolver.ensureParcoursActif();
-        const prog = await JpV2Resolver.progression();
+        const [profil, insc] = await Promise.all([
+          JpV2Resolver.getProfilV2(),
+          JpV2Resolver.mesInscriptions(),
+        ]);
+        const accepted = insc.filter(function (i) { return i.statut === 'accepte'; });
         const note = document.getElementById('scopeNote');
-        if (prog?.parcours) {
+        let activeId = null;
+        if (profil && profil.parcours_id && accepted.some(function (i) { return i.parcours_id === profil.parcours_id; })) {
+          activeId = profil.parcours_id;
+        } else if (accepted.length) {
+          activeId = accepted[0].parcours_id;
+          await JpV2Resolver.setParcoursActif(activeId, { inscriptions: insc });
+        }
+        if (activeId) {
+          const meta = accepted.find(function (i) { return i.parcours_id === activeId; });
           note.hidden = false;
-          note.textContent = prog.parcours.libelle;
+          note.textContent = (meta && meta.libelle) || 'Parcours';
         } else {
           note.hidden = false;
           note.innerHTML = '<a href="parcours.html">Demander un parcours</a>';

@@ -56,6 +56,9 @@
     inflight: 0,
     saveError: false,
     lastSavedAt: null,
+    blocsCache: {}, // moduleId -> blocs[]
+    progCountCache: {}, // moduleId -> { connaissances, molecules }
+    lastSavedHash: {}, // blocId -> JSON.stringify(payload_json) dernier RPC OK
   };
 
   async function rpc(name, args) {
@@ -320,9 +323,40 @@
     if (molHint) molHint.hidden = state.variantTab === 'base';
   }
 
-  async function loadBlocs(moduleId) {
+  function invalidateBlocsCache(moduleId) {
+    if (moduleId) delete state.blocsCache[moduleId];
+    else state.blocsCache = {};
+  }
+
+  function rememberBlocsCache(moduleId, blocs) {
+    if (moduleId) state.blocsCache[moduleId] = blocs;
+  }
+
+  function invalidateProgCount(moduleId) {
+    if (moduleId) delete state.progCountCache[moduleId];
+    else state.progCountCache = {};
+  }
+
+  function hashPayloadJson(pj) {
+    return JSON.stringify(pj || {});
+  }
+
+  function rememberSavedHashes(blocs) {
+    (blocs || []).forEach((b) => {
+      if (b?.id) state.lastSavedHash[b.id] = hashPayloadJson(b.payload_json);
+    });
+  }
+
+  async function loadBlocs(moduleId, opts) {
+    const force = !!(opts && opts.force);
+    if (!force && Array.isArray(state.blocsCache[moduleId])) {
+      return state.blocsCache[moduleId];
+    }
     const data = await rpc('v2_lister_blocs', { p_module_id: moduleId });
-    return Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
+    state.blocsCache[moduleId] = rows;
+    rememberSavedHashes(rows);
+    return rows;
   }
 
   function childrenOf(parentId) {
@@ -936,16 +970,42 @@
     return base;
   }
 
-  function writeMolPayload(blocId, payload) {
-    const b = state.blocs.find((x) => x.id === blocId);
-    if (!b) return;
-    const titre = effTitre(b);
+  /**
+   * Diff minimal pour `_brouillon.payload` (Object.assign(pub, diff) = effectif).
+   * Si une clé publiée disparaît, on stocke le payload complet (assign ne peut pas supprimer).
+   */
+  function draftPayloadMinimal(pub, payload) {
+    const p = pub || {};
+    const next = payload || {};
+    const pubKeys = Object.keys(p);
+    for (let i = 0; i < pubKeys.length; i += 1) {
+      if (!Object.prototype.hasOwnProperty.call(next, pubKeys[i])) return next;
+    }
+    const diff = {};
+    let n = 0;
+    Object.keys(next).forEach((k) => {
+      if (JSON.stringify(next[k]) !== JSON.stringify(p[k])) {
+        diff[k] = next[k];
+        n += 1;
+      }
+    });
+    return n ? diff : {};
+  }
+
+  function buildDraftPayloadJson(b, titre, payload) {
     const pub = pubPayload(b);
     const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
     const pj = Object.assign({}, pub);
-    if (!same || isHidden(b)) pj._brouillon = { titre, payload };
-    else delete pj._brouillon;
-    b.payload_json = pj;
+    if (!same || isHidden(b)) {
+      pj._brouillon = { titre, payload: draftPayloadMinimal(pub, payload) };
+    }
+    return pj;
+  }
+
+  function writeMolPayload(blocId, payload) {
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!b) return;
+    b.payload_json = buildDraftPayloadJson(b, effTitre(b), payload);
   }
 
   /** Écrit les chips molécule dans le brouillon local (couche Base ou ★ courante). */
@@ -1162,6 +1222,17 @@
     });
   }
 
+  /** Section repliable de l’inspecteur (gagne de la place à droite). */
+  function inspFold(title, bodyHtml, opts) {
+    const open = opts && opts.open === false ? '' : ' open';
+    const cls = 'jp-insp-fold jp-inspector-cta'
+      + (opts && opts.cls ? ' ' + opts.cls : '');
+    const idAttr = opts && opts.bodyId ? ' id="' + opts.bodyId + '"' : '';
+    return '<details class="' + cls + '"' + open + '>'
+      + '<summary class="jp-insp-fold-sum"><strong class="jp-inspector-title">' + title + '</strong></summary>'
+      + '<div class="jp-insp-fold-body"' + idAttr + '>' + bodyHtml + '</div></details>';
+  }
+
   /** Panneau « Déblocage » (prérequis + critères) dans l’inspecteur ; recharge l’arbre après enregistrement. */
   function mountDeblocage(m) {
     const host = document.getElementById('unlockHost');
@@ -1170,6 +1241,7 @@
       module: m,
       modules: state.modules,
       parcoursId: state.parcoursId,
+      noHead: true,
       onSaved: async () => {
         state.modules = await loadModules(state.parcoursId);
         const fresh = state.modules.find((x) => x.id === m.id);
@@ -1202,6 +1274,8 @@
   async function selectParcours(id) {
     state.parcoursId = id;
     state.recoTargetCache = null;
+    invalidateBlocsCache();
+    invalidateProgCount();
     const list = await loadParcoursList();
     state.parcours = list.find((p) => p.id === id) || null;
     state.parcoursList = list;
@@ -1216,6 +1290,27 @@
     state.selectedModuleId = wanted || childrenOf(null)[0]?.id || state.modules[0]?.id || null;
     renderTree();
     await selectModule(state.selectedModuleId);
+  }
+
+  /** Patch `is-active` sans réécrire l’arbre (navigation leçon). */
+  function patchTreeActive(moduleId) {
+    const pane = document.getElementById('treePane');
+    if (!pane?.querySelector('.jp-tree-item')) {
+      renderTree();
+      return;
+    }
+    pane.querySelectorAll('.jp-tree-row.is-active, .jp-tree-item.is-active').forEach((el) => {
+      el.classList.remove('is-active');
+    });
+    const btn = moduleId
+      ? pane.querySelector('.jp-tree-item[data-id="' + moduleId + '"]')
+      : null;
+    if (!btn) {
+      renderTree();
+      return;
+    }
+    btn.classList.add('is-active');
+    btn.closest('.jp-tree-row')?.classList.add('is-active');
   }
 
   function renderTree() {
@@ -1387,6 +1482,10 @@
         await flushAll();
       }
       const res = await rpc('v2_supprimer_module', { p_module_id: id });
+      ids.forEach((mid) => {
+        invalidateBlocsCache(mid);
+        invalidateProgCount(mid);
+      });
       const parentId = m.parent_id || null;
       const siblings = childrenOf(parentId).filter((x) => x.id !== id);
       const wasSelected = ids.indexOf(state.selectedModuleId) !== -1;
@@ -1418,8 +1517,12 @@
 
   async function selectModule(id) {
     await flushAll();
+    const prevId = state.selectedModuleId;
+    if (prevId && Array.isArray(state.blocs) && prevId !== id) {
+      rememberBlocsCache(prevId, state.blocs);
+    }
     state.selectedModuleId = id;
-    renderTree();
+    patchTreeActive(id);
     const m = selectedModule();
     if (!m) {
       clearEditors();
@@ -1439,6 +1542,7 @@
       return;
     }
     state.blocs = await loadBlocs(m.id);
+    rememberBlocsCache(m.id, state.blocs);
     state.selectedBlocId = state.focusBlocId || null;
     state.variantScratch = {};
     state.variantTab = 'base';
@@ -1515,7 +1619,8 @@
       flush: flushAll,
       rpc,
       refresh: async () => {
-        state.blocs = await loadBlocs(m.id);
+        state.blocs = await loadBlocs(m.id, { force: true });
+        rememberBlocsCache(m.id, state.blocs);
         await preloadMolLabels();
         paintBlocks();
         updateStatus();
@@ -2071,7 +2176,9 @@
           p_module_cible_id: picked.id,
           p_avant_bloc_id: null,
         });
-        state.blocs = await loadBlocs(m.id);
+        invalidateBlocsCache(picked.id);
+        state.blocs = await loadBlocs(m.id, { force: true });
+        rememberBlocsCache(m.id, state.blocs);
         if (state.selectedBlocId && ids.indexOf(state.selectedBlocId) !== -1) {
           state.selectedBlocId = null;
         }
@@ -2185,6 +2292,45 @@
     });
   }
 
+  /** Onglet ★ molécule : remonte le corps du bloc sans paintBlocks() full. */
+  function remountMolContenu(card, b) {
+    if (!card || !b || b.type_bloc !== 'molecule') {
+      paintContenuEditorOnly();
+      return;
+    }
+    const body = card.querySelector('.jp-block-body');
+    if (!body || state.viewMode !== 'contenu') {
+      paintContenuEditorOnly();
+      return;
+    }
+    state.molChips[b.id]?.destroy?.();
+    delete state.molChips[b.id];
+    body.innerHTML = blockBodyHtml(b);
+    // Rebind onglets + chips + bouton valeurs (header inchangé)
+    card.querySelectorAll('.jp-block-body .jp-vtab[data-vtab]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const next = btn.getAttribute('data-vtab');
+        if (String(next) === String(state.variantTab)) return;
+        syncMolChipsToState(b.id);
+        state.molChips[b.id]?.destroy?.();
+        delete state.molChips[b.id];
+        void saveDraft(b.id).then(() => {
+          state.variantTab = next;
+          remountMolContenu(card, b);
+        });
+      });
+    });
+    mountMolChips(card, b);
+    card.querySelectorAll('[data-mol-prog]').forEach((btn) => {
+      btn.addEventListener('click', () => void openBlocValeurs(btn.getAttribute('data-mol-prog')));
+    });
+    paintVariantTabs(card, b);
+    paintVariantCountBadge(b.id);
+    updateStatus();
+  }
+
   function bindContenuEditors(card, b) {
     const id = b.id;
     // Uniquement les boutons d’onglet — pas l’hôte RTE (qui ne doit plus avoir data-vtab).
@@ -2202,9 +2348,7 @@
           delete state.molChips[id];
           void saveDraft(id).then(() => {
             state.variantTab = next;
-            paintBlocks();
-            const m = selectedModule();
-            if (m && !m.est_groupe) void renderInspector(m);
+            remountMolContenu(card, b);
           });
           return;
         }
@@ -2581,16 +2725,18 @@
       const payload = (state.viewMode === 'structure' && b.type_bloc !== 'section')
         ? effPayload(b)
         : collectPayload(blocId, b.type_bloc);
-      const pub = pubPayload(b);
-      const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
-      const pj = Object.assign({}, pub);
-      if (!same || isHidden(b)) pj._brouillon = { titre, payload };
+      const pj = buildDraftPayloadJson(b, titre, payload);
+      // Dirty-flag : skip RPC si identique au dernier enregistrement réussi.
+      const hash = hashPayloadJson(pj);
+      if (hash === state.lastSavedHash[blocId]) return;
       state.inflight += 1;
       updateStatus();
       try {
         const row = await rpc('v2_upsert_bloc', { p_payload: { id: blocId, payload_json: pj } });
         b.payload_json = row.payload_json;
         b.updated_at = row.updated_at;
+        state.lastSavedHash[blocId] = hashPayloadJson(b.payload_json);
+        rememberBlocsCache(state.selectedModuleId, state.blocs);
         state.saveError = false;
         state.lastSavedAt = nowLabel();
         const tagHost = card.querySelector('header');
@@ -2633,42 +2779,30 @@
     await rpc('v2_sync_pubs_depuis_blocs_molecule', { p_module_id: moduleId });
   }
 
-  /** Publie toutes les leçons du parcours (brouillons → publié, sync pubs, statut publie). */
+  /** Publie toutes les leçons du parcours (RPC bulk : brouillons → publié, sync pubs, statut). */
   async function publishParcours() {
     if (!state.parcoursId) return;
     const btn = document.getElementById('btnPublish');
     if (btn) btn.disabled = true;
     try {
       await flushAll();
-      const lecons = state.modules.filter((mod) => !mod.est_groupe);
-      for (const mod of lecons) {
-        const blocs = (mod.id === state.selectedModuleId)
-          ? state.blocs
-          : await loadBlocs(mod.id);
-        for (const b of blocs.filter(hasPending)) {
-          await rpc('v2_upsert_bloc', {
-            p_payload: {
-              id: b.id,
-              titre: effTitre(b),
-              payload_json: effPayload(b),
-              visible: true,
-            },
-          });
-        }
-        await syncPubsDepuisBlocs(mod.id);
-        await rpc('v2_upsert_module', {
-          p_payload: { id: mod.id, publie: true, statut: 'publie' },
-        });
-      }
+      const res = await rpc('v2_publier_parcours', { p_parcours_id: state.parcoursId });
+      invalidateBlocsCache();
+      invalidateProgCount();
+      state.lastSavedHash = {};
       state.modules = await loadModules(state.parcoursId);
       const cur = selectedModule();
-      if (cur && !cur.est_groupe) state.blocs = await loadBlocs(cur.id);
-      else state.blocs = [];
+      if (cur && !cur.est_groupe) {
+        state.blocs = await loadBlocs(cur.id, { force: true });
+        rememberBlocsCache(cur.id, state.blocs);
+      } else {
+        state.blocs = [];
+      }
       state.lastSavedAt = null;
       state.saveError = false;
       renderTree();
       paintBlocks();
-      const n = lecons.length;
+      const n = Number(res?.lecons) || state.modules.filter((mod) => !mod.est_groupe).length;
       global.JpToast?.ok?.(
         n === 0
           ? 'Aucune leçon à publier'
@@ -2677,7 +2811,9 @@
       void global.JpLogs?.action?.('studio_publier_parcours', {
         parcours_id: state.parcoursId,
         n_lecons: n,
+        blocs_promus: res?.blocs_promus,
       });
+      if (cur && !cur.est_groupe) void renderInspector(cur);
     } catch (e) {
       global.JpToast?.fromError?.(e);
     } finally {
@@ -2723,8 +2859,24 @@
         else delete lay.valeurs[matriceId];
         writeMolPayload(blocId, setMolLayerOnPayload(fresh, tab, lay));
         await saveDraft(blocId);
-        paintBlocks();
-        selectBloc(blocId, { toContenu: true, inspectorTab: 'bloc' });
+        const card = document.querySelector('[data-bloc="' + blocId + '"]');
+        if (card && state.viewMode === 'contenu' && state.selectedBlocId === blocId) {
+          // Maj locale du libellé « Valeurs affichées (N) » + onglets — pas de paintBlocks().
+          const body = card.querySelector('.jp-block-body');
+          if (body) {
+            const nVals = Object.values(molLayerOf(effPayload(b), state.variantTab || 'base').valeurs || {})
+              .reduce((n, a) => n + (a || []).length, 0);
+            const progBtn = body.querySelector('[data-mol-prog]');
+            if (progBtn) {
+              progBtn.textContent = 'Valeurs affichées…' + (nVals ? ' (' + nVals + ')' : '');
+            }
+          }
+          paintVariantTabs(card, b);
+          paintVariantCountBadge(blocId);
+          updateStatus();
+        } else {
+          remountMolContenu(card, b);
+        }
       },
     });
   }
@@ -2767,6 +2919,8 @@
       } else {
         state.blocs.push(row);
       }
+      state.lastSavedHash[row.id] = hashPayloadJson(row.payload_json);
+      rememberBlocsCache(m.id, state.blocs);
       delete state.variantScratch[row.id];
       selectBloc(row.id, { toContenu: type !== 'section', inspectorTab: 'bloc' });
       const card = document.querySelector('[data-bloc="' + row.id + '"]');
@@ -2798,6 +2952,8 @@
       await rpc('v2_supprimer_bloc', { p_bloc_id: id });
       state.blocs = state.blocs.filter((b) => b.id !== id);
       delete state.variantScratch[id];
+      delete state.lastSavedHash[id];
+      rememberBlocsCache(state.selectedModuleId, state.blocs);
       if (state.selectedBlocId === id) state.selectedBlocId = null;
       paintBlocks();
       const m = selectedModule();
@@ -2809,13 +2965,14 @@
 
   function renderInspectorMeta(m) {
     const pane = document.getElementById('inspectorPane');
-    pane.innerHTML = '<strong class="jp-inspector-title">Propriétés</strong>'
-      + '<div class="jp-field"><label for="metaTitre">Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
+    pane.innerHTML = inspFold('Propriétés',
+      '<div class="jp-field"><label for="metaTitre">Titre</label><input id="metaTitre" value="' + esc(m.titre) + '"></div>'
       + '<div class="jp-field"><label for="metaResume">Résumé</label><textarea id="metaResume" rows="3">' + esc(m.resume || '') + '</textarea></div>'
       + '<div class="jp-field"><span class="jp-inspector-title" style="display:block;margin-bottom:0.35rem">Visibilité ★</span>'
       + plageControlsHtml(m.niveau_min, m.niveau_max, 'mod-' + m.id) + '</div>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>'
-      + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMeta">Enregistrer</button>',
+      { open: true })
+      + inspFold('Déblocage', '', { open: true, cls: 'jp-unlock', bodyId: 'unlockHost' });
     mountDeblocage(m);
     const plageHost = pane.querySelector('[data-plage]');
     bindPlage(plageHost, () => {});
@@ -2840,7 +2997,11 @@
     });
   }
 
-  async function countProgramme(moduleId) {
+  async function countProgramme(moduleId, opts) {
+    const force = !!(opts && opts.force);
+    if (!force && state.progCountCache[moduleId]) {
+      return state.progCountCache[moduleId];
+    }
     const { data } = await sb()
       .from('publications_connaissances')
       .select('connaissance_id, connaissances!inner(matrice_id)')
@@ -2850,7 +3011,9 @@
     (data || []).forEach((p) => {
       if (p.connaissances?.matrice_id) mats.add(p.connaissances.matrice_id);
     });
-    return { connaissances: (data || []).length, molecules: mats.size };
+    const stats = { connaissances: (data || []).length, molecules: mats.size };
+    state.progCountCache[moduleId] = stats;
+    return stats;
   }
 
   async function renderInspector(m) {
@@ -2913,7 +3076,8 @@
         try {
           await flushAll();
           await syncPubsDepuisBlocs(m.id);
-          const s = await countProgramme(m.id);
+          invalidateProgCount(m.id);
+          const s = await countProgramme(m.id, { force: true });
           const el = document.getElementById('progStats');
           if (el) el.textContent = s.molecules + ' molécule(s) · ' + s.connaissances + ' valeur(s) publiée(s)';
           global.JpToast?.ok?.('Publications synchronisées');
@@ -2972,27 +3136,24 @@
       return;
     }
 
-    // Onglet Leçon
-    body.innerHTML = '<div class="jp-inspector-cta">'
-      + '<strong class="jp-inspector-title">Leçon</strong>'
-      + '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
+    // Onglet Leçon — sections repliables
+    body.innerHTML = inspFold('Leçon',
+      '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
       + '<input id="metaTitreLecon" value="' + esc(m.titre || '') + '" placeholder="Titre de la leçon"></div>'
       + '<div class="jp-field"><label for="metaResumeLecon">Résumé</label>'
       + '<textarea id="metaResumeLecon" rows="2" placeholder="Court résumé (facultatif)">'
       + esc(m.resume || '') + '</textarea></div>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMetaLecon">Enregistrer le titre</button>'
-      + '</div>'
-      + '<div class="jp-inspector-cta">'
-      + '<strong class="jp-inspector-title">Visibilité ★</strong>'
-      + plageControlsHtml(m.niveau_min, m.niveau_max, 'lecon-' + m.id)
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSavePlage" style="margin-top:0.4rem">Enregistrer la plage</button>'
-      + '</div>'
-      + '<div class="jp-inspector-cta">'
-      + '<strong class="jp-inspector-title">Jeux</strong>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnNewJeu">Créer un jeu</button>'
-      + '<div id="jeuxLies"></div>'
-      + '</div>'
-      + '<div class="jp-inspector-cta jp-unlock" id="unlockHost"></div>';
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnSaveMetaLecon">Enregistrer le titre</button>',
+      { open: true })
+      + inspFold('Visibilité ★',
+        plageControlsHtml(m.niveau_min, m.niveau_max, 'lecon-' + m.id)
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSavePlage" style="margin-top:0.4rem">Enregistrer la plage</button>',
+        { open: false })
+      + inspFold('Jeux',
+        '<button type="button" class="jp-btn jp-btn-primary" id="btnNewJeu">Créer un jeu</button>'
+        + '<div id="jeuxLies"></div>',
+        { open: false })
+      + inspFold('Déblocage', '', { open: true, cls: 'jp-unlock', bodyId: 'unlockHost' });
     mountDeblocage(m);
     const leconPlage = body.querySelector('[data-plage="lecon-' + m.id + '"]');
     bindPlage(leconPlage, () => {});
@@ -3069,13 +3230,14 @@
       libelle_cta: prev.libelle_cta || 'Jouer',
     });
     const titre = modele.titre || effTitre(b) || '';
-    const pub = pubPayload(b);
-    const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
-    const pj = Object.assign({}, pub);
-    if (!same || isHidden(b)) pj._brouillon = { titre, payload };
+    const pj = buildDraftPayloadJson(b, titre, payload);
+    const hash = hashPayloadJson(pj);
+    if (hash === state.lastSavedHash[blocId]) return b;
     const row = await rpc('v2_upsert_bloc', { p_payload: { id: blocId, payload_json: pj } });
     b.payload_json = row.payload_json;
     if (row.titre != null) b.titre = row.titre;
+    state.lastSavedHash[blocId] = hashPayloadJson(b.payload_json);
+    rememberBlocsCache(state.selectedModuleId, state.blocs);
     return b;
   }
 
@@ -3153,7 +3315,8 @@
       try {
         await lierModeleAuBloc(blocId, picked.modele);
         close();
-        state.blocs = await loadBlocs(m.id);
+        state.blocs = await loadBlocs(m.id, { force: true });
+        rememberBlocsCache(m.id, state.blocs);
         selectBloc(blocId, { toContenu: true, inspectorTab: 'bloc' });
         await refreshJeuxLies(m);
         global.JpToast?.ok?.('Jeu lié au bloc');
@@ -3192,7 +3355,8 @@
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
-        state.blocs = await loadBlocs(m.id);
+        state.blocs = await loadBlocs(m.id, { force: true });
+        rememberBlocsCache(m.id, state.blocs);
         const focusId = editBlocId
           || (res?.modele?.id
             && (state.blocs.find((b) => b.type_bloc === 'jeu' && effPayload(b).modele_id === res.modele.id)?.id));
@@ -3209,7 +3373,7 @@
             await rpc('v2_upsert_bloc', { p_payload: { id: res.bloc.id, visible: false } });
             const afterId = insertAfterId || res.insertAfterBlocId || null;
             if (afterId) {
-              state.blocs = await loadBlocs(m.id);
+              state.blocs = await loadBlocs(m.id, { force: true });
               const ids = state.blocs.map((b) => b.id).filter((id) => id !== res.bloc.id);
               const idx = ids.indexOf(afterId);
               if (idx >= 0) ids.splice(idx + 1, 0, res.bloc.id);
@@ -3220,7 +3384,8 @@
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
-        state.blocs = await loadBlocs(m.id);
+        state.blocs = await loadBlocs(m.id, { force: true });
+        rememberBlocsCache(m.id, state.blocs);
         const focusId = (res?.linked && res?.blocId) || res?.bloc?.id || null;
         if (focusId) selectBloc(focusId, { toContenu: true, inspectorTab: 'bloc' });
         else paintBlocks();

@@ -116,18 +116,23 @@
       }
 
       try {
-        const insc = (await JpV2Resolver.mesInscriptions()).filter(function (i) { return i.statut === 'accepte'; });
+        const [inscAll, profil] = await Promise.all([
+          JpV2Resolver.mesInscriptions(),
+          JpV2Resolver.getProfilV2(),
+        ]);
+        const insc = inscAll.filter(function (i) { return i.statut === 'accepte'; });
         if (!insc.length) {
           modsEl.innerHTML = '<p class="jp-muted"><a href="parcours.html">Demander un parcours</a></p>';
           return;
         }
         // Le parcours cliqué (?parcours=) est ouvert directement ; sinon parcours actif du profil, sinon le premier
         const q = new URLSearchParams(location.search).get('parcours');
-        const profil = await JpV2Resolver.getProfilV2();
         let id = insc[0].parcours_id;
         if (q && insc.some(function (i) { return i.parcours_id === q; })) id = q;
         else if (profil && profil.parcours_id && insc.some(function (i) { return i.parcours_id === profil.parcours_id; })) id = profil.parcours_id;
-        if (!profil || profil.parcours_id !== id) await JpV2Resolver.setParcoursActif(id);
+        if (!profil || profil.parcours_id !== id) {
+          await JpV2Resolver.setParcoursActif(id, { inscriptions: insc });
+        }
         const prog = await JpV2Resolver.progression(id);
         const meta = insc.find(function (i) { return i.parcours_id === id; });
         document.title = (meta && meta.libelle ? meta.libelle : 'Parcours') + ' — Jeu Pharma';

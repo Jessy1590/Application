@@ -1,9 +1,12 @@
 /**
  * CRUD fiches médicaments (admin) — matrice DCI-centrique + liaisons + vue v_medicaments_complet.
  * 1 fiche = 1 DCI ; N noms commerciaux via matrice_noms_commerciaux.
+ * Liste admin : v_medicaments_liste (légère) ; fiche éditeur : getById (complet).
  * Clé anon + RLS admin portail.
  */
 (function (global) {
+  const SAVE_CONCURRENCY = 6;
+
   function sb() {
     return global.JpApp.sbJeu();
   }
@@ -25,6 +28,21 @@
 
   function multiChamps() {
     return champsActifs().filter((c) => c.card === 'N');
+  }
+
+  /** Exécute `fn` sur chaque item avec au plus `limit` promesses concurrentes. */
+  async function mapPool(items, limit, fn) {
+    const list = items || [];
+    const out = new Array(list.length);
+    let next = 0;
+    const workers = Array.from({ length: Math.min(limit, Math.max(list.length, 1)) }, async () => {
+      while (next < list.length) {
+        const i = next++;
+        out[i] = await fn(list[i], i);
+      }
+    });
+    await Promise.all(workers);
+    return out;
   }
 
   /** True si la fiche référence l’entité (FK singulière ou jonction multi). */
@@ -95,13 +113,13 @@
     return labs.length ? labs.join(sep != null ? sep : ', ') : '—';
   }
 
-  /** Page par page (PostgREST plafonne à 1000 lignes). */
+  /** Page par page (PostgREST plafonne à 1000 lignes) — vue liste légère. */
   async function list() {
     const PAGE = 1000;
     const out = [];
     for (let from = 0; from < 20000; from += PAGE) {
       const { data, error } = await sb()
-        .from('v_medicaments_complet')
+        .from('v_medicaments_liste')
         .select('*')
         .order('updated_at', { ascending: false })
         .order('id', { ascending: true })
@@ -142,6 +160,7 @@
 
   /**
    * Résout une valeur singulière → id entité.
+   * Skip findOrCreate si `id` stable déjà présent (sauf rename scope all / détache molecule).
    * scope `all` : met à jour l’entité partagée ; `molecule` : détache (find/create).
    */
   async function resolveSingular(field, table) {
@@ -152,6 +171,7 @@
       if (v) await global.JpEntites.update(table, field.id, { valeur: v });
       return field.id;
     }
+    if (field.id && !v) return field.id;
     if (!v) return null;
     if (field.id && scope === 'molecule') {
       const existing = await global.JpEntites.getById(table, field.id);
@@ -163,15 +183,21 @@
       const created = await global.JpEntites.create(table, { valeur: v });
       return created?.id || null;
     }
+    if (field.id) return field.id;
     const ent = await global.JpEntites.findOrCreate(table, v);
     return ent?.id || null;
   }
 
-  /** Résout une liste d’items {id?, valeur, scope?} → ids dédoublonnés (ordre conservé). */
+  /**
+   * Résout une liste d’items {id?, valeur, scope?} → ids dédoublonnés (ordre conservé).
+   * Items avec id stable : pas de findOrCreate ; résolution réseau parallélisée (plafond).
+   */
   async function resolveMulti(items, table) {
+    const E = global.JpEntites;
     const ids = [];
     const seenNorm = new Set();
-    const E = global.JpEntites;
+    const pending = [];
+
     for (const item of items || []) {
       if (!item) continue;
       const scope = item.scope === 'molecule' ? 'molecule' : 'all';
@@ -179,9 +205,11 @@
       const norms = E.normCandidates(v);
 
       if (item.id && scope === 'all') {
-        if (v) await E.update(table, item.id, { valeur: v });
-        ids.push(item.id);
-        norms.forEach((n) => seenNorm.add(n));
+        if (v) pending.push({ kind: 'update', id: item.id, v, norms });
+        else {
+          ids.push(item.id);
+          norms.forEach((n) => seenNorm.add(n));
+        }
         continue;
       }
       if (item.id && !v) {
@@ -191,23 +219,59 @@
       if (!v) continue;
 
       if (item.id && scope === 'molecule') {
-        const existing = await E.getById(table, item.id);
-        if (existing && E.normaliser(existing.valeur) === E.normaliser(v)) {
-          ids.push(item.id);
-          norms.forEach((n) => seenNorm.add(n));
-          continue;
-        }
+        pending.push({ kind: 'molecule', id: item.id, v, norms });
+        continue;
+      }
+      if (item.id) {
+        ids.push(item.id);
+        norms.forEach((n) => seenNorm.add(n));
+        continue;
       }
       if (norms.some((n) => seenNorm.has(n))) continue;
-      const ent = scope === 'molecule'
-        ? (await E.findActiveByValeur(table, v)) || (await E.create(table, { valeur: v }))
-        : await E.findOrCreate(table, v);
-      if (ent?.id) {
-        ids.push(ent.id);
-        norms.forEach((n) => seenNorm.add(n));
-        if (ent.valeur_norm) seenNorm.add(ent.valeur_norm);
+      norms.forEach((n) => seenNorm.add(n));
+      pending.push({ kind: 'create', v, norms, scope });
+    }
+
+    // Updates scope all (id + valeur) en parallèle — conserve l’id.
+    const updates = pending.filter((p) => p.kind === 'update');
+    if (updates.length) {
+      await mapPool(updates, SAVE_CONCURRENCY, async (p) => {
+        await E.update(table, p.id, { valeur: p.v });
+        return p.id;
+      });
+      for (const p of updates) {
+        ids.push(p.id);
+        p.norms.forEach((n) => seenNorm.add(n));
       }
     }
+
+    // molecule / create : résolution parallèle (findOrCreate déduplique côté unique).
+    const resolvers = pending.filter((p) => p.kind !== 'update');
+    if (resolvers.length) {
+      const resolved = await mapPool(resolvers, SAVE_CONCURRENCY, async (p) => {
+        if (p.kind === 'molecule') {
+          const existing = await E.getById(table, p.id);
+          if (existing && E.normaliser(existing.valeur) === E.normaliser(p.v)) {
+            return { id: p.id, norms: p.norms };
+          }
+          const ent = (await E.findActiveByValeur(table, p.v)) || (await E.create(table, { valeur: p.v }));
+          return ent?.id ? { id: ent.id, norms: p.norms, valeur_norm: ent.valeur_norm } : null;
+        }
+        const ent = p.scope === 'molecule'
+          ? (await E.findActiveByValeur(table, p.v)) || (await E.create(table, { valeur: p.v }))
+          : await E.findOrCreate(table, p.v);
+        return ent?.id ? { id: ent.id, norms: p.norms, valeur_norm: ent.valeur_norm } : null;
+      });
+      const seenId = new Set(ids.map(String));
+      for (const r of resolved) {
+        if (!r?.id || seenId.has(String(r.id))) continue;
+        seenId.add(String(r.id));
+        ids.push(r.id);
+        r.norms?.forEach((n) => seenNorm.add(n));
+        if (r.valeur_norm) seenNorm.add(r.valeur_norm);
+      }
+    }
+
     return [...new Set(ids)];
   }
 
@@ -254,9 +318,11 @@
       fiche_validee: payload.fiche_validee === true,
     };
 
-    for (const c of singularChamps()) {
-      row[c.fk] = await resolveSingular(payload.singular?.[c.code], c.table);
-    }
+    const singular = singularChamps();
+    const fkIds = await mapPool(singular, SAVE_CONCURRENCY, async (c) => (
+      resolveSingular(payload.singular?.[c.code], c.table)
+    ));
+    singular.forEach((c, i) => { row[c.fk] = fkIds[i]; });
 
     let id = existingId || null;
     let merged = false;
@@ -271,7 +337,7 @@
       }
     }
     if (merged) {
-      for (const c of singularChamps()) {
+      for (const c of singular) {
         if (row[c.fk] == null) delete row[c.fk];
       }
     }
@@ -293,8 +359,10 @@
     }
 
     const current = merged ? await getById(id) : null;
+    const multi = multiChamps();
+    const savedId = id;
 
-    for (const c of multiChamps()) {
+    await mapPool(multi, SAVE_CONCURRENCY, async (c) => {
       let items = payload.multi?.[c.code] || [];
       if (merged && current) {
         const existingArr = c.code === 'nom_commercial'
@@ -302,14 +370,14 @@
           : Array.isArray(current[c.code]) ? current[c.code] : [];
         items = mergeMultiPayload(existingArr, items);
       }
-      const ids = await resolveMulti(items, c.table);
-      await replaceLiaisons(id, c, ids);
+      const entityIds = await resolveMulti(items, c.table);
+      await replaceLiaisons(savedId, c, entityIds);
       if (c.fk && (c.code === 'classe_therapeutique' || c.code === 'classe_pharmacologique')) {
         const { error: fkErr } = await sb().from('matrice_medicaments')
-          .update({ [c.fk]: ids[0] || null }).eq('id', id);
+          .update({ [c.fk]: entityIds[0] || null }).eq('id', savedId);
         if (fkErr) throw fkErr;
       }
-    }
+    });
 
     void global.JpLogs?.action?.('medicament_save', {
       id,
@@ -333,8 +401,8 @@
     return data;
   }
 
-  async function setFicheValidee(id, validee) {
-    const user = await global.JpApp.getUser();
+  async function setFicheValidee(id, validee, userOpt) {
+    const user = userOpt || await global.JpApp.getUser();
     const { error } = await sb()
       .from('matrice_medicaments')
       .update({ fiche_validee: !!validee, updated_by: user?.id || null })
@@ -343,10 +411,10 @@
     void global.JpLogs?.action?.('medicament_fiche_validee', { id, fiche_validee: !!validee });
   }
 
-  async function resetFicheValidee(ids) {
+  async function resetFicheValidee(ids, userOpt) {
     const list = (ids || []).filter(Boolean);
     if (!list.length) return 0;
-    const user = await global.JpApp.getUser();
+    const user = userOpt || await global.JpApp.getUser();
     for (let i = 0; i < list.length; i += 200) {
       const { error } = await sb()
         .from('matrice_medicaments')

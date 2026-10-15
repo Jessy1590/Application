@@ -337,19 +337,42 @@
       + '<ul class="jp-crit-list">' + rows.join('') + '</ul>' + ou + '</section>';
   }
 
+  /**
+   * Footer critères + nav « leçon suivante ».
+   * Navigation : 1× v2_progression_parcours au boot (cache ctx._nav).
+   * Scroll / lecture : réutilise detail de v2_enregistrer_lecture — pas de progression.
+   */
   async function renderFooter(host, ctx) {
     const { module, preview } = ctx;
     let detail = ctx.detail;
-    let prog = null;
-    try {
-      prog = await global.JpV2Resolver.progression(module.parcours_id);
-    } catch (_) { /* navigation de repli ci-dessous */ }
-    const leaves = prog ? PU().orderedLeaves(prog.modules || []) : [];
-    const idx = leaves.findIndex((m) => m.id === module.id);
-    const cur = idx >= 0 ? leaves[idx] : null;
-    if (cur && cur.detail) detail = cur.detail;
+
+    if (!ctx._nav) {
+      let prog = null;
+      try {
+        prog = await global.JpV2Resolver.progression(module.parcours_id);
+      } catch (_) { /* navigation de repli ci-dessous */ }
+      const leaves = prog ? PU().orderedLeaves(prog.modules || []) : [];
+      const idx = leaves.findIndex((m) => m.id === module.id);
+      const cur = idx >= 0 ? leaves[idx] : null;
+      if (cur && cur.detail) detail = cur.detail;
+      ctx._nav = {
+        idx,
+        next: idx >= 0 ? leaves[idx + 1] : null,
+      };
+    }
+
+    // Après lecture / jeu : si la leçon courante valide débloque la suivante, ouvrir le lien.
+    let next = ctx._nav.next;
+    if (next && next.statut === 'verrouille' && detail && detail.valide) {
+      const bp = next.bloque_par;
+      if (bp && bp.type === 'module' && bp.module_id === module.id) {
+        next = Object.assign({}, next, { statut: 'disponible', bloque_par: null });
+        ctx._nav.next = next;
+      }
+    }
+
     ctx.detail = detail;
-    const next = idx >= 0 ? leaves[idx + 1] : null;
+    const idx = ctx._nav.idx;
     const back = 'espace.html?parcours=' + encodeURIComponent(module.parcours_id || '');
 
     let nav = '';
@@ -534,20 +557,23 @@
     const ficheNiveau = (preview && data.niveau_parcours >= 1 && data.niveau_parcours <= 5)
       ? data.niveau_parcours
       : null;
-    const slots = root.querySelectorAll('.jp-carousel-slide[data-mol]');
-    for (const slot of slots) {
-      const id = slot.getAttribute('data-mol');
-      const holder = slot.querySelector('.jp-mol-slot');
+    const slots = Array.from(root.querySelectorAll('.jp-carousel-slide[data-mol]'));
+    const molIds = slots.map((s) => s.getAttribute('data-mol')).filter(Boolean);
+    let fichesMap = {};
+    if (molIds.length) {
       try {
-        const fiche = await global.JpV2Resolver.ficheResolue(id, {
+        fichesMap = await global.JpV2Resolver.fichesResolues(molIds, {
           parcoursId: module.parcours_id,
           moduleIds: [module.id],
           niveau: ficheNiveau,
         });
-        holder.innerHTML = fiche ? ficheHtml(fiche) : '—';
-      } catch (_) {
-        holder.textContent = '—';
-      }
+      } catch (_) { /* slots en « — » ci-dessous */ }
+    }
+    for (const slot of slots) {
+      const id = slot.getAttribute('data-mol');
+      const holder = slot.querySelector('.jp-mol-slot');
+      const fiche = fichesMap[id];
+      holder.innerHTML = fiche ? ficheHtml(fiche) : '—';
       carousels.forEach((c) => c.fit());
     }
   }

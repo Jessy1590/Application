@@ -50,30 +50,42 @@
     return data;
   }
 
+  function ficheOpts(modele) {
+    return {
+      parcoursId: modele.parcours_id || null,
+      moduleIds: (modele.module_ids && modele.module_ids.length) ? modele.module_ids : null,
+    };
+  }
+
+  /** Précharge un lot de fiches (1 RPC) dans le cache du modèle. */
+  async function preloadFiches(modele, matriceIds) {
+    const ids = Array.from(new Set((matriceIds || []).filter(Boolean)));
+    if (!ids.length) return modele._fichesCache || {};
+    const map = await global.JpV2Resolver.fichesResolues(ids, ficheOpts(modele));
+    modele._fichesCache = modele._fichesCache || Object.create(null);
+    ids.forEach((id) => {
+      if (Object.prototype.hasOwnProperty.call(map, id)) modele._fichesCache[id] = map[id];
+    });
+    return modele._fichesCache;
+  }
+
   async function poolMedicaments(modele) {
     const cfg = modele.configuration_json || {};
     const fixed = Array.isArray(cfg.matrice_ids) ? cfg.matrice_ids.filter(Boolean) : [];
-    let rows = await global.JpV2Resolver.listerMedicaments({
-      parcoursId: modele.parcours_id || null,
-      moduleIds: (modele.module_ids && modele.module_ids.length) ? modele.module_ids : null,
-    });
+    let rows = await global.JpV2Resolver.listerMedicaments(ficheOpts(modele));
     if ((!rows || !rows.length) && fixed.length) {
-      // Repli : résolution fiche par fiche si le listing est vide
-      const out = [];
-      for (const id of fixed) {
-        try {
-          const f = await fiche(modele, id);
-          if (f) {
-            out.push({
-              id: f.id,
-              dci: f.dci,
-              noms: (f.noms_commerciaux || []).map((n) => n.valeur).join(', '),
-              nb_connaissances: Object.keys(f.champs || {}).length,
-            });
-          }
-        } catch (_) { /* skip */ }
-      }
-      rows = out;
+      // Repli : résolution bulk si le listing est vide
+      const cache = await preloadFiches(modele, fixed);
+      rows = fixed.map((id) => {
+        const f = cache[id];
+        if (!f) return null;
+        return {
+          id: f.id || id,
+          dci: f.dci,
+          noms: (f.noms_commerciaux || []).map((n) => n.valeur).join(', '),
+          nb_connaissances: Object.keys(f.champs || {}).length,
+        };
+      }).filter(Boolean);
     } else if (fixed.length && rows.length) {
       const allow = new Set(fixed);
       const filtered = rows.filter((r) => allow.has(r.id));
@@ -83,10 +95,15 @@
   }
 
   async function fiche(modele, matriceId) {
-    return global.JpV2Resolver.ficheResolue(matriceId, {
-      parcoursId: modele.parcours_id || null,
-      moduleIds: (modele.module_ids && modele.module_ids.length) ? modele.module_ids : null,
-    });
+    if (!matriceId) return null;
+    const cache = modele._fichesCache;
+    if (cache && Object.prototype.hasOwnProperty.call(cache, matriceId)) {
+      return cache[matriceId] || null;
+    }
+    const f = await global.JpV2Resolver.ficheResolue(matriceId, ficheOpts(modele));
+    modele._fichesCache = modele._fichesCache || Object.create(null);
+    modele._fichesCache[matriceId] = f;
+    return f;
   }
 
   async function saveTentative(modele, snapshot, reponses, scoreObtenu, scoreMax) {
@@ -128,28 +145,23 @@
     return { moduleId: q.get('module') || '', parcoursId: q.get('parcours') || modele.parcours_id || '' };
   }
 
-  /** Critère de validation lié à ce jeu (score minimum) d’après la progression du parcours. */
+  /** Critère de validation lié à ce jeu (RPC légère — pas l’arbre progression). */
   async function findRequirement(modele, ctx) {
-    if (!ctx.parcoursId || !global.JpV2Resolver) return null;
+    if (!global.JpV2Resolver?.critereJeu) return null;
     try {
-      const prog = await global.JpV2Resolver.progression(ctx.parcoursId);
-      const mods = prog.modules || [];
-      const hits = [];
-      mods.forEach(function (m) {
-        const j = ((m.detail && m.detail.jeux) || []).find(function (x) { return x.modele_id === modele.id; });
-        if (j) hits.push({ m: m, j: j });
+      const row = await global.JpV2Resolver.critereJeu(modele.id, {
+        moduleId: ctx.moduleId || null,
+        parcoursId: ctx.parcoursId || modele.parcours_id || null,
       });
-      if (!hits.length) return null;
-      const pref = hits.find(function (h) { return h.m.id === ctx.moduleId; })
-        || hits.find(function (h) { return !h.m.est_groupe; }) || hits[0];
+      if (!row) return null;
       return {
-        ok: !!pref.j.ok,
-        min: pref.j.score_min_pct,
-        moduleId: pref.m.id,
-        groupe: !!pref.m.est_groupe,
-        titre: pref.m.titre,
-        valide: !!pref.m.valide,
-        parcoursId: ctx.parcoursId,
+        ok: !!row.ok,
+        min: row.score_min_pct,
+        moduleId: row.module_id,
+        groupe: !!row.est_groupe,
+        titre: row.titre,
+        valide: !!row.valide,
+        parcoursId: row.parcours_id || ctx.parcoursId,
       };
     } catch (_) {
       return null;
@@ -225,6 +237,8 @@
     const used = new Set();
     let guard = 0;
 
+    await preloadFiches(modele, pool.map((p) => p.id));
+
     while (questions.length < target && guard < target * 12) {
       guard += 1;
       const med = pick(pool);
@@ -244,6 +258,7 @@
       for (const o of others) {
         if (distractors.length >= nbProp - 1) break;
         const fo = await fiche(modele, o.id);
+        if (!fo) continue;
         const vals = valeursChamp(fo, champ).filter((v) => v !== correct && !distractors.includes(v));
         if (vals.length) distractors.push(pick(vals));
       }
@@ -712,6 +727,8 @@
     let current = null;
     let revealed = false;
 
+    await preloadFiches(modele, pool.map((p) => p.id));
+
     async function next() {
       revealed = false;
       const med = pick(pool);
@@ -800,6 +817,7 @@
     if (!nb) throw new Error('Aucune molécule pour ce tableau à trous');
 
     const selected = shuffle(pool).slice(0, nb);
+    await preloadFiches(modele, selected.map((m) => m.id));
     const rows = [];
     for (const med of selected) {
       const f = await fiche(modele, med.id);
@@ -870,9 +888,12 @@
 
     // Aligner le parcours actif sur celui du jeu si besoin
     try {
-      const profil = await global.JpV2Resolver.getProfilV2();
+      const [profil, insc] = await Promise.all([
+        global.JpV2Resolver.getProfilV2(),
+        global.JpV2Resolver.mesInscriptions(),
+      ]);
       if (modele.parcours_id && profil?.parcours_id !== modele.parcours_id) {
-        await global.JpV2Resolver.setParcoursActif(modele.parcours_id);
+        await global.JpV2Resolver.setParcoursActif(modele.parcours_id, { inscriptions: insc });
       }
     } catch (_) { /* ignore */ }
 
