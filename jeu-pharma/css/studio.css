@@ -1027,6 +1027,32 @@
   border-color: rgba(15, 107, 92, 0.55);
 }
 .jp-reco-mode-lesson .jp-ta-input { min-height: 2.35rem; }
+.jp-reco-mode-cible { display: flex; flex-direction: column; gap: 0.4rem; }
+.jp-reco-kind-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.jp-reco-kind-label {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(20, 32, 28, 0.55);
+}
+.jp-reco-kind-select {
+  flex: 1;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.25rem 0.45rem;
+  font: inherit;
+  font-size: 0.88rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.45rem;
+  background: #fff;
+  color: inherit;
+}
 .jp-reco-remove {
   align-self: start;
   width: 2rem;

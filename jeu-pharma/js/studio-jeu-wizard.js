@@ -175,6 +175,68 @@
     return hit ? hit.label.toLowerCase() : (src || 'référentiel');
   }
 
+  /** Collecte les matrice_id d’un payload bloc molécule (base + variantes + brouillon). */
+  function collectMatriceIdsFromPayload(payload) {
+    const ids = new Set();
+    function fromLayer(src) {
+      if (!src || typeof src !== 'object') return;
+      if (Array.isArray(src.matrice_ids)) {
+        src.matrice_ids.forEach((id) => { if (id) ids.add(String(id)); });
+      } else if (src.matrice_id) {
+        ids.add(String(src.matrice_id));
+      }
+    }
+    const p = payload && typeof payload === 'object' ? payload : {};
+    fromLayer(p);
+    const draft = p._brouillon && p._brouillon.payload;
+    if (draft) fromLayer(draft);
+    const variantes = p.variantes && typeof p.variantes === 'object' ? p.variantes : {};
+    Object.keys(variantes).forEach((k) => fromLayer(variantes[k]));
+    const draftVar = draft && draft.variantes && typeof draft.variantes === 'object' ? draft.variantes : {};
+    Object.keys(draftVar).forEach((k) => fromLayer(draftVar[k]));
+    return Array.from(ids);
+  }
+
+  /**
+   * Molécules de la leçon : publications actives, sinon blocs molécule (source studio).
+   * @returns {Promise<{id:string,label:string,sub?:string}[]>}
+   */
+  async function loadLessonMolecules(moduleId) {
+    if (!moduleId) return [];
+    const idSet = new Set();
+
+    const { data: pubs, error: pubErr } = await sb()
+      .from('publications_connaissances')
+      .select('connaissances!inner(matrice_id)')
+      .eq('module_id', moduleId)
+      .eq('actif', true);
+    if (pubErr) throw pubErr;
+    (pubs || []).forEach((p) => {
+      if (p.connaissances?.matrice_id) idSet.add(String(p.connaissances.matrice_id));
+    });
+
+    if (!idSet.size) {
+      const { data: blocs, error: blocErr } = await sb()
+        .from('module_blocs')
+        .select('payload_json')
+        .eq('module_id', moduleId)
+        .eq('type_bloc', 'molecule');
+      if (blocErr) throw blocErr;
+      (blocs || []).forEach((b) => {
+        collectMatriceIdsFromPayload(b.payload_json).forEach((id) => idSet.add(id));
+      });
+    }
+
+    const ids = Array.from(idSet);
+    if (!ids.length) return [];
+    const labels = await loadMatriceLabels(ids);
+    return ids.map((id) => ({
+      id,
+      label: labels[id] || id,
+      sub: 'Leçon',
+    }));
+  }
+
   /**
    * Modale de choix d’équivalences.
    * @param {{ multiple: boolean, sourceLabel: string, candidates: {id,label}[] }} opts
@@ -354,6 +416,13 @@
       + esc(titreInit) + '"></div>'
       + '<div class="jp-field"><span class="jp-field-label">Leçons du pool (tapez pour ajouter)</span>'
       + '<div id="jwMods"></div></div>'
+      + '<div class="jp-field" id="jwMolsBlock">'
+      + '<span class="jp-field-label">Molécules du pool (optionnel)</span>'
+      + '<p class="jp-muted jp-field-hint">Vide = toutes les molécules publiées des leçons du pool. Sinon filtre strict.</p>'
+      + '<div id="jwMols"></div>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="jwAddLessonMols" style="margin-top:0.45rem">'
+      + 'Ajouter les molécules de la leçon</button>'
+      + '</div>'
       + '<div class="jp-field" id="jwChampsBlock"><span class="jp-field-label">Champs interrogés</span>'
       + '<div class="jp-quiz-admin-champs-grid">'
       + CHAMPS.map(([code, lib]) => '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jwChamp" value="'
@@ -476,6 +545,83 @@
       placeholder: 'Chercher une leçon…',
       ariaLabel: 'Leçons du pool',
       initial: initialPool,
+    });
+
+    const fixedMatIds = Array.isArray(cfg0.matrice_ids) ? cfg0.matrice_ids.filter(Boolean).map(String) : [];
+    let initialMols = [];
+    if (fixedMatIds.length) {
+      try {
+        const labMap = await loadMatriceLabels(fixedMatIds);
+        initialMols = fixedMatIds.map((id) => ({
+          id,
+          label: labMap[id] || id,
+          sub: '',
+        }));
+      } catch (_) {
+        initialMols = fixedMatIds.map((id) => ({ id, label: id, sub: '' }));
+      }
+    }
+    const molChips = TA.chips(overlay.querySelector('#jwMols'), {
+      search: TA.matriceSource({ limit: 12 }),
+      minChars: 1,
+      placeholder: 'Chercher une DCI…',
+      ariaLabel: 'Molécules du pool',
+      initial: initialMols,
+    });
+
+    function addMoleculesToHybridLists(mols) {
+      const type = overlay.querySelector('#jwType').value;
+      let addedHybrid = 0;
+      if (type === 'classement') {
+        mols.forEach((m) => {
+          const before = classItems.length;
+          ensureRefItem(classItems, 'i', 'matrice', m.id, m.label);
+          if (classItems.length > before) addedHybrid += 1;
+        });
+        if (addedHybrid) {
+          renderClassItems();
+          renderClassAssign();
+        }
+      } else if (type === 'appariement') {
+        mols.forEach((m) => {
+          const before = appGauche.length;
+          ensureRefItem(appGauche, 'g', 'matrice', m.id, m.label);
+          if (appGauche.length > before) addedHybrid += 1;
+        });
+        if (addedHybrid) {
+          renderAppCol('gauche');
+          renderAppPaires();
+        }
+      }
+      return addedHybrid;
+    }
+
+    overlay.querySelector('#jwAddLessonMols').addEventListener('click', async () => {
+      const btn = overlay.querySelector('#jwAddLessonMols');
+      btn.disabled = true;
+      try {
+        const mols = await loadLessonMolecules(moduleId);
+        if (!mols.length) {
+          global.JpToast?.warn?.('Aucune molécule publiée (ni bloc molécule) sur cette leçon');
+          return;
+        }
+        const before = new Set(molChips.getIds().map(String));
+        let addedPool = 0;
+        mols.forEach((m) => {
+          if (!before.has(String(m.id))) addedPool += 1;
+          molChips.add({ id: m.id, label: m.label, sub: m.sub || '' });
+        });
+        const addedHybrid = addMoleculesToHybridLists(mols);
+        const parts = [];
+        if (addedPool) parts.push(addedPool + ' au pool');
+        else parts.push('déjà dans le pool');
+        if (addedHybrid) parts.push(addedHybrid + ' en sélection jeu');
+        global.JpToast?.ok?.(mols.length + ' molécule(s) · ' + parts.join(' · '));
+      } catch (e) {
+        global.JpToast?.fromError?.(e) || global.JpToast?.warn?.(e.message || 'Erreur');
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     const comboTher = TA.combo(overlay.querySelector('#jwRegleTher'), {
@@ -1181,6 +1327,7 @@
 
     function buildConfiguration(type) {
       const champs = Array.from(overlay.querySelectorAll('input[name="jwChamp"]:checked')).map((el) => el.value);
+      const matriceIds = molChips.getIds().filter(Boolean);
       const base = {
         champs,
         champs_interroges: champs,
@@ -1192,6 +1339,7 @@
         seuil_exclusion: Number(overlay.querySelector('#jwSeuil').value) || 8,
         nb_notes_exclusion: Number(overlay.querySelector('#jwNbNotes').value) || 3,
       };
+      if (matriceIds.length) base.matrice_ids = matriceIds;
       const autoMaxRaw = overlay.querySelector('#jwNbAutoMax').value;
       if (autoMaxRaw !== '' && !Number.isNaN(Number(autoMaxRaw))) {
         base.nb_auto_max = Math.max(0, Number(autoMaxRaw));

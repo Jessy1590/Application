@@ -15,7 +15,7 @@
 <script>initialiserSite(JpApp.SITE_ID);</script>
 <link rel="stylesheet" href="css/app.css?v=059">
 <link rel="stylesheet" href="css/v2.css?v=028">
-<link rel="stylesheet" href="css/player.css?v=028">
+<link rel="stylesheet" href="css/player.css?v=029">
 </head>
 <body>
   <main class="jp-player-shell">
@@ -83,11 +83,22 @@
             + '<span class="jp-chap-count">' + (d.nb_valides || 0) + ' / ' + (d.nb_lecons || 0) + ' · ' + P.clampPct(m.pct) + ' %</span></header>';
           if (locked && m.bloque_par) head += '<p class="jp-chap-lock">🔒 ' + esc(P.messageBloque(m.bloque_par)) + '</p>';
           else head += P.progressBar(m.pct, 'Avancement ' + m.titre);
-          return '<section class="jp-chap' + (locked ? ' is-locked' : '') + (m.valide ? ' is-done' : '') + '">'
+          return '<section class="jp-chap' + (locked ? ' is-locked' : '') + (m.valide ? ' is-done' : '')
+            + '" id="jp-chap-' + esc(m.id) + '" data-chapitre-id="' + esc(m.id) + '">'
             + head + '<div class="jp-chap-body">' + kids.map(function (k) { return node(k, depth + 1); }).join('') + '</div></section>';
         }
         const roots = (byParent[''] || []).slice().sort(function (a, b) { return a.ordre - b.ordre; });
         modsEl.innerHTML = roots.length ? roots.map(function (r) { return node(r, 0); }).join('') : '<p class="jp-muted">—</p>';
+        const chapQ = new URLSearchParams(location.search).get('chapitre');
+        if (chapQ) {
+          const el = document.getElementById('jp-chap-' + chapQ);
+          if (el) {
+            el.classList.add('is-focus');
+            requestAnimationFrame(function () {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }
+        }
       }
 
       function renderHero(parcours, libelleFallback) {

@@ -300,6 +300,11 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 }
 .jp-chap .jp-chap { margin: 0.8rem 0 0; background: rgba(255, 255, 255, 0.5); }
 .jp-chap.is-locked { background: rgba(240, 243, 242, 0.7); }
+.jp-chap.is-focus {
+  outline: 2px solid var(--jp-accent, #0f6b5c);
+  outline-offset: 3px;
+  scroll-margin-top: 1rem;
+}
 .jp-chap-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.55rem; }
 .jp-chap-head h2 { margin: 0; font-family: var(--jp-font-display, Georgia, serif); font-size: 1.2rem; }
 .jp-chap-count { font-size: 0.78rem; font-weight: 600; color: var(--jp-accent, #0f6b5c); white-space: nowrap; }

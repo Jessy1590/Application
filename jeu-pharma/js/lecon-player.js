@@ -86,12 +86,17 @@
 
   function recoNormalizeRef(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
+    const kindRaw = String(r.target_kind || '').trim();
+    const kind = (kindRaw === 'parcours' || kindRaw === 'chapitre' || kindRaw === 'lecon' || kindRaw === 'url')
+      ? kindRaw
+      : '';
     return {
       label: String(r.label ?? r.lien_label ?? '').trim(),
       href: String(r.href ?? r.lien_href ?? '').trim(),
       module_id: String(r.module_id ?? r.lien_module_id ?? '').trim(),
       parcours_id: String(r.parcours_id ?? r.lien_parcours_id ?? '').trim(),
       bloc_id: String(r.bloc_id ?? r.lien_bloc_id ?? '').trim(),
+      target_kind: kind,
     };
   }
 
@@ -107,8 +112,9 @@
       module_id: pay.lien_module_id,
       parcours_id: pay.lien_parcours_id,
       bloc_id: pay.lien_bloc_id,
+      target_kind: pay.target_kind,
     });
-    const has = legacy.label || legacy.href || legacy.module_id || legacy.bloc_id;
+    const has = legacy.label || legacy.href || legacy.module_id || legacy.parcours_id || legacy.bloc_id;
     return has ? [legacy] : [];
   }
 
@@ -122,25 +128,48 @@
     return extra;
   }
 
+  function recoAppendPreview(href) {
+    const extra = recoPreviewQuery();
+    if (!extra || !href || href.indexOf('preview=') >= 0) return href;
+    return href + (href.indexOf('?') >= 0 ? extra : '?' + extra.slice(1));
+  }
+
   /** Lien in-app ou https pour une référence recommandation (pas de pop-up). */
   function recoHrefForRef(ref, module) {
     const blocId = (ref.bloc_id || '').trim();
     if (blocId) return '#jp-bloc-' + blocId;
+
+    const kind = String(ref.target_kind || '').trim();
     const modId = (ref.module_id || '').trim();
-    if (modId) {
-      let h = 'lecon.html?module=' + encodeURIComponent(modId);
-      const parc = (ref.parcours_id || module.parcours_id || '').trim();
-      if (parc) h += '&parcours=' + encodeURIComponent(parc);
-      h += recoPreviewQuery();
-      return h;
+    const parcRef = (ref.parcours_id || '').trim();
+    const parc = parcRef || (module && module.parcours_id ? String(module.parcours_id).trim() : '');
+
+    if (kind === 'parcours') {
+      if (!parcRef) return '';
+      return recoAppendPreview('espace.html?parcours=' + encodeURIComponent(parcRef));
     }
+    if (kind === 'chapitre') {
+      if (!modId) return '';
+      let h = 'espace.html?';
+      if (parc) h += 'parcours=' + encodeURIComponent(parc) + '&';
+      h += 'chapitre=' + encodeURIComponent(modId);
+      return recoAppendPreview(h);
+    }
+    if (modId) {
+      // lecon (explicite ou legacy sans target_kind)
+      let h = 'lecon.html?module=' + encodeURIComponent(modId);
+      if (parc) h += '&parcours=' + encodeURIComponent(parc);
+      return recoAppendPreview(h);
+    }
+    if (parcRef && kind !== 'url') {
+      return recoAppendPreview('espace.html?parcours=' + encodeURIComponent(parcRef));
+    }
+
     const href = (ref.href || '').trim();
     if (!href) return '';
     if (href.startsWith('#')) return href;
     if (/^(lecon|espace|parcours|jeux\/|catalogue|mon-espace)\.html/i.test(href) || href.startsWith('/')) {
-      const extra = recoPreviewQuery();
-      if (!extra || href.indexOf('preview=') >= 0) return href;
-      return href + (href.indexOf('?') >= 0 ? extra : '?' + extra.slice(1));
+      return recoAppendPreview(href);
     }
     if (/^https:\/\//i.test(href)) return href;
     return '';

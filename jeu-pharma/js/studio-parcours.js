@@ -48,7 +48,8 @@
     variantScratch: {}, // blocId -> { field, base, tabs }
     editors: {}, // blocId:field[:vN] -> richtext instance
     molChips: {}, // blocId -> instance chips
-    recoCombos: {}, // blocId -> typeahead leçon (bloc recommandation)
+    recoCombos: {}, // rowId -> typeahead cible (bloc recommandation)
+    recoTargetCache: null, // { parcours, lecons, chapitres } multi-parcours
     molLabels: {}, // matriceId -> { label, sub }
     timers: {}, // blocId -> timeout autosave
     chain: {}, // blocId -> promesse de sauvegarde (sérialisée)
@@ -441,7 +442,7 @@
     pane.querySelector('[data-del]')?.addEventListener('click', () => confirmDeleteBloc(b.id));
   }
 
-  /* ——— Bloc recommandation : références (libellé + URL ou leçon) ——— */
+  /* ——— Bloc recommandation : références (URL ou cible multi-parcours) ——— */
 
   function recoRefHasContent(ref) {
     if (!ref || typeof ref !== 'object') return false;
@@ -449,18 +450,24 @@
       String(ref.label || ref.lien_label || '').trim()
       || String(ref.href || ref.lien_href || '').trim()
       || String(ref.module_id || ref.lien_module_id || '').trim()
+      || String(ref.parcours_id || ref.lien_parcours_id || '').trim()
       || String(ref.bloc_id || ref.lien_bloc_id || '').trim()
     );
   }
 
   function recoNormalizeRef(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
+    const kindRaw = String(r.target_kind || '').trim();
+    const kind = (kindRaw === 'parcours' || kindRaw === 'chapitre' || kindRaw === 'lecon' || kindRaw === 'url')
+      ? kindRaw
+      : '';
     return {
       label: String(r.label ?? r.lien_label ?? '').trim(),
       href: String(r.href ?? r.lien_href ?? '').trim(),
       module_id: String(r.module_id ?? r.lien_module_id ?? '').trim(),
       parcours_id: String(r.parcours_id ?? r.lien_parcours_id ?? '').trim(),
       bloc_id: String(r.bloc_id ?? r.lien_bloc_id ?? '').trim(),
+      target_kind: kind,
     };
   }
 
@@ -476,14 +483,35 @@
       module_id: pay.lien_module_id,
       parcours_id: pay.lien_parcours_id,
       bloc_id: pay.lien_bloc_id,
+      target_kind: pay.target_kind,
     });
     return recoRefHasContent(legacy) ? [legacy] : [];
   }
 
+  /** Mode UI : url | cible (leçon / chapitre / parcours, y compris hors parcours courant). */
   function recoLinkMode(ref) {
-    return String(ref.module_id || '').trim() ? 'lesson' : 'url';
+    const kind = String(ref.target_kind || '').trim();
+    if (kind === 'url') return 'url';
+    if (kind === 'lecon' || kind === 'chapitre' || kind === 'parcours') return 'cible';
+    if (String(ref.module_id || '').trim() || String(ref.parcours_id || '').trim()) return 'cible';
+    return 'url';
   }
 
+  function recoInferTargetKind(ref) {
+    const kind = String(ref.target_kind || '').trim();
+    if (kind === 'parcours' || kind === 'chapitre' || kind === 'lecon') return kind;
+    if (String(ref.module_id || '').trim()) return 'lecon';
+    if (String(ref.parcours_id || '').trim()) return 'parcours';
+    return 'lecon';
+  }
+
+  function recoKindLabel(kind) {
+    if (kind === 'parcours') return 'Parcours';
+    if (kind === 'chapitre') return 'Chapitre';
+    return 'Leçon';
+  }
+
+  /** Leçons du parcours courant (déplacer bloc / réorganiser — inchangé). */
   function recoLessonItems() {
     const byId = {};
     state.modules.forEach((m) => { byId[m.id] = m; });
@@ -496,17 +524,78 @@
           id: m.id,
           label: m.titre || m.code || String(m.id).slice(0, 8),
           sub: [chap, parc].filter(Boolean).join(' · '),
-          data: { parcours_id: m.parcours_id || state.parcoursId },
+          data: { parcours_id: m.parcours_id || state.parcoursId, kind: 'lecon' },
         };
       });
   }
 
+  /** Catalogue multi-parcours pour les cibles recommandation (admin). */
+  async function ensureRecoTargetCache() {
+    if (state.recoTargetCache) return state.recoTargetCache;
+    const parcours = (state.parcoursList && state.parcoursList.length)
+      ? state.parcoursList
+      : await loadParcoursList();
+    if (!state.parcoursList || !state.parcoursList.length) state.parcoursList = parcours;
+    const parcIds = parcours.map((p) => p.id).filter(Boolean);
+    const parcById = {};
+    parcours.forEach((p) => { parcById[p.id] = p; });
+
+    let mods = [];
+    if (parcIds.length) {
+      const { data, error } = await sb()
+        .from('modules_cours')
+        .select('id, parcours_id, parent_id, titre, code, est_groupe, ordre')
+        .in('parcours_id', parcIds)
+        .order('ordre');
+      if (error) throw error;
+      mods = data || [];
+    }
+    const modById = {};
+    mods.forEach((m) => { modById[m.id] = m; });
+
+    const lecons = [];
+    const chapitres = [];
+    mods.forEach((m) => {
+      const parc = parcById[m.parcours_id];
+      const parcLab = parc?.libelle || parc?.code || '';
+      const parent = m.parent_id && modById[m.parent_id] ? modById[m.parent_id] : null;
+      const item = {
+        id: m.id,
+        label: m.titre || m.code || String(m.id).slice(0, 8),
+        sub: [
+          m.est_groupe ? 'Chapitre' : (parent ? parent.titre : 'Leçon'),
+          parcLab,
+        ].filter(Boolean).join(' · '),
+        data: {
+          parcours_id: m.parcours_id,
+          est_groupe: !!m.est_groupe,
+          kind: m.est_groupe ? 'chapitre' : 'lecon',
+        },
+      };
+      if (m.est_groupe) chapitres.push(item);
+      else lecons.push(item);
+    });
+
+    const parcoursItems = parcours.map((p) => ({
+      id: p.id,
+      label: p.libelle || p.code || String(p.id).slice(0, 8),
+      sub: 'Parcours',
+      data: { parcours_id: p.id, kind: 'parcours' },
+    }));
+
+    state.recoTargetCache = { parcours: parcoursItems, lecons, chapitres };
+    return state.recoTargetCache;
+  }
+
   function renderRecoReferenceRow(blocId, ref, rowId) {
     const mode = recoLinkMode(ref);
-    const urlHidden = mode === 'lesson' ? ' hidden' : '';
-    const lessonHidden = mode === 'url' ? ' hidden' : '';
-    const modeLabel = mode === 'url' ? 'Lien d\'accès' : 'Leçon';
-    const toggleTitle = mode === 'url' ? 'Choisir une leçon' : 'Saisir une URL ou un chemin';
+    const targetKind = recoInferTargetKind(ref);
+    const urlHidden = mode === 'cible' ? ' hidden' : '';
+    const cibleHidden = mode === 'url' ? ' hidden' : '';
+    const modeLabel = mode === 'url' ? 'Lien d\'accès' : recoKindLabel(targetKind);
+    const toggleTitle = mode === 'url'
+      ? 'Choisir une cible (leçon, chapitre, parcours)'
+      : 'Saisir une URL ou un chemin';
     return '<div class="jp-reco-ref-row" data-reco-row-id="' + esc(rowId) + '" data-reco-mode="' + mode + '">'
       + '<div class="jp-field jp-field-tight jp-reco-label"><label>Libellé</label>'
       + '<input data-field="label" value="' + esc(ref.label || '') + '" placeholder="Ex. Reprendre la section hémostase"></div>'
@@ -517,7 +606,16 @@
       + '</div>'
       + '<div class="jp-reco-mode-url"' + urlHidden + '>'
       + '<input data-field="href" value="' + esc(ref.href || '') + '" placeholder="https://… ou lecon.html?module=…"></div>'
-      + '<div class="jp-reco-mode-lesson"' + lessonHidden + ' data-reco-lesson="' + esc(rowId) + '"></div>'
+      + '<div class="jp-reco-mode-cible"' + cibleHidden + '>'
+      + '<div class="jp-reco-kind-row">'
+      + '<label class="jp-reco-kind-label">Type</label>'
+      + '<select data-field="target_kind" class="jp-reco-kind-select">'
+      + '<option value="lecon"' + (targetKind === 'lecon' ? ' selected' : '') + '>Leçon</option>'
+      + '<option value="chapitre"' + (targetKind === 'chapitre' ? ' selected' : '') + '>Chapitre</option>'
+      + '<option value="parcours"' + (targetKind === 'parcours' ? ' selected' : '') + '>Parcours</option>'
+      + '</select></div>'
+      + '<div class="jp-reco-mode-lesson" data-reco-lesson="' + esc(rowId) + '"></div>'
+      + '</div>'
       + '<input type="hidden" data-field="module_id" value="' + esc(ref.module_id || '') + '">'
       + '<input type="hidden" data-field="parcours_id" value="' + esc(ref.parcours_id || '') + '">'
       + '<input type="hidden" data-field="bloc_id" value="' + esc(ref.bloc_id || '') + '">'
@@ -537,26 +635,73 @@
       + '</div>';
   }
 
-  function mountRecoLessonCombo(blocId, rowEl) {
+  function recoItemsForKind(cache, kind) {
+    if (kind === 'parcours') return cache.parcours || [];
+    if (kind === 'chapitre') return cache.chapitres || [];
+    return cache.lecons || [];
+  }
+
+  function recoFindInitial(items, rowEl, kind) {
+    const modId = rowEl.querySelector('[data-field="module_id"]')?.value || '';
+    const parcId = rowEl.querySelector('[data-field="parcours_id"]')?.value || '';
+    if (kind === 'parcours') {
+      const id = parcId || modId;
+      return id ? items.find((it) => String(it.id) === String(id)) : null;
+    }
+    return modId ? items.find((it) => String(it.id) === String(modId)) : null;
+  }
+
+  async function mountRecoTargetCombo(blocId, rowEl) {
     const rowId = rowEl.getAttribute('data-reco-row-id');
     const host = rowEl.querySelector('[data-reco-lesson]');
-    if (!rowId || !host || host.hidden) return;
+    const kindSel = rowEl.querySelector('[data-field="target_kind"]');
+    if (!rowId || !host || rowEl.getAttribute('data-reco-mode') !== 'cible') return;
     delete state.recoCombos[rowId];
-    const modId = rowEl.querySelector('[data-field="module_id"]')?.value || '';
-    const items = recoLessonItems();
-    const initial = modId ? items.find((it) => String(it.id) === String(modId)) : null;
+    host.innerHTML = '<p class="jp-muted jp-field-hint">Chargement…</p>';
+    let cache;
+    try {
+      cache = await ensureRecoTargetCache();
+    } catch (e) {
+      host.innerHTML = '';
+      global.JpToast?.fromError?.(e);
+      return;
+    }
+    let kind = kindSel?.value || 'lecon';
+    const modIdEarly = rowEl.querySelector('[data-field="module_id"]')?.value || '';
+    // Legacy : module_id qui est un chapitre → basculer le type
+    if (kind === 'lecon' && modIdEarly
+      && (cache.chapitres || []).some((c) => String(c.id) === String(modIdEarly))) {
+      kind = 'chapitre';
+      if (kindSel) kindSel.value = 'chapitre';
+      const modeLab = rowEl.querySelector('.jp-reco-mode-label');
+      if (modeLab) modeLab.textContent = recoKindLabel('chapitre');
+    }
+    const items = recoItemsForKind(cache, kind);
+    const initial = recoFindInitial(items, rowEl, kind);
+    host.innerHTML = '';
+    const placeholders = {
+      lecon: 'Rechercher une leçon (tous parcours)…',
+      chapitre: 'Rechercher un chapitre…',
+      parcours: 'Rechercher un parcours…',
+    };
     state.recoCombos[rowId] = global.JpTypeahead.combo(host, {
       search: global.JpTypeahead.localSource(items, { limit: 15 }),
       minChars: 0,
-      placeholder: 'Rechercher une leçon…',
-      ariaLabel: 'Choisir une leçon',
+      placeholder: placeholders[kind] || placeholders.lecon,
+      ariaLabel: 'Choisir une cible',
       hint: 'Tapez pour filtrer…',
       initial: initial || null,
       onChange: (it) => {
         const modEl = rowEl.querySelector('[data-field="module_id"]');
         const parEl = rowEl.querySelector('[data-field="parcours_id"]');
-        if (modEl) modEl.value = it ? it.id : '';
-        if (parEl) parEl.value = it?.data?.parcours_id || state.parcoursId || '';
+        const k = kindSel?.value || 'lecon';
+        if (k === 'parcours') {
+          if (modEl) modEl.value = '';
+          if (parEl) parEl.value = it ? it.id : '';
+        } else {
+          if (modEl) modEl.value = it ? it.id : '';
+          if (parEl) parEl.value = it?.data?.parcours_id || '';
+        }
         scheduleSave(blocId);
       },
     });
@@ -573,17 +718,18 @@
       scheduleSave(blocId);
     });
     rowEl.querySelector('.jp-reco-mode-toggle')?.addEventListener('click', () => {
-      const cur = rowEl.getAttribute('data-reco-mode') === 'lesson' ? 'lesson' : 'url';
-      const next = cur === 'url' ? 'lesson' : 'url';
+      const cur = rowEl.getAttribute('data-reco-mode') === 'cible' ? 'cible' : 'url';
+      const next = cur === 'url' ? 'cible' : 'url';
       rowEl.setAttribute('data-reco-mode', next);
       const urlBox = rowEl.querySelector('.jp-reco-mode-url');
-      const lessonBox = rowEl.querySelector('.jp-reco-mode-lesson');
+      const cibleBox = rowEl.querySelector('.jp-reco-mode-cible');
       const modeLab = rowEl.querySelector('.jp-reco-mode-label');
-      const toggle = rowEl.querySelector('[data-reco-mode-toggle]');
-      if (next === 'lesson') {
-        urlBox.hidden = true;
-        lessonBox.hidden = false;
-        if (modeLab) modeLab.textContent = 'Leçon';
+      const toggle = rowEl.querySelector('.jp-reco-mode-toggle');
+      const kindSel = rowEl.querySelector('[data-field="target_kind"]');
+      if (next === 'cible') {
+        if (urlBox) urlBox.hidden = true;
+        if (cibleBox) cibleBox.hidden = false;
+        if (modeLab) modeLab.textContent = recoKindLabel(kindSel?.value || 'lecon');
         if (toggle) {
           toggle.title = 'Saisir une URL ou un chemin';
           toggle.setAttribute('aria-label', 'Saisir une URL ou un chemin');
@@ -592,14 +738,14 @@
         const blocEl = rowEl.querySelector('[data-field="bloc_id"]');
         if (hrefEl) hrefEl.value = '';
         if (blocEl) blocEl.value = '';
-        mountRecoLessonCombo(blocId, rowEl);
+        void mountRecoTargetCombo(blocId, rowEl);
       } else {
-        urlBox.hidden = false;
-        lessonBox.hidden = true;
+        if (urlBox) urlBox.hidden = false;
+        if (cibleBox) cibleBox.hidden = true;
         if (modeLab) modeLab.textContent = 'Lien d\'accès';
         if (toggle) {
-          toggle.title = 'Choisir une leçon';
-          toggle.setAttribute('aria-label', 'Choisir une leçon');
+          toggle.title = 'Choisir une cible (leçon, chapitre, parcours)';
+          toggle.setAttribute('aria-label', 'Choisir une cible (leçon, chapitre, parcours)');
         }
         const rowId = rowEl.getAttribute('data-reco-row-id');
         delete state.recoCombos[rowId];
@@ -607,13 +753,27 @@
         const parEl = rowEl.querySelector('[data-field="parcours_id"]');
         if (modEl) modEl.value = '';
         if (parEl) parEl.value = '';
+        if (kindSel) kindSel.value = 'lecon';
       }
+      scheduleSave(blocId);
+    });
+    rowEl.querySelector('[data-field="target_kind"]')?.addEventListener('change', () => {
+      const kind = rowEl.querySelector('[data-field="target_kind"]')?.value || 'lecon';
+      const modeLab = rowEl.querySelector('.jp-reco-mode-label');
+      if (modeLab && rowEl.getAttribute('data-reco-mode') === 'cible') {
+        modeLab.textContent = recoKindLabel(kind);
+      }
+      const modEl = rowEl.querySelector('[data-field="module_id"]');
+      const parEl = rowEl.querySelector('[data-field="parcours_id"]');
+      if (modEl) modEl.value = '';
+      if (parEl) parEl.value = '';
+      void mountRecoTargetCombo(blocId, rowEl);
       scheduleSave(blocId);
     });
     rowEl.querySelectorAll('input[data-field]').forEach((inp) => {
       inp.addEventListener('input', () => scheduleSave(blocId));
     });
-    if (rowEl.getAttribute('data-reco-mode') === 'lesson') mountRecoLessonCombo(blocId, rowEl);
+    if (rowEl.getAttribute('data-reco-mode') === 'cible') void mountRecoTargetCombo(blocId, rowEl);
   }
 
   function bindRecoReferenceCard(card, blocId) {
@@ -639,23 +799,33 @@
     const refs = [];
     card.querySelectorAll('.jp-reco-ref-row[data-reco-row-id]').forEach((rowEl) => {
       const val = (field) => rowEl.querySelector('[data-field="' + field + '"]')?.value || '';
-      const mode = rowEl.getAttribute('data-reco-mode') === 'lesson' ? 'lesson' : 'url';
+      const mode = rowEl.getAttribute('data-reco-mode') === 'cible' ? 'cible' : 'url';
       const label = val('label').trim();
       let ref;
-      if (mode === 'lesson') {
+      if (mode === 'cible') {
         const rowId = rowEl.getAttribute('data-reco-row-id') || '';
-        const modId = val('module_id') || state.recoCombos[rowId]?.getId?.() || '';
+        const kind = val('target_kind') || 'lecon';
         const it = state.recoCombos[rowId]?.getItem?.();
+        let moduleId = '';
+        let parcoursId = '';
+        if (kind === 'parcours') {
+          parcoursId = val('parcours_id') || state.recoCombos[rowId]?.getId?.() || it?.id || '';
+        } else {
+          moduleId = val('module_id') || state.recoCombos[rowId]?.getId?.() || '';
+          parcoursId = val('parcours_id') || it?.data?.parcours_id || '';
+        }
         ref = {
           label,
-          module_id: modId,
-          parcours_id: val('parcours_id') || it?.data?.parcours_id || state.parcoursId || '',
+          target_kind: kind,
+          module_id: moduleId,
+          parcours_id: parcoursId,
           href: '',
           bloc_id: '',
         };
       } else {
         ref = {
           label,
+          target_kind: 'url',
           href: val('href').trim(),
           bloc_id: val('bloc_id').trim(),
           module_id: '',
@@ -1031,6 +1201,7 @@
 
   async function selectParcours(id) {
     state.parcoursId = id;
+    state.recoTargetCache = null;
     const list = await loadParcoursList();
     state.parcours = list.find((p) => p.id === id) || null;
     state.parcoursList = list;
@@ -1123,6 +1294,7 @@
         },
       });
       state.modules = await loadModules(state.parcoursId);
+      state.recoTargetCache = null;
       state.selectedModuleId = row.id;
       renderTree();
       await selectModule(row.id);
