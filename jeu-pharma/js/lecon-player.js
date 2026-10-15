@@ -501,6 +501,10 @@
     void renderFooter(ctx.footer, ctx);
     if (!preview) trackReading(ctx);
 
+    // Aperçu ★N : même niveau que v2_lecon_joueur (sinon pubs / valeurs restent au ★ inscription).
+    const ficheNiveau = (preview && data.niveau_parcours >= 1 && data.niveau_parcours <= 5)
+      ? data.niveau_parcours
+      : null;
     const slots = root.querySelectorAll('.jp-carousel-slide[data-mol]');
     for (const slot of slots) {
       const id = slot.getAttribute('data-mol');
@@ -509,6 +513,7 @@
         const fiche = await global.JpV2Resolver.ficheResolue(id, {
           parcoursId: module.parcours_id,
           moduleIds: [module.id],
+          niveau: ficheNiveau,
         });
         holder.innerHTML = fiche ? ficheHtml(fiche) : '—';
       } catch (_) {

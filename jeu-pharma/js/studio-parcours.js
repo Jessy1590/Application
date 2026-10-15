@@ -5,8 +5,8 @@
  *  - Le contenu publié d’un bloc = `payload_json` (clés sans « _ ») + `titre` : c’est ce que voient les joueurs.
  *  - Toute modification est enregistrée automatiquement (debounce) dans `payload_json._brouillon = { titre, payload }`.
  *  - Un bloc créé reste masqué (`visible = false`) jusqu’à la publication.
- *  - « Enregistrer et publier » : copie les brouillons vers le contenu publié, rend les blocs visibles
- *    et passe la leçon en `publie = true / statut = 'publie'`. Une leçon neuve est créée en brouillon.
+ *  - « Publier tout le parcours » : flush + copie les brouillons de **toutes** les leçons du parcours,
+ *    sync pubs molécule, passe chaque leçon en `publie = true / statut = 'publie'`.
  *  - Bloc molécule = source unique (matrice_ids + valeurs + variantes ★ additives).
  *    Les publications_connaissances sont dérivées au sync / publication.
  */
@@ -823,7 +823,7 @@
     const btn = document.getElementById('btnPublish');
     const m = selectedModule();
     const lesson = m && !m.est_groupe;
-    if (btn) btn.disabled = !lesson || state.inflight > 0;
+    if (btn) btn.disabled = !state.parcoursId || state.inflight > 0;
     if (!chip) return;
     if (!lesson) { chip.hidden = true; return; }
     chip.hidden = false;
@@ -881,7 +881,7 @@
       + '</div>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnParcoursCfg" title="Prérequis et validation du parcours">Réglages du parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnNewParcours">Nouveau parcours</button>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublish" disabled>Enregistrer et publier</button>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublish" disabled title="Publie toutes les leçons du parcours">Publier tout le parcours</button>'
       + '</header>'
       + '<div class="jp-studio-body">'
       + '<aside class="jp-studio-pane jp-studio-tree" id="treePane"></aside>'
@@ -937,7 +937,7 @@
     });
     root.querySelector('#btnNewParcours').addEventListener('click', () => void createParcours());
     root.querySelector('#btnParcoursCfg').addEventListener('click', () => void openParcoursCfg());
-    root.querySelector('#btnPublish').addEventListener('click', () => void publishLesson());
+    root.querySelector('#btnPublish').addEventListener('click', () => void publishParcours());
     async function openPreview(url) {
       // Ouvrir tout de suite (geste utilisateur) pour éviter le bloqueur de pop-ups après await.
       const w = window.open('about:blank', '_blank');
@@ -1109,7 +1109,7 @@
     const parentId = parent?.est_groupe ? parent.id : (parent?.parent_id || null);
     try {
       await flushAll();
-      // Une leçon neuve est un brouillon (invisible) jusqu’à « Enregistrer et publier » ; un chapitre n’est qu’un conteneur.
+      // Une leçon neuve est un brouillon (invisible) jusqu’à « Publier tout le parcours » ; un chapitre n’est qu’un conteneur.
       const draft = !est_groupe;
       const row = await rpc('v2_upsert_module', {
         p_payload: {
@@ -1306,7 +1306,7 @@
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnReorganiser"'
       + ' title="Déplacer plusieurs blocs vers une autre leçon">Réorganiser…</button>'
       + '</div><p class="jp-studio-autosave-hint">Structure = ordre et plages · Contenu = rédaction d’un bloc. '
-      + 'Brouillon auto · publication via « Enregistrer et publier ».</p>'
+      + 'Brouillon auto · publication via « Publier tout le parcours ».</p>'
       + '<div id="blocksList" class="jp-blocks-' + mode + '"></div>';
     pane.querySelectorAll('[data-view]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -2461,29 +2461,51 @@
     await rpc('v2_sync_pubs_depuis_blocs_molecule', { p_module_id: moduleId });
   }
 
-  async function publishLesson() {
-    const m = selectedModule();
-    if (!m || m.est_groupe) return;
+  /** Publie toutes les leçons du parcours (brouillons → publié, sync pubs, statut publie). */
+  async function publishParcours() {
+    if (!state.parcoursId) return;
     const btn = document.getElementById('btnPublish');
     if (btn) btn.disabled = true;
     try {
       await flushAll();
-      for (const b of state.blocs.filter(hasPending)) {
-        const payload = effPayload(b);
-        await rpc('v2_upsert_bloc', {
-          p_payload: { id: b.id, titre: effTitre(b), payload_json: payload, visible: true },
+      const lecons = state.modules.filter((mod) => !mod.est_groupe);
+      for (const mod of lecons) {
+        const blocs = (mod.id === state.selectedModuleId)
+          ? state.blocs
+          : await loadBlocs(mod.id);
+        for (const b of blocs.filter(hasPending)) {
+          await rpc('v2_upsert_bloc', {
+            p_payload: {
+              id: b.id,
+              titre: effTitre(b),
+              payload_json: effPayload(b),
+              visible: true,
+            },
+          });
+        }
+        await syncPubsDepuisBlocs(mod.id);
+        await rpc('v2_upsert_module', {
+          p_payload: { id: mod.id, publie: true, statut: 'publie' },
         });
       }
-      await syncPubsDepuisBlocs(m.id);
-      await rpc('v2_upsert_module', { p_payload: { id: m.id, publie: true, statut: 'publie' } });
       state.modules = await loadModules(state.parcoursId);
-      state.blocs = await loadBlocs(m.id);
+      const cur = selectedModule();
+      if (cur && !cur.est_groupe) state.blocs = await loadBlocs(cur.id);
+      else state.blocs = [];
       state.lastSavedAt = null;
       state.saveError = false;
       renderTree();
       paintBlocks();
-      global.JpToast?.ok?.('Leçon publiée');
-      void global.JpLogs?.action?.('studio_publier_lecon', { module_id: m.id });
+      const n = lecons.length;
+      global.JpToast?.ok?.(
+        n === 0
+          ? 'Aucune leçon à publier'
+          : ('Parcours publié · ' + n + ' leçon' + (n > 1 ? 's' : ''))
+      );
+      void global.JpLogs?.action?.('studio_publier_parcours', {
+        parcours_id: state.parcoursId,
+        n_lecons: n,
+      });
     } catch (e) {
       global.JpToast?.fromError?.(e);
     } finally {

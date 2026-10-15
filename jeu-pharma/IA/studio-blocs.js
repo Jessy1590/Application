@@ -11,7 +11,7 @@
  *   })
  *
  * Les blocs créés suivent le flux studio : `visible = false` + `payload_json._brouillon = { titre, payload }`
- * (contenu publié vide) ; ils n’apparaissent aux joueurs qu’après « Enregistrer et publier ».
+ * (contenu publié vide) ; ils n’apparaissent aux joueurs qu’après « Publier tout le parcours ».
  * Schéma JSON renvoyé par l’IA : voir IA/README.md.
  */
 (function (global) {
@@ -205,7 +205,7 @@
     backdrop.innerHTML = '<div class="jp-modal jp-ia-modal">'
       + '<h2>IA — créer des blocs depuis un cours</h2>'
       + '<p class="jp-ia-lead">Collez le texte du cours <strong>ou</strong> importez un PDF (export PowerPoint / Docs). '
-      + 'L’IA propose des blocs <strong>en brouillon</strong> pour « ' + esc(m.titre) + ' » ; vous relisez avant « Enregistrer et publier ».</p>'
+      + 'L’IA propose des blocs <strong>en brouillon</strong> pour « ' + esc(m.titre) + ' » ; vous relisez avant « Publier tout le parcours ».</p>'
       + '<div class="jp-field"><label for="iaText">Texte du cours</label>'
       + '<textarea id="iaText" rows="9" maxlength="' + G.TEXT_MAX_CHARS + '" placeholder="Collez ici le contenu de la leçon…"></textarea></div>'
       + '<div class="jp-field"><label for="iaPdf">… ou PDF (10 Mo max)</label>'
@@ -316,7 +316,7 @@
           + (needPhoto ? '<p class="jp-field-hint">' + needPhoto + ' bloc(s) photo à compléter (téléverser l’image).</p>' : '')
           + (skipped > 0 ? '<p class="jp-field-hint">' + skipped + ' bloc(s) ignoré(s) (molécule absente de la leçon, lien invalide…).</p>' : '')
           + (warns.length ? '<ul class="jp-ia-warns">' + warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>' : '')
-          + '<p class="jp-field-hint">Relisez puis cliquez « Enregistrer et publier » pour les rendre visibles.</p>';
+          + '<p class="jp-field-hint">Relisez puis cliquez « Publier tout le parcours » pour les rendre visibles.</p>';
         global.JpToast?.ok?.(n + ' bloc(s) IA en brouillon');
         runBtn.textContent = 'Générer à nouveau';
       } catch (e) {

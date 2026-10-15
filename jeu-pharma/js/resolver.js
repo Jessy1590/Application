@@ -16,40 +16,15 @@
   }
 
   async function ficheResolue(matriceId, opts = {}) {
-    const { data, error } = await sb().rpc('v2_fiche_resolue', {
+    const args = {
       p_matrice_id: matriceId,
       p_parcours: opts.parcoursId || null,
       p_module_ids: opts.moduleIds || null,
-    });
+    };
+    const niv = opts.niveau != null && opts.niveau !== '' ? Number(opts.niveau) : null;
+    if (niv >= 1 && niv <= 5) args.p_niveau = niv;
+    const { data, error } = await sb().rpc('v2_fiche_resolue', args);
     if (error) throw error;
-    // #region agent log
-    try {
-      const champs = data?.champs || {};
-      const detail0 = champs.detail_pharmacologie?.[0]?.valeur || null;
-      const __dbg = {
-        sessionId: '257be1',
-        runId: 'post-fix-055',
-        hypothesisId: 'REF',
-        location: 'resolver.js:ficheResolue',
-        message: 'fiche resolue source',
-        data: {
-          matriceId,
-          source: data?.source || null,
-          nChamps: Object.keys(champs).length,
-          detail0: detail0 ? String(detail0).slice(0, 80) : null,
-          hasFe: /Fe2\+|fer ferreux/i.test(detail0 || ''),
-          hasOldAtc: /PREPARATIONS ANTIANEMIQUES|BO3AA07/i.test(JSON.stringify(champs)),
-        },
-        timestamp: Date.now(),
-      };
-      global.__JP_DBG_FICHE = __dbg;
-      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '257be1' },
-        body: JSON.stringify(__dbg),
-      }).catch(() => {});
-    } catch (_) { /* ignore */ }
-    // #endregion
     return data;
   }
 
