@@ -64,7 +64,10 @@
     });
   }
 
-  /** Tableau `matrice_ids` (même vide) prime sur le scalaire legacy `matrice_id`. */
+  /**
+   * Tableau `matrice_ids` (même vide) prime sur le scalaire legacy `matrice_id`.
+   * Le payload est déjà résolu ★ côté RPC (`v2__payload_resolu` : Base ∪ variante additive).
+   */
   function matriceIds(p) {
     if (Array.isArray(p.matrice_ids)) return p.matrice_ids.filter(Boolean);
     return p.matrice_id ? [p.matrice_id] : [];

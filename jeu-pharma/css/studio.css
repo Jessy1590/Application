@@ -719,6 +719,21 @@
 .jp-mol-multi .jp-ta-input { border: 0 !important; box-shadow: none !important; min-height: 1.9rem !important; padding: 0.2rem 0.3rem !important; background: transparent !important; }
 .jp-mol-multi .jp-ta-chip { padding: 0.25rem 0.2rem 0.25rem 0.65rem; font-size: 0.84rem; }
 .jp-mol-bloc-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.jp-mol-inherit-hint { margin-top: 0.25rem; }
+.jp-mol-scope-hint { margin: 0 1rem 0.5rem; font-size: 0.85rem; }
+.jp-prog-synth {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.jp-prog-synth li {
+  font-size: 0.9rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--jp-accent, #0F6B5C) 12%, transparent);
+}
 
 /* Zone d'écriture riche */
 .jp-rte { border-color: var(--st-line); border-radius: 0.75rem; box-shadow: inset 0 1px 0 rgba(15, 46, 40, 0.03); }

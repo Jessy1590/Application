@@ -1342,7 +1342,11 @@
         });
 
         global.JpToast?.ok?.(created.code_unique || 'Jeu créé');
-        opts.onCreated?.({ modele: created, bloc });
+        opts.onCreated?.({
+          modele: created,
+          bloc,
+          insertAfterBlocId: opts.insertAfterBlocId || null,
+        });
         close();
       } catch (e) {
         global.JpToast?.fromError?.(e);

@@ -1,5 +1,5 @@
 /**
- * Sélecteur molécules plein écran — recherche, filtres, multi-sélection, pubs valeur/valeur.
+ * Sélecteur molécules / valeurs — mode leçon (legacy pubs) ou mode bloc (payload source).
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -51,27 +51,45 @@
   }
 
   /**
-   * @param {{ moduleId: string, onApplied?: Function }} opts
+   * @param {{
+   *   moduleId: string,
+   *   onApplied?: Function,
+   *   mode?: 'lecon'|'bloc',
+   *   blocId?: string,
+   *   scopeMatriceIds?: string[],
+   *   initialValeurs?: Record<string, string[]>,
+   *   title?: string,
+   *   onApplyValeurs?: Function,
+   * }} opts
    */
   async function open(opts) {
     const moduleId = opts.moduleId;
     if (!moduleId) throw new Error('module requis');
+
+    const mode = opts.mode === 'bloc' ? 'bloc' : 'lecon';
+    const scopeIds = (opts.scopeMatriceIds || []).filter(Boolean);
+    const valeursState = {};
+    Object.keys(opts.initialValeurs || {}).forEach((k) => {
+      valeursState[k] = new Set((opts.initialValeurs[k] || []).filter(Boolean).map(String));
+    });
 
     const TA = global.JpTypeahead;
     const overlay = document.createElement('div');
     overlay.className = 'jp-studio-overlay';
     overlay.innerHTML = '<div class="jp-studio-sheet jp-mol-sheet">'
       + '<header class="jp-studio-sheet-head">'
-      + '<h2>Molécules de la leçon</h2>'
+      + '<h2>' + esc(opts.title || (mode === 'bloc' ? 'Valeurs affichées' : 'Molécules de la leçon')) + '</h2>'
       + '<button type="button" class="jp-btn jp-btn-ghost" data-close>×</button>'
       + '</header>'
-      + '<div class="jp-mol-filters">'
-      + '<input id="molQ" type="search" placeholder="Chercher une DCI ou un nom…" autocomplete="off" aria-label="Chercher une molécule">'
-      + '<div id="molSecteur"></div>'
-      + '<div id="molIndic"></div>'
-      + '<div id="molClasseT"></div>'
-      + '<div id="molClasseP"></div>'
-      + '</div>'
+      + (mode === 'bloc'
+        ? '<p class="jp-muted jp-mol-scope-hint">Molécules de ce bloc (onglet courant ∪ base). Les cases cochent les valeurs du payload.</p>'
+        : '<div class="jp-mol-filters">'
+          + '<input id="molQ" type="search" placeholder="Chercher une DCI ou un nom…" autocomplete="off" aria-label="Chercher une molécule">'
+          + '<div id="molSecteur"></div>'
+          + '<div id="molIndic"></div>'
+          + '<div id="molClasseT"></div>'
+          + '<div id="molClasseP"></div>'
+          + '</div>')
       + '<div class="jp-mol-body">'
       + '<aside class="jp-mol-list" id="molList"></aside>'
       + '<section class="jp-mol-detail" id="molDetail"><p class="jp-muted">Sélectionnez une molécule</p></section>'
@@ -86,18 +104,24 @@
     const selected = new Map(); // matriceId -> { id, label, rows }
     let activeId = null;
 
-    // Précharger matrices déjà publiées
-    const { data: pubs } = await sb()
-      .from('publications_connaissances')
-      .select('connaissance_id, connaissances!inner(matrice_id, texte, champ_code)')
-      .eq('module_id', moduleId)
-      .eq('actif', true);
+    // Précharger matrices déjà publiées (mode leçon) ou scoped (mode bloc)
     const pubByMatrice = {};
-    (pubs || []).forEach((p) => {
-      const mid = p.connaissances?.matrice_id;
-      if (!mid) return;
-      (pubByMatrice[mid] = pubByMatrice[mid] || new Set()).add(p.connaissance_id);
-    });
+    if (mode === 'bloc') {
+      scopeIds.forEach((id) => {
+        pubByMatrice[id] = new Set([...(valeursState[id] || [])]);
+      });
+    } else {
+      const { data: pubs } = await sb()
+        .from('publications_connaissances')
+        .select('connaissance_id, connaissances!inner(matrice_id, texte, champ_code)')
+        .eq('module_id', moduleId)
+        .eq('actif', true);
+      (pubs || []).forEach((p) => {
+        const mid = p.connaissances?.matrice_id;
+        if (!mid) return;
+        (pubByMatrice[mid] = pubByMatrice[mid] || new Set()).add(p.connaissance_id);
+      });
+    }
 
     function close() {
       overlay.remove();
@@ -105,37 +129,39 @@
     overlay.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', close));
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-    // Filtres = recherche dynamique (valeur_norm) ; la liste est le résultat sous la barre.
     const filt = { secteur: null, indic: null, classeT: null, classeP: null };
     let searchSeq = 0;
     let searchTimer = null;
 
     async function search() {
       const mine = ++searchSeq;
-      const q = overlay.querySelector('#molQ').value.trim();
-      const hasFilter = !!(q || filt.secteur || filt.indic || filt.classeT || filt.classeP);
       let list;
       try {
-        if (!hasFilter) {
-          // Par défaut : seulement les fiches déjà dans la leçon
-          list = await describeMatrices(Object.keys(pubByMatrice).filter((id) => pubByMatrice[id].size));
+        if (mode === 'bloc') {
+          list = await describeMatrices(scopeIds);
         } else {
-          const rows = await rpc('v2_chercher_matrices', {
-            p_q: q || null,
-            p_secteur_norm: filt.secteur,
-            p_indication_norm: filt.indic,
-            p_classe_ther_norm: filt.classeT,
-            p_classe_pharma_norm: filt.classeP,
-            p_limit: 40,
-          });
-          list = Array.isArray(rows) ? rows : [];
+          const q = overlay.querySelector('#molQ')?.value.trim() || '';
+          const hasFilter = !!(q || filt.secteur || filt.indic || filt.classeT || filt.classeP);
+          if (!hasFilter) {
+            list = await describeMatrices(Object.keys(pubByMatrice).filter((id) => pubByMatrice[id].size));
+          } else {
+            const rows = await rpc('v2_chercher_matrices', {
+              p_q: q || null,
+              p_secteur_norm: filt.secteur,
+              p_indication_norm: filt.indic,
+              p_classe_ther_norm: filt.classeT,
+              p_classe_pharma_norm: filt.classeP,
+              p_limit: 40,
+            });
+            list = Array.isArray(rows) ? rows : [];
+          }
         }
       } catch (e) {
         if (mine === searchSeq) global.JpToast?.fromError?.(e);
         return;
       }
       if (mine !== searchSeq) return;
-      paintList(list, hasFilter);
+      paintList(list, mode === 'bloc' || !!(overlay.querySelector('#molQ')?.value.trim()));
     }
 
     function scheduleSearch() {
@@ -143,41 +169,47 @@
       searchTimer = setTimeout(() => void search(), 220);
     }
 
-    function mountFilter(sel, table, placeholder, key) {
-      TA.combo(overlay.querySelector(sel), {
-        search: TA.entiteSource(table),
-        minChars: 1,
-        placeholder,
-        ariaLabel: placeholder,
-        onChange: (it) => {
-          filt[key] = it ? (it.data?.valeur_norm || null) : null;
-          scheduleSearch();
-        },
-      });
+    if (mode !== 'bloc') {
+      function mountFilter(sel, table, placeholder, key) {
+        TA.combo(overlay.querySelector(sel), {
+          search: TA.entiteSource(table),
+          minChars: 1,
+          placeholder,
+          ariaLabel: placeholder,
+          onChange: (it) => {
+            filt[key] = it ? (it.data?.valeur_norm || null) : null;
+            scheduleSearch();
+          },
+        });
+      }
+      mountFilter('#molSecteur', 'secteurs_therapeutiques', 'Secteur…', 'secteur');
+      mountFilter('#molIndic', 'indications', 'Indication…', 'indic');
+      mountFilter('#molClasseT', 'classes_therapeutiques', 'Classe thérapeutique…', 'classeT');
+      mountFilter('#molClasseP', 'classes_pharmacologiques', 'Classe pharmacologique…', 'classeP');
     }
-    mountFilter('#molSecteur', 'secteurs_therapeutiques', 'Secteur…', 'secteur');
-    mountFilter('#molIndic', 'indications', 'Indication…', 'indic');
-    mountFilter('#molClasseT', 'classes_therapeutiques', 'Classe thérapeutique…', 'classeT');
-    mountFilter('#molClasseP', 'classes_pharmacologiques', 'Classe pharmacologique…', 'classeP');
 
     function paintList(rows, hasFilter) {
       const box = overlay.querySelector('#molList');
       const head = '<p class="jp-muted jp-mol-note">'
-        + (hasFilter ? rows.length + ' résultat(s)' : 'Dans la leçon — tapez ci-dessus pour ajouter')
+        + (mode === 'bloc'
+          ? rows.length + ' molécule(s) du bloc'
+          : (hasFilter ? rows.length + ' résultat(s)' : 'Dans la leçon — tapez ci-dessus pour ajouter'))
         + '</p>';
       box.innerHTML = head + (rows.map((r) => {
-        const inProg = pubByMatrice[r.id]?.size > 0 || selected.has(r.id);
+        const inProg = pubByMatrice[r.id]?.size > 0 || selected.has(r.id) || (mode === 'bloc');
         const label = labelOfMatrice(r);
         return '<div class="jp-mol-row-wrap' + (r.id === activeId ? ' is-active' : '')
           + (inProg ? ' is-on' : '') + '">'
           + '<button type="button" class="jp-mol-row" data-id="' + r.id + '" data-label="' + esc(label) + '">'
           + '<strong>' + esc(r.dci || '—') + '</strong>'
           + '<span>' + esc(r.noms || '') + '</span>'
-          + (inProg ? '<em>en leçon</em>' : '')
+          + (mode === 'bloc'
+            ? '<em>' + (pubByMatrice[r.id]?.size || 0) + ' val.</em>'
+            : (inProg ? '<em>en leçon</em>' : ''))
           + '</button>'
           + editFicheLink(r.id, 'jp-mol-row-edit')
           + '</div>';
-      }).join('') || '<p class="jp-muted">' + (hasFilter ? 'Aucun résultat' : 'Aucune molécule dans la leçon') + '</p>');
+      }).join('') || '<p class="jp-muted">' + (mode === 'bloc' ? 'Aucune molécule dans ce bloc' : (hasFilter ? 'Aucun résultat' : 'Aucune molécule dans la leçon')) + '</p>');
 
       box.querySelectorAll('[data-id]').forEach((btn) => {
         btn.addEventListener('click', () => void selectMol(btn.getAttribute('data-id'), btn.getAttribute('data-label')));
@@ -194,48 +226,14 @@
         p_module_id: moduleId,
       });
       const list = Array.isArray(rows) ? rows : [];
-      // #region agent log
-      let matriceSample = null;
-      try {
-        const { data: vm } = await sb().from('v_medicaments_complet')
-          .select('id, dci, indications, contre_indications, detail_pharmacologie, effets_indesirables')
-          .eq('id', matriceId).maybeSingle();
-        const ind = Array.isArray(vm?.indications) ? vm.indications : [];
-        const ci = Array.isArray(vm?.contre_indications) ? vm.contre_indications : [];
-        matriceSample = {
-          dci: vm?.dci || null,
-          nInd: ind.length,
-          ind0: ind[0]?.valeur || null,
-          ind0Len: (ind[0]?.valeur || '').length,
-          nCi: ci.length,
-          ci0: ci[0]?.valeur || null,
-          ci0Len: (ci[0]?.valeur || '').length,
-          detail: typeof vm?.detail_pharmacologie === 'string' ? vm.detail_pharmacologie.slice(0, 80) : null,
-          detailLen: typeof vm?.detail_pharmacologie === 'string' ? vm.detail_pharmacologie.length : 0,
-        };
-      } catch (_) { /* ignore */ }
-      const byCode = {};
-      list.forEach((r) => {
-        const k = r.champ_code || '?';
-        byCode[k] = (byCode[k] || 0) + 1;
-      });
-      const sampleCi = list.filter((r) => r.champ_code === 'contre_indications').slice(0, 2)
-        .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
-      const sampleInd = list.filter((r) => r.champ_code === 'indications').slice(0, 2)
-        .map((r) => ({ len: (r.texte || '').length, t: String(r.texte || '').slice(0, 80) }));
-      const matchCi = !!(matriceSample?.ci0 && sampleCi.some((s) => s.t && matriceSample.ci0.startsWith(String(s.t).slice(0, 20))));
-      const matchDetail = !!(matriceSample?.detail && sampleInd /* placeholder */);
-      const detailConn = list.find((r) => r.champ_code === 'detail_pharmacologie');
-      const detailAligned = !!(matriceSample?.detail && detailConn?.texte
-        && String(detailConn.texte).slice(0, 40) === String(matriceSample.detail).slice(0, 40));
-      const __dbgPayload = {sessionId:'257be1',runId:'post-fix',hypothesisId:'A,B,C',location:'studio-mol-picker.js:selectMol',message:'picker vs matrice',data:{matriceId,moduleId,nConn:list.length,byCode,sampleCi,sampleInd,matriceSample,pubCount:pubByMatrice[matriceId]?.size||0,detailAligned,matchCi,detailConn0:(detailConn?.texte||'').slice(0,80)},timestamp:Date.now()};
-      try { global.__JP_DBG_MOL = __dbgPayload; console.info('[jp-dbg-mol]', __dbgPayload); } catch (_) { /* ignore */ }
-      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'257be1'},body:JSON.stringify(__dbgPayload)}).catch(()=>{});
-      // #endregion
 
       const dci = list.find((r) => r.champ_code === 'dci')?.texte;
       const niceLabel = dci || label || matriceId;
       selected.set(matriceId, { id: matriceId, label: niceLabel, rows: list });
+
+      const checkedSet = mode === 'bloc'
+        ? (valeursState[matriceId] || new Set())
+        : new Set((pubByMatrice[matriceId] || []));
 
       const byChamp = {};
       list.forEach((r) => {
@@ -243,25 +241,27 @@
         (byChamp[r.champ_code] = byChamp[r.champ_code] || []).push(r);
       });
 
+      const applyLabel = mode === 'bloc' ? 'Enregistrer dans le bloc' : 'Appliquer à la leçon';
       let html = '<div class="jp-mol-detail-head"><div class="jp-mol-detail-title"><h3>' + esc(niceLabel) + '</h3>'
         + editFicheLink(matriceId)
         + '</div><div class="jp-mol-detail-actions">'
         + '<button type="button" class="jp-btn jp-btn-ghost" id="molAllOn">Tout afficher</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" id="molAllOff">Tout masquer</button>'
-        + '<button type="button" class="jp-btn jp-btn-primary" id="molApply">Appliquer à la leçon</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="molApply">' + esc(applyLabel) + '</button>'
         + '</div></div>';
 
       Object.keys(byChamp).sort().forEach((code) => {
         const vals = byChamp[code];
-        const n = vals.filter((v) => v.publie).length;
+        const n = vals.filter((v) => checkedSet.has(String(v.connaissance_id)) || (mode !== 'bloc' && v.publie)).length;
         html += '<div class="jp-mol-champ" data-champ="' + code + '">'
           + '<header><strong>' + esc(champLibelle(code)) + '</strong>'
           + '<span>' + n + '/' + vals.length + '</span>'
           + '<button type="button" class="jp-btn jp-btn-ghost" data-champ-on="' + code + '">Tout</button>'
           + '<button type="button" class="jp-btn jp-btn-ghost" data-champ-off="' + code + '">Rien</button></header>';
         vals.forEach((v) => {
+          const on = checkedSet.has(String(v.connaissance_id)) || (mode !== 'bloc' && v.publie);
           html += '<label class="jp-mol-val"><input type="checkbox" data-cid="' + v.connaissance_id + '"'
-            + (v.publie ? ' checked' : '') + '> <span>' + esc(v.texte || '—') + '</span></label>';
+            + (on ? ' checked' : '') + '> <span>' + esc(v.texte || '—') + '</span></label>';
         });
         html += '</div>';
       });
@@ -300,7 +300,21 @@
         else unchecked.push(c.getAttribute('data-cid'));
       });
       try {
-        // Dépublier aussi d’anciennes connaissances RCP de cette matrice non listées (hors référentiel actuel)
+        if (mode === 'bloc') {
+          valeursState[matriceId] = new Set(checked.map(String));
+          pubByMatrice[matriceId] = new Set(checked);
+          await opts.onApplyValeurs?.({ matriceId, checked, unchecked });
+          global.JpToast?.ok?.('Valeurs enregistrées dans le bloc');
+          await selectMol(matriceId, selected.get(matriceId)?.label);
+          overlay.querySelectorAll('.jp-mol-row-wrap').forEach((wrap) => {
+            const id = wrap.querySelector('[data-id]')?.getAttribute('data-id');
+            const em = wrap.querySelector('em');
+            if (em && id) em.textContent = (pubByMatrice[id]?.size || 0) + ' val.';
+          });
+          updateSummary();
+          return;
+        }
+
         const { data: allC } = await sb()
           .from('connaissances')
           .select('id')
@@ -328,7 +342,6 @@
         global.JpToast?.ok?.('Programme mis à jour');
         await selectMol(matriceId, selected.get(matriceId)?.label);
         opts.onApplied?.({ matriceId, checked, unchecked });
-        // refresh list badges
         overlay.querySelectorAll('.jp-mol-row-wrap').forEach((wrap) => {
           const id = wrap.querySelector('[data-id]')?.getAttribute('data-id');
           wrap.classList.toggle('is-on', !!(id && pubByMatrice[id]?.size));
@@ -340,21 +353,30 @@
     }
 
     function updateSummary() {
+      if (mode === 'bloc') {
+        const nMol = scopeIds.length;
+        const nVal = Object.values(valeursState).reduce((n, s) => n + s.size, 0);
+        overlay.querySelector('#molSummary').textContent = nMol + ' molécule(s) · ' + nVal + ' valeur(s)';
+        return;
+      }
       const n = Object.values(pubByMatrice).filter((s) => s.size > 0).length;
       overlay.querySelector('#molSummary').textContent = n + ' molécule(s) dans la leçon';
     }
 
-    const molQ = overlay.querySelector('#molQ');
-    molQ.addEventListener('input', scheduleSearch);
-    molQ.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { clearTimeout(searchTimer); void search(); }
-    });
-    molQ.focus();
+    if (mode !== 'bloc') {
+      const molQ = overlay.querySelector('#molQ');
+      molQ.addEventListener('input', scheduleSearch);
+      molQ.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { clearTimeout(searchTimer); void search(); }
+      });
+      molQ.focus();
+    }
 
     await search();
-    // Ouvrir la première déjà en leçon
-    const firstPub = Object.keys(pubByMatrice).find((id) => pubByMatrice[id].size);
-    if (firstPub) await selectMol(firstPub, '');
+    const firstId = mode === 'bloc'
+      ? scopeIds[0]
+      : Object.keys(pubByMatrice).find((id) => pubByMatrice[id].size);
+    if (firstId) await selectMol(firstId, '');
   }
 
   global.JpStudioMolPicker = { open };

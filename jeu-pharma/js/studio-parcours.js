@@ -7,7 +7,8 @@
  *  - Un bloc créé reste masqué (`visible = false`) jusqu’à la publication.
  *  - « Enregistrer et publier » : copie les brouillons vers le contenu publié, rend les blocs visibles
  *    et passe la leçon en `publie = true / statut = 'publie'`. Une leçon neuve est créée en brouillon.
- *  - Le programme (valeurs de fiche, `publications_connaissances`) reste géré dans le sélecteur de molécules.
+ *  - Bloc molécule = source unique (matrice_ids + valeurs + variantes ★ additives).
+ *    Les publications_connaissances sont dérivées au sync / publication.
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -237,17 +238,31 @@
     scratch.tabs[tab] = html;
   }
 
+  function molVariantTabStatus(b, niveau) {
+    const n = String(niveau);
+    const pub = pubPayload(b);
+    const draft = (draftOf(b) && draftOf(b).payload) || null;
+    const layerPub = molLayerOf(pub, n);
+    const layerCur = molLayerOf(effPayload(b), n);
+    const empty = !layerCur.matrice_ids.length
+      && !Object.keys(layerCur.valeurs || {}).some((k) => (layerCur.valeurs[k] || []).length);
+    if (empty) return 'inherit';
+    if (JSON.stringify(layerCur) !== JSON.stringify(layerPub)) return 'draft';
+    return 'published';
+  }
+
   function variantesTabsHtml(type, blocId) {
-    if (type !== 'texte' && type !== 'conseil') return '';
+    if (type !== 'texte' && type !== 'conseil' && type !== 'molecule') return '';
     const b = state.blocs.find((x) => x.id === blocId);
-    const scratch = b ? ensureVariantScratch(blocId, type, effPayload(b)) : null;
+    const isMol = type === 'molecule';
+    const scratch = (!isMol && b) ? ensureVariantScratch(blocId, type, effPayload(b)) : null;
     const tabs = ['base', '1', '2', '3', '4', '5'].map((t) => {
       const label = t === 'base' ? 'Base' : '★' + t;
       const on = String(state.variantTab) === String(t) ? ' is-active' : '';
       let status = '';
       let badge = '';
-      if (t !== 'base' && scratch && b) {
-        status = variantTabStatus(b, scratch, t);
+      if (t !== 'base' && b) {
+        status = isMol ? molVariantTabStatus(b, t) : (scratch ? variantTabStatus(b, scratch, t) : '');
         if (status === 'draft') {
           badge = '<span class="jp-vtab-badge" title="Variante en brouillon">brouillon</span>';
         } else if (status === 'published') {
@@ -258,20 +273,29 @@
       return '<button type="button" class="jp-vtab' + on + stCls + '" data-vtab="' + t + '">'
         + '<span class="jp-vtab-label">' + label + '</span>' + badge + '</button>';
     }).join('');
+    const hint = isMol
+      ? '<p class="jp-muted jp-field-hint">Base = molécules et valeurs communes. '
+        + '★N = <strong>ajouts</strong> (union avec la base pour le joueur ★N). '
+        + 'Sans variante ★ = hérite uniquement de la base.</p>'
+        + '<p class="jp-muted jp-field-hint jp-mol-inherit-hint"'
+        + (state.variantTab === 'base' ? ' hidden' : '') + '>'
+        + '+ héritage de la base (molécules et valeurs) pour le joueur.</p>'
+      : '<p class="jp-muted jp-field-hint">Base = référence commune (modifiable uniquement ici). '
+        + '★N sans personnalisation = aperçu <strong>surligné</strong> de la base (non enregistré). '
+        + 'Toute modification crée une variante en brouillon. ↶ remet la base surlignée.</p>'
+        + '<p class="jp-muted jp-field-hint jp-variant-inherit-hint" hidden>'
+        + 'Hérite de la base — surlignage ★ uniquement à l’écran. Modifiez pour créer une variante.</p>';
     return '<div class="jp-variant-bar">'
       + '<div class="jp-vtabs" role="tablist">' + tabs + '</div>'
-      + '<p class="jp-muted jp-field-hint">Base = référence commune (modifiable uniquement ici). '
-      + '★N sans personnalisation = aperçu <strong>surligné</strong> de la base (non enregistré). '
-      + 'Toute modification crée une variante en brouillon. ↶ remet la base surlignée.</p>'
-      + '<p class="jp-muted jp-field-hint jp-variant-inherit-hint" hidden>'
-      + 'Hérite de la base — surlignage ★ uniquement à l’écran. Modifiez pour créer une variante.</p>'
+      + hint
       + '</div>';
   }
 
   function paintVariantTabs(card, b) {
     if (!card || !b) return;
+    const isMol = b.type_bloc === 'molecule';
     const scratch = state.variantScratch[b.id];
-    if (!scratch) return;
+    if (!isMol && !scratch) return;
     card.querySelectorAll('.jp-vtab[data-vtab]').forEach((btn) => {
       const t = btn.getAttribute('data-vtab');
       btn.classList.toggle('is-active', String(t) === String(state.variantTab));
@@ -279,7 +303,7 @@
       btn.querySelector('.jp-vtab-badge')?.remove();
       btn.querySelector('.jp-vtab-dot')?.remove();
       if (t === 'base') return;
-      const status = variantTabStatus(b, scratch, t);
+      const status = isMol ? molVariantTabStatus(b, t) : variantTabStatus(b, scratch, t);
       btn.classList.add('is-' + status);
       if (status === 'draft') {
         btn.insertAdjacentHTML('beforeend',
@@ -291,6 +315,8 @@
     });
     const hint = card.querySelector('.jp-variant-inherit-hint');
     if (hint) hint.hidden = !state.variantInherit;
+    const molHint = card.querySelector('.jp-mol-inherit-hint');
+    if (molHint) molHint.hidden = state.variantTab === 'base';
   }
 
   async function loadBlocs(moduleId) {
@@ -668,7 +694,91 @@
     return p.matrice_id ? [p.matrice_id] : [];
   }
 
-  /** Écrit les chips molécule dans le brouillon local avant destruction du DOM (sinon retrait perdu). */
+  function cloneValeursMap(map) {
+    const out = {};
+    Object.keys(map || {}).forEach((k) => {
+      const arr = (map[k] || []).filter(Boolean);
+      if (arr.length) out[k] = arr.slice();
+    });
+    return out;
+  }
+
+  function mergeValeursMaps(a, b) {
+    const out = cloneValeursMap(a);
+    Object.keys(b || {}).forEach((k) => {
+      const set = new Set([...(out[k] || []), ...((b[k] || []).filter(Boolean))]);
+      if (set.size) out[k] = [...set];
+      else delete out[k];
+    });
+    return out;
+  }
+
+  /** Couche Base ou ajouts ★N du payload molécule (sans résolution). */
+  function molLayerOf(payload, tab) {
+    const p = payload || {};
+    if (!tab || tab === 'base') {
+      return {
+        matrice_ids: matriceIdsOf(p),
+        valeurs: cloneValeursMap(p.valeurs),
+      };
+    }
+    const v = (p.variantes || {})[String(tab)] || {};
+    return {
+      matrice_ids: Array.isArray(v.matrice_ids) ? v.matrice_ids.filter(Boolean) : [],
+      valeurs: cloneValeursMap(v.valeurs),
+    };
+  }
+
+  /** Résolution additive : Base ∪ variante ★N (pas cumul 1…N). */
+  function resolveMolPayload(payload, niveau) {
+    const base = molLayerOf(payload, 'base');
+    const n = Number(niveau);
+    if (!n || n < 1) return base;
+    const add = molLayerOf(payload, String(n));
+    const ids = [];
+    const seen = new Set();
+    [...base.matrice_ids, ...add.matrice_ids].forEach((id) => {
+      if (id && !seen.has(String(id))) {
+        seen.add(String(id));
+        ids.push(id);
+      }
+    });
+    return { matrice_ids: ids, valeurs: mergeValeursMaps(base.valeurs, add.valeurs) };
+  }
+
+  function setMolLayerOnPayload(payload, tab, layer) {
+    const base = Object.assign({ mode: 'fiche' }, payload || {});
+    delete base._brouillon;
+    const matIds = (layer.matrice_ids || []).filter(Boolean);
+    const vals = cloneValeursMap(layer.valeurs);
+    if (!tab || tab === 'base') {
+      base.matrice_ids = matIds;
+      base.matrice_id = matIds[0] || '';
+      base.valeurs = vals;
+      return base;
+    }
+    const variantes = Object.assign({}, base.variantes || {});
+    const empty = !matIds.length && !Object.keys(vals).length;
+    if (empty) delete variantes[String(tab)];
+    else variantes[String(tab)] = { matrice_ids: matIds, valeurs: vals };
+    if (Object.keys(variantes).length) base.variantes = variantes;
+    else delete base.variantes;
+    return base;
+  }
+
+  function writeMolPayload(blocId, payload) {
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!b) return;
+    const titre = effTitre(b);
+    const pub = pubPayload(b);
+    const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
+    const pj = Object.assign({}, pub);
+    if (!same || isHidden(b)) pj._brouillon = { titre, payload };
+    else delete pj._brouillon;
+    b.payload_json = pj;
+  }
+
+  /** Écrit les chips molécule dans le brouillon local (couche Base ou ★ courante). */
   function syncMolChipsToState(blocId) {
     const ids = blocId
       ? (state.molChips[blocId] ? [blocId] : [])
@@ -678,13 +788,16 @@
       const b = state.blocs.find((x) => x.id === id);
       if (!chips || !b || b.type_bloc !== 'molecule') return;
       const matIds = (chips.getIds?.() || []).filter(Boolean);
-      const payload = { matrice_ids: matIds, matrice_id: matIds[0] || '', mode: 'fiche' };
-      const titre = effTitre(b);
-      const pub = pubPayload(b);
-      const same = JSON.stringify(payload) === JSON.stringify(pub) && titre === (b.titre || '');
-      const pj = Object.assign({}, pub);
-      if (!same || isHidden(b)) pj._brouillon = { titre, payload };
-      b.payload_json = pj;
+      const tab = state.variantTab || 'base';
+      const cur = effPayload(b);
+      const layer = molLayerOf(cur, tab);
+      layer.matrice_ids = matIds;
+      // Retirer les valeurs des molécules absentes de cette couche
+      const keep = new Set(matIds.map(String));
+      Object.keys(layer.valeurs).forEach((k) => {
+        if (!keep.has(String(k))) delete layer.valeurs[k];
+      });
+      writeMolPayload(id, setMolLayerOnPayload(cur, tab, layer));
     });
   }
 
@@ -1345,6 +1458,9 @@
     list.querySelectorAll('[data-bloc-down]').forEach((btn) => {
       btn.addEventListener('click', () => void moveBloc(btn.getAttribute('data-bloc-down'), 1));
     });
+    list.querySelectorAll('[data-bloc-move]').forEach((btn) => {
+      btn.addEventListener('click', () => void openDeplacerBloc(btn.getAttribute('data-bloc-move')));
+    });
     list.querySelectorAll('[data-drag-bloc]').forEach((handle) => {
       handle.addEventListener('dragstart', (ev) => {
         const id = handle.getAttribute('data-drag-bloc');
@@ -1383,6 +1499,14 @@
   /** Nombre de ★ personnalisées (scratch live si présent, sinon payload). */
   function variantCount(b) {
     if (!b) return 0;
+    if (b.type_bloc === 'molecule') {
+      const v = effPayload(b).variantes || {};
+      return Object.keys(v).filter((k) => {
+        const layer = molLayerOf({ variantes: { [k]: v[k] } }, k);
+        return layer.matrice_ids.length
+          || Object.keys(layer.valeurs).some((id) => (layer.valeurs[id] || []).length);
+      }).length;
+    }
     const scratch = state.variantScratch[b.id];
     if (scratch) {
       let n = 0;
@@ -1474,12 +1598,20 @@
         + '<input data-field="legende" data-id="' + b.id + '" value="' + esc(p.legende || '') + '" placeholder="Ex. Frottis sanguin"></div>';
     }
     if (b.type_bloc === 'molecule') {
-      return '<div class="jp-field jp-field-tight"><label>Molécules de ce bloc</label>'
+      const tab = state.variantTab || 'base';
+      const layer = molLayerOf(p, tab);
+      const nVals = Object.values(layer.valeurs || {}).reduce((n, a) => n + (a || []).length, 0);
+      return variantesTabsHtml('molecule', b.id)
+        + '<div class="jp-field jp-field-tight"><label>'
+        + (tab === 'base' ? 'Molécules (base)' : 'Ajouts molécules ★' + tab)
+        + '</label>'
         + '<div class="jp-mol-multi" data-mol-multi="' + b.id + '"></div>'
-        + '<small class="jp-field-hint">Tapez une DCI ou un nom commercial. Valeurs de fiche = programme de la leçon.</small></div>'
+        + '<small class="jp-field-hint">Tapez une DCI ou un nom commercial.'
+        + (tab === 'base' ? '' : ' Uniquement les ajouts de cet onglet — la base est héritée.')
+        + '</small></div>'
         + '<div class="jp-mol-bloc-actions">'
-        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-from-prog="' + b.id + '">+ Molécules du programme</button>'
-        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-prog="' + b.id + '">Valeurs affichées…</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-prog="' + b.id + '">Valeurs affichées…'
+        + (nVals ? ' (' + nVals + ')' : '') + '</button>'
         + '</div>';
     }
     if (b.type_bloc === 'conseil') {
@@ -1509,7 +1641,59 @@
       + ' title="Monter le bloc" aria-label="Monter le bloc">↑</button>'
       + '<button type="button" class="jp-block-tool" data-bloc-down="' + b.id + '"' + downDis
       + ' title="Descendre le bloc" aria-label="Descendre le bloc">↓</button>'
+      + '<button type="button" class="jp-block-tool" data-bloc-move="' + b.id + '"'
+      + ' title="Déplacer vers une autre leçon" aria-label="Déplacer vers…">↪</button>'
       + '</span>';
+  }
+
+  async function openDeplacerBloc(blocId) {
+    const b = state.blocs.find((x) => x.id === blocId);
+    const m = selectedModule();
+    if (!b || !m) return;
+    const items = recoLessonItems().filter((it) => String(it.id) !== String(m.id));
+    if (!items.length) {
+      global.JpToast?.warn?.('Aucune autre leçon dans ce parcours');
+      return;
+    }
+    let picked = null;
+    const body = document.createElement('div');
+    body.innerHTML = '<p class="jp-muted">Choisir la leçon cible (même parcours).</p>'
+      + '<div id="deplacerLessonHost"></div>';
+    global.JpTypeahead.combo(body.querySelector('#deplacerLessonHost'), {
+      search: global.JpTypeahead.localSource(items, { limit: 15 }),
+      minChars: 0,
+      placeholder: 'Rechercher une leçon…',
+      ariaLabel: 'Leçon cible',
+      hint: 'Tapez pour filtrer…',
+      onChange: (it) => { picked = it; },
+    });
+    global.JpModal.open({
+      title: 'Déplacer vers…',
+      body,
+      confirmLabel: 'Déplacer',
+      onConfirm: async () => {
+        if (!picked?.id) {
+          global.JpToast?.warn?.('Choisissez une leçon');
+          return false;
+        }
+        await flushAll();
+        await rpc('v2_deplacer_bloc', {
+          p_bloc_id: blocId,
+          p_module_cible_id: picked.id,
+          p_avant_bloc_id: null,
+        });
+        state.blocs = await loadBlocs(m.id);
+        if (state.selectedBlocId === blocId) state.selectedBlocId = null;
+        paintBlocks();
+        void renderInspector(m);
+        global.JpToast?.ok?.('Bloc déplacé vers « ' + (picked.label || '') + ' »');
+        void global.JpLogs?.action?.('studio_deplacer_bloc', {
+          bloc_id: blocId,
+          from: m.id,
+          to: picked.id,
+        });
+      },
+    });
   }
 
   function resolveVariantDisplay(scratch, tab) {
@@ -1578,6 +1762,29 @@
     mountVariantRte(card, b, host);
   }
 
+  function mountMolChips(card, b) {
+    const id = b.id;
+    const host = card.querySelector('[data-mol-multi]');
+    if (!host) return;
+    const tab = state.variantTab || 'base';
+    const layer = molLayerOf(effPayload(b), tab);
+    const initial = layer.matrice_ids.map(molItem);
+    state.molChips[id]?.destroy?.();
+    state.molChips[id] = global.JpTypeahead.chips(host, {
+      search: global.JpTypeahead.matriceSource({ limit: 15 }),
+      minChars: 1,
+      placeholder: tab === 'base' ? 'Ajouter une molécule…' : 'Ajouter une molécule (★' + tab + ')…',
+      ariaLabel: 'Ajouter une molécule',
+      initial,
+      chipEditHref: referentielEditHref,
+      onChange: (items) => {
+        items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
+        syncMolChipsToState(id);
+        scheduleSave(id);
+      },
+    });
+  }
+
   function bindContenuEditors(card, b) {
     const id = b.id;
     // Uniquement les boutons d’onglet — pas l’hôte RTE (qui ne doit plus avoir data-vtab).
@@ -1587,6 +1794,16 @@
         ev.stopPropagation();
         const next = btn.getAttribute('data-vtab');
         if (String(next) === String(state.variantTab)) return;
+        if (b.type_bloc === 'molecule') {
+          syncMolChipsToState(id);
+          state.variantTab = next;
+          void saveDraft(id).then(() => {
+            paintBlocks();
+            const m = selectedModule();
+            if (m && !m.est_groupe) void renderInspector(m);
+          });
+          return;
+        }
         flushVariantEditor(id);
         paintVariantTabs(card, b);
         state.variantTab = next;
@@ -1604,22 +1821,7 @@
         onChange: () => scheduleSave(id),
       });
     });
-    card.querySelectorAll('[data-mol-multi]').forEach((host) => {
-      const initial = matriceIdsOf(effPayload(b)).map(molItem);
-      state.molChips[id] = global.JpTypeahead.chips(host, {
-        search: global.JpTypeahead.matriceSource({ limit: 15 }),
-        minChars: 1,
-        placeholder: 'Ajouter une molécule…',
-        ariaLabel: 'Ajouter une molécule',
-        initial,
-        chipEditHref: referentielEditHref,
-        onChange: (items) => {
-          items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
-          syncMolChipsToState(id);
-          scheduleSave(id);
-        },
-      });
-    });
+    if (b.type_bloc === 'molecule') mountMolChips(card, b);
     card.querySelectorAll('input[data-field], select[data-field]').forEach((inp) => {
       const ev = inp.tagName === 'SELECT' ? 'change' : 'input';
       inp.addEventListener(ev, () => {
@@ -1658,10 +1860,7 @@
     if (card.querySelector('[data-reco-wrap]')) bindRecoReferenceCard(card, id);
     card.querySelector('[data-field="titre"]')?.addEventListener('input', () => scheduleSave(id));
     card.querySelectorAll('[data-mol-prog]').forEach((btn) => {
-      btn.addEventListener('click', () => void openProgramme());
-    });
-    card.querySelectorAll('[data-mol-from-prog]').forEach((btn) => {
-      btn.addEventListener('click', () => void addFromProgramme(btn.getAttribute('data-mol-from-prog')));
+      btn.addEventListener('click', () => void openBlocValeurs(btn.getAttribute('data-mol-prog')));
     });
     bindJeuBlocActions(card, b);
   }
@@ -1911,11 +2110,15 @@
       };
     }
     if (type === 'molecule') {
-      // Toujours lire les chips si montées ; sinon l’état local déjà synchronisé.
-      const ids = state.molChips[blocId]
-        ? (state.molChips[blocId].getIds?.() || []).filter(Boolean)
-        : matriceIdsOf(effPayload(b));
-      return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
+      syncMolChipsToState(blocId);
+      const cur = effPayload(b);
+      const tab = state.variantTab || 'base';
+      if (state.molChips[blocId]) {
+        const layer = molLayerOf(cur, tab);
+        layer.matrice_ids = (state.molChips[blocId].getIds?.() || []).filter(Boolean);
+        return setMolLayerOnPayload(cur, tab, layer);
+      }
+      return setMolLayerOnPayload(cur, 'base', molLayerOf(cur, 'base'));
     }
     if (type === 'conseil') {
       flushVariantEditor(blocId);
@@ -1985,7 +2188,9 @@
         } else if (tagHost && !hasPending(b)) {
           tagHost.querySelector('.jp-bloc-tag')?.remove();
         }
-        if (b.type_bloc === 'texte' || b.type_bloc === 'conseil') paintVariantTabs(card, b);
+        if (b.type_bloc === 'texte' || b.type_bloc === 'conseil' || b.type_bloc === 'molecule') {
+          paintVariantTabs(card, b);
+        }
       } catch (e) {
         state.saveError = true;
         global.JpToast?.fromError?.(e);
@@ -2006,12 +2211,11 @@
 
   /* ——— Publication ——— */
 
-  /**
-   * Ne plus auto-publier toutes les connaissances d’une matrice au « Publier ».
-   * Norme : texte = référentiel (matrice) ; pubs = masque afficher/masquer uniquement.
-   * Les pubs restent manuelles (« Valeurs affichées… »).
-   */
-  async function ensureProgramme(_m) { /* no-op */ }
+  /** Sync pubs dérivées des blocs molécule (RPC SQL). */
+  async function syncPubsDepuisBlocs(moduleId) {
+    if (!moduleId) return;
+    await rpc('v2_sync_pubs_depuis_blocs_molecule', { p_module_id: moduleId });
+  }
 
   async function publishLesson() {
     const m = selectedModule();
@@ -2021,18 +2225,13 @@
     try {
       await flushAll();
       syncMolChipsToState();
-      await ensureProgramme(m);
       for (const b of state.blocs.filter(hasPending)) {
-        const payload = b.type_bloc === 'molecule'
-          ? (() => {
-            const ids = matriceIdsOf(effPayload(b));
-            return { matrice_ids: ids, matrice_id: ids[0] || '', mode: 'fiche' };
-          })()
-          : effPayload(b);
+        const payload = effPayload(b);
         await rpc('v2_upsert_bloc', {
           p_payload: { id: b.id, titre: effTitre(b), payload_json: payload, visible: true },
         });
       }
+      await syncPubsDepuisBlocs(m.id);
       await rpc('v2_upsert_module', { p_payload: { id: m.id, publie: true, statut: 'publie' } });
       state.modules = await loadModules(state.parcoursId);
       state.blocs = await loadBlocs(m.id);
@@ -2049,54 +2248,48 @@
     }
   }
 
-  /** `v2_publier_connaissances` force `publie = true` sur la leçon : on rétablit le brouillon si besoin. */
-  async function keepDraftState(m, wasDraft) {
-    if (!wasDraft) return;
-    await rpc('v2_upsert_module', { p_payload: { id: m.id, publie: false, statut: 'brouillon' } });
-    state.modules = await loadModules(state.parcoursId);
-    renderTree();
-    updateStatus();
-  }
-
   /* ——— Actions blocs ——— */
 
-  async function openProgramme(afterApplied) {
+  /** Valeurs affichées pour le bloc molécule (onglet Base / ★ courant). */
+  async function openBlocValeurs(blocId) {
     const m = selectedModule();
-    if (!m) return;
-    const wasDraft = isModuleDraft(m);
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!m || !b || b.type_bloc !== 'molecule') return;
+    syncMolChipsToState(blocId);
+    const tab = state.variantTab || 'base';
+    const cur = effPayload(b);
+    const layer = molLayerOf(cur, tab);
+    const baseLayer = molLayerOf(cur, 'base');
+    const scopeIds = tab === 'base'
+      ? layer.matrice_ids.slice()
+      : [...new Set([...baseLayer.matrice_ids, ...layer.matrice_ids].map(String))].map((id) =>
+        baseLayer.matrice_ids.find((x) => String(x) === id)
+          || layer.matrice_ids.find((x) => String(x) === id)
+          || id);
+    if (!scopeIds.length) {
+      global.JpToast?.warn?.('Ajoutez d’abord des molécules à ce bloc');
+      return;
+    }
     await global.JpStudioMolPicker.open({
       moduleId: m.id,
-      onApplied: async () => {
-        try { await keepDraftState(m, wasDraft); } catch (e) { global.JpToast?.fromError?.(e); }
-        if (afterApplied) await afterApplied();
+      blocId,
+      mode: 'bloc',
+      scopeMatriceIds: scopeIds,
+      initialValeurs: layer.valeurs,
+      title: tab === 'base'
+        ? 'Valeurs affichées (base)'
+        : 'Valeurs ajoutées ★' + tab,
+      onApplyValeurs: async ({ matriceId, checked }) => {
+        const fresh = effPayload(b);
+        const lay = molLayerOf(fresh, tab);
+        if (checked && checked.length) lay.valeurs[matriceId] = checked.slice();
+        else delete lay.valeurs[matriceId];
+        writeMolPayload(blocId, setMolLayerOnPayload(fresh, tab, lay));
+        await saveDraft(blocId);
+        paintBlocks();
+        selectBloc(blocId, { toContenu: true, inspectorTab: 'bloc' });
       },
     });
-  }
-
-  async function addFromProgramme(blocId) {
-    const m = selectedModule();
-    const chips = state.molChips[blocId];
-    if (!m || !chips) return;
-    try {
-      const { data, error } = await sb()
-        .from('publications_connaissances')
-        .select('connaissances!inner(matrice_id)')
-        .eq('module_id', m.id)
-        .eq('actif', true);
-      if (error) throw error;
-      const ids = [];
-      (data || []).forEach((p) => {
-        const id = p.connaissances?.matrice_id;
-        if (id && ids.indexOf(id) === -1) ids.push(id);
-      });
-      const have = new Set(chips.getIds().map(String));
-      const toAdd = ids.filter((id) => !have.has(String(id)));
-      if (!toAdd.length) return global.JpToast?.warn?.(ids.length ? 'Déjà toutes présentes' : 'Aucune molécule au programme');
-      await describeMatrices(toAdd);
-      toAdd.forEach((id) => chips.add(molItem(id)));
-    } catch (e) {
-      global.JpToast?.fromError?.(e);
-    }
   }
 
   async function addBloc(type) {
@@ -2108,6 +2301,8 @@
     }
     try {
       await flushAll();
+      const afterId = state.selectedBlocId;
+      const afterIdx = afterId ? state.blocs.findIndex((b) => b.id === afterId) : -1;
       const initial = type === 'section' ? {}
         : (type === 'texte' ? { html: '<p></p>' }
           : (type === 'conseil' ? { pathologie: '', corps_html: '<p></p>' }
@@ -2115,7 +2310,9 @@
               corps_html: '<p></p>',
               references: [],
             }
-              : (type === 'molecule' ? { matrice_ids: [], mode: 'fiche' } : {}))));
+              : (type === 'molecule'
+                ? { matrice_ids: [], valeurs: {}, mode: 'fiche' }
+                : {}))));
       const row = await rpc('v2_upsert_bloc', {
         p_payload: {
           module_id: m.id,
@@ -2125,7 +2322,14 @@
           visible: false,
         },
       });
-      state.blocs.push(row);
+      if (afterIdx >= 0) {
+        const ids = state.blocs.map((b) => b.id);
+        ids.splice(afterIdx + 1, 0, row.id);
+        state.blocs.splice(afterIdx + 1, 0, row);
+        await applyBlocOrder(ids);
+      } else {
+        state.blocs.push(row);
+      }
       delete state.variantScratch[row.id];
       selectBloc(row.id, { toContenu: type !== 'section', inspectorTab: 'bloc' });
       const card = document.querySelector('[data-bloc="' + row.id + '"]');
@@ -2234,40 +2438,48 @@
 
     const body = pane.querySelector('#inspBody');
     if (tab === 'programme') {
+      const molBlocs = state.blocs.filter((b) => b.type_bloc === 'molecule');
+      const synth = [];
+      const seen = new Set();
+      molBlocs.forEach((b) => {
+        const resolved = resolveMolPayload(effPayload(b), null);
+        resolved.matrice_ids.forEach((mid) => {
+          if (seen.has(String(mid))) return;
+          seen.add(String(mid));
+          const n = (resolved.valeurs[mid] || []).length;
+          const lab = state.molLabels[mid]?.label || String(mid).slice(0, 8);
+          synth.push({ id: mid, label: lab, n });
+        });
+      });
       body.innerHTML = '<div class="jp-inspector-cta">'
         + '<div class="jp-inspector-head"><strong class="jp-inspector-title">Programme</strong><span id="helpProg"></span></div>'
         + '<p class="jp-muted" id="progStats" style="margin:0">' + stats.molecules + ' molécule(s) · '
-        + stats.connaissances + ' valeur(s)</p>'
-        + '<button type="button" class="jp-btn jp-btn-primary" id="btnOpenMol">Sélectionner les molécules</button>'
-        + '<div class="jp-field" style="margin-top:0.6rem"><span class="jp-muted">Plage ★ des publications</span>'
-        + plageControlsHtml(1, 5, 'pubs-' + m.id)
-        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPubsPlage" style="margin-top:0.35rem">Appliquer aux pubs actives</button></div>'
+        + stats.connaissances + ' valeur(s) publiée(s)</p>'
+        + '<p class="jp-muted jp-field-hint">Lecture seule — source = blocs molécule '
+        + '(Base + ajouts ★). Éditez les molécules et « Valeurs affichées » dans le bloc.</p>'
+        + (synth.length
+          ? '<ul class="jp-prog-synth">' + synth.map((s) =>
+            '<li><strong>' + esc(s.label) + '</strong> · ' + s.n + ' valeur(s)</li>'
+          ).join('') + '</ul>'
+          : '<p class="jp-muted">Aucun bloc molécule dans cette leçon.</p>')
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnSyncPubs" style="margin-top:0.5rem">'
+        + 'Resynchroniser les publications</button>'
         + '</div>';
-      const pubsPlage = body.querySelector('[data-plage]');
-      bindPlage(pubsPlage, () => {});
       body.querySelector('#helpProg').appendChild(
         global.JpModal.helpButton('Programme', [
-          'Ouvrez le sélecteur pour chercher parmi tout le catalogue.',
-          'Pour chaque molécule, affichez ou masquez chaque valeur (ex. une seule indication).',
-          'Le programme s’applique tout de suite ; le contenu des blocs, lui, ne devient visible qu’après « Enregistrer et publier ».',
+          'Le programme de la leçon est dérivé des blocs molécule (Base + variantes ★ additives).',
+          'Choisissez les molécules et les valeurs dans chaque bloc, puis publiez la leçon.',
+          'Le catalogue « acquis » n’affiche que les leçons validées ; jeux / leçon courante = dès déblocage.',
         ])
       );
-      body.querySelector('#btnOpenMol').addEventListener('click', () => {
-        void openProgramme(async () => {
+      body.querySelector('#btnSyncPubs')?.addEventListener('click', async () => {
+        try {
+          await flushAll();
+          await syncPubsDepuisBlocs(m.id);
           const s = await countProgramme(m.id);
           const el = document.getElementById('progStats');
-          if (el) el.textContent = s.molecules + ' molécule(s) · ' + s.connaissances + ' valeur(s)';
-        });
-      });
-      body.querySelector('#btnPubsPlage')?.addEventListener('click', async () => {
-        try {
-          const plage = readPlage(pubsPlage);
-          const res = await rpc('v2_set_module_pubs_niveaux', {
-            p_module_id: m.id,
-            p_niveau_min: plage.niveau_min,
-            p_niveau_max: plage.niveau_max,
-          });
-          global.JpToast?.ok?.((res?.updated || 0) + ' publication(s) mises à jour');
+          if (el) el.textContent = s.molecules + ' molécule(s) · ' + s.connaissances + ' valeur(s) publiée(s)';
+          global.JpToast?.ok?.('Publications synchronisées');
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
@@ -2297,6 +2509,7 @@
         + plageControlsHtml(bloc.niveau_min, bloc.niveau_max, 'bloc-' + bloc.id)
         + '<p class="jp-muted jp-field-hint">Enregistré dès modification. Le contenu (texte, variantes) s’édite en mode Contenu.</p>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnOpenContenu" style="margin-top:0.5rem">Écrire ce bloc</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnDeplacerBloc" style="margin-top:0.35rem">Déplacer vers…</button>'
         + '</div>'
         + jeuInsp;
       const host = body.querySelector('[data-plage]');
@@ -2314,6 +2527,9 @@
       });
       body.querySelector('#btnOpenContenu')?.addEventListener('click', () => {
         selectBloc(bloc.id, { toContenu: true, inspectorTab: 'bloc' });
+      });
+      body.querySelector('#btnDeplacerBloc')?.addEventListener('click', () => {
+        void openDeplacerBloc(bloc.id);
       });
       if (bloc.type_bloc === 'jeu') bindJeuBlocActions(body, bloc);
       return;
@@ -2518,6 +2734,7 @@
     const editId = extra && extra.modeleId;
     const linkBlocId = (!editId && extra && extra.blocId) || null;
     const editBlocId = (editId && extra && extra.blocId) || null;
+    const insertAfterId = (!editId && !linkBlocId) ? state.selectedBlocId : null;
     await global.JpStudioJeuWizard.open({
       parcoursId: state.parcoursId,
       moduleId: m.id,
@@ -2525,6 +2742,7 @@
       defaultTitre: 'Jeu — ' + m.titre,
       modeleId: editId || undefined,
       blocId: linkBlocId || undefined,
+      insertAfterBlocId: insertAfterId || undefined,
       onUpdated: async (res) => {
         try {
           const modele = res && res.modele;
@@ -2552,6 +2770,15 @@
           } else if (res?.bloc?.id) {
             // Nouveau bloc : masqué jusqu’à la publication.
             await rpc('v2_upsert_bloc', { p_payload: { id: res.bloc.id, visible: false } });
+            const afterId = insertAfterId || res.insertAfterBlocId || null;
+            if (afterId) {
+              state.blocs = await loadBlocs(m.id);
+              const ids = state.blocs.map((b) => b.id).filter((id) => id !== res.bloc.id);
+              const idx = ids.indexOf(afterId);
+              if (idx >= 0) ids.splice(idx + 1, 0, res.bloc.id);
+              else ids.push(res.bloc.id);
+              await applyBlocOrder(ids);
+            }
           }
         } catch (e) {
           global.JpToast?.fromError?.(e);
