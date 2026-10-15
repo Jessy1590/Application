@@ -1,6 +1,7 @@
 /**
  * Admin Référentiel — vue plein page Comparaison (scope parcours/chapitre/leçon).
- * Modifier / fusion / suppression d’entités + filtres catégorie + valeurs ★.
+ * Ajouter (cellule cible) / Modifier / fusion / suppression + filtres + valeurs ★.
+ * Cible Ajouter = cellule cliquée (matrice_id × champ_code).
  * Dépend : JpApp, JpConstants, JpUi, JpToast, JpModal, JpTypeahead, JpMedicaments.
  */
 (function (global) {
@@ -71,6 +72,8 @@
     fiches: [],
     selected: new Map(), // key `${code}:${id}` -> { code, table, id, valeur }
     activeCol: null,
+    /** Cible unique Ajouter : { matriceId, champCode } — clic cellule td. */
+    addTarget: null,
     molFilters: { secteur: [], classeTh: [], classePh: [] },
     filterCtrls: null,
     filtSilent: false,
@@ -89,8 +92,10 @@
   ];
 
   const HELP_LINES = [
+    'Cliquez une cellule (y compris vide) pour cibler Ajouter (molécule × champ).',
     'Cliquez une valeur (chip) pour la sélectionner — Modifier ou Supprimer.',
     'Sélectionnez 2+ valeurs de la même colonne pour Fusionner.',
+    'Ajouter : lie une entité existante (typeahead) ou un nouveau libellé à la cellule cible.',
     'Modifier : renomme l’entité (et fusionne les autres si plusieurs).',
     'Voir les valeurs : afficher / retirer les connaissances publiées par niveau ★.',
     'Filtre (icône) : restreindre les molécules par secteur ou classes.',
@@ -106,6 +111,35 @@
     state.selected.clear();
     state.activeCol = null;
     paintSelectionUi();
+  }
+
+  function clearAddTarget() {
+    state.addTarget = null;
+    paintAddTargetUi();
+    paintSelectionUi();
+  }
+
+  function setAddTarget(matriceId, champCode) {
+    if (!matriceId || !champCode || !champByCode(champCode)) {
+      clearAddTarget();
+      return;
+    }
+    state.addTarget = { matriceId: String(matriceId), champCode: String(champCode) };
+    paintAddTargetUi();
+    paintSelectionUi();
+  }
+
+  function paintAddTargetUi() {
+    if (!state.host) return;
+    state.host.querySelectorAll('td.jp-cmp-cell.is-add-target').forEach((td) => {
+      td.classList.remove('is-add-target');
+    });
+    const t = state.addTarget;
+    if (!t) return;
+    const td = state.host.querySelector(
+      'tr[data-mid="' + t.matriceId + '"] td[data-col="' + t.champCode + '"]'
+    );
+    if (td) td.classList.add('is-add-target');
   }
 
   function paintSelectionUi() {
@@ -126,11 +160,14 @@
     const btnMerge = state.host.querySelector('#cmpMerge');
     const btnEdit = state.host.querySelector('#cmpEdit');
     const btnDel = state.host.querySelector('#cmpDelete');
+    const btnAdd = state.host.querySelector('#cmpAdd');
     if (btnMerge) btnMerge.disabled = !colOk;
     if (btnEdit) btnEdit.disabled = !oneOk;
     if (btnDel) btnDel.disabled = !oneOk;
+    if (btnAdd) btnAdd.disabled = !state.addTarget;
     const clearBtn = state.host.querySelector('#cmpClearSel');
-    if (clearBtn) clearBtn.hidden = n === 0;
+    if (clearBtn) clearBtn.hidden = n === 0 && !state.addTarget;
+    paintAddTargetUi();
     paintSelInfo();
   }
 
@@ -185,11 +222,15 @@
       ? (n + ' sélectionnée(s)'
         + (state.activeCol ? ' · ' + (champByCode(state.activeCol)?.libelle || state.activeCol) : ''))
       : '';
-    if (filt.length) {
-      info.textContent = filt.join(' · ') + (selBit ? ' · ' + selBit : '');
-      return;
+    let addBit = '';
+    if (state.addTarget) {
+      const row = (state.fichesAll || []).find((r) => String(r.id) === state.addTarget.matriceId);
+      const { dci } = dciLabel(row || {});
+      const champ = champByCode(state.addTarget.champCode);
+      addBit = 'Ajouter → ' + (dci || 'molécule') + ' × ' + (champ?.libelle || state.addTarget.champCode);
     }
-    info.textContent = selBit;
+    const bits = [filt.join(' · '), selBit, addBit].filter(Boolean);
+    info.textContent = bits.join(' · ');
   }
 
   function paintValeursUi() {
@@ -209,7 +250,7 @@
     if (!state.host) return;
     const bar = state.host.querySelector('#cmpValeursBar');
     if (bar) bar.hidden = !state.valeursMode;
-    ['#cmpEdit', '#cmpMerge', '#cmpDelete', '#cmpClearSel', '#cmpValeurs'].forEach((sel) => {
+    ['#cmpAdd', '#cmpEdit', '#cmpMerge', '#cmpDelete', '#cmpClearSel', '#cmpValeurs'].forEach((sel) => {
       const el = state.host.querySelector(sel);
       if (el) el.hidden = state.valeursMode;
     });
@@ -443,6 +484,7 @@
       + '</header>'
       + '<div class="jp-comparaison-toolbar">'
       + '<span class="jp-muted" id="cmpSelInfo"></span>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpAdd" disabled title="Cliquez d’abord une cellule">Ajouter</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="cmpEdit" disabled>Modifier</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpMerge" disabled>Fusionner</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="cmpDelete" disabled>Supprimer l’entité</button>'
@@ -477,7 +519,29 @@
     return rows;
   }
 
+  /** Conserve scroll du tableau lors d’un re-paint (Ajouter / Modifier / Fusion / Supprimer). */
+  function captureTableScroll() {
+    const wrap = state.host?.querySelector('.jp-comparaison-table-wrap');
+    if (!wrap) return null;
+    return { top: wrap.scrollTop, left: wrap.scrollLeft };
+  }
+
+  function restoreTableScroll(saved) {
+    if (!saved) return;
+    const apply = () => {
+      const wrap = state.host?.querySelector('.jp-comparaison-table-wrap');
+      if (!wrap) return;
+      wrap.scrollTop = saved.top;
+      wrap.scrollLeft = saved.left;
+    };
+    requestAnimationFrame(() => {
+      apply();
+      requestAnimationFrame(apply);
+    });
+  }
+
   function renderTable() {
+    const scroll = captureTableScroll();
     const body = state.host.querySelector('#cmpBody');
     const count = state.host.querySelector('#cmpCount');
     if (!state.scope) {
@@ -529,7 +593,8 @@
         + '</th>';
       cols.forEach((c) => {
         const ents = entitiesOfRow(row, c);
-        html += '<td data-col="' + esc(c.code) + '">';
+        html += '<td class="jp-cmp-cell" data-col="' + esc(c.code) + '" data-mid="' + esc(mid)
+          + '" title="Clic : cibler pour Ajouter">';
         if (!ents.length) {
           html += '<span class="jp-cmp-empty">—</span>';
         } else {
@@ -580,8 +645,15 @@
           );
         });
       });
+      // Cible Ajouter = cellule cliquée (molécule × champ), y compris vide
+      body.querySelectorAll('td.jp-cmp-cell').forEach((td) => {
+        td.addEventListener('click', () => {
+          setAddTarget(td.getAttribute('data-mid'), td.getAttribute('data-col'));
+        });
+      });
     }
     paintSelectionUi();
+    restoreTableScroll(scroll);
   }
 
   function toggleValeurChip(mid, cid) {
@@ -591,6 +663,111 @@
     if (set.has(key)) set.delete(key);
     else set.add(key);
     paintValeursUi();
+  }
+
+  /* ——— Ajouter liaison (cellule cible) ——— */
+  async function refreshFicheLocal(matriceId) {
+    const mid = String(matriceId);
+    const data = await rpc('v2_comparaison_fiches', { p_matrice_ids: [mid] });
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) return;
+    const replaceIn = (arr) => {
+      const i = arr.findIndex((r) => String(r.id) === mid);
+      if (i >= 0) arr[i] = row;
+      else arr.push(row);
+    };
+    replaceIn(state.fichesAll);
+    applyMolFilters();
+  }
+
+  function doAdd() {
+    if (state.valeursMode) return;
+    const target = state.addTarget;
+    if (!target) {
+      global.JpToast?.warn?.('Cliquez d’abord une cellule (molécule × champ)');
+      return;
+    }
+    const champ = champByCode(target.champCode);
+    if (!champ) return;
+    const row = (state.fichesAll || []).find((r) => String(r.id) === target.matriceId);
+    const { dci } = dciLabel(row || {});
+    const existing = entitiesOfRow(row, champ);
+    const isSingular = champ.card === 1;
+    const TA = global.JpTypeahead;
+    if (!TA?.entiteSource) {
+      global.JpToast?.warn?.('Typeahead indisponible');
+      return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.className = 'jp-cmp-edit';
+    let hint = 'Choisir une valeur existante ou saisir un nouveau libellé.';
+    if (isSingular && existing.length) {
+      hint = 'Champ singulier déjà renseigné (« ' + esc(existing[0].valeur)
+        + ' ») — la nouvelle valeur le remplacera.';
+    }
+    wrap.innerHTML = '<p class="jp-muted">' + esc(dci || 'Molécule') + ' · '
+      + esc(champ.libelle || champ.code) + '</p>'
+      + '<p>' + hint + '</p>'
+      + '<label class="jp-cmp-edit-field">Entité'
+      + '<div id="cmpAddTa" class="jp-cmp-add-ta"></div></label>'
+      + '<p class="jp-muted jp-cmp-add-hint">Suggestion = entité en base ; texte libre = création si besoin.</p>';
+
+    let taCtrl = null;
+    const hostTa = wrap.querySelector('#cmpAddTa');
+    taCtrl = TA.combo(hostTa, {
+      search: TA.entiteSource(champ.table, { limit: 14 }),
+      placeholder: 'Rechercher ou saisir…',
+      ariaLabel: champ.libelle || 'Entité',
+      minChars: 0,
+    });
+
+    global.JpModal.open({
+      title: 'Ajouter — ' + (champ.libelle || champ.code),
+      body: wrap,
+      confirmLabel: isSingular && existing.length ? 'Remplacer' : 'Ajouter',
+      panelClass: 'jp-modal-wide',
+      onConfirm: async () => {
+        const picked = taCtrl?.getItem?.();
+        const typed = String(taCtrl?.input?.value || '').trim();
+        const entiteId = picked?.id || null;
+        const valeur = picked?.label || typed;
+        if (!entiteId && !valeur) {
+          global.JpToast?.warn?.('Choisissez ou saisissez une valeur');
+          return false;
+        }
+        try {
+          const res = await rpc('v2_comparaison_ajouter_liaison', {
+            p_matrice_id: target.matriceId,
+            p_champ_code: champ.code,
+            p_entite_id: entiteId || null,
+            p_valeur: entiteId ? null : valeur,
+          });
+          if (res?.already) {
+            global.JpToast?.warn?.('Déjà liée à cette fiche');
+          } else {
+            global.JpToast?.ok?.(
+              res?.created
+                ? 'Entité créée et liée'
+                : (isSingular && existing.length ? 'Valeur remplacée' : 'Liaison ajoutée')
+            );
+          }
+          void global.JpLogs?.action?.('comparaison_ajouter', {
+            matrice_id: target.matriceId,
+            champ: champ.code,
+            entite_id: res?.entite_id || entiteId,
+            created: !!res?.created,
+          });
+          await refreshFicheLocal(target.matriceId);
+          renderTable();
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+          return false;
+        }
+        return undefined;
+      },
+    });
+    setTimeout(() => taCtrl?.focus?.(), 50);
   }
 
   /* ——— Modifier / Fusion / suppression ——— */
@@ -804,6 +981,7 @@
       return;
     }
     clearSelection();
+    clearAddTarget();
     if (state.scope.kind === 'lecon') {
       state.valeursLeconId = state.scope.id;
     } else if (!state.valeursLeconId) {
@@ -962,6 +1140,7 @@
           try {
             state.host.querySelector('#cmpBody').innerHTML = '<p class="jp-muted">Chargement…</p>';
             clearSelection();
+            clearAddTarget();
             if (state.valeursMode) closeValeursMode();
             await loadScope(it.data.kind, it.data.id);
             renderTable();
@@ -990,12 +1169,14 @@
     if (helpHost && global.JpModal?.helpButton) {
       helpHost.appendChild(global.JpModal.helpButton('Comparaison', HELP_LINES));
     }
+    host.querySelector('#cmpAdd').addEventListener('click', () => void doAdd());
     host.querySelector('#cmpEdit').addEventListener('click', () => void doEdit());
     host.querySelector('#cmpMerge').addEventListener('click', () => void doMerge());
     host.querySelector('#cmpDelete').addEventListener('click', () => void doDelete());
     host.querySelector('#cmpValeurs').addEventListener('click', openValeursMode);
     host.querySelector('#cmpClearSel').addEventListener('click', () => {
       clearSelection();
+      clearAddTarget();
     });
     wireValeursBar();
     syncToolbarMode();
@@ -1013,6 +1194,7 @@
     if (!state.open) return;
     if (state.valeursMode) closeValeursMode();
     clearSelection();
+    clearAddTarget();
     if (state.host) {
       state.host.hidden = true;
       state.host.innerHTML = '';

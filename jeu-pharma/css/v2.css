@@ -1208,6 +1208,19 @@
   margin-top: 0.15rem;
 }
 .jp-cmp-empty { color: #8aa; }
+.jp-cmp-cell {
+  cursor: cell;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.jp-cmp-cell:hover {
+  background: rgba(15, 107, 92, 0.04);
+}
+.jp-cmp-cell.is-add-target {
+  background: rgba(15, 107, 92, 0.1);
+  box-shadow: inset 0 0 0 2px var(--jp-accent, #0f6b5c);
+}
+.jp-cmp-add-ta { min-width: min(22rem, 100%); }
+.jp-cmp-add-hint { margin: 0; font-size: 0.8rem; }
 .jp-cmp-chip {
   display: inline-block;
   margin: 0.12rem 0.2rem 0.12rem 0;
