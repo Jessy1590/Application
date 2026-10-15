@@ -371,7 +371,8 @@ BEGIN
     connaissance_id uuid PRIMARY KEY,
     niveau_min int NOT NULL
   ) ON COMMIT DROP;
-  DELETE FROM _jp_sync_pubs;
+  -- WHERE true : pg-safeupdate refuse DELETE sans clause (erreur PostgREST « DELETE requires a WHERE clause »)
+  DELETE FROM _jp_sync_pubs WHERE true;
 
   INSERT INTO _jp_sync_pubs (connaissance_id, niveau_min)
   SELECT x.connaissance_id, min(x.niveau_min)

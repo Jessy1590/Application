@@ -1303,6 +1303,8 @@
       ).join('')
       + (global.JpStudioIA ? '<button type="button" class="jp-btn jp-btn-ghost jp-btn-ia" id="btnIa" '
         + 'title="Créer des blocs brouillon depuis un texte ou un PDF de cours">IA</button>' : '')
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnReorganiser"'
+      + ' title="Déplacer plusieurs blocs vers une autre leçon">Réorganiser…</button>'
       + '</div><p class="jp-studio-autosave-hint">Structure = ordre et plages · Contenu = rédaction d’un bloc. '
       + 'Brouillon auto · publication via « Enregistrer et publier ».</p>'
       + '<div id="blocksList" class="jp-blocks-' + mode + '"></div>';
@@ -1326,6 +1328,8 @@
       btn.addEventListener('click', () => void addBloc(btn.getAttribute('data-add')));
     });
     pane.querySelector('#btnIa')?.addEventListener('click', () => openIa());
+    pane.querySelector('#btnReorganiser')?.addEventListener('click', () => void openReorganiser());
+    syncReorgButton();
     paintBlocks();
   }
 
@@ -1696,6 +1700,230 @@
     });
   }
 
+  /** Fenêtre bulk : découper une grosse leçon en déplaçant plusieurs blocs. */
+  async function openReorganiser() {
+    const m = selectedModule();
+    if (!m || m.est_groupe) {
+      global.JpToast?.warn?.('Ouvrez une leçon pour réorganiser ses blocs');
+      return;
+    }
+    if (!state.blocs.length) {
+      global.JpToast?.warn?.('Aucun bloc à déplacer');
+      return;
+    }
+
+    let picked = null;
+    let lessonCombo = null;
+    const selected = new Set();
+
+    const body = document.createElement('div');
+    body.className = 'jp-reorg';
+    body.innerHTML = '<div class="jp-reorg-col">'
+      + '<h3>Blocs de cette leçon</h3>'
+      + '<div class="jp-reorg-toolbar">'
+      + '<label><input type="checkbox" id="reorgSelectAll"> Tout sélectionner</label>'
+      + '<span class="jp-reorg-count" id="reorgCount">0 sélectionné(s)</span>'
+      + '</div>'
+      + '<ul class="jp-reorg-list" id="reorgList"></ul>'
+      + '</div>'
+      + '<div class="jp-reorg-col">'
+      + '<h3>Leçon cible</h3>'
+      + '<p class="jp-muted" style="margin:0">Même parcours — les blocs partent à la fin de la leçon cible, dans l’ordre actuel.</p>'
+      + '<div id="reorgLessonHost"></div>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="reorgCreateToggle">Créer une leçon…</button>'
+      + '<div class="jp-reorg-create" id="reorgCreateRow" hidden>'
+      + '<input type="text" id="reorgNewTitle" placeholder="Titre de la nouvelle leçon" maxlength="200" autocomplete="off">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="reorgCreateConfirm">Créer</button>'
+      + '</div>'
+      + '</div>';
+
+    const listEl = body.querySelector('#reorgList');
+    const countEl = body.querySelector('#reorgCount');
+    const selectAll = body.querySelector('#reorgSelectAll');
+    const createRow = body.querySelector('#reorgCreateRow');
+    const newTitle = body.querySelector('#reorgNewTitle');
+
+    function lessonItems() {
+      return recoLessonItems().filter((it) => String(it.id) !== String(m.id));
+    }
+
+    function mountLessonCombo(initial) {
+      const host = body.querySelector('#reorgLessonHost');
+      if (!host) return;
+      host.innerHTML = '';
+      const items = lessonItems();
+      lessonCombo = global.JpTypeahead.combo(host, {
+        search: global.JpTypeahead.localSource(items, { limit: 15 }),
+        minChars: 0,
+        placeholder: items.length ? 'Rechercher une leçon…' : 'Aucune autre leçon — créez-en une',
+        ariaLabel: 'Leçon cible',
+        hint: 'Tapez pour filtrer…',
+        initial: initial || null,
+        onChange: (it) => { picked = it; },
+      });
+      if (initial) picked = initial;
+    }
+
+    function updateCount() {
+      const n = selected.size;
+      if (countEl) countEl.textContent = n + ' sélectionné(s)';
+      if (selectAll) {
+        const boxes = listEl.querySelectorAll('input[data-reorg-id]');
+        selectAll.checked = boxes.length > 0 && n === boxes.length;
+        selectAll.indeterminate = n > 0 && n < boxes.length;
+      }
+    }
+
+    function paintReorgList() {
+      const blocs = state.blocs;
+      if (!blocs.length) {
+        listEl.innerHTML = '<li class="jp-reorg-empty">Plus aucun bloc dans cette leçon.</li>';
+        selected.clear();
+        updateCount();
+        return;
+      }
+      listEl.innerHTML = blocs.map((b, i) => {
+        const on = selected.has(b.id) ? ' checked' : '';
+        return '<li class="jp-reorg-item">'
+          + '<input type="checkbox" data-reorg-id="' + esc(b.id) + '"' + on + '>'
+          + '<span class="jp-reorg-ord">' + (i + 1) + '</span>'
+          + '<span class="jp-reorg-meta">'
+          + '<span class="jp-reorg-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
+          + '<span class="jp-reorg-title">' + esc(effTitre(b) || 'Sans titre') + '</span>'
+          + '</span></li>';
+      }).join('');
+      listEl.querySelectorAll('input[data-reorg-id]').forEach((cb) => {
+        cb.addEventListener('change', () => {
+          const id = cb.getAttribute('data-reorg-id');
+          if (cb.checked) selected.add(id);
+          else selected.delete(id);
+          updateCount();
+        });
+      });
+      listEl.querySelectorAll('.jp-reorg-item').forEach((row) => {
+        row.addEventListener('click', (ev) => {
+          if (ev.target.tagName === 'INPUT') return;
+          const cb = row.querySelector('input[data-reorg-id]');
+          if (!cb) return;
+          cb.checked = !cb.checked;
+          cb.dispatchEvent(new Event('change'));
+        });
+      });
+      updateCount();
+    }
+
+    selectAll.addEventListener('change', () => {
+      const on = selectAll.checked;
+      listEl.querySelectorAll('input[data-reorg-id]').forEach((cb) => {
+        cb.checked = on;
+        const id = cb.getAttribute('data-reorg-id');
+        if (on) selected.add(id);
+        else selected.delete(id);
+      });
+      updateCount();
+    });
+
+    body.querySelector('#reorgCreateToggle')?.addEventListener('click', () => {
+      createRow.hidden = !createRow.hidden;
+      if (!createRow.hidden) {
+        newTitle.value = '';
+        setTimeout(() => newTitle.focus(), 20);
+      }
+    });
+
+    body.querySelector('#reorgCreateConfirm')?.addEventListener('click', async () => {
+      const titre = String(newTitle.value || '').trim();
+      if (!titre) {
+        global.JpToast?.warn?.('Indiquez un titre de leçon');
+        newTitle.focus();
+        return;
+      }
+      const parent = selectedModule();
+      const parentId = parent?.est_groupe ? parent.id : (parent?.parent_id || null);
+      try {
+        await flushAll();
+        const row = await rpc('v2_upsert_module', {
+          p_payload: {
+            parcours_id: state.parcoursId,
+            parent_id: parentId,
+            titre,
+            est_groupe: false,
+            publie: false,
+            statut: 'brouillon',
+            ordre: (state.modules.reduce((mx, x) => Math.max(mx, x.ordre || 0), 0) || 0) + 10,
+          },
+        });
+        state.modules = await loadModules(state.parcoursId);
+        renderTree();
+        const items = recoLessonItems();
+        const initial = items.find((it) => String(it.id) === String(row.id)) || {
+          id: row.id,
+          label: titre,
+          sub: '',
+          data: { parcours_id: state.parcoursId },
+        };
+        mountLessonCombo(initial);
+        createRow.hidden = true;
+        global.JpToast?.ok?.('Leçon « ' + titre + ' » créée (brouillon)');
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      }
+    });
+
+    paintReorgList();
+    mountLessonCombo(null);
+
+    global.JpModal.open({
+      title: 'Réorganiser…',
+      body,
+      panelClass: 'jp-modal-wide',
+      confirmLabel: 'Déplacer la sélection',
+      cancelLabel: 'Fermer',
+      onConfirm: async () => {
+        const ids = state.blocs.map((b) => b.id).filter((id) => selected.has(id));
+        if (!ids.length) {
+          global.JpToast?.warn?.('Sélectionnez au moins un bloc');
+          return false;
+        }
+        if (!picked?.id) {
+          global.JpToast?.warn?.('Choisissez une leçon cible');
+          return false;
+        }
+        if (String(picked.id) === String(m.id)) {
+          global.JpToast?.warn?.('Choisissez une autre leçon');
+          return false;
+        }
+        await flushAll();
+        await rpc('v2_deplacer_blocs', {
+          p_bloc_ids: ids,
+          p_module_cible_id: picked.id,
+          p_avant_bloc_id: null,
+        });
+        state.blocs = await loadBlocs(m.id);
+        if (state.selectedBlocId && ids.indexOf(state.selectedBlocId) !== -1) {
+          state.selectedBlocId = null;
+        }
+        ids.forEach((id) => selected.delete(id));
+        paintBlocks();
+        void renderInspector(m);
+        paintReorgList();
+        mountLessonCombo(picked);
+        const n = ids.length;
+        global.JpToast?.ok?.(
+          n + ' bloc' + (n > 1 ? 's' : '') + ' déplacé' + (n > 1 ? 's' : '')
+            + ' vers « ' + (picked.label || '') + ' »'
+        );
+        void global.JpLogs?.action?.('studio_reorganiser_blocs', {
+          from: m.id,
+          to: picked.id,
+          count: n,
+          bloc_ids: ids,
+        });
+        return false; // garder la fenêtre pour un autre lot
+      },
+    });
+  }
+
   function resolveVariantDisplay(scratch, tab) {
     if (tab === 'base') {
       return { html: scratch.base || '', inherit: false, inheritLevel: null };
@@ -1795,9 +2023,13 @@
         const next = btn.getAttribute('data-vtab');
         if (String(next) === String(state.variantTab)) return;
         if (b.type_bloc === 'molecule') {
+          // Sync + save tant que chips = onglet courant ; sinon collectPayload
+          // écrirait la couche ★ suivante avec les chips de l’onglet précédent.
           syncMolChipsToState(id);
-          state.variantTab = next;
+          state.molChips[id]?.destroy?.();
+          delete state.molChips[id];
           void saveDraft(id).then(() => {
+            state.variantTab = next;
             paintBlocks();
             const m = selectedModule();
             if (m && !m.est_groupe) void renderInspector(m);
@@ -1922,6 +2154,14 @@
       list.classList.toggle('jp-blocks-contenu', mode === 'contenu');
       list.classList.toggle('jp-blocks-structure', mode === 'structure');
     }
+    syncReorgButton();
+  }
+
+  function syncReorgButton() {
+    const btn = document.getElementById('btnReorganiser');
+    if (!btn) return;
+    const show = state.viewMode !== 'contenu';
+    btn.hidden = !show;
   }
 
   function paintBlocks() {
@@ -2112,13 +2352,13 @@
     if (type === 'molecule') {
       syncMolChipsToState(blocId);
       const cur = effPayload(b);
+      // Sans chips montées (changement d’onglet / structure) : ne pas réécrire une couche
+      // avec un variantTab déjà basculé — le state local (writeMolPayload) prime.
+      if (!state.molChips[blocId]) return cur;
       const tab = state.variantTab || 'base';
-      if (state.molChips[blocId]) {
-        const layer = molLayerOf(cur, tab);
-        layer.matrice_ids = (state.molChips[blocId].getIds?.() || []).filter(Boolean);
-        return setMolLayerOnPayload(cur, tab, layer);
-      }
-      return setMolLayerOnPayload(cur, 'base', molLayerOf(cur, 'base'));
+      const layer = molLayerOf(cur, tab);
+      layer.matrice_ids = (state.molChips[blocId].getIds?.() || []).filter(Boolean);
+      return setMolLayerOnPayload(cur, tab, layer);
     }
     if (type === 'conseil') {
       flushVariantEditor(blocId);
@@ -2202,7 +2442,11 @@
   }
 
   async function flushAll() {
-    const ids = Object.keys(state.timers);
+    syncMolChipsToState();
+    const ids = new Set(Object.keys(state.timers));
+    state.blocs.forEach((b) => {
+      if (b.type_bloc === 'molecule' && (state.molChips[b.id] || draftOf(b))) ids.add(b.id);
+    });
     ids.forEach((id) => { clearTimeout(state.timers[id]); delete state.timers[id]; });
     ids.forEach((id) => { void saveDraft(id); });
     await Promise.all(Object.values(state.chain));
@@ -2224,7 +2468,6 @@
     if (btn) btn.disabled = true;
     try {
       await flushAll();
-      syncMolChipsToState();
       for (const b of state.blocs.filter(hasPending)) {
         const payload = effPayload(b);
         await rpc('v2_upsert_bloc', {

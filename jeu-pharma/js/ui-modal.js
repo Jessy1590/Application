@@ -27,13 +27,14 @@
    * @param {string|Node|string[]} [opts.body]
    * @param {string} [opts.confirmLabel]
    * @param {string} [opts.cancelLabel]
+   * @param {string} [opts.panelClass] — classes CSS additionnelles sur le panneau (ex. jp-modal-wide)
    * @param {() => (void|boolean|Promise<void|boolean>)} [opts.onConfirm] — return false pour garder la modale ouverte
    * @param {() => void} [opts.onCancel]
    * @param {HTMLElement} [opts.focus] — élément à focus à l’ouverture
    */
   function open(opts) {
     const {
-      title, body, confirmLabel, onConfirm, cancelLabel, onCancel, focus,
+      title, body, confirmLabel, onConfirm, cancelLabel, onCancel, focus, panelClass,
     } = opts || {};
     const host = ensureRoot();
     host.innerHTML = '';
@@ -42,7 +43,7 @@
     backdrop.setAttribute('role', 'dialog');
     backdrop.setAttribute('aria-modal', 'true');
     const panel = document.createElement('div');
-    panel.className = 'jp-modal';
+    panel.className = ('jp-modal' + (panelClass ? ' ' + String(panelClass).trim() : '')).trim();
     panel.innerHTML = '<h2></h2><div class="jp-modal-body"></div><div class="jp-modal-actions"></div>';
     panel.querySelector('h2').textContent = title || '';
     const bodyEl = panel.querySelector('.jp-modal-body');
