@@ -52,11 +52,6 @@
   gap: 0.4rem 0.55rem;
 }
 
-.jp-preview-top-actions #btnToggleIaForm.is-active {
-  background: rgba(15, 107, 92, 0.1);
-  border-color: #0f6b5c;
-}
-
 .jp-preview-print-wrap select {
   font: inherit;
   font-size: 0.85rem;
@@ -77,61 +72,97 @@
   border: 0;
 }
 
-/* ——— Bandeau demande IA ——— */
-
-.jp-preview-ia-strip {
-  border-bottom: 1px solid rgba(15, 107, 92, 0.12);
-  background: rgba(255, 255, 255, 0.72);
+.jp-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 0 4.5rem;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
 }
 
-.jp-preview-ia-strip[hidden] {
-  display: none !important;
+.jp-preview-body.has-compare .jp-cmp {
+  width: 100%;
 }
 
-.jp-preview-ia-strip-inner {
-  max-width: 72rem;
+.jp-preview-solo {
+  width: min(52rem, 100%);
   margin: 0 auto;
-  padding: 0.75rem 1.15rem 1rem;
+  padding: 1rem 1.25rem 2rem;
 }
 
-.jp-preview-ia-head h2 {
+.jp-preview-solo-head {
+  margin-bottom: 0.85rem;
+}
+
+.jp-preview-solo-head h2 {
   margin: 0 0 0.35rem;
   font-family: "Source Serif 4", Georgia, serif;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
 }
 
-.jp-preview-ia-head h2 .jp-help-btn,
+.jp-preview-solo .jp-preview-player {
+  background: #fff;
+  border-radius: 0.55rem;
+  padding: 0.75rem 1rem 1.5rem;
+  border: 1px solid rgba(15, 107, 92, 0.1);
+  box-shadow: 0 4px 20px rgba(20, 32, 28, 0.04);
+}
+
+.jp-modal.jp-modal-ia-demand {
+  width: min(560px, 100%);
+  max-height: min(88vh, 720px);
+}
+
+.jp-modal-ia-demand .jp-modal-body {
+  overflow: auto;
+}
+
+.jp-modal-ia-demand .jp-ia-status.is-busy {
+  background: rgba(15, 107, 92, 0.1);
+}
+
+.jp-modal-ia-demand .jp-ia-demand-form .jp-field {
+  margin-bottom: 0.65rem;
+}
+
+.jp-modal-ia-demand textarea,
+.jp-modal-ia-demand select,
+.jp-modal-ia-demand input[type="file"] {
+  width: 100%;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.jp-preview-bar-bulk {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.jp-preview-bar-bulk .jp-btn {
+  color: #f4f7f6;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
 .jp-ia-ctx legend .jp-help-btn,
 .jp-cmp-col-lab .jp-help-btn,
-.jp-cmp-mid-status .jp-help-btn {
+.jp-cmp-mid-status .jp-help-btn,
+.jp-preview-solo-head h2 .jp-help-btn,
+.jp-preview-ia-prompt-link .jp-help-btn {
   margin-left: 0.35rem;
 }
 
 .jp-preview-ia-prompt-link {
-  margin: -0.2rem 0 0.65rem;
+  margin: 0 0 0.65rem;
   font-size: 0.88rem;
 }
 
-.jp-preview-ia-form .jp-field {
-  margin-bottom: 0.55rem;
-}
-
-.jp-preview-ia-form textarea,
-.jp-preview-ia-form select,
-.jp-preview-ia-form input[type="file"],
 .jp-cmp-mid-panel input[type="text"],
 .jp-cmp-mid-panel textarea,
 .jp-cmp-mid-panel select {
   width: 100%;
   font: inherit;
   box-sizing: border-box;
-}
-
-.jp-preview-ia-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin: 0.5rem 0 0.35rem;
 }
 
 .jp-ia-ctx {
@@ -163,13 +194,6 @@
 }
 
 /* ——— Corps comparaison ——— */
-
-.jp-preview-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 0 0 4.5rem;
-  overflow: auto;
-}
 
 .jp-cmp {
   max-width: 100%;

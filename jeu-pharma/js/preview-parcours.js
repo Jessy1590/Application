@@ -1,7 +1,7 @@
 /**
  * Surface Preview parcours — complémentaire du studio Structure/Contenu.
  * Comparaison 3 colonnes : proposition IA | paramètres + RTE | version actuelle.
- * Formulaire IA repliable (#iaStrip). Barre flottante Base|★1–5 + sélecteur | Publier.
+ * Preview centrale ; Demande IA (modale) → miroir 3 colonnes. Barre Base|★ + Publier.
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -40,7 +40,6 @@
     busy: false,
     avertissements: [],
     iaForm: { instruction: '', text: '' },
-    iaFormOpen: true,
     editMode: false,
     editBase: 'ia', // ia | initial
     iaCtx: {
@@ -523,6 +522,31 @@
     return state.modules.find((m) => m.id === b.module_id) || selectedModule();
   }
 
+  /** Leçon cible pour écrire un bloc (chapitre sélectionné OK si parent_ref / ref_id connus). */
+  function resolveBlocModuleId(node) {
+    if (!node) return null;
+    if (node.ref_id) {
+      const b = currentBlocByRef(node.ref_id);
+      if (b && b.module_id) {
+        const mod = state.modules.find((m) => m.id === b.module_id);
+        if (mod && !mod.est_groupe) return mod.id;
+        if (b.module_id) return b.module_id;
+      }
+    }
+    if (node.parent_ref) {
+      const mod = state.modules.find((m) => m.id === node.parent_ref);
+      if (mod && !mod.est_groupe) return mod.id;
+      const parent = state.proposals.find((n) => n.temp_id === node.parent_ref);
+      if (parent && parent.kind === 'lecon' && parent.ref_id) return parent.ref_id;
+      if (parent && parent.kind === 'lecon' && !parent.ref_id) {
+        throw new Error('Validez d’abord la leçon parente avant ce bloc');
+      }
+    }
+    const m = selectedModule();
+    if (m && !m.est_groupe) return m.id;
+    return null;
+  }
+
   function currentSideSnippet(refId, kind, couche) {
     if (!refId) return { empty: true, label: '(insertion — centre vide)' };
     if (kind === 'chapitre' || kind === 'lecon') {
@@ -729,7 +753,7 @@
       + '<a class="jp-btn jp-btn-ghost" href="parcours.html?parcours=' + esc(state.parcoursId || '') + '">← Studio</a>'
       + '<h1 class="jp-preview-title" id="previewTitle">Preview</h1>'
       + '<div class="jp-preview-top-actions">'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnToggleIaForm">Demande IA</button>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="btnDemandeIa">Demande IA</button>'
       + '<label class="jp-preview-print-wrap" title="Périmètre d’impression">'
       + '<select id="printScope" aria-label="Périmètre impression">'
       + '<option value="lecon"' + (state.printScope === 'lecon' ? ' selected' : '') + '>Leçon</option>'
@@ -737,12 +761,11 @@
       + '<option value="parcours"' + (state.printScope === 'parcours' ? ' selected' : '') + '>Parcours</option>'
       + '</select></label>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPrint" title="Imprimer">Imprimer</button>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublishUpdate" disabled'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPublishUpdate" disabled'
       + ' title="Publie les brouillons du parcours quand toutes les décisions sont prises">'
       + 'Publier la mise à jour</button>'
       + '</div>'
       + '</header>'
-      + '<div class="jp-preview-ia-strip no-print" id="iaStrip"></div>'
       + '<div class="jp-preview-body" id="previewBody">'
       + '<div class="jp-cmp" id="cmpRoot"></div>'
       + '</div>'
@@ -918,6 +941,7 @@
     const bar = document.getElementById('floatBar');
     if (!bar) return;
     const couche = coucheKey();
+    const hasProp = state.proposals.length > 0;
     bar.innerHTML = '<div class="jp-preview-bar-couches" role="group" aria-label="Couche Base ou niveau">'
       + COUCHES.map((c) => {
         const on = c === couche ? ' is-active' : '';
@@ -931,6 +955,12 @@
       + '<select id="previewModuleSel" aria-label="Choisir une leçon ou un chapitre">'
       + moduleOptionsHtml()
       + '</select></label>'
+      + (hasProp
+        ? '<div class="jp-preview-bar-bulk">'
+          + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="iaRejectAll">Tout rejeter</button>'
+          + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="iaAcceptAll">Tout valider</button>'
+          + '</div>'
+        : '')
       + '<span class="jp-preview-pending" id="previewPending" role="status"></span>';
 
     bar.querySelectorAll('[data-couche]').forEach((btn) => {
@@ -943,6 +973,8 @@
       const id = ev.target.value;
       void selectModule(id);
     });
+    bar.querySelector('#iaRejectAll')?.addEventListener('click', () => void bulkDecide('rejected'));
+    bar.querySelector('#iaAcceptAll')?.addEventListener('click', () => void bulkDecide('accepted'));
     updatePendingChip();
   }
 
@@ -1009,9 +1041,7 @@
   }
 
   function bindIaCtxControls(pane) {
-    const onCtx = () => {
-      syncIaCtxFromDom(pane);
-    };
+    const onCtx = () => syncIaCtxFromDom(pane);
     pane.querySelector('#iaCtxParcoursCourant')?.addEventListener('change', onCtx);
     pane.querySelector('#iaCtxExtraChapitre')?.addEventListener('change', onCtx);
     pane.querySelector('#iaCtxExtraLecon')?.addEventListener('change', onCtx);
@@ -1024,78 +1054,73 @@
           catch (e) { global.JpToast?.fromError?.(e); }
         }
         syncIaFormFromDom(pane);
-        renderIaStrip();
+        // Rafraîchir les listes chapitre / leçon dans la modale
+        const chap = pane.querySelector('#iaCtxExtraChapitre');
+        const lec = pane.querySelector('#iaCtxExtraLecon');
+        const mods = modulesForCtxSelects();
+        if (chap) chap.innerHTML = chapterOptionsHtml(mods, state.iaCtx.extraChapitreId);
+        if (lec) lec.innerHTML = lessonOptionsHtml(mods, state.iaCtx.extraLeconId);
       })();
     });
   }
 
-  function renderIaStrip() {
-    const strip = document.getElementById('iaStrip');
-    if (!strip) return;
-    syncIaFormFromDom(strip);
-    syncIaCtxFromDom(strip);
+  function iaDemandFormNode() {
     const G = global.JpIaGemini;
-    const couche = coucheKey();
-    const rows = buildMirrorRows().filter((r) => r.node);
     const form = state.iaForm;
-    const open = state.iaFormOpen || !state.proposals.length;
-    state.iaFormOpen = open;
-
-    strip.classList.toggle('is-open', open);
-    strip.hidden = !open;
-    if (!open) {
-      strip.innerHTML = '';
-      return;
-    }
-
-    strip.innerHTML = '<div class="jp-preview-ia-strip-inner no-print">'
-      + '<div class="jp-preview-ia-head">'
-      + '<h2>Demande IA <span data-help="ia"></span></h2>'
-      + '<p class="jp-preview-ia-prompt-link">'
-      + '<button type="button" class="jp-link-btn" id="iaEditPrompt">Modifier le prompt de base</button></p>'
-      + '</div>'
-      + '<div class="jp-preview-ia-form">'
+    const wrap = document.createElement('div');
+    wrap.className = 'jp-ia-demand-form';
+    wrap.innerHTML = '<p class="jp-preview-ia-prompt-link">'
+      + '<button type="button" class="jp-link-btn" id="iaEditPrompt">Modifier le prompt de base</button>'
+      + ' <span data-help="ia"></span></p>'
       + '<div class="jp-field"><label for="iaInstruction">Instruction</label>'
-      + '<textarea id="iaInstruction" rows="3" maxlength="8000" placeholder="Ex. Enrichir la leçon pour ★1, clarifier les CI…">'
+      + '<textarea id="iaInstruction" rows="4" maxlength="8000" placeholder="Ex. Enrichir la leçon pour ★1…">'
       + esc(form.instruction || '') + '</textarea></div>'
       + iaCtxFormHtml()
       + '<div class="jp-field"><label for="iaText">Texte complémentaire (optionnel)</label>'
-      + '<textarea id="iaText" rows="2" maxlength="' + (G?.TEXT_MAX_CHARS || 80000) + '">'
+      + '<textarea id="iaText" rows="3" maxlength="' + (G?.TEXT_MAX_CHARS || 80000) + '">'
       + esc(form.text || '') + '</textarea></div>'
       + '<div class="jp-field"><label for="iaPdf">PDF (optionnel, 10 Mo)</label>'
       + '<input id="iaPdf" type="file" accept="application/pdf,.pdf"></div>'
-      + '<div class="jp-preview-ia-actions">'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="iaRun">Générer le pré-brouillon</button>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="iaRejectAll" '
-      + (rows.length ? '' : 'disabled ') + '>Tout rejeter (' + coucheLabel(couche) + ')</button>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="iaAcceptAll" '
-      + (rows.length ? '' : 'disabled ') + '>Tout valider (' + coucheLabel(couche) + ')</button>'
-      + '</div>'
-      + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>'
-      + '</div></div>';
-
-    bindIaCtxControls(strip);
-    attachHelp(strip.querySelector('[data-help="ia"]'), 'Demande IA', [
+      + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>';
+    bindIaCtxControls(wrap);
+    attachHelp(wrap.querySelector('[data-help="ia"]'), 'Demande IA', [
       'L’IA propose une Base et des variantes ★1–★5 si besoin.',
-      'La barre flottante (Base / ★) pilote l’affichage et la couche validée.',
+      'La barre flottante (Base / ★) pilote l’affichage et la couche validée après génération.',
       'Validez ligne à ligne dans la colonne centrale, puis publiez la mise à jour.',
     ]);
-    attachHelp(strip.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
+    attachHelp(wrap.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
       'La cible choisie dans la barre (leçon ou chapitre) est toujours envoyée en entier.',
       'Un chapitre cible inclut toutes ses leçons et tous leurs blocs.',
       'Références optionnelles : parcours courant, autre parcours, chapitre ou leçon.',
     ]);
-    strip.querySelector('#iaInstruction')?.addEventListener('change', () => syncIaFormFromDom(strip));
-    strip.querySelector('#iaText')?.addEventListener('change', () => syncIaFormFromDom(strip));
-    strip.querySelector('#iaRun')?.addEventListener('click', () => void runIa(strip));
-    strip.querySelector('#iaRejectAll')?.addEventListener('click', () => void bulkDecide('rejected'));
-    strip.querySelector('#iaAcceptAll')?.addEventListener('click', () => void bulkDecide('accepted'));
-    strip.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
+    wrap.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
       if (!global.JpStudioIA?.editBasePrompt) {
         global.JpToast?.warn?.('Éditeur de prompt indisponible');
         return;
       }
       void global.JpStudioIA.editBasePrompt();
+    });
+    return wrap;
+  }
+
+  function openIaDemandModal() {
+    if (!global.JpModal?.open) {
+      global.JpToast?.warn?.('Modale indisponible');
+      return;
+    }
+    const body = iaDemandFormNode();
+    global.JpModal.open({
+      title: 'Demande IA',
+      body,
+      panelClass: 'jp-modal-wide jp-modal-ia-demand',
+      confirmLabel: 'Générer le pré-brouillon',
+      cancelLabel: 'Fermer',
+      focus: body.querySelector('#iaInstruction'),
+      onConfirm: async () => {
+        const ok = await runIa(body);
+        if (!ok) return false; // garder la modale ouverte (erreur / validation)
+        return undefined; // fermer
+      },
     });
   }
 
@@ -1269,19 +1294,18 @@
     const niveau = couche === 'base' ? null : Number(couche);
 
     if (!state.proposals.length) {
-      root.innerHTML = '<div class="jp-cmp-empty-layout">'
-        + '<div class="jp-cmp-col jp-cmp-left">'
-        + '<p class="jp-cmp-col-lab">Proposition IA</p>'
-        + '<p class="jp-muted">Aucune proposition. Ouvrez « Demande IA » pour générer un pré-brouillon.</p>'
+      root.innerHTML = '<div class="jp-preview-solo">'
+        + '<div class="jp-preview-solo-head no-print">'
+        + '<h2>Preview <span class="jp-preview-couche-badge">' + coucheLabel(couche) + '</span>'
+        + ' <span data-help="solo"></span></h2>'
+        + '<p class="jp-muted">Version actuelle · utilisez <strong>Demande IA</strong> pour comparer une proposition.</p>'
         + '</div>'
-        + '<div class="jp-cmp-col jp-cmp-mid">'
-        + '<p class="jp-cmp-col-lab">Paramètres</p>'
-        + '<p class="jp-muted">—</p></div>'
-        + '<div class="jp-cmp-col jp-cmp-right">'
-        + '<p class="jp-cmp-col-lab">Version actuelle <span class="jp-preview-couche-badge">'
-        + coucheLabel(couche) + '</span></p>'
         + '<div class="jp-preview-player" id="cmpCurrentFull"></div>'
-        + '</div></div>';
+        + '</div>';
+      attachHelp(root.querySelector('[data-help="solo"]'), 'Preview', [
+        'Affiche la version actuelle (publié + brouillons validés) pour la couche de la barre flottante.',
+        'Cliquez « Demande IA » pour ouvrir le formulaire, puis générer un pré-brouillon à comparer.',
+      ]);
       const host = root.querySelector('#cmpCurrentFull');
       if (!host) return;
       if (!m) {
@@ -1478,6 +1502,9 @@
       n.action !== 'keep' && decisionOf(n.temp_id, couche) === 'pending'
     );
     if (!pending.length) return;
+    // Chapitres → leçons → blocs (parents avant enfants)
+    const kindRank = { chapitre: 0, lecon: 1, section: 2, bloc: 3 };
+    pending.sort((a, b) => (kindRank[a.kind] ?? 9) - (kindRank[b.kind] ?? 9));
     try {
       state.busy = true;
       for (const node of pending) {
@@ -1566,16 +1593,6 @@
 
   async function writeDraftFromNode(node, couche, _homemade) {
     const m = selectedModule();
-    // Cache DCI → matrice pour les blocs molécule de la leçon
-    if (m && !m.est_groupe && (!state._molByDci || state._molModuleId !== m.id)) {
-      try {
-        const mols = await lessonMolecules(m.id);
-        state._molByDci = new Map(mols.map((x) => [x.dci.trim().toLowerCase(), x.id]));
-        state._molModuleId = m.id;
-      } catch (_) {
-        state._molByDci = new Map();
-      }
-    }
     if (node.kind === 'chapitre' || node.kind === 'lecon') {
       const estGroupe = node.kind === 'chapitre';
       const payload = {
@@ -1612,8 +1629,21 @@
       return;
     }
 
-    // section / bloc
-    if (!m || m.est_groupe) throw new Error('Sélectionnez une leçon pour valider un bloc');
+    // section / bloc — rattacher à la leçon (même si un chapitre est sélectionné)
+    const lessonId = resolveBlocModuleId(node);
+    if (!lessonId) {
+      throw new Error('Impossible de rattacher ce bloc à une leçon (parent manquant)');
+    }
+    if (!state._molByDci || state._molModuleId !== lessonId) {
+      try {
+        const mols = await lessonMolecules(lessonId);
+        state._molByDci = new Map(mols.map((x) => [x.dci.trim().toLowerCase(), x.id]));
+        state._molModuleId = lessonId;
+      } catch (_) {
+        state._molByDci = new Map();
+        state._molModuleId = lessonId;
+      }
+    }
     if (node.action === 'delete' && node.ref_id) {
       await rpc('v2_supprimer_bloc', { p_bloc_id: node.ref_id });
       state.sessionTouched[node.ref_id] = 'bloc-del';
@@ -1627,6 +1657,9 @@
 
     const content = sanitizeProposalPayload(layer, typeBloc);
     const titre = node.titre || '';
+    const lessonBlocs = state.blocsByModule[lessonId]
+      || (m && m.id === lessonId ? state.currentBlocs : null)
+      || [];
 
     if (node.action === 'create' || !node.ref_id) {
       const basePay = emptyPayload(typeBloc);
@@ -1643,9 +1676,9 @@
       });
       const row = await rpc('v2_upsert_bloc', {
         p_payload: {
-          module_id: m.id,
+          module_id: lessonId,
           type_bloc: typeBloc,
-          ordre: (state.currentBlocs.length + 1) * 10,
+          ordre: (lessonBlocs.length + 1) * 10,
           payload_json: pj,
           visible: false,
           niveau_min: node.niveau_min || 1,
@@ -1703,16 +1736,19 @@
 
   /* ——— IA invoke ——— */
 
+  /** @returns {Promise<boolean>} true si propositions prêtes (fermer la modale). */
   async function runIa(pane) {
-    if (state.busy) return;
+    if (state.busy) return false;
     const G = global.JpIaGemini;
-    if (!G) return global.JpToast?.warn?.('Client IA indisponible');
-    const strip = document.getElementById('iaStrip') || pane;
-    if (!strip) return;
-    const instruction = strip.querySelector('#iaInstruction')?.value?.trim() || '';
-    const text = strip.querySelector('#iaText')?.value?.trim() || '';
-    const file = strip.querySelector('#iaPdf')?.files?.[0];
-    const status = strip.querySelector('#iaStatus');
+    if (!G) {
+      global.JpToast?.warn?.('Client IA indisponible');
+      return false;
+    }
+    if (!pane) return false;
+    const instruction = pane.querySelector('#iaInstruction')?.value?.trim() || '';
+    const text = pane.querySelector('#iaText')?.value?.trim() || '';
+    const file = pane.querySelector('#iaPdf')?.files?.[0];
+    const status = pane.querySelector('#iaStatus');
     function setStatus(msg, kind) {
       if (!status) return;
       status.hidden = !msg;
@@ -1721,23 +1757,19 @@
     }
     if (!instruction && !text && !file) {
       setStatus('Indiquez une instruction, un texte ou un PDF.', 'error');
-      return;
+      return false;
     }
     if (file && file.size > (G.PDF_MAX_BYTES || 10e6)) {
       setStatus('PDF trop lourd (10 Mo maximum).', 'error');
-      return;
+      return false;
     }
     const m = selectedModule();
-    syncIaFormFromDom(strip);
-    syncIaCtxFromDom(strip);
+    syncIaFormFromDom(pane);
+    syncIaCtxFromDom(pane);
     state.busy = true;
-    const runBtn = strip.querySelector('#iaRun');
-    if (runBtn) runBtn.disabled = true;
     try {
       setStatus('Préparation du contexte…', 'busy');
       const context = await buildIaPayloadContext();
-      // Métadonnées légères dans cible (l’Edge coupe à ~8 ko) ;
-      // contenu entier dans context.nodes + context.references.
       const body = {
         mode: 'modifier',
         instruction: instruction || undefined,
@@ -1773,7 +1805,6 @@
       state.decisions = {};
       state.avertissements = Array.isArray(ia.avertissements) ? ia.avertissements : [];
       state.selectedTempId = nodes[0] ? nodes[0].temp_id : null;
-      state.iaFormOpen = false;
       state.editMode = false;
       nodes.forEach((n) => {
         if (n.action === 'keep') {
@@ -1791,12 +1822,13 @@
       global.JpToast?.ok?.(nodes.length + ' proposition(s) IA');
       if (warns.length) global.JpToast?.warn?.(warns[0]);
       renderAll();
+      return true;
     } catch (e) {
       setStatus((e && e.message) || 'Erreur IA', 'error');
       global.JpToast?.fromError?.(e);
+      return false;
     } finally {
       state.busy = false;
-      if (runBtn) runBtn.disabled = false;
       updatePendingChip();
     }
   }
@@ -1814,7 +1846,6 @@
       state.proposals = [];
       state.decisions = {};
       state.selectedTempId = null;
-      state.iaFormOpen = true;
       state.editMode = false;
       await refreshCurrent();
       const n = Number(res?.lecons) || 0;
@@ -1957,15 +1988,10 @@
         + (selectedModule() ? ' · ' + (selectedModule().titre || '') : '');
     }
     document.title = (state.parcours?.libelle || 'Preview') + ' — Preview';
+    document.getElementById('previewBody')?.classList.toggle('has-compare', state.proposals.length > 0);
     renderFloatBar();
-    renderIaStrip();
     void renderCompare();
     updatePendingChip();
-    const toggle = document.getElementById('btnToggleIaForm');
-    if (toggle) {
-      toggle.setAttribute('aria-expanded', state.iaFormOpen ? 'true' : 'false');
-      toggle.classList.toggle('is-active', !!state.iaFormOpen);
-    }
   }
 
   function bindShellChrome() {
@@ -1974,17 +2000,7 @@
     document.getElementById('printScope')?.addEventListener('change', (ev) => {
       state.printScope = ev.target.value || 'lecon';
     });
-    document.getElementById('btnToggleIaForm')?.addEventListener('click', () => {
-      state.iaFormOpen = !state.iaFormOpen;
-      // Si aucune proposition, le strip reste forcé ouvert au prochain renderIaStrip
-      if (!state.proposals.length) state.iaFormOpen = true;
-      renderIaStrip();
-      const toggle = document.getElementById('btnToggleIaForm');
-      if (toggle) {
-        toggle.setAttribute('aria-expanded', state.iaFormOpen ? 'true' : 'false');
-        toggle.classList.toggle('is-active', !!state.iaFormOpen);
-      }
-    });
+    document.getElementById('btnDemandeIa')?.addEventListener('click', () => openIaDemandModal());
   }
 
   async function boot(root) {
