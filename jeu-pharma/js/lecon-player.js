@@ -688,6 +688,65 @@
   }
 
   /**
+   * HTML d’un seul bloc (aperçu admin / miroir Preview).
+   * @param {object} b — { id, type_bloc, titre, payload_json }
+   * @param {{ niveau?: number|null, module?: object, idPrefix?: string }} opts
+   */
+  function blocArticleHtml(b, opts) {
+    const o = opts || {};
+    const niveau = o.niveau != null && o.niveau !== '' ? Number(o.niveau) : null;
+    const module = o.module || {};
+    const idPrefix = o.idPrefix || 'jp-bloc-';
+    const p = b.payload_json || {};
+    let pay = p;
+    if (niveau >= 1 && niveau <= 5 && p.variantes && p.variantes[String(niveau)]) {
+      pay = Object.assign({}, p, p.variantes[String(niveau)]);
+    }
+    const type = BLOC_META[b.type_bloc] ? b.type_bloc : 'texte';
+    const meta = BLOC_META[type];
+    const bid = idPrefix + esc(b.id || '');
+    if (b.type_bloc === 'section') {
+      return '<section class="jp-lecon-section" id="' + bid + '">'
+        + '<h2 class="jp-lecon-section-title">' + esc(b.titre || 'Section') + '</h2></section>';
+    }
+    let inner = '';
+    if (b.type_bloc === 'texte') {
+      inner = '<div class="jp-rich">' + sanitizeHtml(pay.html || '') + '</div>';
+    } else if (b.type_bloc === 'video') {
+      inner = videoEmbed(pay.url) || '<p class="jp-muted">Vidéo indisponible.</p>';
+    } else if (b.type_bloc === 'photo') {
+      inner = global.JpBlocPhoto ? global.JpBlocPhoto.figureHtml(pay) : '';
+    } else if (b.type_bloc === 'conseil') {
+      inner = (pay.pathologie ? '<p class="jp-conseil-patho">' + esc(pay.pathologie) + '</p>' : '')
+        + '<div class="jp-rich">' + sanitizeHtml(pay.corps_html || '') + '</div>';
+    } else if (b.type_bloc === 'recommandation') {
+      inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(pay.corps_html || '') + '</div>'
+        + recoLinksHtml(pay, module);
+    } else if (b.type_bloc === 'molecule') {
+      const ids = matriceIds(pay);
+      if (!ids.length) return '';
+      inner = carouselHtml(ids);
+    } else if (b.type_bloc === 'jeu') {
+      const code = pay.code_unique || '';
+      inner = '<p class="jp-muted">Jeu'
+        + (pay.type_jeu ? ' · ' + esc(pay.type_jeu) : '')
+        + (code ? ' · <code>' + esc(code) + '</code>' : '')
+        + '</p>';
+    }
+    let head;
+    if (type === 'texte') {
+      head = b.titre ? '<header class="jp-bloc-head"><h2>' + esc(b.titre) + '</h2></header>' : '';
+    } else {
+      head = '<header class="jp-bloc-head"><span class="jp-bloc-ico" aria-hidden="true">' + meta.ico + '</span>'
+        + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
+        + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>';
+    }
+    return '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '" id="' + bid + '">'
+      + head
+      + '<div class="jp-bloc-body">' + inner + '</div></article>';
+  }
+
+  /**
    * Rendu léger pour Preview admin (sans footer, critères ni jeux inline).
    * @param {HTMLElement} host
    * @param {{ module: object, blocs: object[], niveau?: number|null }} opts
@@ -711,53 +770,7 @@
     if (!blocs.length) html += '<p class="jp-muted">—</p>';
 
     for (const b of blocs) {
-      const p = b.payload_json || {};
-      // Variante ★ : fusionner couche affichée pour texte / conseil
-      let pay = p;
-      if (niveau >= 1 && niveau <= 5 && p.variantes && p.variantes[String(niveau)]) {
-        pay = Object.assign({}, p, p.variantes[String(niveau)]);
-      }
-      const type = BLOC_META[b.type_bloc] ? b.type_bloc : 'texte';
-      const meta = BLOC_META[type];
-      let inner = '';
-      if (b.type_bloc === 'section') {
-        html += '<section class="jp-lecon-section" id="jp-bloc-' + esc(b.id) + '">'
-          + '<h2 class="jp-lecon-section-title">' + esc(b.titre || 'Section') + '</h2></section>';
-        continue;
-      } else if (b.type_bloc === 'texte') {
-        inner = '<div class="jp-rich">' + sanitizeHtml(pay.html || '') + '</div>';
-      } else if (b.type_bloc === 'video') {
-        inner = videoEmbed(pay.url) || '<p class="jp-muted">Vidéo indisponible.</p>';
-      } else if (b.type_bloc === 'photo') {
-        inner = global.JpBlocPhoto ? global.JpBlocPhoto.figureHtml(pay) : '';
-      } else if (b.type_bloc === 'conseil') {
-        inner = (pay.pathologie ? '<p class="jp-conseil-patho">' + esc(pay.pathologie) + '</p>' : '')
-          + '<div class="jp-rich">' + sanitizeHtml(pay.corps_html || '') + '</div>';
-      } else if (b.type_bloc === 'recommandation') {
-        inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(pay.corps_html || '') + '</div>'
-          + recoLinksHtml(pay, module);
-      } else if (b.type_bloc === 'molecule') {
-        const ids = matriceIds(pay);
-        if (!ids.length) continue;
-        inner = carouselHtml(ids);
-      } else if (b.type_bloc === 'jeu') {
-        const code = pay.code_unique || '';
-        inner = '<p class="jp-muted">Jeu'
-          + (pay.type_jeu ? ' · ' + esc(pay.type_jeu) : '')
-          + (code ? ' · <code>' + esc(code) + '</code>' : '')
-          + '</p>';
-      }
-      let head;
-      if (type === 'texte') {
-        head = b.titre ? '<header class="jp-bloc-head"><h2>' + esc(b.titre) + '</h2></header>' : '';
-      } else {
-        head = '<header class="jp-bloc-head"><span class="jp-bloc-ico" aria-hidden="true">' + meta.ico + '</span>'
-          + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
-          + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>';
-      }
-      html += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '" id="jp-bloc-' + esc(b.id) + '">'
-        + head
-        + '<div class="jp-bloc-body">' + inner + '</div></article>';
+      html += blocArticleHtml(b, { niveau, module });
     }
     host.innerHTML = html;
     if (global.JpBlocPhoto) global.JpBlocPhoto.hydrate(host);
@@ -788,6 +801,7 @@
   global.JpLeconPlayer = {
     boot,
     renderContent,
+    blocArticleHtml,
     withDraft,
     publishedPayload,
     sanitizeHtml,

@@ -1,7 +1,7 @@
 /**
  * Surface Preview parcours — complémentaire du studio Structure/Contenu.
- * Gauche : IA + miroir | Centre : courant | Params en tiroir (⚙) | Imprimer header.
- * Barre flottante Base|★1–5 + sélecteur | Publier.
+ * Comparaison 3 colonnes : proposition IA | paramètres + RTE | version actuelle.
+ * Formulaire IA repliable (#iaStrip). Barre flottante Base|★1–5 + sélecteur | Publier.
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -35,10 +35,12 @@
     currentModule: null,
     sessionTouched: {},
     printScope: 'lecon',
-    paramsOpen: false,
     busy: false,
     avertissements: [],
     iaForm: { instruction: '', text: '' },
+    iaFormOpen: true,
+    editMode: false,
+    editBase: 'ia', // ia | initial
     iaCtx: {
       includeCurrentParcours: true,
       extraParcoursId: '',
@@ -48,6 +50,7 @@
     _ctxPackCache: {},
     _molByDci: null,
     _molModuleId: null,
+    _rte: null,
   };
 
   async function rpc(name, args) {
@@ -624,6 +627,7 @@
       + '<a class="jp-btn jp-btn-ghost" href="parcours.html?parcours=' + esc(state.parcoursId || '') + '">← Studio</a>'
       + '<h1 class="jp-preview-title" id="previewTitle">Preview</h1>'
       + '<div class="jp-preview-top-actions">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnToggleIaForm">Demande IA</button>'
       + '<label class="jp-preview-print-wrap" title="Périmètre d’impression">'
       + '<select id="printScope" aria-label="Périmètre impression">'
       + '<option value="lecon"' + (state.printScope === 'lecon' ? ' selected' : '') + '>Leçon</option>'
@@ -634,21 +638,151 @@
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublishUpdate" disabled'
       + ' title="Publie les brouillons du parcours quand toutes les décisions sont prises">'
       + 'Publier la mise à jour</button>'
-      + '<button type="button" class="jp-preview-gear" id="btnParams" aria-expanded="false"'
-      + ' aria-controls="paramsDrawer" title="Paramètres de la proposition">'
-      + '<span aria-hidden="true">⚙</span><span class="jp-sr-only">Paramètres</span></button>'
       + '</div>'
       + '</header>'
-      + '<div class="jp-preview-body' + (state.paramsOpen ? ' is-params-open' : '') + '" id="previewBody">'
-      + '<aside class="jp-preview-pane jp-preview-ia" id="iaPane"></aside>'
-      + '<div class="jp-preview-bridge no-print" id="bridgePane" hidden></div>'
-      + '<section class="jp-preview-pane jp-preview-center" id="centerPane"></section>'
+      + '<div class="jp-preview-ia-strip no-print" id="iaStrip"></div>'
+      + '<div class="jp-preview-body" id="previewBody">'
+      + '<div class="jp-cmp" id="cmpRoot"></div>'
       + '</div>'
-      + '<aside class="jp-preview-drawer no-print" id="paramsDrawer" aria-hidden="true" hidden></aside>'
-      + '<div class="jp-preview-drawer-backdrop no-print" id="paramsBackdrop" hidden></div>'
       + '<footer class="jp-preview-bar no-print" id="floatBar" role="toolbar" aria-label="Couche et navigation">'
       + '</footer>'
       + '</div>';
+  }
+
+  function acceptLabel(node) {
+    if (!node) return 'Valider';
+    const isCreate = node.action === 'create' || !node.ref_id;
+    if (isCreate) {
+      if (node.kind === 'chapitre') return 'Ajouter ce chapitre';
+      if (node.kind === 'lecon') return 'Ajouter cette leçon';
+      if (node.kind === 'section') return 'Ajouter cette section';
+      return 'Ajouter ce bloc';
+    }
+    if (node.action === 'delete') return 'Valider la suppression';
+    return 'Valider la modification';
+  }
+
+  function rejectLabel(node) {
+    if (!node) return 'Rejeter';
+    if (node.action === 'create' || !node.ref_id) return 'Ne pas ajouter';
+    if (node.action === 'delete') return 'Garder l’existant';
+    return 'Rejeter la modification';
+  }
+
+  function destroyRte() {
+    if (state._rte && typeof state._rte.destroy === 'function') {
+      try { state._rte.destroy(); } catch (_) { /* ignore */ }
+    }
+    state._rte = null;
+    const host = document.getElementById('cmpEditRte');
+    if (host) host.innerHTML = '';
+  }
+
+  function moduleCardHtml(titre, resume, kindLab) {
+    return '<div class="jp-cmp-mod-card">'
+      + (kindLab ? '<p class="jp-cmp-mod-kind">' + esc(kindLab) + '</p>' : '')
+      + '<h3 class="jp-cmp-mod-title">' + esc(titre || '(sans titre)') + '</h3>'
+      + (resume ? '<p class="jp-cmp-mod-resume">' + esc(resume) + '</p>' : '')
+      + '</div>';
+  }
+
+  function proposalPlayerHtml(node, couche) {
+    if (!node || node.action === 'delete') {
+      return '<p class="jp-muted jp-cmp-empty-slot">(suppression proposée)</p>';
+    }
+    if (node.kind === 'chapitre' || node.kind === 'lecon') {
+      const layer = layerPayload(node, couche);
+      return moduleCardHtml(node.titre, layer.resume || '', KIND_LABELS[node.kind]);
+    }
+    const layer = layerPayload(node, couche);
+    const typeBloc = layer.type || (node.kind === 'section' ? 'section' : 'texte');
+    const faux = {
+      id: node.temp_id || 'ia',
+      type_bloc: typeBloc,
+      titre: node.titre || '',
+      payload_json: layer,
+    };
+    const m = selectedModule() || {};
+    const niveau = couche === 'base' ? null : Number(couche);
+    if (!global.JpLeconPlayer?.blocArticleHtml) {
+      return '<p class="jp-muted">Lecteur indisponible.</p>';
+    }
+    return global.JpLeconPlayer.blocArticleHtml(faux, {
+      niveau,
+      module: Object.assign({}, m, { parcours_id: state.parcoursId }),
+      idPrefix: 'jp-ia-',
+    }) || '<p class="jp-muted">—</p>';
+  }
+
+  function currentPlayerHtml(refId, kind, couche) {
+    if (!refId) {
+      return '<p class="jp-muted jp-cmp-empty-slot">(insertion — pas encore de contenu)</p>';
+    }
+    if (kind === 'chapitre' || kind === 'lecon') {
+      const mod = state.modules.find((x) => x.id === refId);
+      if (!mod) return '<p class="jp-muted">(introuvable)</p>';
+      return moduleCardHtml(mod.titre, mod.resume || '', KIND_LABELS[kind]);
+    }
+    const b = currentBlocByRef(refId);
+    if (!b) return '<p class="jp-muted">(introuvable)</p>';
+    const drafted = global.JpLeconPlayer?.withDraft
+      ? global.JpLeconPlayer.withDraft(b)
+      : b;
+    const m = selectedModule() || {};
+    const niveau = couche === 'base' ? null : Number(couche);
+    if (!global.JpLeconPlayer?.blocArticleHtml) {
+      return '<p class="jp-muted">Lecteur indisponible.</p>';
+    }
+    return global.JpLeconPlayer.blocArticleHtml(drafted, {
+      niveau,
+      module: Object.assign({}, m, { parcours_id: state.parcoursId }),
+      idPrefix: 'jp-cur-',
+    }) || '<p class="jp-muted">—</p>';
+  }
+
+  function editSourceLayer(node, couche, base) {
+    if (base === 'ia') return layerPayload(node, couche);
+    if (node.kind === 'chapitre' || node.kind === 'lecon') {
+      const mod = node.ref_id ? state.modules.find((x) => x.id === node.ref_id) : null;
+      return {
+        resume: mod ? (mod.resume || '') : '',
+        titre: mod ? (mod.titre || '') : (node.titre || ''),
+      };
+    }
+    const b = node.ref_id ? currentBlocByRef(node.ref_id) : null;
+    if (!b) return {};
+    const drafted = global.JpLeconPlayer?.withDraft
+      ? global.JpLeconPlayer.withDraft(b)
+      : b;
+    const p = drafted.payload_json || {};
+    if (couche !== 'base' && p.variantes && p.variantes[String(couche)]) {
+      return Object.assign({}, p, p.variantes[String(couche)]);
+    }
+    const { variantes: _v, ...rest } = p;
+    return rest;
+  }
+
+  function mountCmpRte(node) {
+    destroyRte();
+    const host = document.getElementById('cmpEditRte');
+    if (!host || !node || !global.JpStudioRichtext?.mount) return;
+    if (node.kind === 'chapitre' || node.kind === 'lecon') return;
+    const couche = coucheKey();
+    const layer = editSourceLayer(node, couche, state.editBase);
+    const type = layer.type || (node.kind === 'section' ? 'section' : 'texte');
+    if (type !== 'texte' && type !== 'conseil' && type !== 'recommandation') return;
+    const html = type === 'texte'
+      ? (layer.html || '<p></p>')
+      : (layer.corps_html || '<p></p>');
+    const niveau = couche === 'base' ? null : Number(couche);
+    state._rte = global.JpStudioRichtext.mount(host, html, {
+      inheritLevel: niveau,
+    });
+  }
+
+  function hydrateCmpHost(host) {
+    if (!host) return;
+    if (global.JpBlocPhoto) global.JpBlocPhoto.hydrate(host);
   }
 
   function renderFloatBar() {
@@ -760,35 +894,44 @@
           try { await loadParcoursPack(id); }
           catch (e) { global.JpToast?.fromError?.(e); }
         }
-        // Reselect options with new modules ; preserve instruction
         syncIaFormFromDom(pane);
-        renderIaPane();
+        renderIaStrip();
       })();
     });
   }
 
-  function renderIaPane() {
-    const pane = document.getElementById('iaPane');
-    if (!pane) return;
-    syncIaFormFromDom(pane);
-    syncIaCtxFromDom(pane);
+  function renderIaStrip() {
+    const strip = document.getElementById('iaStrip');
+    if (!strip) return;
+    syncIaFormFromDom(strip);
+    syncIaCtxFromDom(strip);
     const G = global.JpIaGemini;
     const couche = coucheKey();
     const rows = buildMirrorRows().filter((r) => r.node);
     const form = state.iaForm;
+    const open = state.iaFormOpen || !state.proposals.length;
+    state.iaFormOpen = open;
 
-    pane.innerHTML = '<div class="jp-preview-ia-head">'
-      + '<h2>IA — pré-brouillon <span data-help="ia"></span></h2>'
-      + '<p class="jp-preview-ia-prompt-link no-print">'
+    strip.classList.toggle('is-open', open);
+    strip.hidden = !open;
+    if (!open) {
+      strip.innerHTML = '';
+      return;
+    }
+
+    strip.innerHTML = '<div class="jp-preview-ia-strip-inner no-print">'
+      + '<div class="jp-preview-ia-head">'
+      + '<h2>Demande IA <span data-help="ia"></span></h2>'
+      + '<p class="jp-preview-ia-prompt-link">'
       + '<button type="button" class="jp-link-btn" id="iaEditPrompt">Modifier le prompt de base</button></p>'
       + '</div>'
-      + '<div class="jp-preview-ia-form no-print">'
+      + '<div class="jp-preview-ia-form">'
       + '<div class="jp-field"><label for="iaInstruction">Instruction</label>'
-      + '<textarea id="iaInstruction" rows="4" maxlength="8000" placeholder="Ex. Enrichir la leçon pour ★1, clarifier les CI…">'
+      + '<textarea id="iaInstruction" rows="3" maxlength="8000" placeholder="Ex. Enrichir la leçon pour ★1, clarifier les CI…">'
       + esc(form.instruction || '') + '</textarea></div>'
       + iaCtxFormHtml()
       + '<div class="jp-field"><label for="iaText">Texte complémentaire (optionnel)</label>'
-      + '<textarea id="iaText" rows="3" maxlength="' + (G?.TEXT_MAX_CHARS || 80000) + '">'
+      + '<textarea id="iaText" rows="2" maxlength="' + (G?.TEXT_MAX_CHARS || 80000) + '">'
       + esc(form.text || '') + '</textarea></div>'
       + '<div class="jp-field"><label for="iaPdf">PDF (optionnel, 10 Mo)</label>'
       + '<input id="iaPdf" type="file" accept="application/pdf,.pdf"></div>'
@@ -800,288 +943,293 @@
       + (rows.length ? '' : 'disabled ') + '>Tout valider (' + coucheLabel(couche) + ')</button>'
       + '</div>'
       + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>'
-      + '</div>'
-      + '<div class="jp-preview-mirror" id="mirrorList" aria-label="Miroir propositions"></div>';
+      + '</div></div>';
 
-    const list = pane.querySelector('#mirrorList');
-    if (!rows.length) {
-      list.innerHTML = '<p class="jp-muted">Lancez l’IA pour obtenir un pré-brouillon aligné sur la cible.</p>';
-    } else {
-      list.innerHTML = rows.map((r) => mirrorRowHtml(r, couche)).join('');
-      list.querySelectorAll('[data-temp]').forEach((el) => {
-        el.addEventListener('click', (e) => {
-          if (e.target.closest('[data-act]')) return;
-          state.selectedTempId = el.getAttribute('data-temp');
-          renderMirrorSelection();
-          openParamsDrawer(true);
-          renderParamsPane();
-          renderBridge();
-        });
-      });
-      list.querySelectorAll('[data-act]').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const temp = btn.closest('[data-temp]')?.getAttribute('data-temp');
-          const act = btn.getAttribute('data-act');
-          void handleLineAction(temp, act);
-        });
-      });
-    }
-
-    bindIaCtxControls(pane);
-    attachHelp(pane.querySelector('[data-help="ia"]'), 'IA — pré-brouillon', [
+    bindIaCtxControls(strip);
+    attachHelp(strip.querySelector('[data-help="ia"]'), 'Demande IA', [
       'L’IA propose une Base et des variantes ★1–★5 si besoin.',
-      'La barre flottante (Base / ★) pilote à la fois l’affichage du miroir et la couche que vous validez.',
-      'Validez ligne à ligne : le centre (courant) se met à jour en brouillon. Publiez ensuite la mise à jour.',
+      'La barre flottante (Base / ★) pilote l’affichage et la couche validée.',
+      'Validez ligne à ligne dans la colonne centrale, puis publiez la mise à jour.',
     ]);
-    attachHelp(pane.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
+    attachHelp(strip.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
       'La cible choisie dans la barre (leçon ou chapitre) est toujours envoyée en entier.',
-      'Un chapitre cible inclut toutes ses leçons et tous leurs blocs — pas seulement le titre.',
-      'Vous pouvez ajouter en référence : l’arbre du parcours courant, un autre parcours complet, un chapitre entier ou une leçon complète.',
+      'Un chapitre cible inclut toutes ses leçons et tous leurs blocs.',
+      'Références optionnelles : parcours courant, autre parcours, chapitre ou leçon.',
     ]);
-    pane.querySelector('#iaInstruction')?.addEventListener('change', () => syncIaFormFromDom(pane));
-    pane.querySelector('#iaText')?.addEventListener('change', () => syncIaFormFromDom(pane));
-    pane.querySelector('#iaRun')?.addEventListener('click', () => void runIa(pane));
-    pane.querySelector('#iaRejectAll')?.addEventListener('click', () => void bulkDecide('rejected'));
-    pane.querySelector('#iaAcceptAll')?.addEventListener('click', () => void bulkDecide('accepted'));
-    pane.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
+    strip.querySelector('#iaInstruction')?.addEventListener('change', () => syncIaFormFromDom(strip));
+    strip.querySelector('#iaText')?.addEventListener('change', () => syncIaFormFromDom(strip));
+    strip.querySelector('#iaRun')?.addEventListener('click', () => void runIa(strip));
+    strip.querySelector('#iaRejectAll')?.addEventListener('click', () => void bulkDecide('rejected'));
+    strip.querySelector('#iaAcceptAll')?.addEventListener('click', () => void bulkDecide('accepted'));
+    strip.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
       if (!global.JpStudioIA?.editBasePrompt) {
         global.JpToast?.warn?.('Éditeur de prompt indisponible');
         return;
       }
       void global.JpStudioIA.editBasePrompt();
     });
-    renderMirrorSelection();
   }
 
-  function mirrorRowHtml(r, couche) {
+  function midCompactHtml(r, couche) {
     const node = r.node;
+    if (!node) {
+      return '<button type="button" class="jp-cmp-mid-compact is-idle" disabled>'
+        + '<span class="jp-muted">Sans proposition</span></button>';
+    }
     const on = node.temp_id === state.selectedTempId ? ' is-selected' : '';
     const st = r.status;
     const stLab = st === 'accepted' || st === 'homemade' ? 'validé'
       : (st === 'rejected' ? 'rejeté' : 'en attente');
-    const kindLab = KIND_LABELS[node.kind] || node.kind;
-    const actLab = ACTION_LABELS[node.action] || node.action;
-    return '<article class="jp-mirror-row' + on + ' is-' + esc(st) + '" data-temp="' + esc(node.temp_id) + '">'
-      + '<header class="jp-mirror-meta">'
-      + '<span class="jp-mirror-kind">' + esc(kindLab) + '</span>'
-      + '<span class="jp-mirror-action">' + esc(actLab) + '</span>'
-      + '<span class="jp-mirror-status">' + esc(stLab) + ' · ' + coucheLabel(couche) + '</span>'
-      + '</header>'
-      + '<div class="jp-mirror-cols">'
-      + '<div class="jp-mirror-col jp-mirror-ia">'
-      + '<strong class="jp-mirror-col-lab">Proposition</strong>'
-      + (r.left.empty
-        ? '<p class="jp-muted">' + esc(r.left.label) + '</p>'
-        : '<p class="jp-mirror-title">' + esc(r.left.label) + '</p><p class="jp-mirror-snip">' + r.left.html + '</p>')
-      + '</div>'
-      + '<div class="jp-mirror-col jp-mirror-cur">'
-      + '<strong class="jp-mirror-col-lab">Courant</strong>'
-      + (r.right.empty
-        ? '<p class="jp-muted">' + esc(r.right.label) + '</p>'
-        : '<p class="jp-mirror-title">' + esc(r.right.label) + '</p><p class="jp-mirror-snip">' + r.right.html + '</p>')
-      + '</div>'
-      + '</div>'
-      + (st === 'pending'
-        ? '<div class="jp-mirror-acts">'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-act="reject">Rejeter</button>'
-          + '<button type="button" class="jp-btn jp-btn-primary" data-act="accept">Prendre IA</button>'
-          + '</div>'
-        : '')
-      + '</article>';
+    return '<button type="button" class="jp-cmp-mid-compact' + on + ' is-' + esc(st)
+      + '" data-select-temp="' + esc(node.temp_id) + '">'
+      + '<span class="jp-cmp-mid-kind">' + esc(KIND_LABELS[node.kind] || node.kind) + '</span>'
+      + '<span class="jp-cmp-mid-act">' + esc(ACTION_LABELS[node.action] || node.action) + '</span>'
+      + '<span class="jp-cmp-mid-title">' + esc(node.titre || '(sans titre)') + '</span>'
+      + '<span class="jp-cmp-mid-st">' + esc(stLab) + ' · ' + coucheLabel(couche) + '</span>'
+      + '</button>';
   }
 
-  function renderMirrorSelection() {
-    document.querySelectorAll('.jp-mirror-row').forEach((el) => {
-      el.classList.toggle('is-selected', el.getAttribute('data-temp') === state.selectedTempId);
-    });
-  }
-
-  /* ——— Centre ——— */
-
-  async function renderCenterPane() {
-    const pane = document.getElementById('centerPane');
-    if (!pane) return;
-    const m = selectedModule();
-    const couche = coucheKey();
-    const niveau = couche === 'base' ? null : Number(couche);
-
-    pane.innerHTML = '<div class="jp-preview-center-head no-print">'
-      + '<h2>' + esc(m ? m.titre : 'Aperçu')
-      + ' <span class="jp-preview-couche-badge">' + coucheLabel(couche) + '</span>'
-      + ' <span data-help="center"></span></h2>'
-      + '</div>'
-      + '<div class="jp-preview-player" id="previewPlayer"></div>';
-
-    attachHelp(pane.querySelector('[data-help="center"]'), 'Aperçu courant', [
-      'Couche affichée : ' + coucheLabel(couche) + ' (réglée par la barre flottante Base / ★1–★5).',
-      'Le courant = contenu publié + brouillons déjà validés depuis le miroir IA.',
-      'Changez d’étoile dans la barre pour prévisualiser et valider une autre couche.',
-    ]);
-
-    const host = pane.querySelector('#previewPlayer');
-    if (!m) {
-      host.innerHTML = '<p class="jp-muted">Choisissez une leçon ou un chapitre.</p>';
-      return;
-    }
-    if (m.est_groupe) {
-      const kids = state.modules
-        .filter((x) => x.parent_id === m.id)
-        .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
-      host.innerHTML = '<p class="jp-lecon-resume">' + esc(m.resume || '') + '</p>'
-        + (kids.length
-          ? '<ul class="jp-preview-chapter-list">' + kids.map((k) =>
-            '<li><button type="button" class="jp-btn jp-btn-ghost" data-goto="' + esc(k.id) + '">'
-            + esc(k.titre || '') + (k.est_groupe ? ' (chapitre)' : '') + '</button></li>'
-          ).join('') + '</ul>'
-          : '<p class="jp-muted">Aucune leçon dans ce chapitre.</p>');
-      host.querySelectorAll('[data-goto]').forEach((btn) => {
-        btn.addEventListener('click', () => void selectModule(btn.getAttribute('data-goto')));
-      });
-      return;
-    }
-    if (!global.JpLeconPlayer?.renderContent) {
-      host.innerHTML = '<p class="jp-muted">Lecteur indisponible.</p>';
-      return;
-    }
-    await global.JpLeconPlayer.renderContent(host, {
-      module: Object.assign({}, m, { parcours_id: state.parcoursId }),
-      blocs: state.currentBlocs,
-      preview: true,
-      niveau,
-    });
-  }
-
-  /* ——— Tiroir paramètres (⚙) ——— */
-
-  function openParamsDrawer(open) {
-    state.paramsOpen = !!open;
-    const drawer = document.getElementById('paramsDrawer');
-    const backdrop = document.getElementById('paramsBackdrop');
-    const gear = document.getElementById('btnParams');
-    const body = document.getElementById('previewBody');
-    if (drawer) {
-      drawer.hidden = !state.paramsOpen;
-      drawer.setAttribute('aria-hidden', state.paramsOpen ? 'false' : 'true');
-      drawer.classList.toggle('is-open', state.paramsOpen);
-    }
-    if (backdrop) {
-      backdrop.hidden = !state.paramsOpen;
-      backdrop.classList.toggle('is-open', state.paramsOpen);
-    }
-    if (gear) gear.setAttribute('aria-expanded', state.paramsOpen ? 'true' : 'false');
-    if (body) body.classList.toggle('is-params-open', state.paramsOpen);
-  }
-
-  function renderBridge() {
-    const bridge = document.getElementById('bridgePane');
-    const body = document.getElementById('previewBody');
-    if (!bridge) return;
-    const node = state.proposals.find((n) => n.temp_id === state.selectedTempId) || null;
-    const hasProp = state.proposals.length > 0;
-    if (body) body.classList.toggle('has-bridge', hasProp);
-    if (!hasProp) {
-      bridge.hidden = true;
-      bridge.innerHTML = '';
-      return;
-    }
-    bridge.hidden = false;
-    const couche = coucheKey();
-    const pending = pendingCount();
-    if (!node) {
-      bridge.innerHTML = '<div class="jp-preview-bridge-card">'
-        + '<p class="jp-preview-bridge-kicker">Revue IA <span data-help="bridge"></span></p>'
-        + '<p class="jp-preview-bridge-title">' + state.proposals.length + ' proposition(s)</p>'
-        + '<p class="jp-muted">' + (pending ? pending + ' en attente · ' : 'Tout décidé · ')
-        + coucheLabel(couche) + '</p>'
-        + '</div>';
-      attachHelp(bridge.querySelector('[data-help="bridge"]'), 'Revue IA', [
-        'Sélectionnez une ligne à gauche pour comparer la proposition IA et le courant.',
-        'Validez, rejetez ou éditez maison pour la couche active (barre flottante).',
-      ]);
-      return;
-    }
+  function midSelectedHtml(node, couche) {
     const st = decisionOf(node.temp_id, couche);
     const stLab = st === 'accepted' || st === 'homemade' ? 'validé'
       : (st === 'rejected' ? 'rejeté' : 'en attente');
-    bridge.innerHTML = '<div class="jp-preview-bridge-card">'
-      + '<p class="jp-preview-bridge-kicker">' + esc(KIND_LABELS[node.kind] || node.kind)
-      + ' · ' + esc(ACTION_LABELS[node.action] || node.action)
-      + ' <span data-help="bridge"></span></p>'
-      + '<p class="jp-preview-bridge-title">' + esc(node.titre || '(sans titre)') + '</p>'
-      + '<p class="jp-muted">' + esc(stLab) + ' · couche ' + coucheLabel(couche) + '</p>'
-      + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" id="bridgeOpenParams">Paramètres ⚙</button>'
-      + '</div>';
-    attachHelp(bridge.querySelector('[data-help="bridge"]'), 'Proposition sélectionnée', [
-      'Statut pour la couche ' + coucheLabel(couche) + ' : ' + stLab + '.',
-      'Ouvrez Paramètres (⚙) pour reclasser le type, éditer le contenu ou valider une édition maison.',
-    ]);
-    bridge.querySelector('#bridgeOpenParams')?.addEventListener('click', () => {
-      openParamsDrawer(true);
-      renderParamsPane();
-    });
-  }
+    const layer = layerPayload(node, couche);
+    const typeHint = layer.type || (node.kind === 'section' ? 'section' : 'texte');
+    const src = editSourceLayer(node, couche, state.editBase);
 
-  function renderParamsPane() {
-    const pane = document.getElementById('paramsDrawer');
-    if (!pane) return;
-    const node = state.proposals.find((n) => n.temp_id === state.selectedTempId) || null;
-    const couche = coucheKey();
+    let html = '<div class="jp-cmp-mid-panel">'
+      + '<p class="jp-cmp-mid-status">' + esc(stLab) + ' · ' + coucheLabel(couche)
+      + ' <span data-help="cmp-mid"></span></p>'
+      + '<div class="jp-field"><label for="paramKind">Type</label>'
+      + '<select id="paramKind">'
+      + Object.keys(KIND_LABELS).map((k) =>
+        '<option value="' + k + '"' + (node.kind === k ? ' selected' : '') + '>'
+        + KIND_LABELS[k] + '</option>'
+      ).join('')
+      + '</select></div>'
+      + '<div class="jp-field"><label for="paramTitre">Titre</label>'
+      + '<input id="paramTitre" type="text" value="' + esc(node.titre || '') + '" maxlength="200"></div>'
+      + '<div class="jp-field"><label>Plage ★</label>'
+      + '<div class="jp-plage">'
+      + '<label>De <select id="paramMin">' + plageOpts(node.niveau_min || node.niveaux?.min || 1) + '</select></label>'
+      + '<label>À <select id="paramMax">' + plageOpts(node.niveau_max || node.niveaux?.max || 5) + '</select></label>'
+      + '</div></div>';
 
-    let body = '';
-    if (!node) {
-      body = '<p class="jp-muted">Sélectionnez une ligne du miroir IA pour éditer les paramètres ou une édition maison.</p>';
-    } else {
-      const st = decisionOf(node.temp_id, couche);
-      const layer = layerPayload(node, couche);
-      const payloadJson = JSON.stringify(layer, null, 2);
-      body = '<div class="jp-field"><label for="paramKind">Type</label>'
-        + '<select id="paramKind">'
-        + Object.keys(KIND_LABELS).map((k) =>
-          '<option value="' + k + '"' + (node.kind === k ? ' selected' : '') + '>'
-          + KIND_LABELS[k] + '</option>'
-        ).join('')
-        + '</select></div>'
-        + '<div class="jp-field"><label for="paramTitre">Titre</label>'
-        + '<input id="paramTitre" type="text" value="' + esc(node.titre || '') + '" maxlength="200"></div>'
-        + '<div class="jp-field"><label>Plage ★</label>'
-        + '<div class="jp-plage">'
-        + '<label>De <select id="paramMin">' + plageOpts(node.niveau_min || node.niveaux?.min || 1) + '</select></label>'
-        + '<label>À <select id="paramMax">' + plageOpts(node.niveau_max || node.niveaux?.max || 5) + '</select></label>'
-        + '</div></div>'
-        + '<div class="jp-field"><label for="paramPayload">Contenu couche ' + coucheLabel(couche)
-        + ' (JSON) <span data-help="param-payload"></span></label>'
-        + '<textarea id="paramPayload" rows="12" spellcheck="false">' + esc(payloadJson) + '</textarea></div>'
-        + '<div class="jp-preview-param-acts">'
-        + '<button type="button" class="jp-btn jp-btn-ghost" id="paramReject" '
-        + (st === 'pending' ? '' : 'disabled ') + '>Rejeter</button>'
-        + '<button type="button" class="jp-btn jp-btn-ghost" id="paramHomemade">Valider édition maison</button>'
-        + '<button type="button" class="jp-btn jp-btn-primary" id="paramAccept" '
-        + (st === 'pending' ? '' : 'disabled ') + '>Prendre IA</button>'
+    if (st === 'pending' && !state.editMode) {
+      html += '<div class="jp-preview-param-acts">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-act="reject">'
+        + esc(rejectLabel(node)) + '</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" data-act="accept">'
+        + esc(acceptLabel(node)) + '</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="paramEditStart">Modifier</button>'
+        + '</div>';
+    } else if (!state.editMode) {
+      html += '<div class="jp-preview-param-acts">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="paramEditStart">Modifier</button>'
         + '</div>';
     }
 
-    pane.innerHTML = '<div class="jp-preview-drawer-head">'
-      + '<h2>Paramètres <span data-help="params"></span></h2>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="paramsClose" aria-label="Fermer">✕</button>'
+    if (state.editMode) {
+      html += '<fieldset class="jp-cmp-edit-base">'
+        + '<legend>Base d’édition</legend>'
+        + '<label><input type="radio" name="editBase" value="ia"'
+        + (state.editBase === 'ia' ? ' checked' : '') + '> Proposition IA</label>'
+        + '<label><input type="radio" name="editBase" value="initial"'
+        + (state.editBase === 'initial' ? ' checked' : '') + '> Version initiale</label>'
+        + '</fieldset>';
+
+      if (node.kind === 'chapitre' || node.kind === 'lecon') {
+        html += '<div class="jp-field"><label for="paramTitreEdit">Titre (édition)</label>'
+          + '<input id="paramTitreEdit" type="text" value="'
+          + esc(src.titre != null ? src.titre : (node.titre || '')) + '" maxlength="200"></div>'
+          + '<div class="jp-field"><label for="paramResume">Résumé</label>'
+          + '<textarea id="paramResume" rows="4">' + esc(src.resume || '') + '</textarea></div>';
+      } else if (typeHint === 'conseil') {
+        html += '<div class="jp-field"><label for="paramPathologie">Pathologie</label>'
+          + '<input id="paramPathologie" type="text" value="'
+          + esc(src.pathologie || '') + '" maxlength="160"></div>'
+          + '<div class="jp-field"><label>Corps</label>'
+          + '<div id="cmpEditRte" class="jp-cmp-rte"></div></div>';
+      } else if (typeHint === 'recommandation') {
+        html += '<div class="jp-field"><label>Corps</label>'
+          + '<div id="cmpEditRte" class="jp-cmp-rte"></div></div>';
+      } else if (typeHint === 'texte') {
+        html += '<div class="jp-field"><label>Contenu</label>'
+          + '<div id="cmpEditRte" class="jp-cmp-rte"></div></div>';
+      } else {
+        html += '<p class="jp-muted">Édition riche non disponible pour ce type (« '
+          + esc(TYPE_LABEL(typeHint)) + ' »). Modifiez type/titre/plage puis validez.</p>';
+      }
+
+      html += '<div class="jp-preview-param-acts">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="paramEditCancel">Annuler</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="paramHomemade">Enregistrer l’édition</button>'
+        + '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function bindMidPanel(root, node) {
+    if (!root || !node) return;
+    attachHelp(root.querySelector('[data-help="cmp-mid"]'), 'Paramètres', [
+      'Reclassement type, titre et plage ★ pour la couche active.',
+      'Validez, rejetez, ou modifiez avec l’éditeur (base IA ou version initiale).',
+    ]);
+    root.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        void handleLineAction(node.temp_id, btn.getAttribute('data-act'));
+      });
+    });
+    root.querySelector('#paramEditStart')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.editMode = true;
+      state.editBase = 'ia';
+      void renderCompare();
+    });
+    root.querySelector('#paramEditCancel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.editMode = false;
+      destroyRte();
+      void renderCompare();
+    });
+    root.querySelectorAll('input[name="editBase"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        state.editBase = radio.value === 'initial' ? 'initial' : 'ia';
+        const couche = coucheKey();
+        const src = editSourceLayer(node, couche, state.editBase);
+        if (node.kind === 'chapitre' || node.kind === 'lecon') {
+          const t = document.getElementById('paramTitreEdit');
+          const r = document.getElementById('paramResume');
+          if (t) t.value = src.titre != null ? src.titre : (node.titre || '');
+          if (r) r.value = src.resume || '';
+        } else {
+          const patho = document.getElementById('paramPathologie');
+          if (patho) patho.value = src.pathologie || '';
+          mountCmpRte(node);
+        }
+      });
+    });
+    root.querySelector('#paramHomemade')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      void handleHomemade(node.temp_id);
+    });
+    if (state.editMode) mountCmpRte(node);
+  }
+
+  async function renderCompare() {
+    const root = document.getElementById('cmpRoot');
+    if (!root) return;
+    destroyRte();
+    const couche = coucheKey();
+    const m = selectedModule();
+    const niveau = couche === 'base' ? null : Number(couche);
+
+    if (!state.proposals.length) {
+      root.innerHTML = '<div class="jp-cmp-empty-layout">'
+        + '<div class="jp-cmp-col jp-cmp-left">'
+        + '<p class="jp-cmp-col-lab">Proposition IA</p>'
+        + '<p class="jp-muted">Aucune proposition. Ouvrez « Demande IA » pour générer un pré-brouillon.</p>'
+        + '</div>'
+        + '<div class="jp-cmp-col jp-cmp-mid">'
+        + '<p class="jp-cmp-col-lab">Paramètres</p>'
+        + '<p class="jp-muted">—</p></div>'
+        + '<div class="jp-cmp-col jp-cmp-right">'
+        + '<p class="jp-cmp-col-lab">Version actuelle <span class="jp-preview-couche-badge">'
+        + coucheLabel(couche) + '</span></p>'
+        + '<div class="jp-preview-player" id="cmpCurrentFull"></div>'
+        + '</div></div>';
+      const host = root.querySelector('#cmpCurrentFull');
+      if (!host) return;
+      if (!m) {
+        host.innerHTML = '<p class="jp-muted">Choisissez une leçon ou un chapitre.</p>';
+        return;
+      }
+      if (m.est_groupe) {
+        const kids = state.modules
+          .filter((x) => x.parent_id === m.id)
+          .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+        host.innerHTML = moduleCardHtml(m.titre, m.resume || '', 'Chapitre')
+          + (kids.length
+            ? '<ul class="jp-preview-chapter-list">' + kids.map((k) =>
+              '<li><button type="button" class="jp-btn jp-btn-ghost" data-goto="' + esc(k.id) + '">'
+              + esc(k.titre || '') + (k.est_groupe ? ' (chapitre)' : '') + '</button></li>'
+            ).join('') + '</ul>'
+            : '<p class="jp-muted">Aucune leçon dans ce chapitre.</p>');
+        host.querySelectorAll('[data-goto]').forEach((btn) => {
+          btn.addEventListener('click', () => void selectModule(btn.getAttribute('data-goto')));
+        });
+        return;
+      }
+      if (!global.JpLeconPlayer?.renderContent) {
+        host.innerHTML = '<p class="jp-muted">Lecteur indisponible.</p>';
+        return;
+      }
+      await global.JpLeconPlayer.renderContent(host, {
+        module: Object.assign({}, m, { parcours_id: state.parcoursId }),
+        blocs: state.currentBlocs,
+        preview: true,
+        niveau,
+      });
+      return;
+    }
+
+    const rows = buildMirrorRows();
+    let body = '<div class="jp-cmp-head no-print">'
+      + '<div class="jp-cmp-col-lab">Proposition IA</div>'
+      + '<div class="jp-cmp-col-lab">Paramètres <span data-help="cmp"></span></div>'
+      + '<div class="jp-cmp-col-lab">Version actuelle · ' + coucheLabel(couche) + '</div>'
       + '</div>'
-      + body;
+      + '<div class="jp-cmp-rows">';
 
-    attachHelp(pane.querySelector('[data-help="params"]'), 'Paramètres', [
-      'Éditez le type (reclassement chapitre / leçon / section / bloc), le titre et la plage ★.',
-      'Sélectionnez une ligne du miroir pour afficher ses paramètres.',
-    ]);
-    attachHelp(pane.querySelector('[data-help="param-payload"]'), 'Édition maison', [
-      'Modifiez le JSON de la couche active, puis « Valider édition maison ».',
-      'Le reclassement (type) s’applique à la validation.',
-      '« Prendre IA » applique la proposition sans édition ; « Rejeter » ignore cette couche.',
-    ]);
-    pane.querySelector('#paramsClose')?.addEventListener('click', () => openParamsDrawer(false));
-    if (!node) return;
+    rows.forEach((r) => {
+      const temp = r.node ? r.node.temp_id : (r.refId || '');
+      const selected = !!(r.node && r.node.temp_id === state.selectedTempId);
+      const kind = r.node
+        ? r.node.kind
+        : (r.refId && currentBlocByRef(r.refId)?.type_bloc === 'section' ? 'section' : 'bloc');
+      const leftHtml = r.node
+        ? proposalPlayerHtml(r.node, couche)
+        : '<p class="jp-muted jp-cmp-empty-slot">—</p>';
+      const rightHtml = r.node
+        ? (r.node.action === 'create' || !r.node.ref_id
+          ? '<p class="jp-muted jp-cmp-empty-slot">(insertion)</p>'
+          : currentPlayerHtml(r.node.ref_id, r.node.kind, couche))
+        : currentPlayerHtml(r.refId, kind, couche);
+      const midHtml = selected
+        ? midSelectedHtml(r.node, couche)
+        : midCompactHtml(r, couche);
+      body += '<article class="jp-cmp-row' + (selected ? ' is-selected' : '')
+        + (r.status ? ' is-' + esc(r.status) : '')
+        + '"' + (r.node ? ' data-temp="' + esc(temp) + '"' : ' data-ref="' + esc(r.refId || '') + '"') + '>'
+        + '<div class="jp-cmp-left jp-preview-player">' + leftHtml + '</div>'
+        + '<div class="jp-cmp-mid">' + midHtml + '</div>'
+        + '<div class="jp-cmp-right jp-preview-player">' + rightHtml + '</div>'
+        + '</article>';
+    });
+    body += '</div>';
+    root.innerHTML = body;
 
-    pane.querySelector('#paramReject')?.addEventListener('click', () => void handleLineAction(node.temp_id, 'reject'));
-    pane.querySelector('#paramAccept')?.addEventListener('click', () => void handleLineAction(node.temp_id, 'accept'));
-    pane.querySelector('#paramHomemade')?.addEventListener('click', () => void handleHomemade(node.temp_id));
+    attachHelp(root.querySelector('[data-help="cmp"]'), 'Comparaison', [
+      'Gauche : proposition IA · Droite : version actuelle (publié + brouillons).',
+      'Cliquez une ligne au centre pour valider, rejeter ou modifier.',
+    ]);
+
+    root.querySelectorAll('[data-select-temp]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.selectedTempId = btn.getAttribute('data-select-temp');
+        state.editMode = false;
+        void renderCompare();
+      });
+    });
+
+    const selectedNode = state.proposals.find((n) => n.temp_id === state.selectedTempId) || null;
+    const midEl = root.querySelector('.jp-cmp-row.is-selected .jp-cmp-mid');
+    if (selectedNode && midEl) bindMidPanel(midEl, selectedNode);
+
+    hydrateCmpHost(root);
   }
 
   function plageOpts(selected) {
@@ -1093,7 +1241,7 @@
   }
 
   function applyParamEdits(node) {
-    // Uniquement si le panneau params affiche ce nœud (évite d’écraser depuis « Prendre IA » miroir)
+    // Uniquement si le panneau milieu affiche ce nœud
     if (!node || state.selectedTempId !== node.temp_id) return;
     if (!document.getElementById('paramKind')) return;
     const kind = document.getElementById('paramKind')?.value;
@@ -1105,20 +1253,33 @@
     node.niveau_min = Math.min(min, max);
     node.niveau_max = Math.max(min, max);
     node.niveaux = { min: node.niveau_min, max: node.niveau_max };
-    const raw = document.getElementById('paramPayload')?.value;
-    if (raw != null && raw !== '') {
-      try {
-        const parsed = JSON.parse(raw);
-        const couche = coucheKey();
-        if (couche === 'base') {
-          node.payload = parsed;
-        } else {
-          if (!node.variantes) node.variantes = {};
-          node.variantes[couche] = parsed;
-        }
-      } catch (e) {
-        throw new Error('JSON invalide dans le contenu');
+
+    if (!state.editMode) return;
+
+    const couche = coucheKey();
+    let layer = Object.assign({}, layerPayload(node, couche));
+
+    if (node.kind === 'chapitre' || node.kind === 'lecon') {
+      const titreEdit = document.getElementById('paramTitreEdit')?.value;
+      const resume = document.getElementById('paramResume')?.value;
+      if (titreEdit != null) node.titre = titreEdit;
+      if (resume != null) layer.resume = resume;
+    } else {
+      const type = layer.type || (node.kind === 'section' ? 'section' : 'texte');
+      if (state._rte && typeof state._rte.getHtml === 'function') {
+        const html = state._rte.getHtml();
+        if (type === 'texte') layer.html = html;
+        else if (type === 'conseil' || type === 'recommandation') layer.corps_html = html;
       }
+      const patho = document.getElementById('paramPathologie')?.value;
+      if (patho != null && type === 'conseil') layer.pathologie = patho;
+    }
+
+    if (couche === 'base') {
+      node.payload = layer;
+    } else {
+      if (!node.variantes) node.variantes = {};
+      node.variantes[couche] = layer;
     }
   }
 
@@ -1132,14 +1293,15 @@
     try {
       if (act === 'reject') {
         setDecision(tempId, couche, 'rejected');
-        global.JpToast?.ok?.('Ligne rejetée pour ' + coucheLabel(couche));
+        global.JpToast?.ok?.(rejectLabel(node) + ' · ' + coucheLabel(couche));
       } else if (act === 'accept') {
         applyParamEdits(node);
         await writeDraftFromNode(node, couche, false);
         setDecision(tempId, couche, 'accepted');
-        global.JpToast?.ok?.('Brouillon écrit · ' + coucheLabel(couche));
+        global.JpToast?.ok?.(acceptLabel(node) + ' · ' + coucheLabel(couche));
         await refreshCurrent();
       }
+      state.editMode = false;
       renderAll();
     } catch (e) {
       global.JpToast?.fromError?.(e);
@@ -1154,7 +1316,8 @@
       applyParamEdits(node);
       await writeDraftFromNode(node, couche, true);
       setDecision(tempId, couche, 'homemade');
-      global.JpToast?.ok?.('Édition maison enregistrée · ' + coucheLabel(couche));
+      state.editMode = false;
+      global.JpToast?.ok?.('Édition enregistrée · ' + coucheLabel(couche));
       await refreshCurrent();
       renderAll();
     } catch (e) {
@@ -1397,10 +1560,12 @@
     if (state.busy) return;
     const G = global.JpIaGemini;
     if (!G) return global.JpToast?.warn?.('Client IA indisponible');
-    const instruction = pane.querySelector('#iaInstruction')?.value?.trim() || '';
-    const text = pane.querySelector('#iaText')?.value?.trim() || '';
-    const file = pane.querySelector('#iaPdf')?.files?.[0];
-    const status = pane.querySelector('#iaStatus');
+    const strip = document.getElementById('iaStrip') || pane;
+    if (!strip) return;
+    const instruction = strip.querySelector('#iaInstruction')?.value?.trim() || '';
+    const text = strip.querySelector('#iaText')?.value?.trim() || '';
+    const file = strip.querySelector('#iaPdf')?.files?.[0];
+    const status = strip.querySelector('#iaStatus');
     function setStatus(msg, kind) {
       if (!status) return;
       status.hidden = !msg;
@@ -1416,10 +1581,10 @@
       return;
     }
     const m = selectedModule();
-    syncIaFormFromDom(pane);
-    syncIaCtxFromDom(pane);
+    syncIaFormFromDom(strip);
+    syncIaCtxFromDom(strip);
     state.busy = true;
-    const runBtn = pane.querySelector('#iaRun');
+    const runBtn = strip.querySelector('#iaRun');
     if (runBtn) runBtn.disabled = true;
     try {
       setStatus('Préparation du contexte…', 'busy');
@@ -1461,6 +1626,8 @@
       state.decisions = {};
       state.avertissements = Array.isArray(ia.avertissements) ? ia.avertissements : [];
       state.selectedTempId = nodes[0] ? nodes[0].temp_id : null;
+      state.iaFormOpen = false;
+      state.editMode = false;
       nodes.forEach((n) => {
         if (n.action === 'keep') {
           couchesForNode(n).forEach((c) => setDecision(n.temp_id, c, 'accepted'));
@@ -1500,6 +1667,8 @@
       state.proposals = [];
       state.decisions = {};
       state.selectedTempId = null;
+      state.iaFormOpen = true;
+      state.editMode = false;
       await refreshCurrent();
       const n = Number(res?.lecons) || 0;
       global.JpToast?.ok?.(
@@ -1632,11 +1801,14 @@
     }
     document.title = (state.parcours?.libelle || 'Preview') + ' — Preview';
     renderFloatBar();
-    renderIaPane();
-    void renderCenterPane();
-    renderBridge();
-    if (state.paramsOpen) renderParamsPane();
+    renderIaStrip();
+    void renderCompare();
     updatePendingChip();
+    const toggle = document.getElementById('btnToggleIaForm');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', state.iaFormOpen ? 'true' : 'false');
+      toggle.classList.toggle('is-active', !!state.iaFormOpen);
+    }
   }
 
   function bindShellChrome() {
@@ -1645,11 +1817,17 @@
     document.getElementById('printScope')?.addEventListener('change', (ev) => {
       state.printScope = ev.target.value || 'lecon';
     });
-    document.getElementById('btnParams')?.addEventListener('click', () => {
-      openParamsDrawer(!state.paramsOpen);
-      if (state.paramsOpen) renderParamsPane();
+    document.getElementById('btnToggleIaForm')?.addEventListener('click', () => {
+      state.iaFormOpen = !state.iaFormOpen;
+      // Si aucune proposition, le strip reste forcé ouvert au prochain renderIaStrip
+      if (!state.proposals.length) state.iaFormOpen = true;
+      renderIaStrip();
+      const toggle = document.getElementById('btnToggleIaForm');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', state.iaFormOpen ? 'true' : 'false');
+        toggle.classList.toggle('is-active', !!state.iaFormOpen);
+      }
     });
-    document.getElementById('paramsBackdrop')?.addEventListener('click', () => openParamsDrawer(false));
   }
 
   async function boot(root) {
