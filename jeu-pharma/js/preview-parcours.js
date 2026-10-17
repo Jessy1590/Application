@@ -43,11 +43,13 @@
     editMode: false,
     editBase: 'ia', // ia | initial
     iaCtx: {
-      includeCurrentParcours: true,
+      includeCurrentParcours: false,
       extraParcoursId: '',
       extraChapitreId: '',
       extraLeconId: '',
     },
+    /** Dernier retour IA brut (debug session) */
+    lastIaResponse: null,
     _ctxPackCache: {},
     _molByDci: null,
     _molModuleId: null,
@@ -97,14 +99,33 @@
     return out;
   }
 
+  /** Décision « nœud entier » (Base + ★) — une ligne = une décision. */
+  function nodeDecisionStatus(tempId) {
+    const node = state.proposals.find((n) => n.temp_id === tempId);
+    if (!node || node.action === 'keep') return 'accepted';
+    const couches = couchesForNode(node);
+    const statuses = couches.map((c) => decisionOf(tempId, c));
+    if (statuses.every((s) => s === 'accepted' || s === 'homemade')) return 'accepted';
+    if (statuses.every((s) => s === 'rejected')) return 'rejected';
+    if (statuses.some((s) => s === 'accepted' || s === 'homemade' || s === 'rejected')) {
+      // Partiel : traité comme pending pour publier
+      if (statuses.every((s) => s !== 'pending')) return statuses.includes('rejected') ? 'rejected' : 'accepted';
+    }
+    return 'pending';
+  }
+
+  function markNodeDecided(tempId, status) {
+    const node = state.proposals.find((n) => n.temp_id === tempId);
+    if (!node) return;
+    couchesForNode(node).forEach((c) => setDecision(tempId, c, status));
+  }
+
   function allDecided() {
     if (!state.proposals.length) return false;
     return state.proposals.every((n) => {
       if (n.action === 'keep') return true;
-      return couchesForNode(n).every((c) => {
-        const s = decisionOf(n.temp_id, c);
-        return s === 'accepted' || s === 'rejected' || s === 'homemade';
-      });
+      const s = nodeDecisionStatus(n.temp_id);
+      return s === 'accepted' || s === 'rejected';
     });
   }
 
@@ -112,9 +133,7 @@
     let n = 0;
     state.proposals.forEach((node) => {
       if (node.action === 'keep') return;
-      couchesForNode(node).forEach((c) => {
-        if (decisionOf(node.temp_id, c) === 'pending') n += 1;
-      });
+      if (nodeDecisionStatus(node.temp_id) === 'pending') n += 1;
     });
     return n;
   }
@@ -671,83 +690,51 @@
     return spine;
   }
 
+  /**
+   * Miroir = ordre des propositions IA (pas l’épine DB).
+   * keep masqués par défaut (badge compteur dans l’en-tête).
+   */
   function buildMirrorRows() {
     const couche = coucheKey();
     const rows = [];
-    const byRef = new Map();
-    const creates = [];
-
-    state.proposals.forEach((node) => {
-      if (node.action === 'keep') return;
-      const ref = node.ref_id || null;
-      if (ref) byRef.set(ref, node);
-      else creates.push(node);
+    let lastLeconId = null;
+    const sorted = state.proposals.slice().sort((a, b) => {
+      const oa = Number(a.ordre);
+      const ob = Number(b.ordre);
+      if (Number.isFinite(oa) && Number.isFinite(ob) && oa !== ob) return oa - ob;
+      return 0; // conserver ordre tableau IA
     });
 
-    const usedCreates = new Set();
-    const spine = buildCurrentSpine();
-
-    function pushProposalRow(node) {
+    sorted.forEach((node) => {
+      if (node.action === 'keep') return;
+      let leconBanner = false;
+      if (node.kind === 'lecon') {
+        leconBanner = true;
+        lastLeconId = node.ref_id || node.temp_id;
+      } else if (node.kind === 'bloc' || node.kind === 'section') {
+        const parentId = node.parent_ref || null;
+        if (parentId && parentId !== lastLeconId) {
+          const parentMod = state.modules.find((m) => m.id === parentId);
+          if (parentMod && !parentMod.est_groupe) {
+            leconBanner = true;
+            lastLeconId = parentId;
+          }
+        }
+      }
       rows.push({
         tempId: node.temp_id,
         node,
         leftEmpty: node.action === 'delete',
         rightEmpty: node.action === 'create' || !node.ref_id,
-        status: decisionOf(node.temp_id, couche),
-        moduleId: null,
+        status: nodeDecisionStatus(node.temp_id),
+        moduleId: (() => {
+          try { return resolveBlocModuleId(node); } catch (_) { return null; }
+        })(),
+        leconBanner,
+        refId: node.ref_id || null,
+        kind: node.kind,
       });
-    }
-
-    function pushCurrentOnly(item) {
-      rows.push({
-        tempId: null,
-        node: null,
-        leftEmpty: true,
-        rightEmpty: false,
-        status: 'idle',
-        refId: item.refId,
-        kind: item.kind,
-        moduleId: item.moduleId,
-        leconBanner: !!item.leconBanner,
-      });
-    }
-
-    // Créations sans parent_ref : en tête
-    creates.filter((n) => !n.parent_ref).forEach((n) => {
-      usedCreates.add(n.temp_id);
-      pushProposalRow(n);
     });
-
-    spine.forEach((item) => {
-      // Insertions IA rattachées juste avant cet élément (parent_ref = refId)
-      creates.filter((n) => n.parent_ref === item.refId && !usedCreates.has(n.temp_id)).forEach((n) => {
-        usedCreates.add(n.temp_id);
-        pushProposalRow(n);
-      });
-
-      const prop = byRef.get(item.refId);
-      if (prop) {
-        byRef.delete(item.refId);
-        rows.push({
-          tempId: prop.temp_id,
-          node: prop,
-          leftEmpty: prop.action === 'delete',
-          rightEmpty: false,
-          status: decisionOf(prop.temp_id, couche),
-          moduleId: item.moduleId,
-          leconBanner: !!item.leconBanner,
-        });
-      } else {
-        pushCurrentOnly(item);
-      }
-    });
-
-    // Propositions liées à des refs hors épine (autre leçon, etc.)
-    byRef.forEach((node) => pushProposalRow(node));
-
-    // Créations restantes (parent_ref inconnu)
-    creates.filter((n) => !usedCreates.has(n.temp_id)).forEach((n) => pushProposalRow(n));
-
     return rows;
   }
 
@@ -1079,6 +1066,33 @@
     });
   }
 
+  const IA_PRESETS = [
+    {
+      id: 'reorganiser',
+      label: 'Réorganiser',
+      text: 'Réordonne pédagogiquement (définitions → mécanismes → clinique → conseils → à retenir). '
+        + 'Ne change pas le fond. action keep au maximum ; update seulement pour titres/ordre.',
+    },
+    {
+      id: 'nettoyer',
+      label: 'Nettoyer',
+      text: 'Uniformise titres et HTML (p,h2,h3,ul,ol,li,strong,em,u,br uniquement). '
+        + 'Découpe les pavés trop longs, fusionne les doublons évidents. Pas de nouveau contenu clinique.',
+    },
+    {
+      id: 'enrichir',
+      label: 'Enrichir ★',
+      text: 'Garde la Base. Ajoute des variantes distinctes ★1 (plus simple, DEUST) et ★5 (plus riche, pharmacien) '
+        + 'sur les blocs texte/conseil concernés. keep si un bloc n’a pas besoin de variantes.',
+    },
+    {
+      id: 'conseils',
+      label: 'Conseils comptoir',
+      text: 'Ajoute des blocs conseil ciblés après les sections cliniques concernées. '
+        + 'Pas d’invention hors contenu actuel. keep le reste.',
+    },
+  ];
+
   function iaDemandFormNode() {
     const G = global.JpIaGemini;
     const form = state.iaForm;
@@ -1087,8 +1101,14 @@
     wrap.innerHTML = '<p class="jp-preview-ia-prompt-link">'
       + '<button type="button" class="jp-link-btn" id="iaEditPrompt">Modifier le prompt de base</button>'
       + ' <span data-help="ia"></span></p>'
+      + '<div class="jp-ia-presets" role="group" aria-label="Presets d’instruction">'
+      + IA_PRESETS.map((p) =>
+        '<button type="button" class="jp-btn jp-btn-ghost jp-btn-sm" data-ia-preset="' + esc(p.id) + '">'
+        + esc(p.label) + '</button>'
+      ).join('')
+      + '</div>'
       + '<div class="jp-field"><label for="iaInstruction">Instruction</label>'
-      + '<textarea id="iaInstruction" rows="4" maxlength="8000" placeholder="Ex. Enrichir la leçon pour ★1…">'
+      + '<textarea id="iaInstruction" rows="4" maxlength="8000" placeholder="Choisissez un preset ou précisez…">'
       + esc(form.instruction || '') + '</textarea></div>'
       + iaCtxFormHtml()
       + '<div class="jp-field"><label for="iaText">Texte complémentaire (optionnel)</label>'
@@ -1099,14 +1119,13 @@
       + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>';
     bindIaCtxControls(wrap);
     attachHelp(wrap.querySelector('[data-help="ia"]'), 'Demande IA', [
-      'La leçon ou le chapitre sélectionné (barre du bas) est envoyé en entier à l’IA : titres, résumés, blocs, HTML, ordre actuel.',
-      'L’IA peut modifier, réordonner, ajouter ou proposer de supprimer à partir de cet état.',
-      'Après génération : validez ligne à ligne, puis publiez la mise à jour.',
+      'La leçon / le chapitre de la barre est envoyé en entier (sommaire + contenu).',
+      'L’IA est un éditeur : keep-first, structure propre, HTML propre — pas une refonte sauvage.',
+      'Utilisez un preset puis affinez l’instruction. Validez ensuite ligne à ligne.',
     ]);
     attachHelp(wrap.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
-      'Cible (obligatoire) : contenu actuel complet de la leçon ou du chapitre choisi dans la barre.',
-      'Chapitre = toutes les leçons + tous leurs blocs, dans l’ordre.',
-      'Références optionnelles : parcours / autre chapitre / autre leçon (contexte secondaire).',
+      'Cible (obligatoire) : contenu actuel complet de la leçon ou du chapitre.',
+      'Références optionnelles = secondaire (titres seulement côté modèle).',
     ]);
     wrap.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
       if (!global.JpStudioIA?.editBasePrompt) {
@@ -1114,6 +1133,17 @@
         return;
       }
       void global.JpStudioIA.editBasePrompt();
+    });
+    wrap.querySelectorAll('[data-ia-preset]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-ia-preset');
+        const preset = IA_PRESETS.find((p) => p.id === id);
+        const ta = wrap.querySelector('#iaInstruction');
+        if (!preset || !ta) return;
+        ta.value = preset.text;
+        state.iaForm.instruction = preset.text;
+        ta.focus();
+      });
     });
     return wrap;
   }
@@ -1474,17 +1504,18 @@
   async function handleLineAction(tempId, act) {
     const node = state.proposals.find((n) => n.temp_id === tempId);
     if (!node) return;
-    const couche = coucheKey();
-    if (decisionOf(tempId, couche) !== 'pending') return;
+    if (nodeDecisionStatus(tempId) !== 'pending') return;
     try {
       if (act === 'reject') {
-        setDecision(tempId, couche, 'rejected');
-        global.JpToast?.ok?.(rejectLabel(node) + ' · ' + coucheLabel(couche));
+        markNodeDecided(tempId, 'rejected');
+        global.JpToast?.ok?.(rejectLabel(node));
       } else if (act === 'accept') {
         applyParamEdits(node);
-        await writeDraftFromNode(node, couche, false);
-        setDecision(tempId, couche, 'accepted');
-        global.JpToast?.ok?.(acceptLabel(node) + ' · ' + coucheLabel(couche));
+        // Toujours écrire Base + variantes proposées (nœud entier)
+        await writeDraftFromNode(node, 'base', false);
+        markNodeDecided(tempId, 'accepted');
+        await applyReorderFromProposals();
+        global.JpToast?.ok?.(acceptLabel(node));
         await refreshCurrent();
       }
       state.editMode = false;
@@ -1497,13 +1528,13 @@
   async function handleHomemade(tempId) {
     const node = state.proposals.find((n) => n.temp_id === tempId);
     if (!node) return;
-    const couche = coucheKey();
     try {
       applyParamEdits(node);
-      await writeDraftFromNode(node, couche, true);
-      setDecision(tempId, couche, 'homemade');
+      await writeDraftFromNode(node, 'base', true);
+      markNodeDecided(tempId, 'homemade');
+      await applyReorderFromProposals();
       state.editMode = false;
-      global.JpToast?.ok?.('Édition enregistrée · ' + coucheLabel(couche));
+      global.JpToast?.ok?.('Édition enregistrée');
       await refreshCurrent();
       renderAll();
     } catch (e) {
@@ -1512,35 +1543,73 @@
   }
 
   async function bulkDecide(status) {
-    const couche = coucheKey();
     const pending = state.proposals.filter((n) =>
-      n.action !== 'keep' && decisionOf(n.temp_id, couche) === 'pending'
+      n.action !== 'keep' && nodeDecisionStatus(n.temp_id) === 'pending'
     );
     if (!pending.length) return;
-    // Chapitres → leçons → blocs (parents avant enfants)
     const kindRank = { chapitre: 0, lecon: 1, section: 2, bloc: 3 };
     pending.sort((a, b) => (kindRank[a.kind] ?? 9) - (kindRank[b.kind] ?? 9));
     try {
       state.busy = true;
       for (const node of pending) {
         if (status === 'rejected') {
-          setDecision(node.temp_id, couche, 'rejected');
+          markNodeDecided(node.temp_id, 'rejected');
         } else {
-          await writeDraftFromNode(node, couche, false);
-          setDecision(node.temp_id, couche, 'accepted');
+          await writeDraftFromNode(node, 'base', false);
+          markNodeDecided(node.temp_id, 'accepted');
         }
       }
+      if (status !== 'rejected') await applyReorderFromProposals();
       await refreshCurrent();
       global.JpToast?.ok?.(
-        status === 'rejected'
-          ? ('Tout rejeté pour ' + coucheLabel(couche))
-          : ('Tout validé pour ' + coucheLabel(couche))
+        status === 'rejected' ? 'Tout rejeté' : 'Tout validé (contenu + ★ + ordre)'
       );
     } catch (e) {
       global.JpToast?.fromError?.(e);
     } finally {
       state.busy = false;
       renderAll();
+    }
+  }
+
+  /** Applique l’ordre des proposals acceptées via v2_reorder_blocs (par leçon). */
+  async function applyReorderFromProposals() {
+    const byLesson = new Map();
+    state.proposals.forEach((node, idx) => {
+      if (node.action === 'delete') return;
+      if (node.kind !== 'bloc' && node.kind !== 'section') return;
+      if (!node.ref_id) return;
+      const st = nodeDecisionStatus(node.temp_id);
+      if (st === 'rejected') return;
+      // keep ou accepted / homemade / pending (si déjà écrit)
+      let lessonId = null;
+      try { lessonId = resolveBlocModuleId(node); } catch (_) { lessonId = null; }
+      if (!lessonId && node.parent_ref && state.modules.some((m) => m.id === node.parent_ref && !m.est_groupe)) {
+        lessonId = node.parent_ref;
+      }
+      if (!lessonId) return;
+      if (!byLesson.has(lessonId)) byLesson.set(lessonId, []);
+      byLesson.get(lessonId).push({
+        id: node.ref_id,
+        ordre: Number.isFinite(Number(node.ordre)) ? Number(node.ordre) : idx,
+        idx,
+      });
+    });
+    for (const [lessonId, items] of byLesson) {
+      items.sort((a, b) => (a.ordre - b.ordre) || (a.idx - b.idx));
+      const ids = items.map((x) => x.id);
+      // Compléter avec les blocs non présents dans les proposals (keep omis)
+      const existing = state.blocsByModule[lessonId] || [];
+      existing.forEach((b) => {
+        if (ids.indexOf(b.id) === -1) ids.push(b.id);
+      });
+      if (ids.length) {
+        try {
+          await rpc('v2_reorder_blocs', { p_module_id: lessonId, p_ids: ids });
+        } catch (e) {
+          console.warn('v2_reorder_blocs', e);
+        }
+      }
     }
   }
 
@@ -1554,6 +1623,19 @@
     if (type === 'photo') return { path: '', url: '', alt: '', legende: '' };
     if (type === 'video') return { url: '' };
     return {};
+  }
+
+  /** Variantes ★ de la proposition IA, sanitisées (pour validation Base = nœud entier). */
+  function mergeIaVariantes(node, typeBloc) {
+    const src = (node && node.variantes && typeof node.variantes === 'object') ? node.variantes : {};
+    const out = {};
+    for (let i = 1; i <= 5; i += 1) {
+      const k = String(i);
+      if (!src[k] || typeof src[k] !== 'object') continue;
+      const layer = Object.assign({ type: typeBloc }, src[k]);
+      out[k] = sanitizeProposalPayload(layer, typeBloc);
+    }
+    return out;
   }
 
   function sanitizeProposalPayload(layer, typeHint) {
@@ -1632,8 +1714,7 @@
         state.sessionTouched[row.id] = 'module';
         state.modules = await loadModules(state.parcoursId);
       } else if (node.action === 'delete') {
-        // Pas de suppression module auto — trop destructif ; on marque seulement
-        global.JpToast?.warn?.('Suppression de chapitre/leçon : à faire dans le studio');
+        throw new Error('Suppression de chapitre/leçon : à faire dans le studio');
       } else {
         await rpc('v2_upsert_module', {
           p_payload: Object.assign({ id: node.ref_id }, payload),
@@ -1676,16 +1757,22 @@
       || (m && m.id === lessonId ? state.currentBlocs : null)
       || [];
 
+    const iaVariantes = mergeIaVariantes(node, typeBloc);
+
     if (node.action === 'create' || !node.ref_id) {
       const basePay = emptyPayload(typeBloc);
       let payload;
       if (couche === 'base') {
         payload = Object.assign({}, basePay, content);
+        if (Object.keys(iaVariantes).length) payload.variantes = iaVariantes;
       } else {
         payload = Object.assign({}, basePay, {
-          variantes: { [couche]: content },
+          variantes: Object.assign({}, iaVariantes, { [couche]: content }),
         });
       }
+      const ordreWanted = Number.isFinite(Number(node.ordre))
+        ? Number(node.ordre)
+        : (lessonBlocs.length + 1) * 10;
       const pj = Object.assign({}, emptyPayload(typeBloc), {
         _brouillon: { titre, payload },
       });
@@ -1693,7 +1780,7 @@
         p_payload: {
           module_id: lessonId,
           type_bloc: typeBloc,
-          ordre: (lessonBlocs.length + 1) * 10,
+          ordre: ordreWanted,
           payload_json: pj,
           visible: false,
           niveau_min: node.niveau_min || 1,
@@ -1713,11 +1800,11 @@
     const eff = Object.assign({}, pub, (prevDraft && prevDraft.payload) || {});
     let nextPayload;
     if (couche === 'base') {
-      const { variantes } = eff;
       nextPayload = Object.assign({}, content);
-      if (variantes) nextPayload.variantes = variantes;
+      const mergedV = Object.assign({}, eff.variantes || {}, iaVariantes);
+      if (Object.keys(mergedV).length) nextPayload.variantes = mergedV;
     } else {
-      const variantes = Object.assign({}, eff.variantes || {});
+      const variantes = Object.assign({}, eff.variantes || {}, iaVariantes);
       variantes[couche] = content;
       nextPayload = Object.assign({}, eff, { variantes });
     }
@@ -1802,12 +1889,7 @@
           nodes: context.cible.nodes,
         },
         context: {
-          // nodes en premier : contenu actuel à modifier / réordonner
-          nodes: context.cible.nodes,
-          note_cible: 'nodes = CONTENU ACTUEL COMPLET de la cible sélectionnée '
-            + '(leçon = tous les blocs dans l’ordre ; chapitre = toutes les leçons + tous leurs blocs). '
-            + 'Conserve ref_id pour update/keep/delete ; change l’ordre du tableau nodes pour réordonner. '
-            + 'references = contextes optionnels (ne remplacent pas la cible).',
+          // nodes uniquement dans cible (Edge lit cible.nodes en priorité)
           parcours: context.parcours,
           chapitre: context.chapitre,
           lecon: context.lecon,
@@ -1819,27 +1901,45 @@
       };
       setStatus('Analyse IA…', 'busy');
       const ia = await G.invoke(G.FN_BLOCS, body);
+      // Mémoire session : dernier retour brut pour diagnostic si la qualité est mauvaise
+      state.lastIaResponse = {
+        at: new Date().toISOString(),
+        instruction: instruction || '',
+        model: ia && ia.model,
+        avertissements: (ia && ia.avertissements) || [],
+        usage: (ia && ia.usage) || null,
+        nodes: Array.isArray(ia && ia.nodes) ? ia.nodes : [],
+      };
+      try {
+        global.__JP_LAST_IA_PREVIEW__ = state.lastIaResponse;
+      } catch (_) { /* ignore */ }
       const nodes = Array.isArray(ia && ia.nodes) ? ia.nodes : [];
       if (!nodes.length) throw new Error('L’IA n’a proposé aucun nœud.');
       state.proposals = nodes;
       state.decisions = {};
       state.avertissements = Array.isArray(ia.avertissements) ? ia.avertissements : [];
-      state.selectedTempId = nodes[0] ? nodes[0].temp_id : null;
+      const firstChange = nodes.find((n) => n.action !== 'keep') || nodes[0];
+      state.selectedTempId = firstChange ? firstChange.temp_id : null;
       state.editMode = false;
       nodes.forEach((n) => {
-        if (n.action === 'keep') {
-          couchesForNode(n).forEach((c) => setDecision(n.temp_id, c, 'accepted'));
-        }
+        if (n.action === 'keep') markNodeDecided(n.temp_id, 'accepted');
       });
       void global.JpLogs?.action?.('preview_ia_modifier', {
         parcours_id: state.parcoursId,
         module_id: m?.id,
         count: nodes.length,
+        changes: nodes.filter((n) => n.action !== 'keep').length,
         model: ia.model || null,
       });
       setStatus('', '');
+      const changeN = nodes.filter((n) => n.action !== 'keep').length;
+      const keepN = nodes.length - changeN;
+      global.JpToast?.ok?.(
+        changeN
+          ? (changeN + ' changement(s) · ' + keepN + ' inchangé(s)')
+          : (nodes.length + ' nœud(s) · tout keep')
+      );
       const warns = state.avertissements.slice(0, 5);
-      global.JpToast?.ok?.(nodes.length + ' proposition(s) IA');
       if (warns.length) global.JpToast?.warn?.(warns[0]);
       renderAll();
       return true;
@@ -2053,5 +2153,9 @@
     renderAll();
   }
 
-  global.JpPreviewParcours = { boot };
+  global.JpPreviewParcours = {
+    boot,
+    /** Dernier retour IA de la session (diagnostic qualité). */
+    getLastIaResponse() { return state.lastIaResponse; },
+  };
 })(window);

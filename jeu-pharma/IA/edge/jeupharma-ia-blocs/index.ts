@@ -92,13 +92,25 @@ Quand tu proposes du contenu textuel, fournis une Base et des variantes distinct
 N'invente rien : utilise uniquement le contexte, la consigne et les sources fournies. Aucune donnée clinique, posologie ou molécule absente du matériau.
 Tu peux proposer de créer, modifier ou supprimer des chapitres, sections, leçons et blocs (actions create / update / delete / keep).`;
 
-/** Contrat JSON mode modifier (Preview) — append au prompt quand mode=modifier. */
-const MODIFIER_CONTRACT = `
-## Mode modifier (Preview)
-Tu reçois le CONTENU ACTUEL COMPLET de la cible (leçon ou chapitre) dans "nodes" :
-titres, résumés, payloads HTML, ordre, ref_id. C'est l'état réel déjà fait par l'admin.
-Tu peux le conserver (keep), le modifier (update), le réordonner (nouvel ordre du tableau),
-en ajouter (create) ou proposer une suppression (delete), selon l'instruction.
+/**
+ * Prompt dédié Preview « modifier » — éditeur pédagogique, PAS le générateur PDF.
+ * Ne pas confondre avec SYSTEM_PROMPT / ia_config.blocs_system.
+ */
+const MODIFIER_SYSTEM = `Tu es un éditeur pédagogique pour Jeu Pharma (formation pharmacie d'officine, DEUST / apprentis).
+On te donne le CONTENU ACTUEL d'une leçon ou d'un chapitre déjà rédigé par un admin, plus une instruction.
+Ton rôle : améliorer, réorganiser, nettoyer ou enrichir — pas inventer un nouveau cours depuis zéro.
+
+Principes (obligatoires) :
+1. Keep-first : si l'instruction ne demande pas une refonte, conserve (action keep) tout ce qui reste pertinent. update ciblé ; create / delete seulement si vraiment utile.
+2. Structure pédagogique claire : définitions / mécanismes → clinique → conseils comptoir → « à retenir ». Une idée principale par bloc. Utilise kind "section" pour regrouper.
+3. Propreté : titres courts (≤ 80 car.), HTML uniquement p,h2,h3,ul,ol,li,strong,em,u,br — aucun style, emoji, lien ou script. Découpe les pavés trop longs.
+4. Fidélité : n'invente aucune donnée clinique, posologie, valeur ou molécule absente du contenu actuel, de l'instruction ou des sources jointes (texte/PDF).
+5. Ordre : le tableau nodes de ta réponse = ordre d'affichage final souhaité.
+6. ★ (niveaux) : variantes{"1"…"5"} seulement si l'instruction le demande. ★1 = plus simple (DEUST), ★5 = plus riche (pharmacien). Base = socle commun propre. Sinon omets variantes.
+7. Pour tout élément existant (keep/update/delete) : reprends EXACTEMENT son ref_id (et parent_ref) fourni dans le contenu actuel.
+8. kind "bloc" : payload.type ∈ texte|conseil|recommandation|photo|video|molecule. Jamais de jeu.
+9. Maximum ${MAX_NODES} nœuds. Signale les limites dans "avertissements".
+
 Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
 {
   "version": 1,
@@ -113,17 +125,15 @@ Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
       "ordre": 0,
       "niveaux": { "min": 1, "max": 5 },
       "payload": { },
-      "variantes": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {} }
+      "variantes": { }
     }
   ],
   "avertissements": []
 }
-- kind "bloc" : payload = objet type studio (type texte|conseil|recommandation|photo|video|molecule + champs). Jamais de jeu.
-- variantes : contenus différenciés par ★ ; clés "1"…"5" uniquement. Pour un bloc texte, typiquement { "html":"…" } ; pour conseil { "corps_html":"…", "pathologie":"…" }.
-- ref_id null + action create = insertion ; action delete = suppression proposée (payload/variantes peuvent être vides).
-- Pour update/keep/delete d'un élément existant : reprends TOUJOURS son ref_id (et parent_ref) fourni dans le contenu actuel.
-- Maximum ${MAX_NODES} nœuds. L'ordre du tableau nodes = ordre d'affichage souhaité (réordonner = permuter / réinsérer dans ce tableau).
-- Ne réécris pas tout le contenu si l'instruction ne le demande pas : garde (keep) ce qui reste pertinent.`;
+- bloc texte : payload { "type":"texte", "html":"…" }
+- conseil : { "type":"conseil", "pathologie":"…", "corps_html":"…" }
+- recommandation : { "type":"recommandation", "corps_html":"…" }
+- section / chapitre / leçon : payload { "resume":"…" } si utile ; create = ref_id null.`;
 
 async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, anonKey: string): Promise<string> {
   try {
@@ -143,9 +153,11 @@ async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, ano
 }
 
 function buildSystemPrompt(base: string, mode: string) {
-  let prompt = `${base.trim()}\n${PROGRESSION_SUFFIX}`;
-  if (mode === 'modifier') prompt += `\n${MODIFIER_CONTRACT}`;
-  return prompt;
+  // Mode modifier : prompt éditeur dédié (pas le générateur PDF).
+  if (mode === 'modifier') {
+    return `${MODIFIER_SYSTEM.trim()}\n${PROGRESSION_SUFFIX}`;
+  }
+  return `${base.trim()}\n${PROGRESSION_SUFFIX}`;
 }
 
 function buildUserText(p: Record<string, unknown>) {
@@ -166,21 +178,99 @@ function buildUserText(p: Record<string, unknown>) {
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
-/** Budget caractères mode modifier — la cible (nodes) est prioritaire sur les références. */
-const MAX_MODIFIER_NODES = 150_000;
-const MAX_MODIFIER_META = 8_000;
-const MAX_MODIFIER_REFS = 40_000;
+/** Budget caractères mode modifier — sommaire lisible prioritaire. */
+const MAX_MODIFIER_READABLE = 120_000;
+const MAX_MODIFIER_IDS = 40_000;
+const MAX_MODIFIER_META = 6_000;
+const MAX_MODIFIER_REFS = 20_000;
+
+function nodeBodyText(n: Record<string, unknown>): string {
+  const payload = (n.payload && typeof n.payload === 'object' && !Array.isArray(n.payload))
+    ? n.payload as Record<string, unknown>
+    : {};
+  const parts: string[] = [];
+  if (payload.resume != null) parts.push(String(payload.resume));
+  if (payload.html != null) parts.push(String(payload.html));
+  if (payload.corps_html != null) parts.push(String(payload.corps_html));
+  if (payload.pathologie != null) parts.push('Pathologie : ' + String(payload.pathologie));
+  if (Array.isArray(payload.dci) && payload.dci.length) parts.push('DCI : ' + payload.dci.join(', '));
+  if (payload.type != null && n.kind === 'bloc') parts.push('(type=' + String(payload.type) + ')');
+  const variantes = (n.variantes && typeof n.variantes === 'object' && !Array.isArray(n.variantes))
+    ? n.variantes as Record<string, unknown>
+    : {};
+  const vKeys = Object.keys(variantes).filter((k) => variantes[k] != null);
+  if (vKeys.length) parts.push('Variantes ★ présentes : ' + vKeys.join(', '));
+  return parts.join('\n').trim();
+}
+
+/** Texte structuré pour que le modèle voie l’organisation (pas un dump JSON opaque). */
+function formatNodesReadable(nodes: unknown[]): string {
+  const list = nodes.filter((n) => n && typeof n === 'object') as Record<string, unknown>[];
+  const sommaire: string[] = ['## Sommaire (ordre actuel)'];
+  const detail: string[] = ['## Contenu détaillé'];
+  list.forEach((n, i) => {
+    const kind = String(n.kind || 'bloc');
+    const type = (n.payload && typeof n.payload === 'object' && (n.payload as Record<string, unknown>).type)
+      ? String((n.payload as Record<string, unknown>).type)
+      : kind;
+    const titre = String(n.titre || '(sans titre)');
+    const ref = n.ref_id != null ? String(n.ref_id) : 'null';
+    const parent = n.parent_ref != null ? String(n.parent_ref) : 'null';
+    const ordre = n.ordre != null ? String(n.ordre) : String(i);
+    sommaire.push(`${i + 1}. [${type}] ${titre} — ref_id=${ref} ordre=${ordre}`);
+    const body = nodeBodyText(n);
+    detail.push(`### ${i + 1}. ${titre} (${type})`);
+    detail.push(`ref_id=${ref} | parent_ref=${parent} | ordre=${ordre} | kind=${kind}`);
+    detail.push(body || '(vide)');
+    detail.push('');
+  });
+  return (sommaire.join('\n') + '\n\n' + detail.join('\n')).slice(0, MAX_MODIFIER_READABLE);
+}
+
+/** Annexe machine : ids + actions pour ne pas perdre les ref_id. */
+function formatNodesIdIndex(nodes: unknown[]): string {
+  const list = nodes.filter((n) => n && typeof n === 'object') as Record<string, unknown>[];
+  const compact = list.map((n, i) => ({
+    i: i + 1,
+    temp_id: n.temp_id || null,
+    kind: n.kind || null,
+    ref_id: n.ref_id ?? null,
+    parent_ref: n.parent_ref ?? null,
+    ordre: n.ordre ?? i,
+    titre: String(n.titre || '').slice(0, 80),
+    type: (n.payload && typeof n.payload === 'object'
+      ? (n.payload as Record<string, unknown>).type
+      : null) || null,
+  }));
+  return JSON.stringify(compact).slice(0, MAX_MODIFIER_IDS);
+}
 
 function buildModifierUserText(p: Record<string, unknown>) {
   const ctx = (p.context && typeof p.context === 'object' ? p.context : {}) as Record<string, unknown>;
   const cibleObj = (p.cible && typeof p.cible === 'object' ? p.cible : {}) as Record<string, unknown>;
-  // Contenu actuel : cible.nodes prioritaire, sinon context.nodes
   const nodes = Array.isArray(cibleObj.nodes)
     ? cibleObj.nodes
     : (Array.isArray(ctx.nodes) ? ctx.nodes : []);
-  const nodesJson = JSON.stringify(nodes).slice(0, MAX_MODIFIER_NODES);
+  const readable = formatNodesReadable(nodes);
+  const idIndex = formatNodesIdIndex(nodes);
   const refs = Array.isArray(ctx.references) ? ctx.references : [];
-  const refsJson = refs.length ? JSON.stringify(refs).slice(0, MAX_MODIFIER_REFS) : '';
+  const refsSummary = refs.map((r) => {
+    if (!r || typeof r !== 'object') return null;
+    const o = r as Record<string, unknown>;
+    const nodesR = Array.isArray(o.nodes) ? o.nodes : [];
+    const titles = nodesR
+      .filter((n) => n && typeof n === 'object')
+      .slice(0, 40)
+      .map((n) => String((n as Record<string, unknown>).titre || '').slice(0, 60))
+      .filter(Boolean);
+    return {
+      role: o.role || null,
+      label: o.label || null,
+      note: o.note || null,
+      titres: titles,
+    };
+  }).filter(Boolean);
+  const refsJson = refsSummary.length ? JSON.stringify(refsSummary).slice(0, MAX_MODIFIER_REFS) : '';
   const meta = {
     type: cibleObj.type || null,
     parcours_id: cibleObj.parcours_id || null,
@@ -191,30 +281,30 @@ function buildModifierUserText(p: Record<string, unknown>) {
     resume: ctx.resume || null,
     molecules: ctx.molecules || [],
     parcours: ctx.parcours || null,
-    note: ctx.note_cible || null,
   };
   const metaJson = JSON.stringify(meta).slice(0, MAX_MODIFIER_META);
   const niveau = p.niveau != null ? String(p.niveau).slice(0, 20) : '';
-  const truncatedNodes = JSON.stringify(nodes).length > MAX_MODIFIER_NODES;
   return [
-    'Mode : modifier (Preview parcours)',
-    'La section CONTENU ACTUEL est l’état exact de la leçon ou du chapitre sélectionné (tous les blocs, HTML, ordre).',
-    'Modifie / réordonne / enrichis selon l’instruction ; conserve (keep) ce qui reste valable.',
+    'Mode : éditeur Preview (modifier une leçon / un chapitre existant).',
+    'Lis d’abord le SOMMAIRE puis le CONTENU. Keep-first. Réponse = état souhaité ordonné (JSON nodes).',
     niveau ? `Niveau cible (barre) : ${niveau}` : '',
-    `Métadonnées cible :\n${metaJson}`,
-    `Instruction :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
+    `Métadonnées :\n${metaJson}`,
+    `Instruction admin :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
     '',
-    `--- CONTENU ACTUEL COMPLET DE LA CIBLE (${nodes.length} nœuds${truncatedNodes ? ', tronqué si trop long' : ''}) ---`,
-    nodesJson,
+    `--- CONTENU ACTUEL (${nodes.length} nœuds) ---`,
+    readable,
+    '',
+    '--- INDEX ref_id (machine, à reprendre pour keep/update/delete) ---',
+    idIndex,
     '',
     refsJson
-      ? `--- RÉFÉRENCES OPTIONNELLES (contexte secondaire, ne remplacent pas la cible) ---\n${refsJson}`
+      ? `--- RÉFÉRENCES OPTIONNELLES (titres seulement) ---\n${refsJson}`
       : '',
     typeof p.text === 'string' && p.text.trim()
       ? `--- TEXTE COMPLÉMENTAIRE ---\n${String(p.text).slice(0, MAX_TEXT)}`
       : '',
     p.pdfBase64 ? `PDF joint${p.pdfName ? ` (« ${String(p.pdfName).slice(0, 120)} »)` : ''} : support complémentaire.` : '',
-    'Retourne le JSON nodes demandé (état souhaité après modification).',
+    'Retourne le JSON nodes (état souhaité). Préfère keep / update ciblé à une réécriture totale.',
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
@@ -253,13 +343,45 @@ function parseNiveaux(n: unknown): { min: number; max: number } {
 
 function sanitizePayload(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  try {
-    const s = JSON.stringify(raw);
-    if (s.length > 40_000) return JSON.parse(s.slice(0, 40_000));
-    return JSON.parse(s) as Record<string, unknown>;
-  } catch {
-    return {};
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  const type = str(src.type, 40);
+  if (type) out.type = type;
+  if (src.html != null) out.html = str(src.html, 20_000);
+  if (src.corps_html != null) out.corps_html = str(src.corps_html, 12_000);
+  if (src.pathologie != null) out.pathologie = str(src.pathologie, 160);
+  if (src.resume != null) out.resume = str(src.resume, 2000);
+  if (src.alt != null) out.alt = str(src.alt, 300);
+  if (src.legende != null) out.legende = str(src.legende, 300);
+  if (src.url != null) out.url = httpsUrl(src.url) || str(src.url, 600);
+  if (src.path != null) out.path = str(src.path, 400);
+  if (src.lien_label != null) out.lien_label = str(src.lien_label, 120);
+  if (src.lien_href != null) out.lien_href = httpsUrl(src.lien_href);
+  if (Array.isArray(src.dci)) {
+    out.dci = src.dci.map((d) => str(d, 120)).filter(Boolean).slice(0, 20);
   }
+  if (Array.isArray(src.matrice_ids)) {
+    out.matrice_ids = src.matrice_ids.map((d) => str(d, 80)).filter(Boolean).slice(0, 20);
+  }
+  if (src.matrice_id != null) out.matrice_id = str(src.matrice_id, 80);
+  if (src.mode != null) out.mode = str(src.mode, 40);
+  if (src.valeurs && typeof src.valeurs === 'object' && !Array.isArray(src.valeurs)) {
+    try {
+      const vs = JSON.stringify(src.valeurs);
+      if (vs.length <= 8000) out.valeurs = JSON.parse(vs);
+    } catch { /* ignore */ }
+  }
+  if (Array.isArray(src.references)) {
+    out.references = src.references.slice(0, 20);
+  }
+  // Conserver d’autres clés scalaires courtes (sans gonfler)
+  for (const k of Object.keys(src)) {
+    if (out[k] != null) continue;
+    const v = src[k];
+    if (typeof v === 'string') out[k] = str(v, 2000);
+    else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+  }
+  return out;
 }
 
 function sanitizeVariantes(raw: unknown): Record<string, unknown> {
@@ -321,9 +443,10 @@ function normalizeModifier(parsed: any) {
   const warnings: string[] = Array.isArray(parsed?.avertissements)
     ? parsed.avertissements.map((w: unknown) => str(w, 300)).filter(Boolean).slice(0, 20)
     : [];
+  const rawNodes = Array.isArray(parsed?.nodes) ? parsed.nodes : [];
   const nodes: any[] = [];
   let i = 0;
-  for (const n of Array.isArray(parsed?.nodes) ? parsed.nodes : []) {
+  for (const n of rawNodes) {
     if (!n || typeof n !== 'object') continue;
     const kind = str(n.kind, 40);
     const action = str(n.action, 20) || 'update';
@@ -331,7 +454,7 @@ function normalizeModifier(parsed: any) {
     const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
     const refRaw = n.ref_id == null || n.ref_id === '' ? null : str(n.ref_id, 80);
     const parentRaw = n.parent_ref == null || n.parent_ref === '' ? null : str(n.parent_ref, 80);
-    let payload = sanitizePayload(n.payload);
+    const payload = sanitizePayload(n.payload);
     if (kind === 'bloc' && typeof payload.type === 'string' && payload.type === 'jeu') continue;
     const ordreNum = Number(n.ordre);
     nodes.push({
@@ -350,6 +473,9 @@ function normalizeModifier(parsed: any) {
     });
     i++;
     if (nodes.length >= MAX_NODES) break;
+  }
+  if (rawNodes.length > MAX_NODES) {
+    warnings.push(`Réponse tronquée à ${MAX_NODES} nœuds (${rawNodes.length} reçus).`);
   }
   return { version: 1, nodes, avertissements: warnings };
 }

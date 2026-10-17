@@ -199,6 +199,17 @@
   line-height: 1.35;
 }
 
+.jp-ia-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+}
+
+.jp-ia-presets .jp-btn {
+  font-size: 0.8rem;
+}
+
 /* ——— Corps comparaison ——— */
 
 .jp-cmp {
