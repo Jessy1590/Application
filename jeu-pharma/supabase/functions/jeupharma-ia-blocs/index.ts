@@ -92,32 +92,78 @@ Quand tu proposes du contenu textuel, fournis une Base et des variantes distinct
 N'invente rien : utilise uniquement le contexte, la consigne et les sources fournies. Aucune donnée clinique, posologie ou molécule absente du matériau.
 Tu peux proposer de créer, modifier ou supprimer des chapitres, sections, leçons et blocs (actions create / update / delete / keep).`;
 
-/** Contrat JSON mode modifier (Preview) — append au prompt quand mode=modifier. */
-const MODIFIER_CONTRACT = `
-## Mode modifier (Preview)
-Tu modifies la structure / le contenu d'un parcours selon la consigne.
-Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
+/**
+ * Prompt dédié Preview « modifier » — éditeur pédagogique, PAS le générateur PDF.
+ * Réponse = ARBRE imbriqué (chapitre → leçons → sections → blocs).
+ */
+const MODIFIER_SYSTEM = `Tu es un éditeur pédagogique pour Jeu Pharma (formation pharmacie d'officine, DEUST / apprentis).
+On te donne le CONTENU ACTUEL d'une leçon ou d'un CHAPITRE (toutes ses leçons), plus une instruction.
+Ton rôle : produire l'état souhaité du cours, bien ordonné — pas inventer un nouveau cours hors matériau.
+
+## Architecture (OBLIGATOIRE)
+La hiérarchie est TOUJOURS :
+  parcours > chapitre > leçon > (section?) > blocs
+- Un chapitre contient des leçons (jamais des blocs directement).
+- Une leçon contient des sections et/ou des blocs.
+- Une section contient des blocs.
+- Les blocs d'une leçon sont TOUJOURS listés DANS cette leçon (enfants), jamais avant le nœud leçon.
+
+## Ordre pédagogique dans une leçon (guide, adaptable au sujet)
+1. Physiologie / définitions / rappels
+2. Pathologie / clinique / mécanismes
+3. Médicaments / classes / posologies (si le sujet le demande)
+4. Conseils de délivrance / vigilance comptoir
+5. « À retenir » / synthèse
+Les ★ ajoutent du détail (★1 plus simple, ★5 plus riche) sans casser cet ordre.
+
+## Règles d'édition
+1. Keep-first : si inchangé, action "keep" + même ref_id. update ciblé ; create si nouveau (ref_id null).
+2. SUPPRESSION = OMISSION : ne mentionne PAS un élément à supprimer (pas d'action delete). Le client déduit les absents.
+3. Pour tout élément existant conservé/modifié : reprends EXACTEMENT son ref_id.
+4. HTML propre : uniquement p,h2,h3,ul,ol,li,strong,em,u,br. Titres courts. Une idée par bloc.
+5. Fidélité : aucune invention clinique hors contenu actuel + instruction + sources jointes.
+6. Si la cible est un chapitre : traite TOUTES les leçons du chapitre (pas seulement la première).
+7. Maximum ${MAX_NODES} éléments au total. Signale les limites dans avertissements.
+
+## Format de réponse (JSON uniquement, pas de markdown)
 {
-  "version": 1,
-  "nodes": [
-    {
-      "temp_id": "t1",
-      "kind": "chapitre|lecon|section|bloc",
-      "ref_id": "uuid existant ou null",
-      "parent_ref": "temp_id parent, uuid parent, ou null",
-      "action": "create|update|delete|keep",
-      "titre": "",
-      "niveaux": { "min": 1, "max": 5 },
-      "payload": { },
-      "variantes": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {} }
-    }
-  ],
+  "version": 2,
+  "arbre": {
+    "kind": "chapitre|lecon",
+    "ref_id": "uuid ou null",
+    "action": "keep|update|create",
+    "titre": "",
+    "ordre": 0,
+    "niveaux": { "min": 1, "max": 5 },
+    "payload": {},
+    "variantes": {},
+    "enfants": [
+      {
+        "kind": "lecon",
+        "ref_id": "…",
+        "action": "keep|update|create",
+        "titre": "",
+        "ordre": 0,
+        "payload": { "resume": "…" },
+        "enfants": [
+          {
+            "kind": "section|bloc",
+            "ref_id": "…",
+            "action": "keep|update|create",
+            "titre": "",
+            "ordre": 10,
+            "payload": { "type": "texte", "html": "…" },
+            "enfants": []
+          }
+        ]
+      }
+    ]
+  },
   "avertissements": []
 }
-- kind "bloc" : payload = objet type studio (type texte|conseil|recommandation|photo|video|molecule + champs). Jamais de jeu.
-- variantes : contenus différenciés par ★ ; clés "1"…"5" uniquement. Pour un bloc texte, typiquement { "html":"…" } ; pour conseil { "corps_html":"…", "pathologie":"…" }.
-- ref_id null + action create = insertion ; action delete = suppression proposée (payload/variantes peuvent être vides).
-- Maximum ${MAX_NODES} nœuds. Ordre = ordre d'affichage souhaité.`;
+- Si la cible est une seule leçon, "arbre.kind" = "lecon" (sans chapitre parent obligatoire).
+- kind "bloc" : payload.type ∈ texte|conseil|recommandation|photo|video|molecule. Jamais de jeu.
+- Ordre des tableaux "enfants" = ordre d'affichage final.`;
 
 async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, anonKey: string): Promise<string> {
   try {
@@ -136,10 +182,18 @@ async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, ano
   return SYSTEM_PROMPT;
 }
 
+const MODIFIER_PROGRESSION = `
+## Progression pédagogique (★)
+Les niveaux d'accès parcours sont ★1 à ★5 (★1 = DEUST débutant, ★5 = pharmacien confirmé).
+Quand tu enrichis le contenu, fournis une Base et des variantes distinctes dans variantes{"1"…"5"} si utile ; sinon omets les clés inutiles.
+N'invente rien hors contenu actuel + instruction + sources. Les ★ ajoutent du détail sans casser l'ordre physiologie → pathologie → médicaments → conseils.`;
+
 function buildSystemPrompt(base: string, mode: string) {
-  let prompt = `${base.trim()}\n${PROGRESSION_SUFFIX}`;
-  if (mode === 'modifier') prompt += `\n${MODIFIER_CONTRACT}`;
-  return prompt;
+  // Mode modifier : prompt éditeur dédié (pas le générateur PDF).
+  if (mode === 'modifier') {
+    return `${MODIFIER_SYSTEM.trim()}\n${MODIFIER_PROGRESSION}`;
+  }
+  return `${base.trim()}\n${PROGRESSION_SUFFIX}`;
 }
 
 function buildUserText(p: Record<string, unknown>) {
@@ -160,24 +214,147 @@ function buildUserText(p: Record<string, unknown>) {
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
+/** Budget caractères mode modifier — sommaire lisible prioritaire. */
+const MAX_MODIFIER_READABLE = 120_000;
+const MAX_MODIFIER_IDS = 40_000;
+const MAX_MODIFIER_META = 6_000;
+const MAX_MODIFIER_REFS = 20_000;
+
+function nodeBodyText(n: Record<string, unknown>): string {
+  const payload = (n.payload && typeof n.payload === 'object' && !Array.isArray(n.payload))
+    ? n.payload as Record<string, unknown>
+    : {};
+  const parts: string[] = [];
+  if (payload.resume != null) parts.push(String(payload.resume));
+  if (payload.html != null) parts.push(String(payload.html));
+  if (payload.corps_html != null) parts.push(String(payload.corps_html));
+  if (payload.pathologie != null) parts.push('Pathologie : ' + String(payload.pathologie));
+  if (Array.isArray(payload.dci) && payload.dci.length) parts.push('DCI : ' + payload.dci.join(', '));
+  if (payload.type != null && n.kind === 'bloc') parts.push('(type=' + String(payload.type) + ')');
+  const variantes = (n.variantes && typeof n.variantes === 'object' && !Array.isArray(n.variantes))
+    ? n.variantes as Record<string, unknown>
+    : {};
+  const vKeys = Object.keys(variantes).filter((k) => variantes[k] != null);
+  if (vKeys.length) parts.push('Variantes ★ présentes : ' + vKeys.join(', '));
+  return parts.join('\n').trim();
+}
+
+/** Texte structuré hiérarchique (chapitre → leçon → blocs) pour l’éditeur. */
+function formatNodesReadable(nodes: unknown[]): string {
+  const list = nodes.filter((n) => n && typeof n === 'object') as Record<string, unknown>[];
+  const lines: string[] = [
+    '## Architecture actuelle (respecte cette hiérarchie dans ta réponse arbre)',
+    'chapitre > leçon > section? > blocs — les blocs d’une leçon sont TOUJOURS sous cette leçon.',
+    '',
+  ];
+  let currentLecon: string | null = null;
+  list.forEach((n, i) => {
+    const kind = String(n.kind || 'bloc');
+    const type = (n.payload && typeof n.payload === 'object' && (n.payload as Record<string, unknown>).type)
+      ? String((n.payload as Record<string, unknown>).type)
+      : kind;
+    const titre = String(n.titre || '(sans titre)');
+    const ref = n.ref_id != null ? String(n.ref_id) : 'null';
+    const parent = n.parent_ref != null ? String(n.parent_ref) : 'null';
+    const ordre = n.ordre != null ? String(n.ordre) : String(i);
+    if (kind === 'chapitre') {
+      lines.push(`# CHAPITRE « ${titre} » ref_id=${ref} ordre=${ordre}`);
+      currentLecon = null;
+    } else if (kind === 'lecon') {
+      lines.push(`## LEÇON « ${titre} » ref_id=${ref} parent=${parent} ordre=${ordre}`);
+      currentLecon = ref;
+    } else if (kind === 'section') {
+      lines.push(`### SECTION « ${titre} » ref_id=${ref} parent_lecon=${parent} ordre=${ordre}`);
+    } else {
+      lines.push(`#### BLOC [${type}] « ${titre} » ref_id=${ref} parent_lecon=${parent || currentLecon} ordre=${ordre}`);
+    }
+    const body = nodeBodyText(n);
+    if (body) lines.push(body);
+    lines.push('');
+  });
+  return lines.join('\n').slice(0, MAX_MODIFIER_READABLE);
+}
+
+/** Annexe machine : ids + actions pour ne pas perdre les ref_id. */
+function formatNodesIdIndex(nodes: unknown[]): string {
+  const list = nodes.filter((n) => n && typeof n === 'object') as Record<string, unknown>[];
+  const compact = list.map((n, i) => ({
+    i: i + 1,
+    temp_id: n.temp_id || null,
+    kind: n.kind || null,
+    ref_id: n.ref_id ?? null,
+    parent_ref: n.parent_ref ?? null,
+    ordre: n.ordre ?? i,
+    titre: String(n.titre || '').slice(0, 80),
+    type: (n.payload && typeof n.payload === 'object'
+      ? (n.payload as Record<string, unknown>).type
+      : null) || null,
+  }));
+  return JSON.stringify(compact).slice(0, MAX_MODIFIER_IDS);
+}
+
 function buildModifierUserText(p: Record<string, unknown>) {
   const ctx = (p.context && typeof p.context === 'object' ? p.context : {}) as Record<string, unknown>;
-  const ctxJson = JSON.stringify(ctx).slice(0, 60_000);
-  const cible = p.cible != null ? JSON.stringify(p.cible).slice(0, 8_000) : '';
+  const cibleObj = (p.cible && typeof p.cible === 'object' ? p.cible : {}) as Record<string, unknown>;
+  const nodes = Array.isArray(cibleObj.nodes)
+    ? cibleObj.nodes
+    : (Array.isArray(ctx.nodes) ? ctx.nodes : []);
+  const readable = formatNodesReadable(nodes);
+  const idIndex = formatNodesIdIndex(nodes);
+  const refs = Array.isArray(ctx.references) ? ctx.references : [];
+  const refsSummary = refs.map((r) => {
+    if (!r || typeof r !== 'object') return null;
+    const o = r as Record<string, unknown>;
+    const nodesR = Array.isArray(o.nodes) ? o.nodes : [];
+    const titles = nodesR
+      .filter((n) => n && typeof n === 'object')
+      .slice(0, 40)
+      .map((n) => String((n as Record<string, unknown>).titre || '').slice(0, 60))
+      .filter(Boolean);
+    return {
+      role: o.role || null,
+      label: o.label || null,
+      note: o.note || null,
+      titres: titles,
+    };
+  }).filter(Boolean);
+  const refsJson = refsSummary.length ? JSON.stringify(refsSummary).slice(0, MAX_MODIFIER_REFS) : '';
+  const meta = {
+    type: cibleObj.type || null,
+    parcours_id: cibleObj.parcours_id || null,
+    module_id: cibleObj.module_id || null,
+    chapitre: cibleObj.chapitre || ctx.chapitre || null,
+    lecon: cibleObj.lecon || ctx.lecon || null,
+    titre: ctx.titre || null,
+    resume: ctx.resume || null,
+    molecules: ctx.molecules || [],
+    parcours: ctx.parcours || null,
+  };
+  const metaJson = JSON.stringify(meta).slice(0, MAX_MODIFIER_META);
   const niveau = p.niveau != null ? String(p.niveau).slice(0, 20) : '';
   return [
-    'Mode : modifier (Preview parcours)',
+    'Mode : éditeur Preview — réponse = ARBRE JSON (chapitre → leçons → sections → blocs).',
+    'Si cible = chapitre : inclus TOUTES les leçons. Blocs toujours enfants de leur leçon.',
+    'Ordre pédagogique guide : physiologie → pathologie → médicaments → conseils (adaptable).',
+    'Omets les éléments à supprimer. Keep-first.',
     niveau ? `Niveau cible (barre) : ${niveau}` : '',
-    cible ? `Cible : ${cible}` : '',
-    `Instruction :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
+    `Métadonnées :\n${metaJson}`,
+    `Instruction admin :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
     '',
-    `Contexte (parcours / chapitre / leçon, nodes = cible entière, references = contextes ajoutés) :\n${ctxJson}`,
+    `--- CONTENU ACTUEL (${nodes.length} nœuds) ---`,
+    readable,
     '',
+    '--- INDEX ref_id (à reprendre pour keep/update) ---',
+    idIndex,
+    '',
+    refsJson
+      ? `--- RÉFÉRENCES OPTIONNELLES (titres seulement) ---\n${refsJson}`
+      : '',
     typeof p.text === 'string' && p.text.trim()
       ? `--- TEXTE COMPLÉMENTAIRE ---\n${String(p.text).slice(0, MAX_TEXT)}`
       : '',
     p.pdfBase64 ? `PDF joint${p.pdfName ? ` (« ${String(p.pdfName).slice(0, 120)} »)` : ''} : support complémentaire.` : '',
-    'Retourne le JSON nodes demandé.',
+    'Retourne { version:2, arbre:{…enfants:[…]}, avertissements:[] }.',
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
@@ -216,13 +393,45 @@ function parseNiveaux(n: unknown): { min: number; max: number } {
 
 function sanitizePayload(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  try {
-    const s = JSON.stringify(raw);
-    if (s.length > 40_000) return JSON.parse(s.slice(0, 40_000));
-    return JSON.parse(s) as Record<string, unknown>;
-  } catch {
-    return {};
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  const type = str(src.type, 40);
+  if (type) out.type = type;
+  if (src.html != null) out.html = str(src.html, 20_000);
+  if (src.corps_html != null) out.corps_html = str(src.corps_html, 12_000);
+  if (src.pathologie != null) out.pathologie = str(src.pathologie, 160);
+  if (src.resume != null) out.resume = str(src.resume, 2000);
+  if (src.alt != null) out.alt = str(src.alt, 300);
+  if (src.legende != null) out.legende = str(src.legende, 300);
+  if (src.url != null) out.url = httpsUrl(src.url) || str(src.url, 600);
+  if (src.path != null) out.path = str(src.path, 400);
+  if (src.lien_label != null) out.lien_label = str(src.lien_label, 120);
+  if (src.lien_href != null) out.lien_href = httpsUrl(src.lien_href);
+  if (Array.isArray(src.dci)) {
+    out.dci = src.dci.map((d) => str(d, 120)).filter(Boolean).slice(0, 20);
   }
+  if (Array.isArray(src.matrice_ids)) {
+    out.matrice_ids = src.matrice_ids.map((d) => str(d, 80)).filter(Boolean).slice(0, 20);
+  }
+  if (src.matrice_id != null) out.matrice_id = str(src.matrice_id, 80);
+  if (src.mode != null) out.mode = str(src.mode, 40);
+  if (src.valeurs && typeof src.valeurs === 'object' && !Array.isArray(src.valeurs)) {
+    try {
+      const vs = JSON.stringify(src.valeurs);
+      if (vs.length <= 8000) out.valeurs = JSON.parse(vs);
+    } catch { /* ignore */ }
+  }
+  if (Array.isArray(src.references)) {
+    out.references = src.references.slice(0, 20);
+  }
+  // Conserver d’autres clés scalaires courtes (sans gonfler)
+  for (const k of Object.keys(src)) {
+    if (out[k] != null) continue;
+    const v = src[k];
+    if (typeof v === 'string') out[k] = str(v, 2000);
+    else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+  }
+  return out;
 }
 
 function sanitizeVariantes(raw: unknown): Record<string, unknown> {
@@ -280,29 +489,77 @@ function normalize(parsed: any, allowedDci: string[]) {
   return { version: 1, resume_lecon: str(parsed?.resume_lecon, 500), blocs: out, avertissements: warnings };
 }
 
-function normalizeModifier(parsed: any) {
-  const warnings: string[] = Array.isArray(parsed?.avertissements)
-    ? parsed.avertissements.map((w: unknown) => str(w, 300)).filter(Boolean).slice(0, 20)
-    : [];
+function pushNormalizedNode(
+  nodes: any[],
+  n: any,
+  parentRef: string | null,
+  warnings: string[],
+) {
+  if (!n || typeof n !== 'object') return;
+  if (nodes.length >= MAX_NODES) return;
+  const kind = str(n.kind, 40);
+  let action = str(n.action, 20) || 'update';
+  // Plus de delete explicite dans le contrat v2 — ignorer si présent
+  if (action === 'delete') action = 'keep';
+  if (!KINDS.includes(kind) || !ACTIONS.includes(action)) return;
+  const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
+  const refRaw = n.ref_id == null || n.ref_id === '' ? null : str(n.ref_id, 80);
+  const parentRaw = n.parent_ref == null || n.parent_ref === ''
+    ? parentRef
+    : str(n.parent_ref, 80);
+  const payload = sanitizePayload(n.payload);
+  if (kind === 'bloc' && typeof payload.type === 'string' && payload.type === 'jeu') return;
+  const i = nodes.length;
+  const ordreNum = Number(n.ordre);
+  const tempId = str(n.temp_id, 80) || `t${i + 1}`;
+  nodes.push({
+    temp_id: tempId,
+    kind,
+    ref_id: refRaw,
+    parent_ref: parentRaw,
+    action,
+    titre: str(n.titre, 200),
+    ordre: Number.isFinite(ordreNum) ? ordreNum : i,
+    niveaux,
+    niveau_min: niveaux.min,
+    niveau_max: niveaux.max,
+    payload,
+    variantes: sanitizeVariantes(n.variantes),
+  });
+  const enfants = Array.isArray(n.enfants) ? n.enfants
+    : (Array.isArray(n.children) ? n.children
+      : (Array.isArray(n.lecons) ? n.lecons
+        : (Array.isArray(n.blocs) ? n.blocs : [])));
+  const childParent = refRaw || tempId;
+  for (const child of enfants) {
+    if (nodes.length >= MAX_NODES) {
+      warnings.push(`Arbre tronqué à ${MAX_NODES} nœuds.`);
+      break;
+    }
+    pushNormalizedNode(nodes, child, childParent, warnings);
+  }
+}
+
+function normalizeFlatNodes(rawNodes: any[], warnings: string[]) {
   const nodes: any[] = [];
   let i = 0;
-  for (const n of Array.isArray(parsed?.nodes) ? parsed.nodes : []) {
+  for (const n of rawNodes) {
     if (!n || typeof n !== 'object') continue;
     const kind = str(n.kind, 40);
     const action = str(n.action, 20) || 'update';
     if (!KINDS.includes(kind) || !ACTIONS.includes(action)) continue;
     const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
-    const refRaw = n.ref_id == null || n.ref_id === '' ? null : str(n.ref_id, 80);
-    const parentRaw = n.parent_ref == null || n.parent_ref === '' ? null : str(n.parent_ref, 80);
-    let payload = sanitizePayload(n.payload);
-    if (kind === 'bloc' && typeof payload.type === 'string' && payload.type === 'jeu') continue;
+    const payload = sanitizePayload(n.payload);
+    if (kind === 'bloc' && payload.type === 'jeu') continue;
+    const ordreNum = Number(n.ordre);
     nodes.push({
       temp_id: str(n.temp_id, 80) || `t${i + 1}`,
       kind,
-      ref_id: refRaw,
-      parent_ref: parentRaw,
+      ref_id: n.ref_id == null || n.ref_id === '' ? null : str(n.ref_id, 80),
+      parent_ref: n.parent_ref == null || n.parent_ref === '' ? null : str(n.parent_ref, 80),
       action,
       titre: str(n.titre, 200),
+      ordre: Number.isFinite(ordreNum) ? ordreNum : i,
       niveaux,
       niveau_min: niveaux.min,
       niveau_max: niveaux.max,
@@ -310,9 +567,32 @@ function normalizeModifier(parsed: any) {
       variantes: sanitizeVariantes(n.variantes),
     });
     i++;
-    if (nodes.length >= MAX_NODES) break;
+    if (nodes.length >= MAX_NODES) {
+      warnings.push(`Réponse tronquée à ${MAX_NODES} nœuds.`);
+      break;
+    }
   }
-  return { version: 1, nodes, avertissements: warnings };
+  return nodes;
+}
+
+function normalizeModifier(parsed: any) {
+  const warnings: string[] = Array.isArray(parsed?.avertissements)
+    ? parsed.avertissements.map((w: unknown) => str(w, 300)).filter(Boolean).slice(0, 20)
+    : [];
+  let nodes: any[] = [];
+  let version = 1;
+
+  if (parsed?.arbre && typeof parsed.arbre === 'object') {
+    version = 2;
+    pushNormalizedNode(nodes, parsed.arbre, null, warnings);
+  } else if (Array.isArray(parsed?.nodes)) {
+    nodes = normalizeFlatNodes(parsed.nodes, warnings);
+  }
+
+  if (!nodes.length) {
+    warnings.push('Aucun nœud exploitable (arbre ou nodes manquant).');
+  }
+  return { version, nodes, avertissements: warnings };
 }
 
 async function callGemini(

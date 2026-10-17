@@ -691,22 +691,17 @@
   }
 
   /**
-   * Miroir = ordre des propositions IA (pas l’épine DB).
-   * keep masqués par défaut (badge compteur dans l’en-tête).
+   * Miroir = ordre des propositions IA.
+   * keep de structure (chapitre/leçon/section) TOUJOURS visibles — sinon l’ordre paraît cassé
+   * (ex. un bloc « Définition » avant la leçon). keep de blocs masqués.
    */
   function buildMirrorRows() {
-    const couche = coucheKey();
     const rows = [];
     let lastLeconId = null;
-    const sorted = state.proposals.slice().sort((a, b) => {
-      const oa = Number(a.ordre);
-      const ob = Number(b.ordre);
-      if (Number.isFinite(oa) && Number.isFinite(ob) && oa !== ob) return oa - ob;
-      return 0; // conserver ordre tableau IA
-    });
-
-    sorted.forEach((node) => {
-      if (node.action === 'keep') return;
+    // Conserver l’ordre du tableau IA (déjà hiérarchique après flatten arbre)
+    state.proposals.forEach((node) => {
+      const isStruct = node.kind === 'chapitre' || node.kind === 'lecon' || node.kind === 'section';
+      if (node.action === 'keep' && !isStruct) return;
       let leconBanner = false;
       if (node.kind === 'lecon') {
         leconBanner = true;
@@ -1070,26 +1065,28 @@
     {
       id: 'reorganiser',
       label: 'Réorganiser',
-      text: 'Réordonne pédagogiquement (définitions → mécanismes → clinique → conseils → à retenir). '
-        + 'Ne change pas le fond. action keep au maximum ; update seulement pour titres/ordre.',
+      text: 'Réordonne le cours en respectant la hiérarchie chapitre → leçons → sections → blocs. '
+        + 'Dans chaque leçon, ordre pédagogique : physiologie / définitions → pathologie / clinique → '
+        + 'médicaments (si pertinent) → conseils de délivrance → à retenir. '
+        + 'Adapte au sujet. Ne change pas le fond. keep au maximum. Traite TOUTES les leçons si chapitre.',
     },
     {
       id: 'nettoyer',
       label: 'Nettoyer',
       text: 'Uniformise titres et HTML (p,h2,h3,ul,ol,li,strong,em,u,br uniquement). '
-        + 'Découpe les pavés trop longs, fusionne les doublons évidents. Pas de nouveau contenu clinique.',
+        + 'Découpe les pavés trop longs, fusionne les doublons. Conserve la hiérarchie. Pas de nouveau fond clinique.',
     },
     {
       id: 'enrichir',
       label: 'Enrichir ★',
-      text: 'Garde la Base. Ajoute des variantes distinctes ★1 (plus simple, DEUST) et ★5 (plus riche, pharmacien) '
-        + 'sur les blocs texte/conseil concernés. keep si un bloc n’a pas besoin de variantes.',
+      text: 'Garde la Base et l’ordre. Ajoute des variantes ★1 (plus simple) et ★5 (plus de détails) '
+        + 'sur les blocs pertinents. keep sinon. Traite toutes les leçons du chapitre si cible chapitre.',
     },
     {
       id: 'conseils',
       label: 'Conseils comptoir',
-      text: 'Ajoute des blocs conseil ciblés après les sections cliniques concernées. '
-        + 'Pas d’invention hors contenu actuel. keep le reste.',
+      text: 'Ajoute des blocs conseil après la partie médicaments/clinique de chaque leçon concernée. '
+        + 'Pas d’invention hors contenu. keep le reste. Respecte chapitre → leçon → blocs.',
     },
   ];
 
@@ -1838,6 +1835,39 @@
 
   /* ——— IA invoke ——— */
 
+  /**
+   * Contrat v2 : éléments absents de l’arbre = suppressions.
+   * Ajoute des nœuds action=delete pour les ref_id envoyés mais non renvoyés.
+   */
+  function inferDeletesFromOmission(sentNodes, returnedNodes) {
+    const kept = new Set();
+    (returnedNodes || []).forEach((n) => {
+      if (n && n.ref_id) kept.add(String(n.ref_id));
+    });
+    const deletes = [];
+    (sentNodes || []).forEach((n, i) => {
+      if (!n || !n.ref_id) return;
+      if (kept.has(String(n.ref_id))) return;
+      // Ne pas auto-supprimer chapitre/leçon structurelle (trop destructif)
+      if (n.kind === 'chapitre' || n.kind === 'lecon') return;
+      deletes.push({
+        temp_id: 'del:' + n.ref_id,
+        kind: n.kind,
+        ref_id: n.ref_id,
+        parent_ref: n.parent_ref || null,
+        action: 'delete',
+        titre: n.titre || '',
+        ordre: Number(n.ordre) || (10000 + i),
+        niveaux: n.niveaux || { min: 1, max: 5 },
+        niveau_min: n.niveau_min || 1,
+        niveau_max: n.niveau_max || 5,
+        payload: {},
+        variantes: {},
+      });
+    });
+    return (returnedNodes || []).concat(deletes);
+  }
+
   /** @returns {Promise<boolean>} true si propositions prêtes (fermer la modale). */
   async function runIa(pane) {
     if (state.busy) return false;
@@ -1899,21 +1929,33 @@
           references: context.references,
         },
       };
+      // #region agent log
+      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'04b6dc'},body:JSON.stringify({sessionId:'04b6dc',runId:'pre-fix',hypothesisId:'A-B',location:'preview-parcours.js:runIa',message:'IA request cible',data:{cibleType:body.cible?.type,module_id:body.cible?.module_id,nNodes:(body.cible?.nodes||[]).length,kinds:(body.cible?.nodes||[]).map((n)=>n.kind),lessonIds:(body.cible?.nodes||[]).filter((n)=>n.kind==='lecon').map((n)=>n.ref_id),titres:(body.cible?.nodes||[]).map((n)=>n.kind+':'+(n.titre||'').slice(0,40))},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setStatus('Analyse IA…', 'busy');
       const ia = await G.invoke(G.FN_BLOCS, body);
+      let nodes = Array.isArray(ia && ia.nodes) ? ia.nodes.slice() : [];
+      // v2 arbre : omissions = suppressions → déduire delete vs contenu envoyé
+      if (Number(ia && ia.version) >= 2 || (ia && ia.arbre)) {
+        nodes = inferDeletesFromOmission(context.cible.nodes || [], nodes);
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'04b6dc'},body:JSON.stringify({sessionId:'04b6dc',runId:'pre-fix',hypothesisId:'C-D',location:'preview-parcours.js:runIa',message:'IA response nodes',data:{version:ia&&ia.version,n:nodes.length,sequence:nodes.map((n)=>({kind:n.kind,action:n.action,titre:(n.titre||'').slice(0,40),parent_ref:n.parent_ref})),avertissements:(ia&&ia.avertissements)||[]},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       // Mémoire session : dernier retour brut pour diagnostic si la qualité est mauvaise
       state.lastIaResponse = {
         at: new Date().toISOString(),
         instruction: instruction || '',
         model: ia && ia.model,
+        version: ia && ia.version,
         avertissements: (ia && ia.avertissements) || [],
         usage: (ia && ia.usage) || null,
-        nodes: Array.isArray(ia && ia.nodes) ? ia.nodes : [],
+        nodes,
+        arbre: (ia && ia.arbre) || null,
       };
       try {
         global.__JP_LAST_IA_PREVIEW__ = state.lastIaResponse;
       } catch (_) { /* ignore */ }
-      const nodes = Array.isArray(ia && ia.nodes) ? ia.nodes : [];
       if (!nodes.length) throw new Error('L’IA n’a proposé aucun nœud.');
       state.proposals = nodes;
       state.decisions = {};
