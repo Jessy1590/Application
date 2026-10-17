@@ -555,7 +555,19 @@
     return state.modules.find((m) => m.id === b.module_id) || selectedModule();
   }
 
-  /** Leçon cible pour écrire un bloc (chapitre sélectionné OK si parent_ref / ref_id connus). */
+  /** Proposition par temp_id ou ref_id. */
+  function findProposalByRef(ref) {
+    if (ref == null || ref === '') return null;
+    const s = String(ref);
+    return (state.proposals || []).find((n) =>
+      n && (String(n.temp_id) === s || (n.ref_id != null && String(n.ref_id) === s))
+    ) || null;
+  }
+
+  /**
+   * Leçon cible pour écrire un bloc/section.
+   * parent_ref peut être une leçon, une section (UUID ou temp_id), ou un temp_id de leçon create.
+   */
   function resolveBlocModuleId(node) {
     if (!node) return null;
     if (node.ref_id) {
@@ -566,17 +578,39 @@
         if (b.module_id) return b.module_id;
       }
     }
-    if (node.parent_ref) {
-      const mod = state.modules.find((m) => m.id === node.parent_ref);
+    // Remonter parent_ref : leçon | section→leçon | proposal
+    let cursor = node.parent_ref;
+    const seen = new Set();
+    while (cursor != null && cursor !== '' && !seen.has(String(cursor))) {
+      seen.add(String(cursor));
+      const mod = state.modules.find((m) => m.id === cursor);
       if (mod && !mod.est_groupe) return mod.id;
-      const parent = state.proposals.find((n) => n.temp_id === node.parent_ref);
-      if (parent && parent.kind === 'lecon' && parent.ref_id) return parent.ref_id;
-      if (parent && parent.kind === 'lecon' && !parent.ref_id) {
-        throw new Error('Validez d’abord la leçon parente avant ce bloc');
+      if (mod && mod.est_groupe) break;
+      // Section / bloc déjà en base → module_id de la leçon
+      const existing = currentBlocByRef(cursor);
+      if (existing && existing.module_id) {
+        const host = state.modules.find((m) => m.id === existing.module_id);
+        if (host && !host.est_groupe) return host.id;
+        return existing.module_id;
       }
+      const parent = findProposalByRef(cursor);
+      if (parent) {
+        if (parent.kind === 'lecon') {
+          if (parent.ref_id) return parent.ref_id;
+          throw new Error('Validez d’abord la leçon parente avant ce bloc');
+        }
+        if (parent.kind === 'chapitre') break;
+        // section / autre → continuer vers son parent
+        cursor = parent.parent_ref;
+        continue;
+      }
+      break;
     }
     const m = selectedModule();
     if (m && !m.est_groupe) return m.id;
+    // #region agent log
+    fetch('http://127.0.0.1:7615/ingest/3b03709f-83a7-40e8-aca7-8515e77f385c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'04b6dc'},body:JSON.stringify({sessionId:'04b6dc',runId:'parent-fix',hypothesisId:'A-section',location:'preview-parcours.js:resolveBlocModuleId',message:'resolve failed',data:{kind:node.kind,titre:(node.titre||'').slice(0,40),ref_id:node.ref_id,parent_ref:node.parent_ref,sel:selectedModule()?.id,selGroupe:!!selectedModule()?.est_groupe},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return null;
   }
 
