@@ -171,7 +171,7 @@ function buildModifierUserText(p: Record<string, unknown>) {
     cible ? `Cible : ${cible}` : '',
     `Instruction :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
     '',
-    `Contexte (arbre / nœuds courants) :\n${ctxJson}`,
+    `Contexte (parcours / chapitre / leçon, nodes = cible entière, references = contextes ajoutés) :\n${ctxJson}`,
     '',
     typeof p.text === 'string' && p.text.trim()
       ? `--- TEXTE COMPLÉMENTAIRE ---\n${String(p.text).slice(0, MAX_TEXT)}`

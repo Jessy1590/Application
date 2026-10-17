@@ -45,18 +45,68 @@
   font-weight: 700;
 }
 
+.jp-preview-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.jp-preview-print-wrap select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(15, 107, 92, 0.2);
+  background: #fff;
+}
+
+.jp-preview-gear {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(15, 107, 92, 0.2);
+  background: #fff;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #0f6b5c;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.jp-preview-gear:hover,
+.jp-preview-gear[aria-expanded="true"] {
+  background: rgba(15, 107, 92, 0.08);
+  border-color: #0f6b5c;
+}
+
+.jp-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 .jp-preview-body {
   display: grid;
-  grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1.35fr) minmax(260px, 0.9fr);
+  grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.35fr);
   gap: 0;
   flex: 1 1 auto;
   min-height: 0;
   padding-bottom: 4.5rem;
 }
 
+.jp-preview-body.has-bridge {
+  grid-template-columns: minmax(300px, 0.95fr) minmax(0, 11rem) minmax(360px, 1.45fr);
+}
+
 .jp-preview-pane {
   min-width: 0;
-  padding: 0.85rem 1rem 1.25rem;
+  padding: 0.85rem 1.15rem 1.25rem;
   overflow: auto;
   max-height: calc(100vh - 7.5rem);
 }
@@ -68,25 +118,176 @@
 
 .jp-preview-center {
   background: #fff;
+  padding-left: 1.35rem;
+  padding-right: 1.5rem;
 }
 
-.jp-preview-params {
-  border-left: 1px solid rgba(15, 107, 92, 0.1);
-  background: rgba(255, 255, 255, 0.55);
+.jp-preview-bridge {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.25rem 0.65rem;
+  max-height: calc(100vh - 7.5rem);
+  overflow: auto;
+  border-right: 1px solid rgba(15, 107, 92, 0.08);
+  background:
+    linear-gradient(180deg, rgba(15, 107, 92, 0.04), transparent 40%);
+}
+
+.jp-preview-bridge[hidden] {
+  display: none !important;
+}
+
+.jp-preview-bridge-card {
+  width: 100%;
+  max-width: 10.5rem;
+  padding: 0.75rem 0.7rem;
+  border-radius: 0.55rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 107, 92, 0.14);
+  box-shadow: 0 4px 16px rgba(20, 32, 28, 0.06);
+}
+
+.jp-preview-bridge-kicker {
+  margin: 0 0 0.25rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6a7c76;
+}
+
+.jp-preview-bridge-title {
+  margin: 0 0 0.35rem;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.jp-btn-sm {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.45rem;
+}
+
+/* Tiroir paramètres */
+.jp-preview-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(20, 32, 28, 0.28);
+}
+
+.jp-preview-drawer-backdrop[hidden] {
+  display: none !important;
+}
+
+.jp-preview-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 45;
+  width: min(22rem, 92vw);
+  height: 100vh;
+  overflow: auto;
+  padding: 1rem 1.1rem 5rem;
+  background: #fbfcfc;
+  border-left: 1px solid rgba(15, 107, 92, 0.14);
+  box-shadow: -8px 0 28px rgba(20, 32, 28, 0.12);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+}
+
+.jp-preview-drawer.is-open {
+  transform: translateX(0);
+}
+
+.jp-preview-drawer[hidden] {
+  display: block !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.jp-preview-drawer.is-open[hidden] {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.jp-preview-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.jp-preview-drawer-head h2 {
+  margin: 0;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.1rem;
+}
+
+.jp-ia-ctx {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.7rem 0.75rem;
+  border: 1px solid rgba(15, 107, 92, 0.16);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.jp-ia-ctx legend {
+  padding: 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f6b5c;
+}
+
+.jp-ia-ctx-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  margin: 0.35rem 0 0.55rem;
+  cursor: pointer;
+}
+
+.jp-ia-ctx .jp-field {
+  margin-bottom: 0.5rem;
+}
+
+.jp-field-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: #5a6e68;
+  line-height: 1.35;
 }
 
 .jp-preview-ia-head h2,
-.jp-preview-params h2,
-.jp-preview-center-head h2,
-.jp-preview-params h3 {
+.jp-preview-center-head h2 {
   margin: 0 0 0.35rem;
   font-family: "Source Serif 4", Georgia, serif;
   font-size: 1.1rem;
 }
 
-.jp-preview-lead {
-  margin: 0 0 0.75rem;
-  font-size: 0.88rem;
+.jp-preview-couche-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: middle;
+  color: #0f6b5c;
+  background: rgba(15, 107, 92, 0.1);
+}
+
+.jp-preview-ia-head h2 .jp-help-btn,
+.jp-preview-center-head h2 .jp-help-btn,
+.jp-preview-drawer-head h2 .jp-help-btn,
+.jp-ia-ctx legend .jp-help-btn,
+.jp-preview-bridge-kicker .jp-help-btn {
+  margin-left: 0.35rem;
 }
 
 .jp-preview-ia-prompt-link {
@@ -99,9 +300,10 @@
 }
 
 .jp-preview-ia-form textarea,
-.jp-preview-params textarea,
-.jp-preview-params input[type="text"],
-.jp-preview-params select,
+.jp-preview-drawer textarea,
+.jp-preview-drawer input[type="text"],
+.jp-preview-drawer select,
+.jp-preview-ia-form select,
 .jp-preview-ia-form input[type="file"] {
   width: 100%;
   font: inherit;
@@ -305,17 +507,25 @@
 }
 
 @media (max-width: 1100px) {
-  .jp-preview-body {
+  .jp-preview-body,
+  .jp-preview-body.has-bridge {
     grid-template-columns: 1fr;
   }
   .jp-preview-pane {
     max-height: none;
     border: 0;
   }
-  .jp-preview-ia,
-  .jp-preview-params {
+  .jp-preview-ia {
     border: 0;
     border-bottom: 1px solid rgba(15, 107, 92, 0.1);
+  }
+  .jp-preview-bridge {
+    max-height: none;
+    border: 0;
+    border-bottom: 1px solid rgba(15, 107, 92, 0.08);
+  }
+  .jp-preview-bridge-card {
+    max-width: none;
   }
   .jp-mirror-cols {
     grid-template-columns: 1fr;
