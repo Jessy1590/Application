@@ -202,6 +202,7 @@
       parent_ref: mod.parent_id || null,
       action: 'keep',
       titre: mod.titre || '',
+      ordre: Number(mod.ordre) || 0,
       niveaux: { min: Number(mod.niveau_min) || 1, max: Number(mod.niveau_max) || 5 },
       payload: { resume: mod.resume || '' },
       variantes: {},
@@ -220,6 +221,7 @@
       parent_ref: parentId,
       action: 'keep',
       titre: (draft && Object.prototype.hasOwnProperty.call(draft, 'titre') ? draft.titre : b.titre) || '',
+      ordre: Number(b.ordre) || 0,
       niveaux: { min: Number(b.niveau_min) || 1, max: Number(b.niveau_max) || 5 },
       payload: Object.assign({ type: b.type_bloc }, eff),
       variantes: (eff.variantes && typeof eff.variantes === 'object') ? eff.variantes : {},
@@ -436,9 +438,21 @@
         nodes: cibleNodes,
       },
       references,
-      molecules: m && !m.est_groupe
-        ? (await lessonMolecules(m.id).catch(() => [])).map((x) => x.dci)
-        : [],
+      molecules: await (async () => {
+        if (!m) return [];
+        if (!m.est_groupe) {
+          return (await lessonMolecules(m.id).catch(() => [])).map((x) => x.dci);
+        }
+        const lecons = lessonDescendants(m.id, state.modules);
+        const all = [];
+        for (const lec of lecons) {
+          const mols = await lessonMolecules(lec.id).catch(() => []);
+          mols.forEach((x) => {
+            if (x.dci && all.indexOf(x.dci) === -1) all.push(x.dci);
+          });
+        }
+        return all;
+      })(),
     };
   }
 
@@ -1016,6 +1030,7 @@
     const otherParcours = (state.parcoursList || []).filter((p) => p.id !== state.parcoursId);
     return '<fieldset class="jp-ia-ctx">'
       + '<legend>Contexte envoyé à l’IA <span data-help="ia-ctx"></span></legend>'
+      + '<p class="jp-muted jp-ia-ctx-lead">La leçon / le chapitre choisi dans la barre est toujours envoyé en entier (blocs + ordre). Ci-dessous : références optionnelles.</p>'
       + '<label class="jp-ia-ctx-check">'
       + '<input type="checkbox" id="iaCtxParcoursCourant"'
       + (ctx.includeCurrentParcours ? ' checked' : '') + '>'
@@ -1084,14 +1099,14 @@
       + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>';
     bindIaCtxControls(wrap);
     attachHelp(wrap.querySelector('[data-help="ia"]'), 'Demande IA', [
-      'L’IA propose une Base et des variantes ★1–★5 si besoin.',
-      'La barre flottante (Base / ★) pilote l’affichage et la couche validée après génération.',
-      'Validez ligne à ligne dans la colonne centrale, puis publiez la mise à jour.',
+      'La leçon ou le chapitre sélectionné (barre du bas) est envoyé en entier à l’IA : titres, résumés, blocs, HTML, ordre actuel.',
+      'L’IA peut modifier, réordonner, ajouter ou proposer de supprimer à partir de cet état.',
+      'Après génération : validez ligne à ligne, puis publiez la mise à jour.',
     ]);
     attachHelp(wrap.querySelector('[data-help="ia-ctx"]'), 'Contexte envoyé à l’IA', [
-      'La cible choisie dans la barre (leçon ou chapitre) est toujours envoyée en entier.',
-      'Un chapitre cible inclut toutes ses leçons et tous leurs blocs.',
-      'Références optionnelles : parcours courant, autre parcours, chapitre ou leçon.',
+      'Cible (obligatoire) : contenu actuel complet de la leçon ou du chapitre choisi dans la barre.',
+      'Chapitre = toutes les leçons + tous leurs blocs, dans l’ordre.',
+      'Références optionnelles : parcours / autre chapitre / autre leçon (contexte secondaire).',
     ]);
     wrap.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
       if (!global.JpStudioIA?.editBasePrompt) {
@@ -1783,8 +1798,16 @@
           module_id: context.cible.module_id,
           chapitre: context.chapitre,
           lecon: context.lecon,
+          // Contenu actuel complet (prioritaire côté Edge) — leçon ou chapitre entier
+          nodes: context.cible.nodes,
         },
         context: {
+          // nodes en premier : contenu actuel à modifier / réordonner
+          nodes: context.cible.nodes,
+          note_cible: 'nodes = CONTENU ACTUEL COMPLET de la cible sélectionnée '
+            + '(leçon = tous les blocs dans l’ordre ; chapitre = toutes les leçons + tous leurs blocs). '
+            + 'Conserve ref_id pour update/keep/delete ; change l’ordre du tableau nodes pour réordonner. '
+            + 'references = contextes optionnels (ne remplacent pas la cible).',
           parcours: context.parcours,
           chapitre: context.chapitre,
           lecon: context.lecon,
@@ -1792,9 +1815,6 @@
           resume: context.resume,
           molecules: context.molecules,
           references: context.references,
-          nodes: context.cible.nodes,
-          note_cible: 'nodes = contenu entier de la cible (chapitre = toutes leçons + blocs). '
-            + 'references = parcours/chapitre/leçon ajoutés en contexte.',
         },
       };
       setStatus('Analyse IA…', 'busy');

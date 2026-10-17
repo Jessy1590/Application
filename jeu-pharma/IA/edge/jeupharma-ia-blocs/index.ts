@@ -95,7 +95,10 @@ Tu peux proposer de créer, modifier ou supprimer des chapitres, sections, leço
 /** Contrat JSON mode modifier (Preview) — append au prompt quand mode=modifier. */
 const MODIFIER_CONTRACT = `
 ## Mode modifier (Preview)
-Tu modifies la structure / le contenu d'un parcours selon la consigne.
+Tu reçois le CONTENU ACTUEL COMPLET de la cible (leçon ou chapitre) dans "nodes" :
+titres, résumés, payloads HTML, ordre, ref_id. C'est l'état réel déjà fait par l'admin.
+Tu peux le conserver (keep), le modifier (update), le réordonner (nouvel ordre du tableau),
+en ajouter (create) ou proposer une suppression (delete), selon l'instruction.
 Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
 {
   "version": 1,
@@ -107,6 +110,7 @@ Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
       "parent_ref": "temp_id parent, uuid parent, ou null",
       "action": "create|update|delete|keep",
       "titre": "",
+      "ordre": 0,
       "niveaux": { "min": 1, "max": 5 },
       "payload": { },
       "variantes": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {} }
@@ -117,7 +121,9 @@ Réponds UNIQUEMENT par un JSON valide (pas de markdown) :
 - kind "bloc" : payload = objet type studio (type texte|conseil|recommandation|photo|video|molecule + champs). Jamais de jeu.
 - variantes : contenus différenciés par ★ ; clés "1"…"5" uniquement. Pour un bloc texte, typiquement { "html":"…" } ; pour conseil { "corps_html":"…", "pathologie":"…" }.
 - ref_id null + action create = insertion ; action delete = suppression proposée (payload/variantes peuvent être vides).
-- Maximum ${MAX_NODES} nœuds. Ordre = ordre d'affichage souhaité.`;
+- Pour update/keep/delete d'un élément existant : reprends TOUJOURS son ref_id (et parent_ref) fourni dans le contenu actuel.
+- Maximum ${MAX_NODES} nœuds. L'ordre du tableau nodes = ordre d'affichage souhaité (réordonner = permuter / réinsérer dans ce tableau).
+- Ne réécris pas tout le contenu si l'instruction ne le demande pas : garde (keep) ce qui reste pertinent.`;
 
 async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, anonKey: string): Promise<string> {
   try {
@@ -160,24 +166,55 @@ function buildUserText(p: Record<string, unknown>) {
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
+/** Budget caractères mode modifier — la cible (nodes) est prioritaire sur les références. */
+const MAX_MODIFIER_NODES = 150_000;
+const MAX_MODIFIER_META = 8_000;
+const MAX_MODIFIER_REFS = 40_000;
+
 function buildModifierUserText(p: Record<string, unknown>) {
   const ctx = (p.context && typeof p.context === 'object' ? p.context : {}) as Record<string, unknown>;
-  const ctxJson = JSON.stringify(ctx).slice(0, 60_000);
-  const cible = p.cible != null ? JSON.stringify(p.cible).slice(0, 8_000) : '';
+  const cibleObj = (p.cible && typeof p.cible === 'object' ? p.cible : {}) as Record<string, unknown>;
+  // Contenu actuel : cible.nodes prioritaire, sinon context.nodes
+  const nodes = Array.isArray(cibleObj.nodes)
+    ? cibleObj.nodes
+    : (Array.isArray(ctx.nodes) ? ctx.nodes : []);
+  const nodesJson = JSON.stringify(nodes).slice(0, MAX_MODIFIER_NODES);
+  const refs = Array.isArray(ctx.references) ? ctx.references : [];
+  const refsJson = refs.length ? JSON.stringify(refs).slice(0, MAX_MODIFIER_REFS) : '';
+  const meta = {
+    type: cibleObj.type || null,
+    parcours_id: cibleObj.parcours_id || null,
+    module_id: cibleObj.module_id || null,
+    chapitre: cibleObj.chapitre || ctx.chapitre || null,
+    lecon: cibleObj.lecon || ctx.lecon || null,
+    titre: ctx.titre || null,
+    resume: ctx.resume || null,
+    molecules: ctx.molecules || [],
+    parcours: ctx.parcours || null,
+    note: ctx.note_cible || null,
+  };
+  const metaJson = JSON.stringify(meta).slice(0, MAX_MODIFIER_META);
   const niveau = p.niveau != null ? String(p.niveau).slice(0, 20) : '';
+  const truncatedNodes = JSON.stringify(nodes).length > MAX_MODIFIER_NODES;
   return [
     'Mode : modifier (Preview parcours)',
+    'La section CONTENU ACTUEL est l’état exact de la leçon ou du chapitre sélectionné (tous les blocs, HTML, ordre).',
+    'Modifie / réordonne / enrichis selon l’instruction ; conserve (keep) ce qui reste valable.',
     niveau ? `Niveau cible (barre) : ${niveau}` : '',
-    cible ? `Cible : ${cible}` : '',
+    `Métadonnées cible :\n${metaJson}`,
     `Instruction :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
     '',
-    `Contexte (parcours / chapitre / leçon, nodes = cible entière, references = contextes ajoutés) :\n${ctxJson}`,
+    `--- CONTENU ACTUEL COMPLET DE LA CIBLE (${nodes.length} nœuds${truncatedNodes ? ', tronqué si trop long' : ''}) ---`,
+    nodesJson,
     '',
+    refsJson
+      ? `--- RÉFÉRENCES OPTIONNELLES (contexte secondaire, ne remplacent pas la cible) ---\n${refsJson}`
+      : '',
     typeof p.text === 'string' && p.text.trim()
       ? `--- TEXTE COMPLÉMENTAIRE ---\n${String(p.text).slice(0, MAX_TEXT)}`
       : '',
     p.pdfBase64 ? `PDF joint${p.pdfName ? ` (« ${String(p.pdfName).slice(0, 120)} »)` : ''} : support complémentaire.` : '',
-    'Retourne le JSON nodes demandé.',
+    'Retourne le JSON nodes demandé (état souhaité après modification).',
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }
 
@@ -296,6 +333,7 @@ function normalizeModifier(parsed: any) {
     const parentRaw = n.parent_ref == null || n.parent_ref === '' ? null : str(n.parent_ref, 80);
     let payload = sanitizePayload(n.payload);
     if (kind === 'bloc' && typeof payload.type === 'string' && payload.type === 'jeu') continue;
+    const ordreNum = Number(n.ordre);
     nodes.push({
       temp_id: str(n.temp_id, 80) || `t${i + 1}`,
       kind,
@@ -303,6 +341,7 @@ function normalizeModifier(parsed: any) {
       parent_ref: parentRaw,
       action,
       titre: str(n.titre, 200),
+      ordre: Number.isFinite(ordreNum) ? ordreNum : i,
       niveaux,
       niveau_min: niveaux.min,
       niveau_max: niveaux.max,
