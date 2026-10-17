@@ -50,18 +50,75 @@
     return data;
   }
 
-  function ficheOpts(modele) {
+  function ficheOpts(modele, moduleIdsOverride) {
+    const mids = moduleIdsOverride != null
+      ? moduleIdsOverride
+      : ((modele.module_ids && modele.module_ids.length) ? modele.module_ids : null);
     return {
       parcoursId: modele.parcours_id || null,
-      moduleIds: (modele.module_ids && modele.module_ids.length) ? modele.module_ids : null,
+      moduleIds: mids,
     };
+  }
+
+  /** Mode répertoire : selection | lecon | chapitre | parcours (+ compat legacy). */
+  function repertoireMode(cfg) {
+    const raw = String((cfg && cfg.repertoire) || '').trim().toLowerCase();
+    if (raw === 'selection' || raw === 'lecon' || raw === 'chapitre' || raw === 'parcours') {
+      return raw;
+    }
+    const fixed = Array.isArray(cfg && cfg.matrice_ids) ? cfg.matrice_ids.filter(Boolean) : [];
+    return fixed.length ? 'selection' : 'lecon';
+  }
+
+  /** Étend module_ids au chapitre parent (toutes les leçons feuilles). */
+  async function resolveChapitreModuleIds(moduleIds) {
+    const seeds = (moduleIds || []).filter(Boolean);
+    if (!seeds.length) return seeds;
+    const { data, error } = await sb()
+      .from('modules_cours')
+      .select('id, parent_id, est_groupe, publie')
+      .eq('publie', true);
+    if (error) throw error;
+    const all = data || [];
+    const byId = {};
+    all.forEach((m) => { byId[m.id] = m; });
+    const chapterIds = new Set();
+    seeds.forEach((id) => {
+      const m = byId[id];
+      if (!m) return;
+      chapterIds.add(m.parent_id || m.id);
+    });
+    const leaves = [];
+    function walk(id) {
+      const kids = all.filter((c) => c.parent_id === id);
+      if (!kids.length) {
+        const node = byId[id];
+        if (node && !node.est_groupe) leaves.push(id);
+        return;
+      }
+      kids.forEach((k) => {
+        if (k.est_groupe) walk(k.id);
+        else leaves.push(k.id);
+      });
+    }
+    chapterIds.forEach((cid) => walk(cid));
+    return leaves.length ? Array.from(new Set(leaves)) : seeds;
+  }
+
+  async function resolvePoolModuleIds(modele) {
+    const cfg = modele.configuration_json || {};
+    const mode = repertoireMode(cfg);
+    const base = (modele.module_ids && modele.module_ids.length) ? modele.module_ids.slice() : [];
+    if (mode === 'parcours') return null;
+    if (mode === 'chapitre') return resolveChapitreModuleIds(base);
+    return base.length ? base : null;
   }
 
   /** Précharge un lot de fiches (1 RPC) dans le cache du modèle. */
   async function preloadFiches(modele, matriceIds) {
     const ids = Array.from(new Set((matriceIds || []).filter(Boolean)));
     if (!ids.length) return modele._fichesCache || {};
-    const map = await global.JpV2Resolver.fichesResolues(ids, ficheOpts(modele));
+    const map = await global.JpV2Resolver.fichesResolues(ids, ficheOpts(modele, modele._poolModuleIds));
     modele._fichesCache = modele._fichesCache || Object.create(null);
     ids.forEach((id) => {
       if (Object.prototype.hasOwnProperty.call(map, id)) modele._fichesCache[id] = map[id];
@@ -71,26 +128,34 @@
 
   async function poolMedicaments(modele) {
     const cfg = modele.configuration_json || {};
-    const fixed = Array.isArray(cfg.matrice_ids) ? cfg.matrice_ids.filter(Boolean) : [];
-    let rows = await global.JpV2Resolver.listerMedicaments(ficheOpts(modele));
-    if ((!rows || !rows.length) && fixed.length) {
-      // Repli : résolution bulk si le listing est vide
-      const cache = await preloadFiches(modele, fixed);
-      rows = fixed.map((id) => {
-        const f = cache[id];
-        if (!f) return null;
-        return {
-          id: f.id || id,
-          dci: f.dci,
-          noms: (f.noms_commerciaux || []).map((n) => n.valeur).join(', '),
-          nb_connaissances: Object.keys(f.champs || {}).length,
-        };
-      }).filter(Boolean);
-    } else if (fixed.length && rows.length) {
+    const mode = repertoireMode(cfg);
+    const fixed = Array.isArray(cfg.matrice_ids) ? cfg.matrice_ids.filter(Boolean).map(String) : [];
+    const scopeIds = await resolvePoolModuleIds(modele);
+    modele._poolModuleIds = scopeIds;
+    modele._repertoire = mode;
+
+    if (mode === 'selection') {
+      if (!fixed.length) return [];
+      let rows = await global.JpV2Resolver.listerMedicaments(ficheOpts(modele, null));
       const allow = new Set(fixed);
-      const filtered = rows.filter((r) => allow.has(r.id));
-      if (filtered.length) rows = filtered;
+      let filtered = (rows || []).filter((r) => allow.has(String(r.id)));
+      if (!filtered.length) {
+        const cache = await preloadFiches(modele, fixed);
+        filtered = fixed.map((id) => {
+          const f = cache[id];
+          if (!f) return null;
+          return {
+            id: f.id || id,
+            dci: f.dci,
+            noms: (f.noms_commerciaux || []).map((n) => n.valeur).join(', '),
+            nb_connaissances: Object.keys(f.champs || {}).length,
+          };
+        }).filter(Boolean);
+      }
+      return filtered;
     }
+
+    let rows = await global.JpV2Resolver.listerMedicaments(ficheOpts(modele, scopeIds));
     return rows || [];
   }
 
@@ -100,10 +165,15 @@
     if (cache && Object.prototype.hasOwnProperty.call(cache, matriceId)) {
       return cache[matriceId] || null;
     }
-    const f = await global.JpV2Resolver.ficheResolue(matriceId, ficheOpts(modele));
+    const f = await global.JpV2Resolver.ficheResolue(matriceId, ficheOpts(modele, modele._poolModuleIds));
     modele._fichesCache = modele._fichesCache || Object.create(null);
     modele._fichesCache[matriceId] = f;
     return f;
+  }
+
+  /** Contexte d’exécution (page pleine ou embed leçon). */
+  function playCtx(modele) {
+    return modele._playOpts || {};
   }
 
   async function saveTentative(modele, snapshot, reponses, scoreObtenu, scoreMax) {
@@ -183,33 +253,53 @@
 
   function scoreActions(ctx, req, opts) {
     const o = opts || {};
+    const embed = !!o.embed;
     const lessonId = (req && !req.groupe && req.moduleId) || ctx.moduleId;
     const pid = (req && req.parcoursId) || ctx.parcoursId;
-    let html = '<button type="button" class="jp-btn jp-btn-primary" id="btnReplay">Rejouer</button>';
-    if (lessonId) {
+    let html = '<button type="button" class="jp-btn jp-btn-primary" id="btnReplay">'
+      + (embed ? 'Nouvelle tentative' : 'Rejouer') + '</button>';
+    if (!embed && lessonId) {
       html += '<a class="jp-btn jp-btn-ghost" href="../lecon.html?module=' + encodeURIComponent(lessonId) + '">← Retour à la leçon</a>';
     }
-    html += '<a class="jp-btn jp-btn-ghost" href="../espace.html' + (pid ? '?parcours=' + encodeURIComponent(pid) : '') + '">Mon parcours</a>';
-    html += '<a class="jp-btn jp-btn-ghost" href="' + esc(o.listHref || 'index.html') + '">Liste des jeux</a>';
+    if (!embed) {
+      html += '<a class="jp-btn jp-btn-ghost" href="../espace.html' + (pid ? '?parcours=' + encodeURIComponent(pid) : '') + '">Mon parcours</a>';
+      html += '<a class="jp-btn jp-btn-ghost" href="' + esc(o.listHref || 'index.html') + '">Liste des jeux</a>';
+    }
     return html;
   }
 
   /**
    * Affiche la carte de score dans `host` ; une fois le score enregistré (`opts.saved`),
    * indique si le score minimum exigé par la leçon est atteint.
+   * opts.embed + opts.onReplay / opts.onFinished pour montage inline leçon.
    */
   async function mountScoreCard(host, modele, obtenu, max, opts) {
     const o = opts || {};
-    const ctx = scoreCtx(modele);
+    const pOpts = playCtx(modele);
+    const embed = !!(o.embed || pOpts.embed);
+    const ctx = {
+      moduleId: o.moduleId || pOpts.moduleId || scoreCtx(modele).moduleId,
+      parcoursId: o.parcoursId || pOpts.parcoursId || scoreCtx(modele).parcoursId,
+    };
     host.innerHTML = scoreCardHtml(obtenu, max);
     const actions = host.querySelector('#jpScoreActions');
     function wire() {
-      actions.querySelector('#btnReplay')?.addEventListener('click', function () { location.reload(); });
+      actions.querySelector('#btnReplay')?.addEventListener('click', function () {
+        if (typeof o.onReplay === 'function') o.onReplay();
+        else if (typeof pOpts.onReplay === 'function') pOpts.onReplay();
+        else location.reload();
+      });
     }
-    actions.innerHTML = scoreActions(ctx, null, o);
+    actions.innerHTML = scoreActions(ctx, null, Object.assign({}, o, { embed: embed }));
     wire();
     if (o.saved) { try { await o.saved; } catch (_) { return; } }
     const req = await findRequirement(modele, ctx);
+    const okCritere = req ? !!req.ok : null;
+    if (typeof o.onFinished === 'function') {
+      o.onFinished({ obtenu: obtenu, max: max, okCritere: okCritere, req: req });
+    } else if (typeof pOpts.onFinished === 'function') {
+      pOpts.onFinished({ obtenu: obtenu, max: max, okCritere: okCritere, req: req });
+    }
     if (!req) return;
     const PU = global.JpParcoursUi;
     const reqEl = host.querySelector('#jpScoreReq');
@@ -222,8 +312,98 @@
       reqEl.textContent = 'Score minimum requis : ' + PU.sur10(req.min) + ' pour valider ' + cible + '. Rejouez pour progresser.';
     }
     reqEl.hidden = false;
-    actions.innerHTML = scoreActions(ctx, req, o);
+    actions.innerHTML = scoreActions(ctx, req, Object.assign({}, o, { embed: embed }));
     wire();
+  }
+
+  /* ——— Anti-similarité distracteurs quiz ——— */
+  const QUIZ_ALIASES = {
+    hta: 'hypertension arterielle',
+    hypertension: 'hypertension arterielle',
+    'hypertension arterielle': 'hypertension arterielle',
+    'pression arterielle': 'hypertension arterielle',
+    avc: 'accident vasculaire cerebral',
+    idm: 'infarctus du myocarde',
+    infarctus: 'infarctus du myocarde',
+    fa: 'fibrillation auriculaire',
+    'fibrillation atriale': 'fibrillation auriculaire',
+  };
+
+  function normQuizText(s) {
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function canonQuizText(s) {
+    const n = normQuizText(s);
+    return QUIZ_ALIASES[n] || n;
+  }
+
+  function tokenSet(s) {
+    return new Set(canonQuizText(s).split(' ').filter(Boolean));
+  }
+
+  function jaccardTokens(a, b) {
+    const A = tokenSet(a);
+    const B = tokenSet(b);
+    if (!A.size || !B.size) return 0;
+    let inter = 0;
+    A.forEach((t) => { if (B.has(t)) inter += 1; });
+    return inter / (A.size + B.size - inter);
+  }
+
+  function levenshteinRatio(a, b) {
+    const s = canonQuizText(a);
+    const t = canonQuizText(b);
+    if (!s || !t) return 0;
+    if (s === t) return 1;
+    const m = s.length;
+    const n = t.length;
+    const row = new Array(n + 1);
+    for (let j = 0; j <= n; j++) row[j] = j;
+    for (let i = 1; i <= m; i++) {
+      let prev = row[0];
+      row[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const tmp = row[j];
+        const cost = s.charAt(i - 1) === t.charAt(j - 1) ? 0 : 1;
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost);
+        prev = tmp;
+      }
+    }
+    return 1 - (row[n] / Math.max(m, n));
+  }
+
+  /** True si deux libellés sont trop proches pour coexister dans un QCM. */
+  function quizTextsTooClose(a, b) {
+    const ca = canonQuizText(a);
+    const cb = canonQuizText(b);
+    if (!ca || !cb) return false;
+    if (ca === cb) return true;
+    if (ca.length >= 3 && cb.length >= 3 && (ca.indexOf(cb) >= 0 || cb.indexOf(ca) >= 0)) {
+      const shorter = Math.min(ca.length, cb.length);
+      const longer = Math.max(ca.length, cb.length);
+      if (shorter / longer >= 0.55) return true;
+    }
+    if (jaccardTokens(a, b) >= 0.6) return true;
+    if (levenshteinRatio(a, b) >= 0.72) return true;
+    return false;
+  }
+
+  function pickDistinctDistractor(candidates, correct, already) {
+    const pool = shuffle(candidates.filter(Boolean));
+    for (let i = 0; i < pool.length; i++) {
+      const v = pool[i];
+      if (quizTextsTooClose(v, correct)) continue;
+      if (already.some((x) => quizTextsTooClose(x, v))) continue;
+      return v;
+    }
+    return null;
   }
 
   /** ——— Quiz QCM (auto molécules + manuelles, tirage à chaque partie) ——— */
@@ -259,12 +439,19 @@
         if (distractors.length >= nbProp - 1) break;
         const fo = await fiche(modele, o.id);
         if (!fo) continue;
-        const vals = valeursChamp(fo, champ).filter((v) => v !== correct && !distractors.includes(v));
-        if (vals.length) distractors.push(pick(vals));
+        const vals = valeursChamp(fo, champ).filter((v) => v && v !== correct);
+        const d = pickDistinctDistractor(vals, correct, distractors);
+        if (d) distractors.push(d);
       }
       if (distractors.length < 1) continue;
 
       const props = shuffle([correct].concat(distractors).slice(0, nbProp));
+      // Filet de sécurité : pas de quasi-doublons dans les propositions
+      const unique = [];
+      props.forEach((p) => {
+        if (!unique.some((u) => quizTextsTooClose(u, p))) unique.push(p);
+      });
+      if (unique.length < 2 || unique.indexOf(correct) < 0) continue;
       questions.push({
         source: 'auto',
         matrice_id: med.id,
@@ -273,7 +460,7 @@
         champ_code: champ,
         question: 'Pour « ' + (f.dci || med.dci) + ' », quelle est une valeur correcte pour « '
           + champLibelle(champ) + ' » ?',
-        propositions: props,
+        propositions: unique.slice(0, nbProp),
         correct,
       });
     }
@@ -334,8 +521,14 @@
         const saved = saveTentative(modele, { type: 'quiz', questions: questions.length }, { answers }, ok, questions.length)
           .then(function () { global.JpToast?.ok?.('Score enregistré'); });
         saved.catch(function () { /* ignore */ });
-        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, questions.length,
-          { saved: saved, listHref: 'index.html?type=quiz' });
+        const pOpts = playCtx(modele);
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, questions.length, {
+          saved: saved,
+          listHref: 'index.html?type=quiz',
+          embed: !!pOpts.embed,
+          onReplay: pOpts.onReplay,
+          onFinished: pOpts.onFinished,
+        });
         return;
       }
 
@@ -409,8 +602,14 @@
         const saved = saveTentative(modele, { type: 'classement', n: items.length }, { placement, details }, ok, items.length)
           .then(function () { global.JpToast?.ok?.('Score enregistré'); });
         saved.catch(function () { /* ignore */ });
-        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, items.length,
-          { saved: saved, listHref: 'index.html?type=classement' });
+        const pOpts = playCtx(modele);
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, items.length, {
+          saved: saved,
+          listHref: 'index.html?type=classement',
+          embed: !!pOpts.embed,
+          onReplay: pOpts.onReplay,
+          onFinished: pOpts.onFinished,
+        });
         return;
       }
 
@@ -629,8 +828,14 @@
         const saved = saveTentative(modele, { type: 'appariement', n: orderG.length }, { links, details }, ok, orderG.length)
           .then(function () { global.JpToast?.ok?.('Score enregistré'); });
         saved.catch(function () { /* ignore */ });
-        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, orderG.length,
-          { saved: saved, listHref: 'index.html?type=appariement' });
+        const pOpts = playCtx(modele);
+        void mountScoreCard(document.getElementById('jpScoreHost'), modele, ok, orderG.length, {
+          saved: saved,
+          listHref: 'index.html?type=appariement',
+          embed: !!pOpts.embed,
+          onReplay: pOpts.onReplay,
+          onFinished: pOpts.onFinished,
+        });
         return;
       }
 
@@ -718,19 +923,75 @@
     paint(false);
   }
 
+  /** Notes ≥ seuil par matrice (scores_fiche_aleatoire). */
+  async function loadFicheExclusionCounts(matriceIds, seuil) {
+    const ids = (matriceIds || []).filter(Boolean);
+    const map = Object.create(null);
+    ids.forEach((id) => { map[String(id)] = 0; });
+    if (!ids.length) return map;
+    const user = await global.JpApp.getUser();
+    if (!user) return map;
+    const { data, error } = await sb()
+      .from('scores_fiche_aleatoire')
+      .select('matrice_id, score_obtenu')
+      .eq('utilisateur_id', user.id)
+      .in('matrice_id', ids)
+      .gte('score_obtenu', seuil);
+    if (error) throw error;
+    (data || []).forEach((r) => {
+      const k = String(r.matrice_id);
+      map[k] = (map[k] || 0) + 1;
+    });
+    return map;
+  }
+
   /** ——— Fiche aléatoire ——— */
   async function runFicheAleatoire(root, modele) {
     const cfg = modele.configuration_json || {};
-    const pool = await poolMedicaments(modele);
-    if (!pool.length) throw new Error('Aucune molécule dans votre parcours pour ce jeu');
+    const fullPool = await poolMedicaments(modele);
+    if (!fullPool.length) throw new Error('Aucune molécule dans votre parcours pour ce jeu');
 
+    const seuil = Math.max(0, Number(cfg.seuil_exclusion) || 8);
+    const nbNotes = Math.max(1, Number(cfg.nb_notes_exclusion) || 3);
+    const counts = await loadFicheExclusionCounts(fullPool.map((p) => p.id), seuil);
+
+    function eligibleFrom(source) {
+      return source.filter((p) => (counts[String(p.id)] || 0) < nbNotes);
+    }
+
+    let pool = eligibleFrom(fullPool);
+    let ignoreExclusion = false;
     let current = null;
     let revealed = false;
 
-    await preloadFiches(modele, pool.map((p) => p.id));
+    await preloadFiches(modele, fullPool.map((p) => p.id));
+
+    function paintEmptyMastered() {
+      root.innerHTML = '<div class="jp-v2-empty jp-fiche-mastered">'
+        + '<p class="jp-title" style="font-size:1.15rem">Toutes les molécules du répertoire sont maîtrisées</p>'
+        + '<p class="jp-muted">Vous avez obtenu au moins ' + esc(String(nbNotes)) + ' note(s) ≥ '
+        + esc(String(seuil)) + '/10 sur chaque molécule.</p>'
+        + '<div class="jp-v2-actions">'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="btnReplayAll">Rejouer quand même</button>'
+        + '</div></div>';
+      document.getElementById('btnReplayAll')?.addEventListener('click', function () {
+        ignoreExclusion = true;
+        pool = fullPool.slice();
+        void next();
+      });
+      const pOpts = playCtx(modele);
+      if (typeof pOpts.onFinished === 'function') {
+        pOpts.onFinished({ obtenu: 0, max: 10, okCritere: true, mastered: true });
+      }
+    }
 
     async function next() {
       revealed = false;
+      if (!ignoreExclusion) pool = eligibleFrom(fullPool);
+      if (!pool.length) {
+        paintEmptyMastered();
+        return;
+      }
       const med = pick(pool);
       current = await fiche(modele, med.id);
       if (!current) throw new Error('Fiche inaccessible');
@@ -784,7 +1045,6 @@
         }
         try {
           await saveTentative(modele, { type: 'fiche_aleatoire', matrice_id: current.id }, { score: s }, s, 10);
-          // Compat table legacy scores
           const user = await global.JpApp.getUser();
           if (user) {
             await sb().from('scores_fiche_aleatoire').insert({
@@ -793,6 +1053,10 @@
               score_obtenu: Math.round(s),
               score_max: 10,
             });
+          }
+          if (s >= seuil) {
+            const mid = String(current.id);
+            counts[mid] = (counts[mid] || 0) + 1;
           }
           global.JpToast?.ok?.('Note enregistrée');
           await next();
@@ -805,46 +1069,94 @@
     await next();
   }
 
-  /** ——— Tableau à trous (version simplifiée par fiche) ——— */
+  /** Params trous (compat densite_trous / nb_fiches / champs). */
+  function trousParams(cfg) {
+    const colonnes = Array.isArray(cfg.colonnes) && cfg.colonnes.length
+      ? cfg.colonnes.filter(Boolean)
+      : (cfg.champs_interroges || cfg.champs || [
+        'indications', 'contre_indications', 'effets_indesirables', 'surveillances',
+      ]);
+    const toujours = Array.isArray(cfg.toujours_visibles)
+      ? cfg.toujours_visibles.filter(Boolean)
+      : ['dci', 'nom_commercial'];
+    let taux = cfg.taux_trous != null && cfg.taux_trous !== ''
+      ? Number(cfg.taux_trous)
+      : null;
+    if (taux == null || Number.isNaN(taux)) {
+      const densite = Math.max(1, Math.min(5, Number(cfg.densite_trous) || 3));
+      taux = densite * 20;
+    }
+    taux = Math.max(0, Math.min(100, taux));
+    const nbLignes = Math.max(1, Number(cfg.nb_lignes) || Number(cfg.nb_fiches) || 5);
+    return { colonnes: colonnes, toujours: toujours, taux: taux, nbLignes: nbLignes };
+  }
+
+  /** ——— Tableau à trous (lignes = molécules, colonnes = champs) ——— */
   async function runTrous(root, modele) {
     const cfg = modele.configuration_json || {};
     const pool = await poolMedicaments(modele);
-    const nb = Math.min(Number(cfg.nb_fiches) || 4, pool.length);
-    const densite = Math.max(1, Math.min(5, Number(cfg.densite_trous) || 3));
-    const champPrefs = cfg.champs_interroges || cfg.champs || [
-      'indications', 'contre_indications', 'effets_indesirables', 'surveillances',
-    ];
+    const tp = trousParams(cfg);
+    const nb = Math.min(tp.nbLignes, pool.length);
     if (!nb) throw new Error('Aucune molécule pour ce tableau à trous');
+    if (!tp.colonnes.length) throw new Error('Aucune colonne configurée');
 
     const selected = shuffle(pool).slice(0, nb);
     await preloadFiches(modele, selected.map((m) => m.id));
     const rows = [];
+    const holeKeys = []; // { row, col } éligibles
+
     for (const med of selected) {
       const f = await fiche(modele, med.id);
       if (!f) continue;
-      const available = champPrefs.filter(function (c) { return valeursChamp(f, c).length; });
-      const nTrous = Math.min(densite, available.length);
-      const trous = shuffle(available).slice(0, nTrous);
-      rows.push({ fiche: f, trous, med });
+      const cells = {};
+      tp.colonnes.forEach(function (code) {
+        const vals = valeursChamp(f, code);
+        cells[code] = vals.length ? vals.join(' · ') : '';
+      });
+      const row = { fiche: f, med: med, cells: cells };
+      rows.push(row);
+      tp.colonnes.forEach(function (code) {
+        if (tp.toujours.indexOf(code) >= 0) return;
+        if (!cells[code]) return;
+        holeKeys.push({ row: row, col: code });
+      });
     }
+
+    const nHoles = Math.round(holeKeys.length * (tp.taux / 100));
+    const holes = new Set(
+      shuffle(holeKeys).slice(0, nHoles).map(function (h) {
+        return String(h.row.fiche.id) + ':' + h.col;
+      })
+    );
 
     let revealed = false;
     function paint() {
-      let html = '<p class="jp-muted">Complétez mentalement les cases « ??? ». '
-        + 'Seules les infos du parcours sont présentes — le reste est masqué.</p>';
-      html += '<div class="jp-table-wrap"><table class="jp-table"><thead><tr><th>DCI</th><th>Champs</th></tr></thead><tbody>';
+      let html = '<p class="jp-muted">Complétez mentalement les cases « ??? » ('
+        + esc(String(tp.taux)) + ' % de trous). '
+        + 'Seules les infos du parcours sont présentes.</p>';
+      html += '<div class="jp-table-wrap"><table class="jp-table jp-trous-grid"><thead><tr>'
+        + '<th>Molécule</th>'
+        + tp.colonnes.map(function (c) {
+          return '<th>' + esc(champLibelle(c)) + '</th>';
+        }).join('')
+        + '</tr></thead><tbody>';
       rows.forEach(function (r) {
-        html += '<tr><td><strong>' + esc(r.fiche.dci) + '</strong><br><span class="jp-muted">'
-          + esc(r.med.noms || '') + '</span></td><td><dl class="jp-v2-champs-revealed">';
-        const codes = Object.keys(r.fiche.champs || {});
-        codes.forEach(function (c) {
-          if (c === 'nom_commercial' || c === 'dci') return;
-          const isHole = r.trous.indexOf(c) >= 0;
-          const val = valeursChamp(r.fiche, c).join(' · ') || '—';
-          html += '<dt>' + esc(champLibelle(c)) + '</dt><dd>'
-            + (revealed || !isHole ? esc(val) : '<em>???</em>') + '</dd>';
+        const label = r.fiche.dci || r.med.dci || '—';
+        const noms = r.med.noms || (r.fiche.noms_commerciaux || []).map(function (n) {
+          return n.valeur;
+        }).join(', ');
+        html += '<tr><th scope="row"><strong>' + esc(label) + '</strong>'
+          + (noms ? '<br><span class="jp-muted">' + esc(noms) + '</span>' : '')
+          + '</th>';
+        tp.colonnes.forEach(function (c) {
+          const key = String(r.fiche.id) + ':' + c;
+          const isHole = holes.has(key);
+          const val = r.cells[c] || '—';
+          html += '<td class="' + (isHole ? 'jp-trou' : '') + '">'
+            + (revealed || !isHole ? esc(val) : '<em>???</em>')
+            + '</td>';
         });
-        html += '</dl></td></tr>';
+        html += '</tr>';
       });
       html += '</tbody></table></div><div class="jp-v2-actions">';
       if (!revealed) {
@@ -866,10 +1178,17 @@
         const o = Number(document.getElementById('score').value);
         const m = Number(document.getElementById('scoreMax').value) || rows.length;
         try {
-          const saved = saveTentative(modele, { type: 'trous', n: rows.length }, { score: o }, o, m);
+          const saved = saveTentative(modele, { type: 'trous', n: rows.length, trous: holes.size }, { score: o }, o, m);
           await saved;
           global.JpToast?.ok?.('Score enregistré');
-          void mountScoreCard(root, modele, o, m, { saved: Promise.resolve(), listHref: 'index.html?type=trous' });
+          const pOpts = playCtx(modele);
+          void mountScoreCard(root, modele, o, m, {
+            saved: Promise.resolve(),
+            listHref: 'index.html?type=trous',
+            embed: !!pOpts.embed,
+            onReplay: pOpts.onReplay,
+            onFinished: pOpts.onFinished,
+          });
         } catch (e) {
           global.JpToast?.fromError?.(e);
         }
@@ -878,15 +1197,82 @@
     paint();
   }
 
-  async function boot(root, code) {
+  /** Ordonnance inline (embed leçon) — même flux que ordonnances/jouer.html. */
+  async function runOrdonnanceEmbed(root, modele) {
+    const Ordo = global.JpV2Ordonnances;
+    if (!Ordo) throw new Error('Module ordonnances non chargé');
+    const session = await Ordo.demarrer(modele.code_unique);
+    let revele = false;
+    const pOpts = playCtx(modele);
+
+    function paint() {
+      let html = '<div id="mols">'
+        + (revele
+          ? Ordo.renderMoleculesRevelees(session._fullMolecules || session.molecules, session.champs)
+          : Ordo.renderMoleculesMasquees(session.molecules, session.champs))
+        + '</div>';
+      html += '<div class="jp-v2-actions" style="margin-top:1rem">';
+      if (!revele) {
+        html += '<button type="button" class="jp-btn jp-btn-primary" id="btnReveal">Voir les réponses</button>';
+      } else {
+        html += '<div class="jp-field"><label for="scoreObtenu">Score obtenu</label>'
+          + '<input id="scoreObtenu" type="number" min="0" step="1" value="0"></div>'
+          + '<div class="jp-field"><label for="scoreMax">Score max</label>'
+          + '<input id="scoreMax" type="number" min="1" step="1" value="10"></div>'
+          + '<button type="button" class="jp-btn jp-btn-primary" id="btnScore">Enregistrer le score</button>';
+      }
+      html += '</div><div id="jpScoreHost"></div>';
+      root.innerHTML = html;
+
+      document.getElementById('btnReveal')?.addEventListener('click', async function () {
+        try {
+          const full = await Ordo.reveler(session.tentative_id);
+          session._fullMolecules = full.molecules;
+          session.champs = full.champs || session.champs;
+          revele = true;
+          paint();
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+        }
+      });
+      document.getElementById('btnScore')?.addEventListener('click', async function () {
+        try {
+          const obt = Number(document.getElementById('scoreObtenu').value);
+          const max = Number(document.getElementById('scoreMax').value);
+          const res = await Ordo.noter(session.tentative_id, obt, max, [{ mode: 'general' }]);
+          global.JpToast?.ok?.('Score enregistré');
+          void mountScoreCard(document.getElementById('jpScoreHost'), modele, res.score_obtenu, res.score_max, {
+            saved: Promise.resolve(),
+            embed: true,
+            onReplay: pOpts.onReplay,
+            onFinished: pOpts.onFinished,
+          });
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+        }
+      });
+    }
+    paint();
+  }
+
+  /**
+   * @param {HTMLElement} root
+   * @param {string} code
+   * @param {{ embed?: boolean, moduleId?: string, parcoursId?: string, onReplay?: Function, onFinished?: Function }} [opts]
+   */
+  async function boot(root, code, opts) {
     const modele = await loadModele(code);
+    modele._playOpts = opts || {};
+
     if (modele.type_jeu === 'ordonnance') {
-      // Conserve ?module= / ?parcours= pour le retour à la leçon
+      if (modele._playOpts.embed) {
+        await runOrdonnanceEmbed(root, modele);
+        return modele;
+      }
       location.replace('../ordonnances/jouer.html' + (location.search || '?code=' + encodeURIComponent(modele.code_unique)));
       return modele;
     }
 
-    // Aligner le parcours actif sur celui du jeu si besoin
     try {
       const [profil, insc] = await Promise.all([
         global.JpV2Resolver.getProfilV2(),
@@ -936,5 +1322,12 @@
     throw new Error('Type de jeu non supporté : ' + modele.type_jeu);
   }
 
-  global.JpJeuxPlay = { boot, loadModele, champLibelle, mountScoreCard };
+  global.JpJeuxPlay = {
+    boot,
+    loadModele,
+    champLibelle,
+    mountScoreCard,
+    repertoireMode,
+    poolMedicaments,
+  };
 })(window);

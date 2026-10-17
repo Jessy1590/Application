@@ -11,28 +11,38 @@
     return data;
   }
 
-  const CHAMPS = [
-    ['indications', 'Indications'],
-    ['contre_indications', 'Contre-indications'],
-    ['effets_indesirables', 'Effets indésirables'],
-    ['precautions_emploi', 'Précautions'],
-    ['interactions', 'Interactions'],
-    ['classe_pharmacologique', 'Classe pharmacologique'],
-    ['classe_therapeutique', 'Classe thérapeutique'],
-    ['surveillances', 'Surveillances'],
-  ];
+  function champsActifsList() {
+    if (typeof global.JpConstants?.champsActifs === 'function') {
+      return global.JpConstants.champsActifs().map((c) => [c.code, c.libelle]);
+    }
+    return [
+      ['indications', 'Indications'],
+      ['contre_indications', 'Contre-indications'],
+      ['effets_indesirables', 'Effets indésirables'],
+      ['surveillances', 'Surveillances'],
+    ];
+  }
 
   const HYBRID_SOURCES = [
     { value: 'manuel', label: 'Texte libre' },
     { value: 'matrice', label: 'Molécule (DCI)' },
+    { value: 'dcis', label: 'DCI (référentiel)' },
+    { value: 'noms_commerciaux', label: 'Nom commercial' },
+    { value: 'secteurs_therapeutiques', label: 'Secteur thérapeutique' },
     { value: 'classes_pharmacologiques', label: 'Classe pharmacologique' },
     { value: 'classes_therapeutiques', label: 'Classe thérapeutique' },
+    { value: 'details_pharmacologie', label: 'Détail pharmacologie' },
+    { value: 'posologies_generales', label: 'Posologie générale' },
+    { value: 'grossesse_allaitement', label: 'Grossesse & allaitement' },
     { value: 'indications', label: 'Indication' },
     { value: 'contre_indications', label: 'Contre-indication' },
     { value: 'effets_indesirables', label: 'Effet indésirable' },
     { value: 'precautions_emploi', label: 'Précaution' },
     { value: 'interactions', label: 'Interaction' },
     { value: 'surveillances', label: 'Surveillance' },
+    { value: 'voies_administration', label: 'Voie d’administration' },
+    { value: 'conditions_prescription_delivrance', label: 'Condition prescription / délivrance' },
+    { value: 'conseils_delivrance', label: 'Conseil de délivrance' },
   ];
 
   function uid(prefix) {
@@ -60,7 +70,7 @@
     return out;
   }
 
-  /** Table entité → colonne jsonb de v_medicaments_complet / métadonnée liaison. */
+  /** Table entité → jonction (ou flag fromMatrice pour FK directes). */
   const ENTITE_LIAISON = {
     classes_pharmacologiques: {
       liaison: 'matrice_classes_pharmacologiques',
@@ -76,6 +86,21 @@
     precautions_emploi: { liaison: 'matrice_precautions_emploi', fk: 'precaution_emploi_id' },
     interactions: { liaison: 'matrice_interactions', fk: 'interaction_id' },
     surveillances: { liaison: 'matrice_surveillances', fk: 'surveillance_id' },
+    voies_administration: { liaison: 'matrice_voies_administration', fk: 'voie_administration_id' },
+    conditions_prescription_delivrance: {
+      liaison: 'matrice_conditions_prescription_delivrance',
+      fk: 'condition_prescription_delivrance_id',
+    },
+    conseils_delivrance: { liaison: 'matrice_conseils_delivrance', fk: 'conseil_delivrance_id' },
+    secteurs_therapeutiques: {
+      liaison: 'matrice_secteurs_therapeutiques',
+      fk: 'secteur_therapeutique_id',
+    },
+    noms_commerciaux: { liaison: 'matrice_noms_commerciaux', fk: 'nom_commercial_id' },
+    details_pharmacologie: { fromMatrice: true, fk: 'detail_pharmacologie_id' },
+    posologies_generales: { fromMatrice: true, fk: 'posologie_generale_id' },
+    grossesse_allaitement: { fromMatrice: true, fk: 'grossesse_allaitement_id' },
+    dcis: { fromMatrice: true, fk: 'dci_id' },
   };
 
   function isRefItem(it) {
@@ -133,6 +158,20 @@
 
     await Promise.all(Object.keys(ENTITE_LIAISON).map(async (table) => {
       const meta = ENTITE_LIAISON[table];
+      if (meta.fromMatrice) {
+        const { data, error } = await sb()
+          .from('matrice_medicaments')
+          .select('id, ' + meta.fk)
+          .in('id', ids);
+        if (error) throw error;
+        (data || []).forEach((row) => {
+          const mid = String(row.id);
+          const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
+          if (!mid || !eid || !out[mid]) return;
+          out[mid][table] = [eid];
+        });
+        return;
+      }
       const { data, error } = await sb()
         .from(meta.liaison)
         .select('matrice_id, ' + meta.fk + ', ordre')
@@ -219,18 +258,32 @@
       /* fallback select */
     }
 
-    const { data, error } = await sb()
-      .from(meta.liaison)
-      .select('matrice_id, ' + meta.fk + ', ordre')
-      .in(meta.fk, uniq)
-      .order('ordre', { ascending: true });
-    if (error) throw error;
-    (data || []).forEach((row) => {
-      const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
-      const mid = row.matrice_id != null ? String(row.matrice_id) : '';
-      if (!eid || !mid || !out[eid]) return;
-      if (out[eid].indexOf(mid) < 0) out[eid].push(mid);
-    });
+    if (meta.fromMatrice) {
+      const { data, error } = await sb()
+        .from('matrice_medicaments')
+        .select('id, ' + meta.fk)
+        .in(meta.fk, uniq);
+      if (error) throw error;
+      (data || []).forEach((row) => {
+        const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
+        const mid = row.id != null ? String(row.id) : '';
+        if (!eid || !mid || !out[eid]) return;
+        if (out[eid].indexOf(mid) < 0) out[eid].push(mid);
+      });
+    } else {
+      const { data, error } = await sb()
+        .from(meta.liaison)
+        .select('matrice_id, ' + meta.fk + ', ordre')
+        .in(meta.fk, uniq)
+        .order('ordre', { ascending: true });
+      if (error) throw error;
+      (data || []).forEach((row) => {
+        const eid = row[meta.fk] != null ? String(row[meta.fk]) : '';
+        const mid = row.matrice_id != null ? String(row.matrice_id) : '';
+        if (!eid || !mid || !out[eid]) return;
+        if (out[eid].indexOf(mid) < 0) out[eid].push(mid);
+      });
+    }
     _liensEntiteCache.set(cacheKey, Object.fromEntries(uniq.map((id) => [id, out[id].slice()])));
     return out;
   }
@@ -460,7 +513,24 @@
     const typeInit = (existing && existing.type_jeu) || 'quiz';
     const modeInit = (existing && existing.mode) || 'entrainement';
     const titreInit = (existing && existing.titre) || opts.defaultTitre || '';
+    const champsList = champsActifsList();
     const champsInit = cfg0.champs_interroges || cfg0.champs || ['indications', 'contre_indications', 'effets_indesirables'];
+    const colonnesInit = Array.isArray(cfg0.colonnes) && cfg0.colonnes.length
+      ? cfg0.colonnes
+      : champsInit.slice();
+    const toujoursInit = Array.isArray(cfg0.toujours_visibles)
+      ? cfg0.toujours_visibles
+      : ['dci', 'nom_commercial'];
+    let repertoireInit = String(cfg0.repertoire || '').trim().toLowerCase();
+    if (!repertoireInit) {
+      repertoireInit = (Array.isArray(cfg0.matrice_ids) && cfg0.matrice_ids.length)
+        ? 'selection'
+        : (moduleId ? 'lecon' : 'lecon');
+    }
+    const tauxTrousInit = cfg0.taux_trous != null && cfg0.taux_trous !== ''
+      ? Number(cfg0.taux_trous)
+      : ((Number(cfg0.densite_trous) || 3) * 20);
+    const nbLignesInit = Number(cfg0.nb_lignes) || Number(cfg0.nb_fiches) || 5;
 
     const overlay = document.createElement('div');
     overlay.className = 'jp-studio-overlay';
@@ -480,18 +550,27 @@
       + '</select></div></div>'
       + '<div class="jp-field"><label>Titre</label><input id="jwTitre" maxlength="200" value="'
       + esc(titreInit) + '"></div>'
-      + '<div class="jp-field"><span class="jp-field-label">Leçons du pool (tapez pour ajouter)</span>'
+      + '<div class="jp-field"><span class="jp-field-label">Leçons liées (rattachement pédagogique)</span>'
       + '<div id="jwMods"></div></div>'
+      + '<div class="jp-field" id="jwRepBlock">'
+      + '<label for="jwRep">Répertoire des molécules</label>'
+      + '<select id="jwRep">'
+      + '<option value="lecon">Leçon(s) liées</option>'
+      + '<option value="chapitre">Chapitre parent</option>'
+      + '<option value="parcours">Parcours entier</option>'
+      + '<option value="selection">Sélection manuelle</option>'
+      + '</select>'
+      + '<p class="jp-muted jp-field-hint" id="jwRepHint"></p>'
+      + '</div>'
       + '<div class="jp-field" id="jwMolsBlock">'
-      + '<span class="jp-field-label">Molécules du pool (optionnel)</span>'
-      + '<p class="jp-muted jp-field-hint">Vide = toutes les molécules publiées des leçons du pool. Sinon filtre strict.</p>'
+      + '<span class="jp-field-label">Molécules (sélection)</span>'
       + '<div id="jwMols"></div>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="jwAddLessonMols" style="margin-top:0.45rem">'
       + 'Ajouter les molécules de la leçon</button>'
       + '</div>'
       + '<div class="jp-field" id="jwChampsBlock"><span class="jp-field-label">Champs interrogés</span>'
       + '<div class="jp-quiz-admin-champs-grid">'
-      + CHAMPS.map(([code, lib]) => '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jwChamp" value="'
+      + champsList.map(([code, lib]) => '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jwChamp" value="'
         + code + '"' + (champsInit.indexOf(code) >= 0 ? ' checked' : '') + '> <span>' + esc(lib) + '</span></label>').join('')
       + '</div></div>'
       + '<section class="jp-quiz-admin-panel" id="jwQuiz"><h3 class="jp-quiz-admin-panel-title">Quiz</h3>'
@@ -510,20 +589,35 @@
       + '<div id="jwManuellesList"></div>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="jwAddManuelle">+ Question manuelle</button>'
       + '</div></section>'
-      + '<section class="jp-quiz-admin-panel" id="jwTrous" hidden><h3 class="jp-quiz-admin-panel-title">Trous</h3>'
+      + '<section class="jp-quiz-admin-panel" id="jwTrous" hidden><h3 class="jp-quiz-admin-panel-title">Tableau à trous</h3>'
       + '<div class="jp-split jp-split-2">'
-      + '<div class="jp-field"><label>Nb fiches</label><input id="jwNbFiches" type="number" min="1" max="30" value="'
-      + esc(String(cfg0.nb_fiches || 5)) + '"></div>'
-      + '<div class="jp-field"><label>Densité (1–5)</label><input id="jwDensite" type="number" min="1" max="5" value="'
-      + esc(String(cfg0.densite_trous || 3)) + '"></div>'
-      + '</div></section>'
+      + '<div class="jp-field"><label>Nb lignes (molécules)</label><input id="jwNbLignes" type="number" min="1" max="30" value="'
+      + esc(String(nbLignesInit)) + '"></div>'
+      + '<div class="jp-field"><label>Taux de trous (%)</label><input id="jwTauxTrous" type="number" min="0" max="100" step="5" value="'
+      + esc(String(Math.round(tauxTrousInit))) + '">'
+      + '<small class="jp-field-hint">Pourcentage des cellules éligibles masquées</small></div>'
+      + '</div>'
+      + '<div class="jp-field"><span class="jp-field-label">Colonnes du tableau (ordre)</span>'
+      + '<div class="jp-quiz-admin-champs-grid" id="jwColonnes">'
+      + champsList.map(([code, lib]) => '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jwCol" value="'
+        + code + '"' + (colonnesInit.indexOf(code) >= 0 ? ' checked' : '') + '> <span>' + esc(lib) + '</span></label>').join('')
+      + '</div></div>'
+      + '<div class="jp-field"><span class="jp-field-label">Toujours visibles (jamais masqués)</span>'
+      + '<div class="jp-quiz-admin-champs-grid" id="jwToujours">'
+      + champsList.map(([code, lib]) => '<label class="jp-quiz-admin-champ"><input type="checkbox" name="jwTouj" value="'
+        + code + '"' + (toujoursInit.indexOf(code) >= 0 ? ' checked' : '') + '> <span>' + esc(lib) + '</span></label>').join('')
+      + '</div></div>'
+      + '</section>'
       + '<section class="jp-quiz-admin-panel" id="jwFiche" hidden><h3 class="jp-quiz-admin-panel-title">Fiche aléatoire</h3>'
       + '<div class="jp-split jp-split-2">'
       + '<div class="jp-field"><label>Seuil exclusion /10</label><input id="jwSeuil" type="number" min="1" max="10" value="'
       + esc(String(cfg0.seuil_exclusion || 8)) + '"></div>'
-      + '<div class="jp-field"><label>Nb notes &gt; seuil</label><input id="jwNbNotes" type="number" min="1" max="10" value="'
+      + '<div class="jp-field"><label>Nb notes ≥ seuil</label><input id="jwNbNotes" type="number" min="1" max="10" value="'
       + esc(String(cfg0.nb_notes_exclusion || 3)) + '"></div>'
-      + '</div></section>'
+      + '</div>'
+      + '<p class="jp-muted jp-field-hint">Une molécule est exclue du tirage dès qu’elle a N notes ≥ seuil. '
+      + 'Le déblocage de leçon utilise le % de molécules ainsi maîtrisées.</p>'
+      + '</section>'
       + '<section class="jp-quiz-admin-panel" id="jwOrdo" hidden><h3 class="jp-quiz-admin-panel-title">Règles ordonnance</h3>'
       + '<div class="jp-split jp-split-2">'
       + '<div class="jp-field"><label>Type règle</label><select id="jwRegleKind">'
@@ -578,6 +672,29 @@
 
     overlay.querySelector('#jwType').value = typeInit;
     overlay.querySelector('#jwMode').value = modeInit;
+    overlay.querySelector('#jwRep').value = repertoireInit;
+
+    function syncRepertoire() {
+      const t = overlay.querySelector('#jwType').value;
+      const needRep = t === 'quiz' || t === 'trous' || t === 'fiche_aleatoire' || t === 'ordonnance';
+      overlay.querySelector('#jwRepBlock').hidden = !needRep;
+      const rep = overlay.querySelector('#jwRep').value;
+      const molsBlock = overlay.querySelector('#jwMolsBlock');
+      const hint = overlay.querySelector('#jwRepHint');
+      if (!needRep) {
+        molsBlock.hidden = true;
+        return;
+      }
+      const isSel = rep === 'selection';
+      molsBlock.hidden = !isSel;
+      const hints = {
+        lecon: 'Molécules = publications visibles (★) des leçons liées ci-dessus.',
+        chapitre: 'Molécules = toutes les leçons du chapitre parent des leçons liées.',
+        parcours: 'Molécules = publications visibles de tout le parcours.',
+        selection: 'Choisissez explicitement les molécules (obligatoire).',
+      };
+      hint.textContent = hints[rep] || '';
+    }
 
     function syncPanels() {
       const t = overlay.querySelector('#jwType').value;
@@ -587,10 +704,13 @@
       overlay.querySelector('#jwOrdo').hidden = t !== 'ordonnance';
       overlay.querySelector('#jwClassement').hidden = t !== 'classement';
       overlay.querySelector('#jwAppariement').hidden = t !== 'appariement';
-      const needChamps = t === 'quiz' || t === 'trous' || t === 'ordonnance';
+      // Trous a son propre panneau colonnes ; quiz / ordo gardent la grille « champs »
+      const needChamps = t === 'quiz' || t === 'ordonnance';
       overlay.querySelector('#jwChampsBlock').hidden = !needChamps;
+      syncRepertoire();
     }
     overlay.querySelector('#jwType').addEventListener('change', syncPanels);
+    overlay.querySelector('#jwRep').addEventListener('change', syncRepertoire);
     syncPanels();
 
     function syncRegleKind() {
@@ -1393,19 +1513,35 @@
 
     function buildConfiguration(type) {
       const champs = Array.from(overlay.querySelectorAll('input[name="jwChamp"]:checked')).map((el) => el.value);
+      const colonnes = Array.from(overlay.querySelectorAll('input[name="jwCol"]:checked')).map((el) => el.value);
+      const toujours = Array.from(overlay.querySelectorAll('input[name="jwTouj"]:checked')).map((el) => el.value);
+      const repertoire = overlay.querySelector('#jwRep').value || 'lecon';
       const matriceIds = molChips.getIds().filter(Boolean);
+      const needRep = type === 'quiz' || type === 'trous' || type === 'fiche_aleatoire' || type === 'ordonnance';
+      const champsEff = type === 'trous' ? colonnes.slice() : champs;
       const base = {
-        champs,
-        champs_interroges: champs,
+        champs: champsEff,
+        champs_interroges: champsEff,
         regles: type === 'ordonnance' ? regles.map((r) => r.rule) : [],
         nb_questions: Number(overlay.querySelector('#jwNbQ').value) || 10,
         nb_propositions: Number(overlay.querySelector('#jwNbProp').value) || 3,
-        nb_fiches: Number(overlay.querySelector('#jwNbFiches').value) || 5,
-        densite_trous: Number(overlay.querySelector('#jwDensite').value) || 3,
         seuil_exclusion: Number(overlay.querySelector('#jwSeuil').value) || 8,
         nb_notes_exclusion: Number(overlay.querySelector('#jwNbNotes').value) || 3,
       };
-      if (matriceIds.length) base.matrice_ids = matriceIds;
+      if (needRep) base.repertoire = repertoire;
+      if (repertoire === 'selection' && matriceIds.length) base.matrice_ids = matriceIds;
+      else if (repertoire !== 'selection' && matriceIds.length && !needRep) {
+        base.matrice_ids = matriceIds;
+      }
+      if (type === 'trous') {
+        base.colonnes = colonnes;
+        base.toujours_visibles = toujours;
+        base.taux_trous = Math.max(0, Math.min(100, Number(overlay.querySelector('#jwTauxTrous').value) || 60));
+        base.nb_lignes = Number(overlay.querySelector('#jwNbLignes').value) || 5;
+        // Compat lecture anciens clients
+        base.nb_fiches = base.nb_lignes;
+        base.densite_trous = Math.max(1, Math.min(5, Math.round(base.taux_trous / 20) || 3));
+      }
       const autoMaxRaw = overlay.querySelector('#jwNbAutoMax').value;
       if (autoMaxRaw !== '' && !Number.isNaN(Number(autoMaxRaw))) {
         base.nb_auto_max = Math.max(0, Number(autoMaxRaw));
@@ -1465,8 +1601,16 @@
 
     function validate(type, configuration_json, moduleIds, titre) {
       if (!titre) throw new Error('Titre requis');
-      if (!moduleIds.length) throw new Error('Ajoutez au moins une leçon au pool');
-      if ((type === 'trous' || type === 'ordonnance') && !configuration_json.champs.length) {
+      if (!moduleIds.length) throw new Error('Ajoutez au moins une leçon liée');
+      const needRep = type === 'quiz' || type === 'trous' || type === 'fiche_aleatoire' || type === 'ordonnance';
+      if (needRep && configuration_json.repertoire === 'selection'
+        && !(configuration_json.matrice_ids && configuration_json.matrice_ids.length)) {
+        throw new Error('Sélectionnez au moins une molécule pour le répertoire « sélection »');
+      }
+      if (type === 'trous' && !(configuration_json.colonnes && configuration_json.colonnes.length)) {
+        throw new Error('Sélectionnez au moins une colonne');
+      }
+      if (type === 'ordonnance' && !configuration_json.champs.length) {
         throw new Error('Sélectionnez au moins un champ');
       }
       if (type === 'ordonnance' && !regles.length) throw new Error('Ajoutez au moins une règle');

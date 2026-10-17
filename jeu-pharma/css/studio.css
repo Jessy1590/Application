@@ -200,8 +200,9 @@
 .jp-jeu-sheet {
   grid-template-rows: auto minmax(0, 1fr) auto;
   position: relative;
-  width: min(780px, 100%);
-  height: min(820px, 92vh);
+  width: min(960px, 100%);
+  height: min(92vh, 980px);
+  max-height: 96vh;
 }
 .jp-jeu-sheet > .jp-studio-sheet-head {
   display: flex;

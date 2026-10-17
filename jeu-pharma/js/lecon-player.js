@@ -318,14 +318,20 @@
       }
     }
     (detail.jeux || []).forEach((j) => {
-      const min = PU().sur10(j.score_min_pct);
+      const isFiche = j.type_jeu === 'fiche_aleatoire';
+      const min = isFiche
+        ? Math.round(j.score_min_pct) + ' % maîtrisées'
+        : PU().sur10(j.score_min_pct);
+      const best = isFiche
+        ? (j.meilleur_pct != null ? Math.round(j.meilleur_pct) + ' %' : '—')
+        : PU().sur10(j.meilleur_pct);
       const href = jeuHref(j.code_unique, j.type_jeu, moduleId, parcoursId);
       if (j.ok) {
         rows.push('<li class="is-ok"><span class="jp-crit-mark">✓</span><span>Jeu « ' + esc(j.titre) + ' » : '
-          + esc(PU().sur10(j.meilleur_pct)) + ' <small>(minimum ' + esc(min) + ')</small></span></li>');
+          + esc(best) + ' <small>(minimum ' + esc(min) + ')</small></span></li>');
       } else {
         rows.push('<li><span class="jp-crit-mark">○</span><span>Jeu « ' + esc(j.titre) + ' » : minimum ' + esc(min)
-          + (j.fait ? ' <small>(votre meilleur score : ' + esc(PU().sur10(j.meilleur_pct)) + ')</small>' : '')
+          + (j.fait ? ' <small>(actuel : ' + esc(best) + ')</small>' : '')
           + ' <a class="jp-crit-play" href="' + esc(href) + '">Jouer</a></span></li>');
       }
     });
@@ -514,20 +520,43 @@
           || ((detail && detail.jeux) || []).find((j) => code && j.code_unique === code) || null;
         let status = '';
         if (crit) {
-          status = '<p class="jp-jeu-req ' + (crit.ok ? 'is-ok' : 'is-todo') + '">'
-            + (crit.ok ? '✓ Validé : ' + esc(PU().sur10(crit.meilleur_pct)) : 'Score minimum requis : ' + esc(PU().sur10(crit.score_min_pct))
-              + (crit.fait ? ' · votre meilleur : ' + esc(PU().sur10(crit.meilleur_pct)) : ''))
+          const isFiche = (crit.type_jeu || p.type_jeu) === 'fiche_aleatoire';
+          const pctLab = isFiche
+            ? (crit.meilleur_pct != null ? Math.round(crit.meilleur_pct) + ' % maîtrisées' : '—')
+            : PU().sur10(crit.meilleur_pct);
+          const minLab = isFiche
+            ? Math.round(crit.score_min_pct) + ' % de molécules maîtrisées'
+            : PU().sur10(crit.score_min_pct);
+          status = '<p class="jp-jeu-req ' + (crit.ok ? 'is-ok' : 'is-todo') + '" data-jeu-req>'
+            + (crit.ok
+              ? '✓ Validé : ' + esc(pctLab)
+              : 'Minimum requis : ' + esc(minLab)
+                + (crit.fait ? ' · actuel : ' + esc(pctLab) : ''))
             + '</p>';
         }
-        inner = '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
+        inner = '<div class="jp-jeu-embed" data-jeu-bloc="' + esc(b.id) + '"'
+          + ' data-code="' + esc(code) + '"'
+          + ' data-type="' + esc(p.type_jeu || '') + '">'
+          + '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
           + (p.type_jeu ? '<span class="jp-jeu-cta-type">' + esc(({
             fiche_aleatoire: 'fiche aléatoire',
             classement: 'classement',
             appariement: 'appariement',
           })[p.type_jeu] || p.type_jeu) + '</span>' : '')
           + status + '</div>'
-          + '<a class="jp-btn jp-btn-touch jp-jeu-play" href="' + esc(href) + '">' + esc(p.libelle_cta || 'Jouer') + ' →</a></div>'
-          + (code ? '<p class="jp-jeu-code"><code>' + esc(code) + '</code></p>' : '');
+          + '<div class="jp-jeu-cta-actions">'
+          + '<button type="button" class="jp-btn jp-btn-touch jp-jeu-play" data-jeu-retry'
+          + (code ? '' : ' disabled') + '>' + esc(p.libelle_cta || 'Nouvelle tentative') + '</button>'
+          + (code
+            ? '<a class="jp-btn jp-btn-ghost jp-btn-touch" href="' + esc(href)
+              + '" target="_blank" rel="noopener">Aller sur la page du jeu</a>'
+            : '')
+          + '</div></div>'
+          + '<div class="jp-jeu-mount" id="jp-jeu-mount-' + esc(b.id) + '">'
+          + (code ? '<p class="jp-muted">Chargement du jeu…</p>' : '<p class="jp-muted">Aucun jeu lié.</p>')
+          + '</div>'
+          + (code ? '<p class="jp-jeu-code"><code>' + esc(code) + '</code></p>' : '')
+          + '</div>';
       }
       // Texte : pas de pastille « Texte » — seulement le cadre (et le titre s’il existe).
       let head;
@@ -548,6 +577,86 @@
 
     const ctx = { module, detail, preview: !!preview, footer: document.getElementById('leconFoot') };
     const carousels = Array.from(root.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
+
+    // Jeux inline : mount JpJeuxPlay dans chaque bloc
+    Array.from(root.querySelectorAll('[data-jeu-bloc]')).forEach((wrap) => {
+      const code = wrap.getAttribute('data-code');
+      const typeJeu = wrap.getAttribute('data-type') || '';
+      const mount = wrap.querySelector('.jp-jeu-mount');
+      if (!code || !mount || !global.JpJeuxPlay) return;
+      let busy = false;
+      let autoRetryTimer = null;
+
+      async function mountGame() {
+        if (busy) return;
+        busy = true;
+        if (autoRetryTimer) {
+          clearTimeout(autoRetryTimer);
+          autoRetryTimer = null;
+        }
+        mount.innerHTML = '<p class="jp-muted">Préparation…</p>';
+        try {
+          await global.JpJeuxPlay.boot(mount, code, {
+            embed: true,
+            moduleId: module.id,
+            parcoursId: module.parcours_id,
+            onReplay: function () { void mountGame(); },
+            onFinished: function (res) {
+              if (preview) return;
+              // Fiche : l’exclusion / next() gère déjà la suite — pas d’auto-retry score
+              if (typeJeu === 'fiche_aleatoire') {
+                void refreshJeuStatus(wrap, code);
+                void renderFooter(ctx.footer, ctx);
+                return;
+              }
+              if (res && res.okCritere === false) {
+                autoRetryTimer = setTimeout(function () {
+                  global.JpToast?.warn?.('Score insuffisant — nouvelle tentative…');
+                  void mountGame();
+                }, 1400);
+              } else {
+                void refreshJeuStatus(wrap, code);
+                void renderFooter(ctx.footer, ctx);
+              }
+            },
+          });
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+          mount.innerHTML = '<p class="jp-muted">' + esc(e.message || String(e)) + '</p>';
+        } finally {
+          busy = false;
+        }
+      }
+
+      wrap.querySelector('[data-jeu-retry]')?.addEventListener('click', function () {
+        void mountGame();
+      });
+      void mountGame();
+    });
+
+    async function refreshJeuStatus(wrap, code) {
+      if (!global.JpV2Resolver?.critereJeu || !code) return;
+      try {
+        const modele = await global.JpJeuxPlay.loadModele(code);
+        const row = await global.JpV2Resolver.critereJeu(modele.id, {
+          moduleId: module.id,
+          parcoursId: module.parcours_id,
+        });
+        const el = wrap.querySelector('[data-jeu-req]');
+        if (!el || !row) return;
+        const isFiche = modele.type_jeu === 'fiche_aleatoire';
+        const pctLab = isFiche
+          ? (row.meilleur_pct != null ? Math.round(row.meilleur_pct) + ' % maîtrisées' : '—')
+          : PU().sur10(row.meilleur_pct);
+        const minLab = isFiche
+          ? Math.round(row.score_min_pct) + ' % de molécules maîtrisées'
+          : PU().sur10(row.score_min_pct);
+        el.className = 'jp-jeu-req ' + (row.ok ? 'is-ok' : 'is-todo');
+        el.textContent = row.ok
+          ? '✓ Validé : ' + pctLab
+          : 'Minimum requis : ' + minLab + (row.meilleur_pct != null ? ' · actuel : ' + pctLab : '');
+      } catch (_) { /* ignore */ }
+    }
 
     // Navigation / critères (async : ne bloque pas l’affichage)
     void renderFooter(ctx.footer, ctx);

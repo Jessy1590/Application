@@ -522,6 +522,10 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 }
 .jp-bloc--jeu .jp-bloc-kind { color: var(--jp-accent, #0f6b5c); }
 .jp-bloc--jeu .jp-bloc-head h2 { color: var(--jp-ink, #0f2e28); }
+.jp-jeu-embed {
+  display: grid;
+  gap: 0.85rem;
+}
 .jp-jeu-cta {
   display: flex;
   flex-wrap: wrap;
@@ -535,6 +539,29 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   gap: 0.3rem;
   min-width: 0;
   flex: 1 1 12rem;
+}
+.jp-jeu-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  flex: none;
+}
+.jp-jeu-mount {
+  min-height: 4rem;
+  padding: 0.75rem 0 0.25rem;
+  border-top: 1px dashed rgba(15, 107, 92, 0.16);
+}
+.jp-jeu-mount .jp-score-card {
+  margin-top: 0.5rem;
+}
+.jp-trous-grid th,
+.jp-trous-grid td {
+  vertical-align: top;
+  font-size: 0.88rem;
+}
+.jp-trous-grid th[scope="row"] {
+  text-align: left;
+  white-space: nowrap;
 }
 /* Classe dédiée : éviter la collision avec .jp-jeu-type (admin) dans app.css */
 .jp-jeu-cta-type {
@@ -587,6 +614,7 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 }
 @media (max-width: 480px) {
   .jp-jeu-cta { flex-direction: column; align-items: stretch; }
+  .jp-jeu-cta-actions { flex-direction: column; width: 100%; }
   .jp-jeu-play { width: 100%; }
 }
 

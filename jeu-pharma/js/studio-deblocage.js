@@ -137,11 +137,20 @@
           + '<span>Lecture complète de la leçon requise</span></label>';
       }
       html += '<div class="jp-crit-jeux">' + (st.jeux.length
-        ? st.jeux.map((j, i) => '<div class="jp-crit-row"><span class="jp-crit-name" title="' + esc(jeuLabel(j.modele_id)) + '">'
-          + esc(jeuLabel(j.modele_id)) + '</span>'
-          + '<label class="jp-st-inline">Score min.<input type="number" class="jp-st-input jp-st-num" min="0" max="10" step="0.5" data-min="' + i
-          + '" value="' + esc(j.min10) + '"><span>/10</span></label>'
-          + '<button type="button" class="jp-crit-x" data-del="' + i + '" aria-label="Retirer ce jeu">×</button></div>').join('')
+        ? st.jeux.map((j, i) => {
+          const meta = (o.jeux || []).find((x) => x.id === j.modele_id);
+          const isFiche = meta && meta.type_jeu === 'fiche_aleatoire';
+          return '<div class="jp-crit-row"><span class="jp-crit-name" title="' + esc(jeuLabel(j.modele_id)) + '">'
+            + esc(jeuLabel(j.modele_id)) + '</span>'
+            + '<label class="jp-st-inline">' + (isFiche ? 'Min. %' : 'Score min.')
+            + '<input type="number" class="jp-st-input jp-st-num" min="0" max="10" step="0.5" data-min="' + i
+            + '" value="' + esc(j.min10) + '"><span>' + (isFiche ? '×10 → %' : '/10') + '</span></label>'
+            + '<button type="button" class="jp-crit-x" data-del="' + i + '" aria-label="Retirer ce jeu">×</button></div>'
+            + (isFiche
+              ? '<p class="jp-muted jp-field-hint" style="margin:0 0 0.4rem">Fiche aléatoire : % de molécules maîtrisées '
+                + '(N notes ≥ seuil du jeu). Ex. 7/10 → 70 % du répertoire.</p>'
+              : '');
+        }).join('')
         : '<p class="jp-muted jp-crit-none">Aucun jeu exigé.</p>') + '</div>';
       html += '<div class="jp-field jp-field-tight"><div data-add></div></div>';
       if (count() >= 2) {
