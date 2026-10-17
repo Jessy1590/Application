@@ -1653,6 +1653,7 @@
     if (type === 'molecule') return { matrice_ids: [], mode: 'fiche' };
     if (type === 'photo') return { path: '', url: '', alt: '', legende: '' };
     if (type === 'video') return { url: '' };
+    if (type === 'jeu') return { modele_id: '', code_unique: '', type_jeu: '' };
     return {};
   }
 
@@ -1696,6 +1697,13 @@
         url: String(layer.url || ''),
         alt: String(layer.alt || '').slice(0, 300),
         legende: String(layer.legende || '').slice(0, 300),
+      };
+    }
+    if (type === 'jeu') {
+      return {
+        modele_id: String(layer.modele_id || ''),
+        code_unique: String(layer.code_unique || '').slice(0, 40),
+        type_jeu: String(layer.type_jeu || '').slice(0, 40),
       };
     }
     if (type === 'video') return { url: String(layer.url || '') };
@@ -1780,7 +1788,11 @@
     const layer = layerPayload(node, couche);
     let typeBloc = layer.type || (node.kind === 'section' ? 'section' : 'texte');
     if (node.kind === 'section') typeBloc = 'section';
-    if (typeBloc === 'jeu') throw new Error('Les blocs jeu ne sont pas gérés par l’IA Preview');
+    // Jeu : uniquement keep/update d’un bloc existant (ou create si modele_id déjà connu)
+    if (typeBloc === 'jeu' && (node.action === 'create' || !node.ref_id)) {
+      const mid = layer.modele_id || layer.code_unique;
+      if (!mid) throw new Error('Création de jeu IA : modele_id requis (lier un JP existant)');
+    }
 
     const content = sanitizeProposalPayload(layer, typeBloc);
     const titre = node.titre || '';
@@ -1789,6 +1801,29 @@
       || [];
 
     const iaVariantes = mergeIaVariantes(node, typeBloc);
+
+    // Déplacer jeu/photo vers la bonne leçon si parent_ref a changé
+    if (node.ref_id && (typeBloc === 'jeu' || typeBloc === 'photo' || typeBloc === 'section' || typeBloc === 'texte'
+      || typeBloc === 'conseil' || typeBloc === 'recommandation' || typeBloc === 'molecule' || typeBloc === 'video')) {
+      const existing = currentBlocByRef(node.ref_id);
+      if (existing && existing.module_id && existing.module_id !== lessonId) {
+        const fromMod = existing.module_id;
+        await rpc('v2_deplacer_blocs', {
+          p_bloc_ids: [node.ref_id],
+          p_module_cible_id: lessonId,
+          p_avant_bloc_id: null,
+        });
+        if (state.blocsByModule[fromMod]) {
+          state.blocsByModule[fromMod] = state.blocsByModule[fromMod]
+            .filter((b) => b.id !== node.ref_id);
+        }
+        existing.module_id = lessonId;
+        if (!state.blocsByModule[lessonId]) state.blocsByModule[lessonId] = [];
+        if (!state.blocsByModule[lessonId].some((b) => b.id === existing.id)) {
+          state.blocsByModule[lessonId].push(existing);
+        }
+      }
+    }
 
     if (node.action === 'create' || !node.ref_id) {
       const basePay = emptyPayload(typeBloc);
@@ -1829,19 +1864,36 @@
     const pub = global.JpLeconPlayer?.publishedPayload?.(b.payload_json) || {};
     const prevDraft = (b.payload_json && b.payload_json._brouillon) || null;
     const eff = Object.assign({}, pub, (prevDraft && prevDraft.payload) || {});
+    // jeu / photo : ne jamais écraser modele_id / path avec du vide
+    let contentSafe = content;
+    if (typeBloc === 'jeu') {
+      contentSafe = {
+        modele_id: content.modele_id || eff.modele_id || '',
+        code_unique: content.code_unique || eff.code_unique || '',
+        type_jeu: content.type_jeu || eff.type_jeu || '',
+      };
+    } else if (typeBloc === 'photo') {
+      contentSafe = {
+        path: content.path || eff.path || '',
+        url: content.url || eff.url || '',
+        alt: content.alt || eff.alt || '',
+        legende: content.legende || eff.legende || '',
+      };
+    }
     let nextPayload;
     if (couche === 'base') {
-      nextPayload = Object.assign({}, content);
+      nextPayload = Object.assign({}, contentSafe);
       const mergedV = Object.assign({}, eff.variantes || {}, iaVariantes);
       if (Object.keys(mergedV).length) nextPayload.variantes = mergedV;
     } else {
       const variantes = Object.assign({}, eff.variantes || {}, iaVariantes);
-      variantes[couche] = content;
+      variantes[couche] = contentSafe;
       nextPayload = Object.assign({}, eff, { variantes });
     }
-    // Reclassement type (section ↔ autre) si demandé
+    // Reclassement type (section ↔ autre) si demandé — ne jamais convertir un jeu
     const newType = node.kind === 'section' ? 'section'
-      : (typeBloc !== b.type_bloc && typeBloc !== 'jeu' ? typeBloc : b.type_bloc);
+      : (b.type_bloc === 'jeu' ? 'jeu'
+        : (typeBloc !== b.type_bloc && typeBloc !== 'jeu' ? typeBloc : b.type_bloc));
 
     const pj = Object.assign({}, pub, {
       _brouillon: {
@@ -1869,9 +1921,22 @@
 
   /* ——— IA invoke ——— */
 
+  function payloadTypeOf(n) {
+    if (!n) return '';
+    if (n.kind === 'section') return 'section';
+    const t = n.payload && n.payload.type;
+    return t ? String(t) : (n.kind === 'bloc' ? 'texte' : '');
+  }
+
+  /** Jeux et photos : jamais supprimés par omission IA — réinjectés en keep. */
+  function isProtectedMediaNode(n) {
+    const t = payloadTypeOf(n);
+    return t === 'jeu' || t === 'photo';
+  }
+
   /**
    * Contrat v2 : éléments absents de l’arbre = suppressions.
-   * Ajoute des nœuds action=delete pour les ref_id envoyés mais non renvoyés.
+   * Exception : jeu + photo → keep forcé (l’IA ne doit pas les faire disparaître).
    */
   function inferDeletesFromOmission(sentNodes, returnedNodes) {
     const kept = new Set();
@@ -1879,11 +1944,29 @@
       if (n && n.ref_id) kept.add(String(n.ref_id));
     });
     const deletes = [];
+    const forcedKeep = [];
     (sentNodes || []).forEach((n, i) => {
       if (!n || !n.ref_id) return;
       if (kept.has(String(n.ref_id))) return;
       // Ne pas auto-supprimer chapitre/leçon structurelle (trop destructif)
       if (n.kind === 'chapitre' || n.kind === 'lecon') return;
+      if (isProtectedMediaNode(n)) {
+        forcedKeep.push({
+          temp_id: 'keep-media:' + n.ref_id,
+          kind: n.kind,
+          ref_id: n.ref_id,
+          parent_ref: n.parent_ref || null,
+          action: 'keep',
+          titre: n.titre || '',
+          ordre: Number(n.ordre) || (9000 + i),
+          niveaux: n.niveaux || { min: 1, max: 5 },
+          niveau_min: n.niveau_min || 1,
+          niveau_max: n.niveau_max || 5,
+          payload: Object.assign({}, n.payload || {}),
+          variantes: Object.assign({}, n.variantes || {}),
+        });
+        return;
+      }
       deletes.push({
         temp_id: 'del:' + n.ref_id,
         kind: n.kind,
@@ -1899,7 +1982,7 @@
         variantes: {},
       });
     });
-    return (returnedNodes || []).concat(deletes);
+    return (returnedNodes || []).concat(forcedKeep).concat(deletes);
   }
 
   /** @returns {Promise<boolean>} true si propositions prêtes (fermer la modale). */

@@ -125,6 +125,18 @@ Les ★ ajoutent du détail (★1 plus simple, ★5 plus riche) sans casser cet 
 6. Si la cible est un chapitre : traite TOUTES les leçons du chapitre (pas seulement la première).
 7. Maximum ${MAX_NODES} éléments au total. Signale les limites dans avertissements.
 
+## Jeux (OBLIGATOIRE)
+- Tout bloc existant payload.type = "jeu" DOIT réapparaître (keep ou update) avec le MÊME ref_id.
+- Tu peux le repositionner (ordre / leçon parente) pour qu'il soit au bon endroit pédagogique (souvent après le contenu de la leçon).
+- Conserve modele_id, code_unique, type_jeu du payload. Ne crée PAS de nouveau jeu sans modele_id existant.
+- Ne supprime JAMAIS un jeu (ne l'omets pas).
+
+## Photos / images
+- Blocs photo existants : keep/update avec le même ref_id ; conserve path et url ; tu peux améliorer titre, alt, legende.
+- Repositionne selon l'utilité (schéma près de la notion illustrée).
+- Depuis le PDF/texte joint : tu peux CRÉER des blocs photo si une URL https d'image figure dans la source, ou avec url="" + alt/titre descriptifs (l'admin complétera le fichier).
+- N'invente pas d'URL. Ne supprime une photo que si elle est clairement hors sujet / doublon inutile.
+
 ## Format de réponse (JSON uniquement, pas de markdown)
 {
   "version": 2,
@@ -162,7 +174,9 @@ Les ★ ajoutent du détail (★1 plus simple, ★5 plus riche) sans casser cet 
   "avertissements": []
 }
 - Si la cible est une seule leçon, "arbre.kind" = "lecon" (sans chapitre parent obligatoire).
-- kind "bloc" : payload.type ∈ texte|conseil|recommandation|photo|video|molecule. Jamais de jeu.
+- kind "bloc" : payload.type ∈ texte|conseil|recommandation|photo|video|molecule|jeu.
+- jeu : { "type":"jeu", "modele_id":"…", "code_unique":"JP-…", "type_jeu":"quiz|…" } — uniquement keep/update d'un ref_id existant.
+- photo : { "type":"photo", "path":"…", "url":"https://… ou vide", "alt":"…", "legende":"…" }.
 - Ordre des tableaux "enfants" = ordre d'affichage final.`;
 
 async function loadSystemPromptBase(authHeader: string, supabaseUrl: string, anonKey: string): Promise<string> {
@@ -231,6 +245,16 @@ function nodeBodyText(n: Record<string, unknown>): string {
   if (payload.pathologie != null) parts.push('Pathologie : ' + String(payload.pathologie));
   if (Array.isArray(payload.dci) && payload.dci.length) parts.push('DCI : ' + payload.dci.join(', '));
   if (payload.type != null && n.kind === 'bloc') parts.push('(type=' + String(payload.type) + ')');
+  if (payload.type === 'jeu') {
+    if (payload.code_unique) parts.push('code=' + String(payload.code_unique));
+    if (payload.modele_id) parts.push('modele_id=' + String(payload.modele_id));
+    if (payload.type_jeu) parts.push('type_jeu=' + String(payload.type_jeu));
+  }
+  if (payload.type === 'photo') {
+    if (payload.path) parts.push('path=' + String(payload.path).slice(0, 80));
+    if (payload.url) parts.push('url=' + String(payload.url).slice(0, 120));
+    if (payload.alt) parts.push('alt=' + String(payload.alt).slice(0, 120));
+  }
   const variantes = (n.variantes && typeof n.variantes === 'object' && !Array.isArray(n.variantes))
     ? n.variantes as Record<string, unknown>
     : {};
@@ -336,7 +360,8 @@ function buildModifierUserText(p: Record<string, unknown>) {
     'Mode : éditeur Preview — réponse = ARBRE JSON (chapitre → leçons → sections → blocs).',
     'Si cible = chapitre : inclus TOUTES les leçons. Blocs toujours enfants de leur leçon.',
     'Ordre pédagogique guide : physiologie → pathologie → médicaments → conseils (adaptable).',
-    'Omets les éléments à supprimer. Keep-first.',
+    'Omets les éléments à supprimer. Keep-first. NE PAS omettre les blocs jeu ni les photos utiles.',
+    'Jeux existants : keep/update + même ref_id ; repositionne dans la bonne leçon. Photos : keep + titres/alt ; create si image dans le document.',
     niveau ? `Niveau cible (barre) : ${niveau}` : '',
     `Métadonnées :\n${metaJson}`,
     `Instruction admin :\n${String(p.instruction || '').slice(0, MAX_INSTRUCTION)}`,
@@ -414,6 +439,9 @@ function sanitizePayload(raw: unknown): Record<string, unknown> {
     out.matrice_ids = src.matrice_ids.map((d) => str(d, 80)).filter(Boolean).slice(0, 20);
   }
   if (src.matrice_id != null) out.matrice_id = str(src.matrice_id, 80);
+  if (src.modele_id != null) out.modele_id = str(src.modele_id, 80);
+  if (src.code_unique != null) out.code_unique = str(src.code_unique, 40);
+  if (src.type_jeu != null) out.type_jeu = str(src.type_jeu, 40);
   if (src.mode != null) out.mode = str(src.mode, 40);
   if (src.valeurs && typeof src.valeurs === 'object' && !Array.isArray(src.valeurs)) {
     try {
@@ -508,7 +536,11 @@ function pushNormalizedNode(
     ? parentRef
     : str(n.parent_ref, 80);
   const payload = sanitizePayload(n.payload);
-  if (kind === 'bloc' && typeof payload.type === 'string' && payload.type === 'jeu') return;
+  // jeu existant (ref_id) autorisé ; create jeu sans modele_id ignoré
+  if (kind === 'bloc' && payload.type === 'jeu') {
+    const hasModele = !!(payload.modele_id || payload.code_unique);
+    if (!refRaw && !hasModele) return;
+  }
   const i = nodes.length;
   const ordreNum = Number(n.ordre);
   const tempId = str(n.temp_id, 80) || `t${i + 1}`;
@@ -550,7 +582,11 @@ function normalizeFlatNodes(rawNodes: any[], warnings: string[]) {
     if (!KINDS.includes(kind) || !ACTIONS.includes(action)) continue;
     const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
     const payload = sanitizePayload(n.payload);
-    if (kind === 'bloc' && payload.type === 'jeu') continue;
+    if (kind === 'bloc' && payload.type === 'jeu') {
+      const refOk = n.ref_id != null && n.ref_id !== '';
+      const hasModele = !!(payload.modele_id || payload.code_unique);
+      if (!refOk && !hasModele) continue;
+    }
     const ordreNum = Number(n.ordre);
     nodes.push({
       temp_id: str(n.temp_id, 80) || `t${i + 1}`,
