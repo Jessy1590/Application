@@ -10,6 +10,24 @@
 .jp-ia-ok { margin: 0 0 0.4rem; font-weight: 600; color: #0f6b5c; }
 .jp-ia-warns { margin: 0.3rem 0 0.5rem 1.1rem; padding: 0; font-size: 0.82rem; color: #9a6700; }
 .jp-btn-ia { border-color: rgba(15, 107, 92, 0.45); color: #0f6b5c; font-weight: 700; }
+.jp-ia-prompt-entry { margin: 0 0 0.5rem; }
+
+/* Édition prompt système (au-dessus de la modale IA studio z=450) */
+.jp-ia-prompt-backdrop { z-index: 500; }
+.jp-ia-prompt-modal {
+  width: min(720px, 100%);
+  max-height: min(92vh, 880px);
+}
+.jp-ia-prompt-modal textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 18rem;
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.jp-ia-prompt-confirm { width: min(460px, 100%); }
 
 /* Wizard IA référentiel (matrice / RCP) */
 .jp-ia-matrice-modal { width: min(720px, 100%); max-height: min(92vh, 900px); overflow: auto; }

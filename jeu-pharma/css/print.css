@@ -42,3 +42,15 @@
 .jp-print-header {
   display: none;
 }
+
+/* Iframe d’impression same-document (JpPrint) */
+.jp-print-frame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}

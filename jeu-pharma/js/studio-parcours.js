@@ -39,7 +39,6 @@
     pending: null, // { moduleId, blocId } depuis l'URL
     focusBlocId: null,
     viewMode: 'structure', // structure | contenu
-    editComme: null, // null = tous | 1..5 filtre canvas
     selectedBlocId: null,
     inspectorTab: 'lecon', // lecon | bloc | programme
     variantTab: 'base', // base | 1..5
@@ -147,16 +146,8 @@
     return '<span class="jp-plage-badge" title="★' + a + ' à ★' + b + '">★' + a + '–' + b + '</span>';
   }
 
-  function blocInEditComme(b) {
-    if (state.editComme == null) return true;
-    const n = Number(state.editComme);
-    const a = Number(b.niveau_min) || 1;
-    const c = Number(b.niveau_max) || 5;
-    return n >= a && n <= c;
-  }
-
   function visibleBlocs() {
-    return state.blocs.filter(blocInEditComme);
+    return state.blocs;
   }
 
   function variantFieldOf(type) {
@@ -1100,15 +1091,6 @@
       + '<div id="parcoursCombo" class="jp-studio-parcours-combo"></div>'
       + '<h1 id="studioTitle">Modif parcours</h1>'
       + '<span id="draftChip" class="jp-draft-chip" role="status" aria-live="polite" hidden></span>'
-      + '<div class="jp-studio-preview-wrap">'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreview">Aperçu brouillon</button>'
-      + '<label class="jp-studio-preview-as">Voir comme '
-      + '<select id="previewNiveau" aria-label="Aperçu comme niveau">'
-      + '<option value="">—</option>'
-      + [1, 2, 3, 4, 5].map((n) => '<option value="' + n + '">★' + n + '</option>').join('')
-      + '</select></label>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreviewNiveau">Ouvrir</button>'
-      + '</div>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnParcoursCfg" title="Prérequis et validation du parcours">Réglages du parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="btnNewParcours">Nouveau parcours</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="btnPublish" disabled title="Publie toutes les leçons du parcours">Publier tout le parcours</button>'
@@ -1168,35 +1150,6 @@
     root.querySelector('#btnNewParcours').addEventListener('click', () => void createParcours());
     root.querySelector('#btnParcoursCfg').addEventListener('click', () => void openParcoursCfg());
     root.querySelector('#btnPublish').addEventListener('click', () => void publishParcours());
-    async function openPreview(url) {
-      // Ouvrir tout de suite (geste utilisateur) pour éviter le bloqueur de pop-ups après await.
-      const w = window.open('about:blank', '_blank');
-      try {
-        await flushAll();
-      } catch (e) {
-        global.JpToast?.fromError?.(e);
-      }
-      if (w && !w.closed) {
-        w.location.href = url;
-      } else {
-        global.JpToast?.warn?.('Autorisez les pop-ups, ou ouverture dans cet onglet…');
-        window.location.assign(url);
-      }
-    }
-    root.querySelector('#btnPreview').addEventListener('click', () => {
-      const m = selectedModule();
-      if (!m || m.est_groupe) return global.JpToast?.warn?.('Choisir une leçon');
-      void openPreview('../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1');
-    });
-    root.querySelector('#btnPreviewNiveau').addEventListener('click', () => {
-      const m = selectedModule();
-      if (!m || m.est_groupe) return global.JpToast?.warn?.('Choisir une leçon');
-      const n = root.querySelector('#previewNiveau')?.value;
-      if (!n) return global.JpToast?.warn?.('Choisir ★1–★5');
-      void openPreview(
-        '../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1&niveau=' + encodeURIComponent(n)
-      );
-    });
 
     window.addEventListener('beforeunload', (e) => {
       if (Object.keys(state.timers).length || state.inflight > 0) {
@@ -1556,7 +1509,6 @@
   function renderCanvas(m) {
     const pane = document.getElementById('canvasPane');
     const mode = state.viewMode === 'contenu' ? 'contenu' : 'structure';
-    const comme = state.editComme;
     pane.innerHTML = '<div class="jp-studio-canvas-head">'
       + '<h2 class="jp-studio-h2">' + esc(m.titre) + '</h2>'
       + '<div class="jp-studio-mode" role="group" aria-label="Mode d’édition">'
@@ -1565,13 +1517,8 @@
       + '<button type="button" class="jp-mode-btn' + (mode === 'contenu' ? ' is-active' : '')
       + '" data-view="contenu" aria-pressed="' + (mode === 'contenu' ? 'true' : 'false') + '">Contenu</button>'
       + '</div>'
-      + '<label class="jp-edit-comme">Éditer comme '
-      + '<select id="editComme" aria-label="Filtrer le canvas par niveau">'
-      + '<option value=""' + (comme == null ? ' selected' : '') + '>Tous</option>'
-      + [1, 2, 3, 4, 5].map((n) =>
-        '<option value="' + n + '"' + (Number(comme) === n ? ' selected' : '') + '>★' + n + '</option>'
-      ).join('')
-      + '</select></label>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnVoirPreview"'
+      + ' title="Ouvre la surface Preview (IA, validation, impression)">Voir preview</button>'
       + '</div>'
       + '<div class="jp-add-blocks" id="addBlocks"><span class="jp-add-blocks-label">Ajouter</span>'
       + ADD_TYPES.map((t) =>
@@ -1595,11 +1542,7 @@
         if (mod) void renderInspector(mod);
       });
     });
-    pane.querySelector('#editComme')?.addEventListener('change', (ev) => {
-      const v = ev.target.value;
-      state.editComme = v ? Number(v) : null;
-      paintBlocks();
-    });
+    pane.querySelector('#btnVoirPreview')?.addEventListener('click', () => void openVoirPreview());
     pane.querySelectorAll('[data-add]').forEach((btn) => {
       btn.addEventListener('click', () => void addBloc(btn.getAttribute('data-add')));
     });
@@ -1607,6 +1550,20 @@
     pane.querySelector('#btnReorganiser')?.addEventListener('click', () => void openReorganiser());
     syncReorgButton();
     paintBlocks();
+  }
+
+  /** Surface Preview complémentaire (pas un mode studio). */
+  async function openVoirPreview() {
+    const m = selectedModule();
+    if (!state.parcoursId) return global.JpToast?.warn?.('Choisir un parcours');
+    try {
+      await flushAll();
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    }
+    let url = 'preview-parcours.html?parcours=' + encodeURIComponent(state.parcoursId);
+    if (m && m.id) url += '&module=' + encodeURIComponent(m.id);
+    window.location.assign(url);
   }
 
   /** Hook IA (logique dans IA/studio-blocs.js) : expose seulement l’état nécessaire. */
@@ -2493,8 +2450,7 @@
       return;
     }
     if (!shown.length) {
-      list.innerHTML = '<p class="jp-muted jp-studio-empty">Aucun bloc visible pour ★'
-        + esc(String(state.editComme)) + ' — élargissez le filtre ou la plage des blocs.</p>';
+      list.innerHTML = '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
       updateStatus();
       return;
     }

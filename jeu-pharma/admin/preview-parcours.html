@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preview parcours</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; frame-src 'self' https://www.youtube.com https://player.vimeo.com;">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none;margin:0}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css?v=059">
+<link rel="stylesheet" href="../css/v2.css?v=053">
+<link rel="stylesheet" href="../css/player.css?v=071">
+<link rel="stylesheet" href="../css/print.css?v=001">
+<link rel="stylesheet" href="../IA/ia.css?v=041">
+<link rel="stylesheet" href="../css/preview-parcours.css?v=002">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/logs.js"></script>
+  <script src="../js/bugs.js?v=059"></script>
+  <script src="../js/fab.js?v=059"></script>
+  <script src="../js/ui.js?v=059"></script>
+  <script src="../js/ui-modal.js?v=054"></script>
+  <script src="../js/resolver.js?v=050"></script>
+  <script src="../js/parcours-ui.js?v=028"></script>
+  <script src="../js/bloc-photo.js?v=029"></script>
+  <script src="../js/print.js?v=001"></script>
+  <script src="../IA/gemini-client.js?v=040"></script>
+  <script src="../IA/studio-blocs.js?v=042"></script>
+  <script src="../js/lecon-player.js?v=072"></script>
+  <script src="../js/preview-parcours.js?v=002"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      document.body.style.display = 'block';
+      try {
+        await JpUi.bootPage({ module: 'admin-preview-parcours', homeHref: 'index.html' });
+        await JpPreviewParcours.boot(document.getElementById('root'));
+      } catch (e) {
+        JpToast.fromError(e);
+        document.getElementById('root').innerHTML = '<p class="jp-muted" style="padding:2rem">Erreur de chargement : '
+          + JpUi.escapeHtml(e.message || String(e)) + '</p>';
+      }
+    });
+  </script>
+</body>
+</html>

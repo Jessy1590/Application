@@ -1,0 +1,327 @@
+/* Surface Preview parcours — complémentaire du studio */
+
+.jp-print-frame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jp-preview-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(15, 107, 92, 0.07), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(30, 90, 120, 0.05), transparent 50%),
+    #f7faf9;
+  color: var(--jp-text, #14201C);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+
+.jp-preview-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.jp-preview-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.jp-preview-body {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(320px, 1.35fr) minmax(260px, 0.9fr);
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 4.5rem;
+}
+
+.jp-preview-pane {
+  min-width: 0;
+  padding: 0.85rem 1rem 1.25rem;
+  overflow: auto;
+  max-height: calc(100vh - 7.5rem);
+}
+
+.jp-preview-ia {
+  border-right: 1px solid rgba(15, 107, 92, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.jp-preview-center {
+  background: #fff;
+}
+
+.jp-preview-params {
+  border-left: 1px solid rgba(15, 107, 92, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.jp-preview-ia-head h2,
+.jp-preview-params h2,
+.jp-preview-center-head h2,
+.jp-preview-params h3 {
+  margin: 0 0 0.35rem;
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.1rem;
+}
+
+.jp-preview-lead {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.jp-preview-ia-prompt-link {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.jp-preview-ia-form .jp-field {
+  margin-bottom: 0.65rem;
+}
+
+.jp-preview-ia-form textarea,
+.jp-preview-params textarea,
+.jp-preview-params input[type="text"],
+.jp-preview-params select,
+.jp-preview-ia-form input[type="file"] {
+  width: 100%;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.jp-preview-ia-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.jp-preview-mirror {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.jp-mirror-row {
+  border: 1px solid rgba(15, 107, 92, 0.14);
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jp-mirror-row:hover {
+  border-color: rgba(15, 107, 92, 0.35);
+}
+
+.jp-mirror-row.is-selected {
+  border-color: #0f6b5c;
+  box-shadow: 0 0 0 2px rgba(15, 107, 92, 0.15);
+}
+
+.jp-mirror-row.is-accepted,
+.jp-mirror-row.is-homemade {
+  border-left: 3px solid #0f6b5c;
+}
+
+.jp-mirror-row.is-rejected {
+  border-left: 3px solid #8a6a4a;
+  opacity: 0.72;
+}
+
+.jp-mirror-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  color: #4a5c56;
+  margin-bottom: 0.4rem;
+}
+
+.jp-mirror-kind {
+  font-weight: 700;
+  color: #0f6b5c;
+}
+
+.jp-mirror-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.jp-mirror-col-lab {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #6a7c76;
+  margin-bottom: 0.15rem;
+}
+
+.jp-mirror-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.jp-mirror-snip {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #3d5a54;
+  line-height: 1.35;
+}
+
+.jp-mirror-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.jp-preview-player {
+  padding: 0.25rem 0 1rem;
+}
+
+.jp-preview-center-head {
+  margin-bottom: 0.75rem;
+}
+
+.jp-preview-chapter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.jp-preview-chapter-list li {
+  margin: 0.25rem 0;
+}
+
+.jp-preview-hr {
+  border: 0;
+  border-top: 1px solid rgba(15, 107, 92, 0.12);
+  margin: 1.25rem 0;
+}
+
+.jp-preview-param-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.jp-preview-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 0.85rem;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(20, 32, 28, 0.92);
+  color: #f4f7f6;
+  box-shadow: 0 8px 28px rgba(20, 32, 28, 0.28);
+  max-width: calc(100vw - 1.5rem);
+}
+
+.jp-preview-bar-couches {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.jp-preview-couche {
+  border: 0;
+  background: transparent;
+  color: #c5d4cf;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.jp-preview-couche:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.jp-preview-couche.is-active {
+  background: #0f6b5c;
+  color: #fff;
+}
+
+.jp-preview-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.jp-preview-nav select {
+  max-width: 14rem;
+  font: inherit;
+  border-radius: 0.4rem;
+  border: 0;
+  padding: 0.25rem 0.4rem;
+}
+
+.jp-preview-pending {
+  font-size: 0.78rem;
+  color: #a8c0b8;
+  white-space: nowrap;
+}
+
+.jp-print-lecon {
+  break-inside: avoid;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #ddd;
+}
+
+@media (max-width: 1100px) {
+  .jp-preview-body {
+    grid-template-columns: 1fr;
+  }
+  .jp-preview-pane {
+    max-height: none;
+    border: 0;
+  }
+  .jp-preview-ia,
+  .jp-preview-params {
+    border: 0;
+    border-bottom: 1px solid rgba(15, 107, 92, 0.1);
+  }
+  .jp-mirror-cols {
+    grid-template-columns: 1fr;
+  }
+  .jp-preview-bar {
+    border-radius: 0.75rem;
+    bottom: 0.5rem;
+  }
+}

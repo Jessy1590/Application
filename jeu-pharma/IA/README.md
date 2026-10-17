@@ -13,9 +13,14 @@ Ne **pas** appeler les Edge OCR Location depuis le client jeu-pharma.
 
 ---
 
-# IA — blocs de leçon (Modif parcours)
+# IA — blocs de leçon (Modif parcours) + mode modifier (Preview)
 
-Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edge Function `jeupharma-ia-blocs` (Gemini) → JSON → blocs **brouillon** (`visible=false`, `payload_json._brouillon`), publiés seulement via « Enregistrer et publier ».
+Deux usages de la même Edge `jeupharma-ia-blocs` :
+
+| Mode | Surface | Entrée | Sortie |
+|---|---|---|---|
+| *(défaut / `generer`)* | Modif parcours — bouton **IA** | `text` et/ou `pdfBase64` | `blocs[]` (rétrocompat) |
+| `modifier` | Preview parcours | `instruction` (+ `niveau`, `cible`, `context`) | `nodes[]` pré-brouillon |
 
 | Fichier | Rôle |
 |---|---|
@@ -23,25 +28,35 @@ Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edg
 | `studio-blocs.js` | `JpStudioIA` : modale, sanitisation HTML, JSON → payload studio, insertion brouillon |
 | `ia.css` | styles modale |
 | `edge/jeupharma-ia-blocs/index.ts` | source de l'Edge Function (prompt + normalisation serveur) |
+| `sql/072_ia_config.sql` | table `jeupharma.ia_config` (prompt éditable, RLS admin) |
 
 ## Edge Function
 - Secret **`GEMINI_API_KEY`** (existant, partagé avec `ocr-map-fields`). Jamais côté navigateur.
 - Modèle : `GEMINI_IA_MODEL` → sinon `GEMINI_OCR_MODEL` (config existante) → sinon `gemini-3.8-flash`. Raisonnement : `GEMINI_IA_THINKING` (défaut `low`).
 - Accès : `portail.profiles.role === 'admin'` uniquement. `verify_jwt = true`.
-- Limites : texte 80 000 car., PDF 10 Mo.
+- Prompt système : charge `jeupharma.ia_config` clé `blocs_system` (admin) si présent, sinon constante Edge ; **suffixe progression ★1–★5 toujours append** (non éditable : ★1 DEUST Préparateur → ★5 pharmacien confirmé, « N'invente rien », création/suppression chapitres·sections·leçons·blocs).
+- Limites : texte 80 000 car., PDF 10 Mo, instruction 20 000 car. (mode `modifier`).
 - Déploiement : MCP Supabase `deploy_edge_function` (projet `kpjflntnotftpzffjbud`, slug `jeupharma-ia-blocs`) ou CLI en copiant le dossier vers `supabase/functions/jeupharma-ia-blocs/`.
 
-## Requête (client → fonction)
+## Config SQL (`ia_config`)
+```sql
+-- jeupharma.ia_config (cle PK, valeur, updated_at, updated_by)
+-- RLS : portail.is_admin() uniquement (SELECT/INSERT/UPDATE/DELETE)
+-- Seed : cle = 'blocs_system' (prompt génération blocs, migration 072)
+```
+Édition UI du prompt (avec confirmation) = hors Edge ; l’Edge lit uniquement `blocs_system` à chaque appel.
+
+## Requête — génération (rétrocompat)
 ```json
 { "text": "…", "pdfBase64": "…", "pdfName": "cours.pdf",
   "context": { "titre": "", "resume": "", "molecules": ["DCI publiées sur la leçon"],
                "blocs_existants": [{ "type": "texte", "titre": "" }] } }
 ```
-`text` et/ou `pdfBase64` (au moins un).
+`text` et/ou `pdfBase64` (au moins un). `mode` omis ou ≠ `modifier`.
 
-## Réponse (JSON)
+## Réponse — génération
 ```json
-{ "version": 1,
+{ "version": 1, "mode": "generer",
   "resume_lecon": "",
   "blocs": [
     { "type": "texte", "titre": "", "html": "<h2>…</h2><p>…</p>" },
@@ -59,7 +74,45 @@ Bouton **IA** (barre « Ajouter » d'une leçon) → texte collé ou PDF → Edg
 - `photo` sans `url` = stub à compléter (titre « Photo à compléter ») ; `video` sans URL source = ignoré ; `molecule` : seules les DCI déjà publiées sur la leçon (sinon ignoré) ; **jamais de `jeu`**.
 - Max 40 blocs ; ajoutés après les blocs existants, avant les blocs `jeu`.
 
-## Mapping payload studio
+## Requête — mode `modifier` (Preview)
+```json
+{
+  "mode": "modifier",
+  "instruction": "Consigne libre de l’admin",
+  "niveau": "base|1|2|3|4|5",
+  "cible": { "kind": "lecon|chapitre|parcours", "id": "uuid…" },
+  "context": { "/* arbre / nœuds courants, pubs, etc. */": "…" },
+  "text": "(optionnel)",
+  "pdfBase64": "(optionnel)",
+  "pdfName": ""
+}
+```
+Au moins `instruction`, ou `text` / `pdfBase64`.
+
+## Réponse — mode `modifier`
+```json
+{ "version": 1, "mode": "modifier",
+  "nodes": [
+    {
+      "temp_id": "t1",
+      "kind": "chapitre|lecon|section|bloc",
+      "ref_id": "uuid ou null",
+      "parent_ref": "temp_id|uuid|null",
+      "action": "create|update|delete|keep",
+      "titre": "",
+      "niveaux": { "min": 1, "max": 5 },
+      "niveau_min": 1, "niveau_max": 5,
+      "payload": { },
+      "variantes": { "1": {}, "2": {}, "3": {}, "4": {}, "5": {} }
+    }
+  ],
+  "avertissements": [],
+  "model": "…", "usage": {} }
+```
+- `variantes` : clés `"1"`…`"5"` uniquement (couches ★) ; objets payload partiels (ex. `{ "html":"…" }`).
+- Max 80 nœuds ; `kind=bloc` + `type=jeu` ignoré côté normalisation.
+
+## Mapping payload studio (génération)
 | IA | `payload` brouillon |
 |---|---|
 | texte | `{ html }` |

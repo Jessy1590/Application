@@ -191,6 +191,127 @@
     return created.length;
   }
 
+  /* ——— Prompt système (ia_config.blocs_system) ——— */
+
+  /**
+   * Charge `blocs_system`, édite dans une modale, puis upsert après confirmation explicite.
+   * Le suffixe progression ★1–★5 (PROGRESSION_SUFFIX) reste appliqué côté Edge.
+   */
+  async function editBasePrompt() {
+    const jeu = global.JpApp.sbJeu();
+    let valeur = '';
+    try {
+      const { data, error } = await jeu
+        .from('ia_config')
+        .select('valeur')
+        .eq('cle', 'blocs_system')
+        .maybeSingle();
+      if (error) throw error;
+      valeur = (data && data.valeur) != null ? String(data.valeur) : '';
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      return;
+    }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'jp-modal-backdrop jp-ia-prompt-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    backdrop.setAttribute('aria-labelledby', 'iaPromptTitle');
+    let closed = false;
+    let busy = false;
+
+    function close() {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', onKey, true);
+      backdrop.remove();
+    }
+    function onKey(e) {
+      if (e.key !== 'Escape' || busy) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      close();
+    }
+    document.addEventListener('keydown', onKey, true);
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop && !busy) close();
+    });
+
+    function renderEdit() {
+      backdrop.innerHTML = '<div class="jp-modal jp-ia-prompt-modal">'
+        + '<h2 id="iaPromptTitle">Prompt système IA</h2>'
+        + '<p class="jp-ia-lead">Éditez le prompt de base (<code>blocs_system</code>). '
+        + 'Le suffixe de progression ★1–★5 reste appliqué côté serveur à chaque appel.</p>'
+        + '<div class="jp-field"><label for="iaPromptBase">Prompt de base</label>'
+        + '<textarea id="iaPromptBase" rows="18" spellcheck="false"></textarea></div>'
+        + '<div class="jp-modal-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-act="cancel">Annuler</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" data-act="save">Enregistrer</button>'
+        + '</div></div>';
+      const ta = backdrop.querySelector('#iaPromptBase');
+      ta.value = valeur;
+      backdrop.querySelector('[data-act="cancel"]').addEventListener('click', () => close());
+      backdrop.querySelector('[data-act="save"]').addEventListener('click', () => {
+        const next = String(ta.value || '');
+        if (!next.trim()) {
+          global.JpToast?.warn?.('Le prompt ne peut pas être vide');
+          ta.focus();
+          return;
+        }
+        valeur = next;
+        renderConfirm();
+      });
+      setTimeout(() => ta.focus(), 0);
+    }
+
+    function renderConfirm() {
+      backdrop.innerHTML = '<div class="jp-modal jp-ia-prompt-confirm">'
+        + '<h2 id="iaPromptTitle">Confirmation</h2>'
+        + '<p>Confirmer la modification du prompt système IA ?</p>'
+        + '<p class="jp-muted">Le suffixe de progression ★1–★5 reste appliqué côté serveur '
+        + 'et n’est pas modifiable ici.</p>'
+        + '<div class="jp-modal-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-act="back">Retour</button>'
+        + '<button type="button" class="jp-btn jp-btn-primary" data-act="confirm">Confirmer</button>'
+        + '</div></div>';
+      backdrop.querySelector('[data-act="back"]').addEventListener('click', () => {
+        if (!busy) renderEdit();
+      });
+      backdrop.querySelector('[data-act="confirm"]').addEventListener('click', () => void doSave());
+      setTimeout(() => backdrop.querySelector('[data-act="confirm"]')?.focus(), 0);
+    }
+
+    async function doSave() {
+      if (busy) return;
+      busy = true;
+      const btn = backdrop.querySelector('[data-act="confirm"]');
+      const back = backdrop.querySelector('[data-act="back"]');
+      if (btn) btn.disabled = true;
+      if (back) back.disabled = true;
+      try {
+        const user = await global.JpApp.getUser();
+        const { error } = await jeu.from('ia_config').upsert({
+          cle: 'blocs_system',
+          valeur,
+          updated_by: user?.id || null,
+        }, { onConflict: 'cle' });
+        if (error) throw error;
+        void global.JpLogs?.action?.('ia_config_blocs_system', { length: valeur.length });
+        global.JpToast?.ok?.('Prompt système enregistré');
+        close();
+      } catch (e) {
+        busy = false;
+        if (btn) btn.disabled = false;
+        if (back) back.disabled = false;
+        global.JpToast?.fromError?.(e);
+      }
+    }
+
+    document.body.appendChild(backdrop);
+    renderEdit();
+  }
+
   /* ——— Modale ——— */
 
   function open(host) {
@@ -212,6 +333,8 @@
       + '<input id="iaPdf" type="file" accept="application/pdf,.pdf"></div>'
       + '<p class="jp-field-hint jp-ia-privacy">Le contenu est envoyé à Google Gemini via une fonction sécurisée. '
       + 'Pas de données patient. Molécules : uniquement celles déjà publiées sur la leçon ; images et vidéos : à compléter si absentes du support.</p>'
+      + '<p class="jp-field-hint jp-ia-prompt-entry">'
+      + '<button type="button" class="jp-link-btn" id="iaEditPrompt">Modifier le prompt de base</button></p>'
       + '<div class="jp-ia-status" id="iaStatus" role="status" aria-live="polite" hidden></div>'
       + '<div class="jp-ia-result" id="iaResult" hidden></div>'
       + '<div class="jp-modal-actions">'
@@ -219,6 +342,10 @@
       + '<button type="button" class="jp-btn jp-btn-primary" id="iaRun">Générer les blocs</button>'
       + '</div></div>';
     document.body.appendChild(backdrop);
+
+    backdrop.querySelector('#iaEditPrompt')?.addEventListener('click', () => {
+      void editBasePrompt();
+    });
 
     const $ = (id) => backdrop.querySelector('#' + id);
     const status = $('iaStatus');
@@ -236,7 +363,11 @@
       global.JpIaStudioProgress = null;
       backdrop.remove();
     }
-    function onKey(e) { if (e.key === 'Escape' && !busy) close(); }
+    function onKey(e) {
+      if (e.key !== 'Escape' || busy) return;
+      if (document.querySelector('.jp-ia-prompt-backdrop')) return;
+      close();
+    }
     document.addEventListener('keydown', onKey);
     $('iaCancel').addEventListener('click', () => { close(); });
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop && !busy) close(); });
@@ -337,5 +468,5 @@
     setTimeout(() => $('iaText').focus(), 0);
   }
 
-  global.JpStudioIA = { open, sanitizeHtml, toDraft, emptyPayload, TYPE_LABELS };
+  global.JpStudioIA = { open, editBasePrompt, sanitizeHtml, toDraft, emptyPayload, TYPE_LABELS };
 })(window);
