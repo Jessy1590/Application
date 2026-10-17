@@ -175,6 +175,9 @@ Les ★ ajoutent du détail (★1 plus simple, ★5 plus riche) sans casser cet 
 }
 - Si la cible est une seule leçon, "arbre.kind" = "lecon" (sans chapitre parent obligatoire).
 - kind "bloc" : payload.type ∈ texte|conseil|recommandation|photo|video|molecule|jeu.
+- texte : { "type":"texte", "html":"<p>…</p>" }
+- conseil : { "type":"conseil", "pathologie":"Ex. HTA", "corps_html":"<ul><li>…</li></ul>" } — JAMAIS "html" (utiliser corps_html).
+- recommandation : { "type":"recommandation", "corps_html":"<p>À retenir…</p>" }
 - jeu : { "type":"jeu", "modele_id":"…", "code_unique":"JP-…", "type_jeu":"quiz|…" } — uniquement keep/update d'un ref_id existant.
 - photo : { "type":"photo", "path":"…", "url":"https://… ou vide", "alt":"…", "legende":"…" }.
 - Ordre des tableaux "enfants" = ordre d'affichage final.`;
@@ -424,6 +427,11 @@ function sanitizePayload(raw: unknown): Record<string, unknown> {
   if (type) out.type = type;
   if (src.html != null) out.html = str(src.html, 20_000);
   if (src.corps_html != null) out.corps_html = str(src.corps_html, 12_000);
+  // conseil / recommandation : l’IA met souvent le corps dans "html" → remapper
+  if ((type === 'conseil' || type === 'recommandation') && !out.corps_html && out.html) {
+    out.corps_html = String(out.html).slice(0, 12_000);
+    delete out.html;
+  }
   if (src.pathologie != null) out.pathologie = str(src.pathologie, 160);
   if (src.resume != null) out.resume = str(src.resume, 2000);
   if (src.alt != null) out.alt = str(src.alt, 300);
@@ -529,13 +537,23 @@ function pushNormalizedNode(
   let action = str(n.action, 20) || 'update';
   // Plus de delete explicite dans le contrat v2 — ignorer si présent
   if (action === 'delete') action = 'keep';
-  if (!KINDS.includes(kind) || !ACTIONS.includes(action)) return;
+  // kind "conseil"|"photo"|… → kind bloc + payload.type
+  let kindNorm = kind;
+  let payloadIn = (n.payload && typeof n.payload === 'object' && !Array.isArray(n.payload))
+    ? { ...(n.payload as Record<string, unknown>) }
+    : {};
+  const TYPE_KINDS = ['texte', 'conseil', 'recommandation', 'photo', 'video', 'molecule', 'jeu'];
+  if (TYPE_KINDS.includes(kindNorm)) {
+    if (!payloadIn.type) payloadIn.type = kindNorm;
+    kindNorm = 'bloc';
+  }
+  if (!KINDS.includes(kindNorm) || !ACTIONS.includes(action)) return;
   const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
   const refRaw = n.ref_id == null || n.ref_id === '' ? null : str(n.ref_id, 80);
   const parentRaw = n.parent_ref == null || n.parent_ref === ''
     ? parentRef
     : str(n.parent_ref, 80);
-  const payload = sanitizePayload(n.payload);
+  const payload = sanitizePayload(payloadIn);
   // jeu existant (ref_id) autorisé ; create jeu sans modele_id ignoré
   if (kind === 'bloc' && payload.type === 'jeu') {
     const hasModele = !!(payload.modele_id || payload.code_unique);
@@ -575,13 +593,21 @@ function pushNormalizedNode(
 function normalizeFlatNodes(rawNodes: any[], warnings: string[]) {
   const nodes: any[] = [];
   let i = 0;
+  const TYPE_KINDS = ['texte', 'conseil', 'recommandation', 'photo', 'video', 'molecule', 'jeu'];
   for (const n of rawNodes) {
     if (!n || typeof n !== 'object') continue;
-    const kind = str(n.kind, 40);
+    let kind = str(n.kind, 40);
     const action = str(n.action, 20) || 'update';
+    let payloadIn = (n.payload && typeof n.payload === 'object' && !Array.isArray(n.payload))
+      ? { ...n.payload }
+      : {};
+    if (TYPE_KINDS.includes(kind)) {
+      if (!payloadIn.type) payloadIn.type = kind;
+      kind = 'bloc';
+    }
     if (!KINDS.includes(kind) || !ACTIONS.includes(action)) continue;
     const niveaux = parseNiveaux(n.niveaux ?? { min: n.niveau_min, max: n.niveau_max });
-    const payload = sanitizePayload(n.payload);
+    const payload = sanitizePayload(payloadIn);
     if (kind === 'bloc' && payload.type === 'jeu') {
       const refOk = n.ref_id != null && n.ref_id !== '';
       const hasModele = !!(payload.modele_id || payload.code_unique);

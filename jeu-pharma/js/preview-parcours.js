@@ -849,11 +849,16 @@
     }
     const layer = layerPayload(node, couche);
     const typeBloc = layer.type || (node.kind === 'section' ? 'section' : 'texte');
+    // Affichage : remapper html → corps_html pour conseil/reco (contrat IA souvent incorrect)
+    const pay = Object.assign({}, layer);
+    if ((typeBloc === 'conseil' || typeBloc === 'recommandation') && !pay.corps_html && pay.html) {
+      pay.corps_html = pay.html;
+    }
     const faux = {
       id: node.temp_id || 'ia',
       type_bloc: typeBloc,
       titre: node.titre || '',
-      payload_json: layer,
+      payload_json: pay,
     };
     const m = moduleForBlocRef(node.ref_id) || selectedModule() || {};
     const niveau = couche === 'base' ? null : Number(couche);
@@ -1673,16 +1678,18 @@
   function sanitizeProposalPayload(layer, typeHint) {
     const type = (layer && layer.type) || typeHint || 'texte';
     const sanitize = global.JpStudioIA?.sanitizeHtml || ((h) => h);
+    // conseil / recommandation : l’IA met souvent le corps dans "html"
+    const corpsFrom = (layer && (layer.corps_html || layer.html)) || '';
     if (type === 'texte') return { html: sanitize(layer.html || '<p></p>') };
     if (type === 'conseil') {
       return {
-        pathologie: String(layer.pathologie || '').slice(0, 160),
-        corps_html: sanitize(layer.corps_html || '<p></p>'),
+        pathologie: String((layer && layer.pathologie) || '').slice(0, 160),
+        corps_html: sanitize(corpsFrom || '<p></p>'),
       };
     }
     if (type === 'recommandation') {
       return {
-        corps_html: sanitize(layer.corps_html || '<p></p>'),
+        corps_html: sanitize(corpsFrom || '<p></p>'),
         references: Array.isArray(layer.references) ? layer.references : [],
         lien_label: String(layer.lien_label || '').slice(0, 120),
         lien_href: String(layer.lien_href || ''),
