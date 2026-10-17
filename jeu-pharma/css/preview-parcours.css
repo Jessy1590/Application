@@ -182,7 +182,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem) minmax(0, 1fr);
   gap: 0;
-  align-items: start;
+  align-items: stretch;
 }
 
 .jp-cmp-head {
@@ -230,11 +230,16 @@
 
 .jp-cmp-row {
   border-bottom: 1px solid rgba(15, 107, 92, 0.1);
-  min-height: 4rem;
+  min-height: 5rem;
+}
+
+.jp-cmp-row.is-lecon-start {
+  border-top: 2px solid rgba(15, 107, 92, 0.22);
+  margin-top: 0.35rem;
 }
 
 .jp-cmp-row.is-selected {
-  background: rgba(15, 107, 92, 0.03);
+  background: rgba(15, 107, 92, 0.04);
 }
 
 .jp-cmp-row.is-accepted,
@@ -251,7 +256,9 @@
 .jp-cmp-right,
 .jp-cmp-mid {
   min-width: 0;
-  padding: 0.75rem 0.85rem 1rem;
+  padding: 0.85rem 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
 }
 
 .jp-cmp-left,
@@ -261,23 +268,92 @@
 }
 
 .jp-cmp-left {
-  border-right: 1px solid rgba(15, 107, 92, 0.08);
-  background: rgba(255, 255, 255, 0.45);
+  border-right: 1px solid rgba(15, 107, 92, 0.1);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .jp-cmp-right {
-  border-left: 1px solid rgba(15, 107, 92, 0.08);
+  border-left: 1px solid rgba(15, 107, 92, 0.1);
   background: #fff;
 }
 
+.jp-cmp-row.is-left-empty .jp-cmp-left {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(15, 107, 92, 0.03),
+      rgba(15, 107, 92, 0.03) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+}
+
+.jp-cmp-row.is-right-empty .jp-cmp-right {
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(20, 32, 28, 0.03),
+      rgba(20, 32, 28, 0.03) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+}
+
 .jp-cmp-mid {
-  position: sticky;
-  top: 2.4rem;
-  align-self: start;
+  align-self: stretch;
   z-index: 4;
-  background: rgba(251, 252, 252, 0.97);
+  background: rgba(251, 252, 252, 0.98);
   border-left: 1px solid rgba(15, 107, 92, 0.06);
   border-right: 1px solid rgba(15, 107, 92, 0.06);
+}
+
+.jp-cmp-ghost {
+  flex: 1 1 auto;
+  min-height: 4.5rem;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed rgba(15, 107, 92, 0.22);
+  border-radius: 0.5rem;
+  padding: 1rem 0.75rem;
+  color: #7a8e87;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.jp-cmp-ghost-lab {
+  max-width: 12rem;
+  line-height: 1.35;
+}
+
+.jp-cmp-lecon-banner {
+  margin: 0 0 0.65rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #0f6b5c;
+  background: rgba(15, 107, 92, 0.1);
+}
+
+.jp-cmp-lecon-wrap {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(15, 107, 92, 0.12);
+}
+
+.jp-cmp-lecon-wrap:first-of-type {
+  margin-top: 0.75rem;
+}
+
+.jp-cmp-mid-idle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem 0.15rem;
+  font-size: 0.8rem;
+  color: #6a7c76;
 }
 
 .jp-cmp-empty-slot {

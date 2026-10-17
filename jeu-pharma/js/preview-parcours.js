@@ -32,6 +32,8 @@
     decisions: {},
     selectedTempId: null,
     currentBlocs: [],
+    /** Cache leçonId → blocs[] (chapitre = toutes les leçons chargées). */
+    blocsByModule: {},
     currentModule: null,
     sessionTouched: {},
     printScope: 'lecon',
@@ -503,7 +505,22 @@
   }
 
   function currentBlocByRef(refId) {
-    return state.currentBlocs.find((b) => b.id === refId) || null;
+    if (!refId) return null;
+    const local = state.currentBlocs.find((b) => b.id === refId);
+    if (local) return local;
+    const ids = Object.keys(state.blocsByModule || {});
+    for (let i = 0; i < ids.length; i += 1) {
+      const list = state.blocsByModule[ids[i]] || [];
+      const found = list.find((b) => b.id === refId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function moduleForBlocRef(refId) {
+    const b = currentBlocByRef(refId);
+    if (!b) return selectedModule();
+    return state.modules.find((m) => m.id === b.module_id) || selectedModule();
   }
 
   function currentSideSnippet(refId, kind, couche) {
@@ -577,46 +594,131 @@
     };
   }
 
-  /* ——— Miroir aligné ——— */
+  /* ——— Miroir aligné (chapitre = leçons enchaînées) ——— */
+
+  /** Épine « version actuelle » : chapitre → leçons → blocs, dans l’ordre. */
+  function buildCurrentSpine() {
+    const m = selectedModule();
+    const spine = [];
+    if (!m) return spine;
+
+    if (m.est_groupe) {
+      spine.push({ kind: 'chapitre', refId: m.id, moduleId: m.id });
+      const lecons = lessonDescendants(m.id, state.modules);
+      lecons.forEach((lec) => {
+        spine.push({ kind: 'lecon', refId: lec.id, moduleId: lec.id, leconBanner: true });
+        const blocs = (state.blocsByModule[lec.id] || []).slice()
+          .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+        blocs.forEach((b) => {
+          spine.push({
+            kind: b.type_bloc === 'section' ? 'section' : 'bloc',
+            refId: b.id,
+            moduleId: lec.id,
+          });
+        });
+      });
+      return spine;
+    }
+
+    spine.push({ kind: 'lecon', refId: m.id, moduleId: m.id, leconBanner: false });
+    const blocs = (state.currentBlocs || []).slice()
+      .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+    blocs.forEach((b) => {
+      spine.push({
+        kind: b.type_bloc === 'section' ? 'section' : 'bloc',
+        refId: b.id,
+        moduleId: m.id,
+      });
+    });
+    return spine;
+  }
 
   function buildMirrorRows() {
     const couche = coucheKey();
     const rows = [];
-    const usedRefs = new Set();
+    const byRef = new Map();
+    const creates = [];
 
     state.proposals.forEach((node) => {
+      if (node.action === 'keep') return;
       const ref = node.ref_id || null;
-      if (ref) usedRefs.add(ref);
-      const left = proposalSnippet(node, couche);
-      const right = node.action === 'create' || !ref
-        ? { empty: true, label: '(insertion — centre vide)' }
-        : currentSideSnippet(ref, node.kind, couche);
+      if (ref) byRef.set(ref, node);
+      else creates.push(node);
+    });
+
+    const usedCreates = new Set();
+    const spine = buildCurrentSpine();
+
+    function pushProposalRow(node) {
       rows.push({
         tempId: node.temp_id,
         node,
-        left,
-        right,
+        leftEmpty: node.action === 'delete',
+        rightEmpty: node.action === 'create' || !node.ref_id,
         status: decisionOf(node.temp_id, couche),
-      });
-    });
-
-    // Blocs / modules courants sans proposition (affichage centre seul, pas de validation)
-    const m = selectedModule();
-    if (m && !m.est_groupe) {
-      state.currentBlocs.forEach((b) => {
-        if (usedRefs.has(b.id)) return;
-        const right = currentSideSnippet(b.id, b.type_bloc === 'section' ? 'section' : 'bloc', couche);
-        rows.push({
-          tempId: null,
-          node: null,
-          left: { empty: true, label: '—' },
-          right,
-          status: 'idle',
-          refId: b.id,
-        });
+        moduleId: null,
       });
     }
+
+    function pushCurrentOnly(item) {
+      rows.push({
+        tempId: null,
+        node: null,
+        leftEmpty: true,
+        rightEmpty: false,
+        status: 'idle',
+        refId: item.refId,
+        kind: item.kind,
+        moduleId: item.moduleId,
+        leconBanner: !!item.leconBanner,
+      });
+    }
+
+    // Créations sans parent_ref : en tête
+    creates.filter((n) => !n.parent_ref).forEach((n) => {
+      usedCreates.add(n.temp_id);
+      pushProposalRow(n);
+    });
+
+    spine.forEach((item) => {
+      // Insertions IA rattachées juste avant cet élément (parent_ref = refId)
+      creates.filter((n) => n.parent_ref === item.refId && !usedCreates.has(n.temp_id)).forEach((n) => {
+        usedCreates.add(n.temp_id);
+        pushProposalRow(n);
+      });
+
+      const prop = byRef.get(item.refId);
+      if (prop) {
+        byRef.delete(item.refId);
+        rows.push({
+          tempId: prop.temp_id,
+          node: prop,
+          leftEmpty: prop.action === 'delete',
+          rightEmpty: false,
+          status: decisionOf(prop.temp_id, couche),
+          moduleId: item.moduleId,
+          leconBanner: !!item.leconBanner,
+        });
+      } else {
+        pushCurrentOnly(item);
+      }
+    });
+
+    // Propositions liées à des refs hors épine (autre leçon, etc.)
+    byRef.forEach((node) => pushProposalRow(node));
+
+    // Créations restantes (parent_ref inconnu)
+    creates.filter((n) => !usedCreates.has(n.temp_id)).forEach((n) => pushProposalRow(n));
+
     return rows;
+  }
+
+  function emptySlotHtml(side) {
+    const lab = side === 'left'
+      ? 'Aucun contenu proposé'
+      : 'Pas encore dans la version actuelle';
+    return '<div class="jp-cmp-ghost" aria-hidden="true"><span class="jp-cmp-ghost-lab">'
+      + esc(lab) + '</span></div>';
   }
 
   /* ——— Shell UI ——— */
@@ -687,9 +789,7 @@
   }
 
   function proposalPlayerHtml(node, couche) {
-    if (!node || node.action === 'delete') {
-      return '<p class="jp-muted jp-cmp-empty-slot">(suppression proposée)</p>';
-    }
+    if (!node || node.action === 'delete') return emptySlotHtml('left');
     if (node.kind === 'chapitre' || node.kind === 'lecon') {
       const layer = layerPayload(node, couche);
       return moduleCardHtml(node.titre, layer.resume || '', KIND_LABELS[node.kind]);
@@ -702,7 +802,7 @@
       titre: node.titre || '',
       payload_json: layer,
     };
-    const m = selectedModule() || {};
+    const m = moduleForBlocRef(node.ref_id) || selectedModule() || {};
     const niveau = couche === 'base' ? null : Number(couche);
     if (!global.JpLeconPlayer?.blocArticleHtml) {
       return '<p class="jp-muted">Lecteur indisponible.</p>';
@@ -711,13 +811,11 @@
       niveau,
       module: Object.assign({}, m, { parcours_id: state.parcoursId }),
       idPrefix: 'jp-ia-',
-    }) || '<p class="jp-muted">—</p>';
+    }) || emptySlotHtml('left');
   }
 
   function currentPlayerHtml(refId, kind, couche) {
-    if (!refId) {
-      return '<p class="jp-muted jp-cmp-empty-slot">(insertion — pas encore de contenu)</p>';
-    }
+    if (!refId) return emptySlotHtml('right');
     if (kind === 'chapitre' || kind === 'lecon') {
       const mod = state.modules.find((x) => x.id === refId);
       if (!mod) return '<p class="jp-muted">(introuvable)</p>';
@@ -728,7 +826,7 @@
     const drafted = global.JpLeconPlayer?.withDraft
       ? global.JpLeconPlayer.withDraft(b)
       : b;
-    const m = selectedModule() || {};
+    const m = moduleForBlocRef(refId) || selectedModule() || {};
     const niveau = couche === 'base' ? null : Number(couche);
     if (!global.JpLeconPlayer?.blocArticleHtml) {
       return '<p class="jp-muted">Lecteur indisponible.</p>';
@@ -737,7 +835,38 @@
       niveau,
       module: Object.assign({}, m, { parcours_id: state.parcoursId }),
       idPrefix: 'jp-cur-',
-    }) || '<p class="jp-muted">—</p>';
+    }) || emptySlotHtml('right');
+  }
+
+  /** Version actuelle complète d’un chapitre (toutes leçons + blocs), sans miroir. */
+  function chapterFullCurrentHtml(chapitre, couche) {
+    const niveau = couche === 'base' ? null : Number(couche);
+    const lecons = lessonDescendants(chapitre.id, state.modules);
+    let html = moduleCardHtml(chapitre.titre, chapitre.resume || '', 'Chapitre');
+    lecons.forEach((lec) => {
+      html += '<div class="jp-cmp-lecon-wrap">'
+        + '<div class="jp-cmp-lecon-banner">' + esc(lec.titre || 'Leçon') + '</div>'
+        + moduleCardHtml(lec.titre, lec.resume || '', 'Leçon');
+      const blocs = (state.blocsByModule[lec.id] || []).slice()
+        .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+      if (!blocs.length) {
+        html += '<p class="jp-muted">Aucun bloc.</p>';
+      } else if (global.JpLeconPlayer?.blocArticleHtml) {
+        blocs.forEach((b) => {
+          const drafted = global.JpLeconPlayer.withDraft
+            ? global.JpLeconPlayer.withDraft(b)
+            : b;
+          html += global.JpLeconPlayer.blocArticleHtml(drafted, {
+            niveau,
+            module: Object.assign({}, lec, { parcours_id: state.parcoursId }),
+            idPrefix: 'jp-cur-',
+          }) || '';
+        });
+      }
+      html += '</div>';
+    });
+    if (!lecons.length) html += '<p class="jp-muted">Aucune leçon dans ce chapitre.</p>';
+    return html;
   }
 
   function editSourceLayer(node, couche, base) {
@@ -973,8 +1102,20 @@
   function midCompactHtml(r, couche) {
     const node = r.node;
     if (!node) {
-      return '<button type="button" class="jp-cmp-mid-compact is-idle" disabled>'
-        + '<span class="jp-muted">Sans proposition</span></button>';
+      const kindLab = KIND_LABELS[r.kind] || r.kind || 'Contenu';
+      let title = '';
+      if (r.kind === 'chapitre' || r.kind === 'lecon') {
+        const mod = state.modules.find((x) => x.id === r.refId);
+        title = mod ? (mod.titre || '') : '';
+      } else {
+        const b = currentBlocByRef(r.refId);
+        title = b ? (b.titre || TYPE_LABEL(b.type_bloc)) : '';
+      }
+      return '<div class="jp-cmp-mid-idle">'
+        + '<span class="jp-cmp-mid-kind">' + esc(kindLab) + '</span>'
+        + '<span class="jp-cmp-mid-title">' + esc(title || 'Version actuelle') + '</span>'
+        + '<span class="jp-cmp-mid-st">conservé · ' + coucheLabel(couche) + '</span>'
+        + '</div>';
     }
     const on = node.temp_id === state.selectedTempId ? ' is-selected' : '';
     const st = r.status;
@@ -1148,19 +1289,8 @@
         return;
       }
       if (m.est_groupe) {
-        const kids = state.modules
-          .filter((x) => x.parent_id === m.id)
-          .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
-        host.innerHTML = moduleCardHtml(m.titre, m.resume || '', 'Chapitre')
-          + (kids.length
-            ? '<ul class="jp-preview-chapter-list">' + kids.map((k) =>
-              '<li><button type="button" class="jp-btn jp-btn-ghost" data-goto="' + esc(k.id) + '">'
-              + esc(k.titre || '') + (k.est_groupe ? ' (chapitre)' : '') + '</button></li>'
-            ).join('') + '</ul>'
-            : '<p class="jp-muted">Aucune leçon dans ce chapitre.</p>');
-        host.querySelectorAll('[data-goto]').forEach((btn) => {
-          btn.addEventListener('click', () => void selectModule(btn.getAttribute('data-goto')));
-        });
+        host.innerHTML = chapterFullCurrentHtml(m, couche);
+        hydrateCmpHost(host);
         return;
       }
       if (!global.JpLeconPlayer?.renderContent) {
@@ -1187,23 +1317,40 @@
     rows.forEach((r) => {
       const temp = r.node ? r.node.temp_id : (r.refId || '');
       const selected = !!(r.node && r.node.temp_id === state.selectedTempId);
-      const kind = r.node
-        ? r.node.kind
-        : (r.refId && currentBlocByRef(r.refId)?.type_bloc === 'section' ? 'section' : 'bloc');
-      const leftHtml = r.node
-        ? proposalPlayerHtml(r.node, couche)
-        : '<p class="jp-muted jp-cmp-empty-slot">—</p>';
-      const rightHtml = r.node
-        ? (r.node.action === 'create' || !r.node.ref_id
-          ? '<p class="jp-muted jp-cmp-empty-slot">(insertion)</p>'
-          : currentPlayerHtml(r.node.ref_id, r.node.kind, couche))
-        : currentPlayerHtml(r.refId, kind, couche);
-      const midHtml = selected
+      const kind = r.node ? r.node.kind : (r.kind || 'bloc');
+      const leftEmpty = r.leftEmpty || (!r.node);
+      const rightEmpty = r.rightEmpty || (r.node && (r.node.action === 'create' || !r.node.ref_id));
+
+      let leftHtml;
+      if (leftEmpty) leftHtml = emptySlotHtml('left');
+      else if (r.node) leftHtml = proposalPlayerHtml(r.node, couche);
+      else leftHtml = emptySlotHtml('left');
+
+      let rightHtml;
+      if (rightEmpty) rightHtml = emptySlotHtml('right');
+      else if (r.node) rightHtml = currentPlayerHtml(r.node.ref_id, r.node.kind, couche);
+      else rightHtml = currentPlayerHtml(r.refId, kind, couche);
+
+      // Bandeau leçon (chapitre déroulé) sur les deux colonnes
+      if (r.leconBanner && (kind === 'lecon' || (r.node && r.node.kind === 'lecon'))) {
+        const modId = r.refId || (r.node && r.node.ref_id);
+        const mod = state.modules.find((x) => x.id === modId);
+        const banner = '<div class="jp-cmp-lecon-banner">' + esc(mod?.titre || 'Leçon') + '</div>';
+        leftHtml = banner + leftHtml;
+        rightHtml = banner + rightHtml;
+      }
+
+      const midHtml = selected && r.node
         ? midSelectedHtml(r.node, couche)
         : midCompactHtml(r, couche);
-      body += '<article class="jp-cmp-row' + (selected ? ' is-selected' : '')
-        + (r.status ? ' is-' + esc(r.status) : '')
-        + '"' + (r.node ? ' data-temp="' + esc(temp) + '"' : ' data-ref="' + esc(r.refId || '') + '"') + '>'
+      const rowCls = 'jp-cmp-row'
+        + (selected ? ' is-selected' : '')
+        + (r.status && r.status !== 'idle' ? ' is-' + esc(r.status) : '')
+        + (leftEmpty ? ' is-left-empty' : '')
+        + (rightEmpty ? ' is-right-empty' : '')
+        + (r.leconBanner ? ' is-lecon-start' : '');
+      body += '<article class="' + rowCls + '"'
+        + (r.node ? ' data-temp="' + esc(temp) + '"' : ' data-ref="' + esc(r.refId || '') + '"') + '>'
         + '<div class="jp-cmp-left jp-preview-player">' + leftHtml + '</div>'
         + '<div class="jp-cmp-mid">' + midHtml + '</div>'
         + '<div class="jp-cmp-right jp-preview-player">' + rightHtml + '</div>'
@@ -1786,11 +1933,21 @@
   async function refreshCurrent() {
     const m = selectedModule();
     state.currentModule = m;
-    if (m && !m.est_groupe) {
-      state.currentBlocs = await loadBlocs(m.id);
-    } else {
+    state.blocsByModule = {};
+    if (!m) {
       state.currentBlocs = [];
+      return;
     }
+    if (m.est_groupe) {
+      state.currentBlocs = [];
+      const lecons = lessonDescendants(m.id, state.modules);
+      for (const lec of lecons) {
+        state.blocsByModule[lec.id] = await loadBlocs(lec.id);
+      }
+      return;
+    }
+    state.currentBlocs = await loadBlocs(m.id);
+    state.blocsByModule[m.id] = state.currentBlocs;
   }
 
   function renderAll() {
