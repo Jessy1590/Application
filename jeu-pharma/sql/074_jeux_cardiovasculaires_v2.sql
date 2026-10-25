@@ -1,0 +1,17 @@
+-- =============================================================================
+-- 074 : Jeux du parcours `cardiovasculaires_v2` (codes JP-V2*)
+--
+-- Recréation (pas de réutilisation des modeles_jeu V1) à partir des banques
+-- manuelles / classements déjà validés sur le parcours cardio DEUST :
+--   JP-CSANG  → JP-V2S01 (composition)
+--   JP-PPLAQ  → JP-V2S02 / JP-V2S04 / JP-V2S05 (hémostase / thromboses / hémophilies)
+--   JP-HZDNM  → JP-V2M01 (classement anémies)
+--   JP-UNTF8  → JP-V2M02 (classement antiagrégants + anticoagulants)
+--
+-- Les leçons cœur / HTA restent en lecture seule pour l’instant (pas de banque
+-- manuelle V1 réutilisable sans tirage auto matrice) — à compléter sur demande.
+-- Idempotent : purge JP-V2* + blocs jeu du parcours puis recreate.
+-- =============================================================================
+-- Appliqué remote via MCP (2026-10-25). Relancer ce fichier si besoin.
+-- Voir historique d’exécution dans le chat de création du parcours V2.
+-- =============================================================================

@@ -344,8 +344,29 @@
   }
 
   /**
+   * Recharge progression + détail de la leçon courante (après jeu / lecture).
+   * Sans cela, le cache `_nav` / `detail` reste figé et « Leçon suivante » reste verrouillée
+   * jusqu’à un rechargement de page.
+   */
+  async function refreshNavFromProgression(ctx) {
+    const { module } = ctx;
+    if (!module?.parcours_id || !global.JpV2Resolver?.progression) return;
+    try {
+      const prog = await global.JpV2Resolver.progression(module.parcours_id);
+      const leaves = PU().orderedLeaves(prog.modules || []);
+      const idx = leaves.findIndex((m) => m.id === module.id);
+      const cur = idx >= 0 ? leaves[idx] : null;
+      if (cur && cur.detail) ctx.detail = cur.detail;
+      ctx._nav = {
+        idx,
+        next: idx >= 0 ? leaves[idx + 1] : null,
+      };
+    } catch (_) { /* conserve le cache */ }
+  }
+
+  /**
    * Footer critères + nav « leçon suivante ».
-   * Navigation : 1× v2_progression_parcours au boot (cache ctx._nav).
+   * Navigation : v2_progression_parcours (cache ctx._nav, invalidé après jeu).
    * Scroll / lecture : réutilise detail de v2_enregistrer_lecture — pas de progression.
    */
   async function renderFooter(host, ctx) {
@@ -353,22 +374,12 @@
     let detail = ctx.detail;
 
     if (!ctx._nav) {
-      let prog = null;
-      try {
-        prog = await global.JpV2Resolver.progression(module.parcours_id);
-      } catch (_) { /* navigation de repli ci-dessous */ }
-      const leaves = prog ? PU().orderedLeaves(prog.modules || []) : [];
-      const idx = leaves.findIndex((m) => m.id === module.id);
-      const cur = idx >= 0 ? leaves[idx] : null;
-      if (cur && cur.detail) detail = cur.detail;
-      ctx._nav = {
-        idx,
-        next: idx >= 0 ? leaves[idx + 1] : null,
-      };
+      await refreshNavFromProgression(ctx);
+      detail = ctx.detail || detail;
     }
 
     // Après lecture / jeu : si la leçon courante valide débloque la suivante, ouvrir le lien.
-    let next = ctx._nav.next;
+    let next = ctx._nav ? ctx._nav.next : null;
     if (next && next.statut === 'verrouille' && detail && detail.valide) {
       const bp = next.bloque_par;
       if (bp && bp.type === 'module' && bp.module_id === module.id) {
@@ -378,7 +389,7 @@
     }
 
     ctx.detail = detail;
-    const idx = ctx._nav.idx;
+    const idx = ctx._nav ? ctx._nav.idx : -1;
     const back = 'espace.html?parcours=' + encodeURIComponent(module.parcours_id || '');
 
     let nav = '';
@@ -605,8 +616,11 @@
               if (preview) return;
               // Fiche : l’exclusion / next() gère déjà la suite — pas d’auto-retry score
               if (typeJeu === 'fiche_aleatoire') {
-                void refreshJeuStatus(wrap, code);
-                void renderFooter(ctx.footer, ctx);
+                void (async function () {
+                  await refreshJeuStatus(wrap, code);
+                  await refreshNavFromProgression(ctx);
+                  await renderFooter(ctx.footer, ctx);
+                })();
                 return;
               }
               if (res && res.okCritere === false) {
@@ -615,8 +629,12 @@
                   void mountGame();
                 }, 1400);
               } else {
-                void refreshJeuStatus(wrap, code);
-                void renderFooter(ctx.footer, ctx);
+                void (async function () {
+                  await refreshJeuStatus(wrap, code);
+                  // Invalide le cache nav : détail.valide + statut de la leçon suivante
+                  await refreshNavFromProgression(ctx);
+                  await renderFooter(ctx.footer, ctx);
+                })();
               }
             },
           });
