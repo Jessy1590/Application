@@ -151,7 +151,7 @@
   }
 
   function variantFieldOf(type) {
-    return type === 'conseil' ? 'corps_html' : 'html';
+    return (type === 'conseil' || type === 'recommandation') ? 'corps_html' : 'html';
   }
 
   function ensureVariantScratch(blocId, type, payload) {
@@ -247,7 +247,7 @@
   }
 
   function variantesTabsHtml(type, blocId) {
-    if (type !== 'texte' && type !== 'conseil' && type !== 'molecule') return '';
+    if (type !== 'texte' && type !== 'conseil' && type !== 'recommandation' && type !== 'molecule') return '';
     const b = state.blocs.find((x) => x.id === blocId);
     const isMol = type === 'molecule';
     const scratch = (!isMol && b) ? ensureVariantScratch(blocId, type, effPayload(b)) : null;
@@ -384,7 +384,8 @@
 
     const afterFlush = () => {
       // Contenu déjà affiché : ne pas tout reconstruire (scroll outline + focus RTE).
-      if (sameMode && document.querySelector('.jp-contenu-layout')) {
+      // forcePaint : après addBloc (outline + ordre doivent se rafraîchir).
+      if (!o.forcePaint && sameMode && document.querySelector('.jp-contenu-layout')) {
         if (!sameBloc) {
           const outline = document.querySelector('.jp-outline');
           const scrollTop = outline ? outline.scrollTop : 0;
@@ -1647,10 +1648,12 @@
         if (b) b.ordre = (k + 1) * 10;
         return b;
       }).filter(Boolean);
+      // Structure seulement : en Contenu, [data-bloc] est dans l’éditeur (nested) —
+      // un appendChild l’arracherait hors du layout (bloc « fantôme » en bas).
       const list = document.getElementById('blocksList');
-      if (list) {
+      if (list && state.viewMode !== 'contenu') {
         ids.forEach((id) => {
-          const card = list.querySelector('[data-bloc="' + id + '"]');
+          const card = list.querySelector(':scope > [data-bloc="' + id + '"]');
           if (card) list.appendChild(card);
         });
         syncBlocMoveButtons(list);
@@ -1860,7 +1863,9 @@
         + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>';
     }
     if (b.type_bloc === 'recommandation') {
-      return '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
+      ensureVariantScratch(b.id, 'recommandation', p);
+      return variantesTabsHtml('recommandation', b.id)
+        + '<div class="jp-rte-host" data-rte="' + b.id + '" data-field="corps_html"></div>'
         + renderRecoReference(b, p);
     }
     if (b.type_bloc === 'jeu') {
@@ -2222,7 +2227,7 @@
 
   function remountVariantRte(card, b) {
     const host = card.querySelector('[data-rte]');
-    if (!host || (b.type_bloc !== 'texte' && b.type_bloc !== 'conseil')) return;
+    if (!host || (b.type_bloc !== 'texte' && b.type_bloc !== 'conseil' && b.type_bloc !== 'recommandation')) return;
     mountVariantRte(card, b, host);
   }
 
@@ -2316,7 +2321,7 @@
       });
     });
     card.querySelectorAll('[data-rte]').forEach((host) => {
-      if (b.type_bloc === 'texte' || b.type_bloc === 'conseil') {
+      if (b.type_bloc === 'texte' || b.type_bloc === 'conseil' || b.type_bloc === 'recommandation') {
         mountVariantRte(card, b, host);
         return;
       }
@@ -2641,8 +2646,10 @@
       return out;
     }
     if (type === 'recommandation') {
-      return {
-        corps_html: rte('corps_html'),
+      flushVariantEditor(blocId);
+      const scratch = ensureVariantScratch(blocId, 'recommandation', effPayload(b));
+      const out = {
+        corps_html: scratch.base || rte('corps_html'),
         references: collectRecoReferences(card, blocId),
         lien_bloc_id: '',
         lien_module_id: '',
@@ -2650,6 +2657,9 @@
         lien_href: '',
         lien_label: '',
       };
+      const v = collectVariantesFromScratch('corps_html');
+      if (v) out.variantes = v;
+      return out;
     }
     return Object.assign({ libelle_cta: 'Jouer' }, effPayload(b));
   }
@@ -2878,7 +2888,12 @@
       state.lastSavedHash[row.id] = hashPayloadJson(row.payload_json);
       rememberBlocsCache(m.id, state.blocs);
       delete state.variantScratch[row.id];
-      selectBloc(row.id, { toContenu: type !== 'section', inspectorTab: 'bloc' });
+      // forcePaint : reconstruit l’outline Contenu (sinon section absente + ordre figé).
+      selectBloc(row.id, {
+        toContenu: type !== 'section',
+        inspectorTab: 'bloc',
+        forcePaint: true,
+      });
       const card = document.querySelector('[data-bloc="' + row.id + '"]');
       card?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       card?.querySelector('[data-field="titre"], .jp-rte-surface')?.focus?.();
