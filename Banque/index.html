@@ -74,7 +74,7 @@
   .bh-verif-drop strong{ display:block; color:var(--ink); font-size:14px; margin-bottom:4px; }
   .bh-verif-drop span{ font-size:12px; }
   .bh-verif-stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
-  @media (min-width: 700px){ .bh-verif-stats{ grid-template-columns:repeat(4,1fr); } }
+  @media (min-width: 700px){ .bh-verif-stats{ grid-template-columns:repeat(5,1fr); } }
   .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
   .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
   .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
@@ -113,6 +113,16 @@
   .bh-btn-done:hover{ background:#d5e6db !important; }
   .bh-verif-th-help{ display:inline-flex; align-items:center; gap:6px; }
   .bh-verif-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
+  .bh-verif-unverified{ margin-bottom:12px; }
+  .bh-verif-unverified .bh-section-label{ margin-bottom:8px; }
+  .bh-verif-unverified-list{ display:flex; flex-direction:column; gap:6px; }
+  .bh-verif-unverified-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:10px 12px; border:1px solid var(--line-soft); border-radius:10px; background:var(--card);
+    font-size:13px;
+  }
+  .bh-verif-unverified-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .bh-verif-unverified-empty{ padding:12px; text-align:center; color:var(--ink-soft); font-size:13px; }
   .bh-verif-acc-tag{
     display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
     background:var(--line-soft); color:var(--ink-soft); margin-right:4px; vertical-align:middle;
@@ -687,6 +697,14 @@
         <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
         <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
         <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
+        <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-stat-unverified">0</div></div>
+      </div>
+
+      <div class="bh-card bh-verif-unverified" id="verif-unverified-wrap">
+        <div class="bh-section-label">Dépenses non vérifiées ce mois</div>
+        <div class="bh-verif-unverified-list" id="verif-unverified-list">
+          <div class="bh-verif-unverified-empty">Choisis un mois pour voir les dépenses sans rapprochement bancaire.</div>
+        </div>
       </div>
 
       <div class="bh-verif-table-wrap">
@@ -1236,21 +1254,22 @@
 
     async fetchData() {
       const result = await withRetry(async () => {
-        const [accs, mems, exps, incs, recs, prof] = await Promise.all([
+        const [accs, mems, exps, incs, recs, prof, verifs] = await Promise.all([
           supabaseApp.from('accounts').select('*'),
           supabaseApp.from('account_members').select('*, profiles(display_name, main_account_id)'),
           supabaseApp.from('expenses').select('*'),
           supabaseApp.from('incomes').select('*'),
           supabaseApp.from('month_records').select('*'),
-          supabaseApp.from('profiles').select('*').eq('id', this.user.id).maybeSingle()
+          supabaseApp.from('profiles').select('*').eq('id', this.user.id).maybeSingle(),
+          supabaseApp.from('bank_verifications').select('*').eq('user_id', this.user.id)
         ]);
-        [accs, mems, exps, incs, recs, prof].forEach(r => { if (r.error) throw r.error; });
-        return { accs, mems, exps, incs, recs, prof };
+        [accs, mems, exps, incs, recs, prof, verifs].forEach(r => { if (r.error) throw r.error; });
+        return { accs, mems, exps, incs, recs, prof, verifs };
       }, 'chargement des données');
 
       if (!result) return; // erreur déjà affichée avec bouton Réessayer
 
-      const { accs, mems, exps, incs, recs, prof } = result;
+      const { accs, mems, exps, incs, recs, prof, verifs } = result;
 
       this.state = {
         accounts: accs.data || [],
@@ -1259,6 +1278,7 @@
         incomes: incs.data || [],
         profile: prof.data || {},
         monthRecords: recs.data || [],
+        bankVerifications: verifs.data || [],
         months: (recs.data || []).reduce((acc, m) => {
           acc[m.account_id + '_' + m.month_key] = m.paid_expenses || {};
           return acc;
@@ -3177,6 +3197,140 @@
     verifFingerprint(op) {
       return [op.date || '', Number(op.amount).toFixed(2), (op.label || '').slice(0, 60).toLowerCase()].join('|');
     },
+    getBankVerifsForMonth(mKey) {
+      return (this.state.bankVerifications || []).filter(v => v.month_key === mKey);
+    },
+    bankVerifByFingerprint(mKey) {
+      const map = new Map();
+      this.getBankVerifsForMonth(mKey).forEach(v => { if (v.fingerprint) map.set(v.fingerprint, v); });
+      return map;
+    },
+    verifiedExpenseIds(mKey) {
+      const ids = new Set();
+      this.getBankVerifsForMonth(mKey).forEach(v => {
+        if (v.status === 'ignored') return;
+        if (v.linked_kind === 'expense' && v.linked_id) ids.add(String(v.linked_id));
+        const refundOf = v.meta && v.meta.refund_of;
+        if (refundOf) ids.add(String(refundOf));
+      });
+      return ids;
+    },
+    isExpenseVerified(expId, mKey) {
+      return this.verifiedExpenseIds(mKey).has(String(expId));
+    },
+    patchLocalBankVerif(row) {
+      const list = (this.state.bankVerifications || []).slice();
+      const i = list.findIndex(v =>
+        v.user_id === row.user_id && v.month_key === row.month_key && v.fingerprint === row.fingerprint
+      );
+      if (i >= 0) list[i] = { ...list[i], ...row };
+      else list.push(row);
+      this.state.bankVerifications = list;
+    },
+    removeLocalBankVerif(mKey, fingerprint) {
+      this.state.bankVerifications = (this.state.bankVerifications || []).filter(v =>
+        !(v.month_key === mKey && v.fingerprint === fingerprint)
+      );
+    },
+    async upsertBankVerification(op, status, link) {
+      if (!this.user?.id || !op) return null;
+      const mKey = this.verif.mKey || (op.date || '').slice(0, 7) || this.monthKey(new Date());
+      const fingerprint = this.verifFingerprint(op);
+      const row = {
+        user_id: this.user.id,
+        month_key: mKey,
+        bank_account_id: this.verif.accId || null,
+        bank_date: op.date || null,
+        bank_label: (op.label || '').slice(0, 200),
+        bank_amount: Number(op.amount) || 0,
+        fingerprint,
+        status,
+        linked_kind: link?.kind || null,
+        linked_id: link?.id != null ? String(link.id) : null,
+        linked_account_id: link?.accId || null,
+        bank_source: this.verif.bankDetected || this.verif.bank || null,
+        file_name: this.verif.fileName || null,
+        meta: {
+          ...(link?.meta || {}),
+          label_raw: op.labelRaw || op.label || '',
+          match_score: link?.score != null ? link.score : null
+        },
+        updated_at: new Date().toISOString()
+      };
+      const result = await withRetry(async () => {
+        const { data, error } = await supabaseApp.from('bank_verifications')
+          .upsert(row, { onConflict: 'user_id,month_key,fingerprint' })
+          .select('*')
+          .single();
+        if (error) throw error;
+        return data;
+      }, 'enregistrement vérification');
+      if (result) this.patchLocalBankVerif(result);
+      return result;
+    },
+    async deleteBankVerification(op) {
+      if (!this.user?.id || !op) return;
+      const mKey = this.verif.mKey || (op.date || '').slice(0, 7) || this.monthKey(new Date());
+      const fingerprint = this.verifFingerprint(op);
+      const result = await withRetry(async () => {
+        const { error } = await supabaseApp.from('bank_verifications')
+          .delete()
+          .eq('user_id', this.user.id)
+          .eq('month_key', mKey)
+          .eq('fingerprint', fingerprint);
+        if (error) throw error;
+        return true;
+      }, 'suppression vérification');
+      if (result) this.removeLocalBankVerif(mKey, fingerprint);
+    },
+    listUnverifiedExpenses(mKey, accId) {
+      if (!mKey) return [];
+      const verified = this.verifiedExpenseIds(mKey);
+      const accIds = accId
+        ? [accId]
+        : this.getOrderedAccounts().map(a => a.id);
+      const accName = (id) => (this.state.accounts.find(a => a.id === id) || {}).name || '';
+      return (this.state.expenses || [])
+        .filter(e =>
+          accIds.includes(e.account_id) &&
+          !e.is_wallet &&
+          this.isActiveInMonth(e, mKey) &&
+          !verified.has(String(e.id))
+        )
+        .map(e => ({
+          id: e.id,
+          label: e.description,
+          amount: Number(e.amount),
+          day: Number(e.day) || 1,
+          category: e.category || '',
+          accId: e.account_id,
+          accName: accName(e.account_id),
+          paid: !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id]
+        }))
+        .sort((a, b) => a.day - b.day || a.label.localeCompare(b.label, 'fr'));
+    },
+    renderUnverifiedExpenses() {
+      const listEl = document.getElementById('verif-unverified-list');
+      const statEl = document.getElementById('verif-stat-unverified');
+      if (!listEl) return;
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
+      const rows = this.listUnverifiedExpenses(mKey, accId || null);
+      if (statEl) statEl.textContent = String(rows.length);
+      if (!rows.length) {
+        listEl.innerHTML = '<div class="bh-verif-unverified-empty">Toutes les dépenses actives de ce mois sont vérifiées (ou aucune dépense).</div>';
+        return;
+      }
+      listEl.innerHTML = rows.map(r => `
+        <div class="bh-verif-unverified-row">
+          <div>
+            <div><span class="bh-verif-acc-tag">${this.esc(r.accName)}</span><strong>${this.esc(r.label)}</strong></div>
+            <div class="meta">Jour ${r.day}${r.category ? ' · ' + this.esc(r.category) : ''}${r.paid ? ' · déjà payée' : ' · non payée'}</div>
+          </div>
+          <div class="num">${this.fmt(r.amount)}</div>
+        </div>
+      `).join('');
+    },
     parseAmountFR(raw) {
       if (raw == null) return NaN;
       let s = String(raw).replace(/\s|\u00a0/g, '').replace(/€|EUR/gi, '').replace(/−/g, '-');
@@ -3496,16 +3650,23 @@
           if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
           return;
         }
-        const ignored = this.loadVerifIgnored();
+        const ignoredLocal = this.loadVerifIgnored();
         const mSel = document.getElementById('verif-month')?.value;
         const filtered = mSel
           ? ops.filter(o => o.date.slice(0, 7) === mSel)
           : ops;
-        this.verif.ops = (filtered.length ? filtered : ops).map(o => ({
-          ...o,
-          ignored: ignored.has(this.verifFingerprint(o)),
-          match: null
-        }));
+        const mKey = mSel || this.verif.mKey || this.monthKey(new Date());
+        const dbByFp = this.bankVerifByFingerprint(mKey);
+        this.verif.ops = (filtered.length ? filtered : ops).map(o => {
+          const fp = this.verifFingerprint(o);
+          const saved = dbByFp.get(fp);
+          return {
+            ...o,
+            ignored: ignoredLocal.has(fp) || saved?.status === 'ignored',
+            savedStatus: saved?.status || null,
+            match: null
+          };
+        });
         this.verif.fileName = file.name;
         const bankName = this.bankLabel(this.verif.bankDetected);
         if (dropTitle) dropTitle.textContent = file.name + ' · ' + this.verif.ops.length + ' lignes';
@@ -3530,11 +3691,15 @@
     onVerifAccountChange() {
       this.verif.accId = document.getElementById('verif-account').value;
       this.rematchVerif();
+      this.renderUnverifiedExpenses();
     },
     onVerifMonthChange() {
       this.verif.mKey = document.getElementById('verif-month').value;
       if (this.verif.ops.length && this.verif.fileName) this.rematchVerif();
-      else this.renderVerifTable();
+      else {
+        this.renderVerifTable();
+        this.renderUnverifiedExpenses();
+      }
     },
 
     buildVerifCandidates(accIdOrNull, mKey) {
@@ -3630,13 +3795,21 @@
       const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
       this.verif.accId = accId;
       this.verif.mKey = mKey;
-      if (!this.verif.ops.length) { this.renderVerifTable(); return; }
+      if (!this.verif.ops.length) {
+        this.renderVerifTable();
+        this.renderUnverifiedExpenses();
+        return;
+      }
 
+      const dbByFp = this.bankVerifByFingerprint(mKey);
       // Cherche sur tous les comptes (ex. crédit CIC ↔ dépense compte joint)
       const candidates = this.buildVerifCandidates(null, mKey);
       const used = new Set();
       const scored = [];
       this.verif.ops.forEach(op => {
+        const saved = dbByFp.get(this.verifFingerprint(op));
+        if (saved?.status === 'ignored') op.ignored = true;
+        op.savedStatus = saved?.status || null;
         if (op.ignored) { op.match = null; return; }
         candidates.forEach(c => {
           const score = this.scoreVerifMatch(op, c);
@@ -3654,6 +3827,21 @@
       });
       this.verif.ops.forEach(op => {
         if (op.ignored) { op.match = null; return; }
+        const saved = dbByFp.get(this.verifFingerprint(op));
+        if (saved && saved.status !== 'ignored' && saved.linked_kind && saved.linked_id) {
+          const linked = candidates.find(c =>
+            String(c.id) === String(saved.linked_id) &&
+            (c.kind === saved.linked_kind ||
+              (saved.linked_kind === 'wallet' && (c.kind === 'wallet' || c.kind === 'wallet-budget')) ||
+              (saved.linked_kind === 'refund' && c.kind === 'income'))
+          );
+          if (linked) {
+            const key = linked.kind + ':' + linked.id;
+            used.add(key);
+            op.match = { ...linked, score: 100, fromDb: true, paid: true };
+            return;
+          }
+        }
         op.match = assigned.get(op.id) || null;
       });
       this.renderVerifTable();
@@ -3678,6 +3866,7 @@
         this.verif.bank = saved;
       }
       this.renderVerifTable();
+      this.renderUnverifiedExpenses();
     },
 
     renderVerifTable() {
@@ -3698,6 +3887,7 @@
       if (elT) elT.textContent = String(ops.length);
       if (elM) elM.textContent = String(matched);
       if (elP) elP.textContent = String(pending);
+      this.renderUnverifiedExpenses();
 
       if (!ops.length) {
         tbody.innerHTML = '<tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>';
@@ -3731,6 +3921,15 @@
         const validateBtn = canValidate
           ? `<button type="button" class="bh-btn ${already ? 'bh-btn-done' : 'bh-btn-primary'}" title="${already ? 'Déjà validé ce mois-ci — recliquer met à jour le montant du relevé' : 'Marquer comme payé / encaissé avec le montant du relevé'}" onclick="BH.applyVerifMatch('${op.id}')">${already ? 'Déjà validé' : 'Valider'}</button>`
           : '';
+        // Portefeuille : déjà dedans (vert pâle) / enveloppe suggérée (vert) / sinon ouvrir le choix
+        let walletBtn = '';
+        if (op.match && op.match.kind === 'wallet') {
+          walletBtn = `<button type="button" class="bh-btn bh-btn-done" title="Déjà présent dans ce portefeuille — recliquer pour en choisir un autre" onclick="BH.openVerifWallet('${op.id}')">Dans portefeuille</button>`;
+        } else if (op.match && op.match.kind === 'wallet-budget') {
+          walletBtn = `<button type="button" class="bh-btn bh-btn-primary" title="Ajouter ce montant dans l’enveloppe suggérée" onclick="BH.applyVerifWalletMatch('${op.id}')">+ Portefeuille</button>`;
+        } else {
+          walletBtn = `<button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛</button>`;
+        }
         const refundBtn = Number(op.amount) > 0
           ? `<button type="button" class="bh-btn bh-btn-outline" title="Créer un remboursement lié à une dépense déjà saisie (ex. frais bancaires remboursés)" onclick="BH.openVerifRefund('${op.id}')">Rembours.</button>`
           : '';
@@ -3741,7 +3940,7 @@
               <button type="button" class="bh-btn bh-btn-outline" title="Choisir une saisie (tous comptes) qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
               ${refundBtn}
               <button type="button" class="bh-btn bh-btn-outline" title="Créer une nouvelle dépense ou un nouveau revenu prérempli" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
-              <button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛</button>
+              ${walletBtn}
               <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
             </div>`;
         return `<tr class="${cls}">
@@ -3761,7 +3960,7 @@
           <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli).</p>
-          <p style="margin:0 0 12px;"><strong>👛</strong> — Ajoute le mouvement dans une enveloppe (n’importe quel compte).</p>
+          <p style="margin:0 0 12px;"><strong>+ Portefeuille / Dans portefeuille</strong> — Ajoute dans une enveloppe. Vert pâle = déjà présent dans un portefeuille.</p>
           <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne. Tu peux la réafficher plus tard.</p>
           <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
         </div>
@@ -3771,28 +3970,37 @@
     findVerifOp(opId) {
       return (this.verif.ops || []).find(o => o.id === opId);
     },
-    ignoreVerifOp(opId) {
+    async ignoreVerifOp(opId) {
       const op = this.findVerifOp(opId);
       if (!op) return;
       op.ignored = true;
       op.match = null;
+      op.savedStatus = 'ignored';
       const set = this.loadVerifIgnored();
       set.add(this.verifFingerprint(op));
       this.saveVerifIgnored(set);
+      await this.upsertBankVerification(op, 'ignored', null);
       this.renderVerifTable();
     },
-    unignoreVerifOp(opId) {
+    async unignoreVerifOp(opId) {
       const op = this.findVerifOp(opId);
       if (!op) return;
       op.ignored = false;
+      op.savedStatus = null;
       const set = this.loadVerifIgnored();
       set.delete(this.verifFingerprint(op));
       this.saveVerifIgnored(set);
+      await this.deleteBankVerification(op);
       this.rematchVerif();
     },
-    clearVerifIgnored() {
+    async clearVerifIgnored() {
       this.saveVerifIgnored(new Set());
-      (this.verif.ops || []).forEach(o => { o.ignored = false; });
+      const ignoredOps = (this.verif.ops || []).filter(o => o.ignored || o.savedStatus === 'ignored');
+      for (const o of ignoredOps) {
+        o.ignored = false;
+        o.savedStatus = null;
+        await this.deleteBankVerification(o);
+      }
       this.rematchVerif();
       toast('Oubliés réaffichés');
     },
@@ -3812,6 +4020,27 @@
         toast(wasPaid ? 'Montant mis à jour (déjà encaissé)' : 'Revenu encaissé depuis le relevé');
       }
       m.paid = true;
+      await this.upsertBankVerification(op, 'matched', {
+        kind: m.kind, id: m.id, accId: m.accId, score: m.score
+      });
+      this.renderVerifTable();
+    },
+
+    async applyVerifWalletMatch(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op?.match || op.match.kind !== 'wallet-budget') {
+        this.openVerifWallet(opId);
+        return;
+      }
+      const m = op.match;
+      await this.addWalletTxFromVerif(m.id, m.accId, op);
+      op.match = {
+        kind: 'wallet', id: 'new', expId: m.id, accId: m.accId, accName: m.accName,
+        label: m.label, amount: Number(op.amount), paid: true, score: 100
+      };
+      await this.upsertBankVerification(op, 'wallet', {
+        kind: 'wallet', id: m.id, accId: m.accId, score: 100
+      });
       this.renderVerifTable();
     },
 
@@ -3875,14 +4104,17 @@
         const exp = this.state.expenses.find(e => e.id === id);
         op.match = { kind, id, accId, accName, label: exp?.description || 'Dépense', amount, paid: true, score: 100 };
         await this.markPaid(id, amount, accId, mKey);
+        await this.upsertBankVerification(op, 'matched', { kind: 'expense', id, accId, score: 100 });
       } else if (kind === 'income') {
         const inc = this.state.incomes.find(e => e.id === id);
         op.match = { kind, id, accId, accName, label: inc?.description || 'Revenu', amount, paid: true, score: 100 };
         await this.markIncome(id, amount, accId, mKey);
+        await this.upsertBankVerification(op, 'matched', { kind: 'income', id, accId, score: 100 });
       } else if (kind === 'wallet' || kind === 'wallet-budget') {
         const walletExpId = kind === 'wallet' ? (expId || id) : id;
         await this.addWalletTxFromVerif(walletExpId, accId, op);
         op.match = { kind: 'wallet', id: 'new', expId: walletExpId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+        await this.upsertBankVerification(op, 'wallet', { kind: 'wallet', id: walletExpId, accId, score: 100 });
       }
       this.renderVerifTable();
     },
@@ -3987,6 +4219,10 @@
           kind: 'refund', id: incomeId, accId: incAccId, accName,
           label: desc, amount, paid: true, score: 100, refundOf: expId
         };
+        await this.upsertBankVerification(op, 'refund', {
+          kind: 'refund', id: incomeId, accId: incAccId, score: 100,
+          meta: { refund_of: expId, expense_account_id: expAccId }
+        });
         toast(endDate
           ? `Remboursement enregistré · dépense jusqu’au ${this.fmtDate(endDate)}`
           : 'Remboursement enregistré et encaissé');
@@ -4048,6 +4284,7 @@
       await this.addWalletTxFromVerif(expId, accId, op);
       const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
       op.match = { kind: 'wallet', id: 'new', expId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      await this.upsertBankVerification(op, 'wallet', { kind: 'wallet', id: expId, accId, score: 100 });
       this.renderVerifTable();
     },
 

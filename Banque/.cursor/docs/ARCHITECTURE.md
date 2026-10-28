@@ -17,6 +17,7 @@
   - **Comptes :** Vue stratégique. Affiche le bilan, les répartitions ("qui doit quoi"), et les restes à vivre (théorique et en date).
   - **Saisies :** Vue de gestion CRUD pour lister, filtrer, créer, modifier ou supprimer les dépenses régulières et les revenus.
   - **Stats :** Graphiques générés en SVG natif (`BH.pieChart`), évolution sur 12 mois, capacité d'épargne et fonctions d'export (CSV/PDF).
+  - **Vérif (desktop ≥960px) :** Import CSV/PDF local (CA / CIC / Revolut), matching vs budget, actions Valider / Lier / Rembours. / Portefeuille / Oublier. Persistance dans `bank_verifications` ; panneau des dépenses non vérifiées du mois.
 
 ## 3. Modèle de Données (Supabase)
 Le modèle relationnel est structuré autour du partage de comptes :
@@ -26,6 +27,7 @@ Le modèle relationnel est structuré autour du partage de comptes :
 - **`expenses`** : Les dépenses budgétisées. Colonne clé : `is_wallet` (booléen) pour définir si c'est une dépense fixe ou un budget enveloppe.
 - **`incomes`** : Les revenus et remboursements associés à un compte.
 - **`month_records`** : Le journal de bord mensuel. Contient des colonnes JSONB (`paid_expenses`, `wallet_transactions`) stockant les validations effectives mois par mois.
+- **`bank_verifications`** : Rapprochements relevé ↔ budget (`user_id`, `month_key`, `fingerprint` unique, `status` matched/ignored/wallet/refund, `linked_kind`/`linked_id`, montant/libellé banque). RLS : propriétaire uniquement.
 
 ## 4. Règles de Gestion Financière
 - **Apports et Répartition :** Lorsqu'un compte est partagé, l'apport d'un membre peut être fixe (€), proportionnel (%) ou calculé au prorata des revenus déclarés par chaque membre.
