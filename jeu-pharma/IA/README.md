@@ -1,13 +1,14 @@
 # IA — Jeu Pharma
 
-Deux Edge Functions Gemini (secret **`GEMINI_API_KEY`** serveur uniquement, jamais dans le navigateur) :
+Trois Edge Functions Gemini (secret **`GEMINI_API_KEY`** serveur uniquement, jamais dans le navigateur) :
 
 | Edge | Surface | Rôle |
 |---|---|---|
 | `jeupharma-ia-blocs` | Modif parcours | Texte / PDF de cours → blocs de leçon (brouillon) |
 | `jeupharma-ia-matrice` | Référentiel admin | BDM + RCP officiel → fiche matrice condensée (revue puis save) |
+| `jeupharma-ia-entites` | Référentiel — Vérifier les éléments | Consigne + liste entités → propositions (rename/merge/delete) à valider une à une |
 
-Client partagé : `gemini-client.js` (`JpIaGemini.invoke`, `FN_BLOCS`, `FN_MATRICE`).
+Client partagé : `gemini-client.js` (`JpIaGemini.invoke`, `FN_BLOCS`, `FN_MATRICE`, `FN_ENTITES`).
 
 Ne **pas** appeler les Edge OCR Location depuis le client jeu-pharma.
 
@@ -205,3 +206,63 @@ Si `need_manual_rcp: true` : l’UI affiche la zone de collage ; aucune suggesti
 
 ## Revue client
 Pour chaque libellé : match exact → **Existant** ; suggestions → **Proche** ; sinon **Nouveau**. Actions : **découper** (`;` / retours ligne), **ajouter**, **retirer** / **restaurer**, **re-matcher** (debounce à l’édition). Commit final via `JpMedicaments.save` (fusion DCI si fiche déjà présente). Pas de flags hospitalier/complexe (purgés `041`). Tables entités CPD / conseils : migration `046`.
+
+---
+
+# IA — propositions sur les éléments (Vérifier les éléments)
+
+Bouton **IA** dans `admin/referentiel.html` → vue `#entites` (`JpReferentielEntites`) → consigne libre + liste filtrée visible → Edge `jeupharma-ia-entites` → file de propositions → **Accepter / Ignorer** unitaire via RPC existantes. **Zéro écriture** pendant la génération.
+
+| Fichier | Rôle |
+|---|---|
+| `gemini-client.js` | `FN_ENTITES = 'jeupharma-ia-entites'` |
+| `js/referentiel-entites.js` | bouton IA + modale consigne / file de validation |
+| `ia.css` | `.jp-ia-entites-*` |
+| `edge/jeupharma-ia-entites/index.ts` | gate admin, chunk ≤200, normalize JSON |
+
+## Edge Function
+- Mêmes secrets / modèle / gate admin (`portail.profiles.role === 'admin'`) que les autres Edges Jeu Pharma. `verify_jwt = true`.
+- Plafonds : instruction 4 000 car. ; **800** éléments max ; lots de **200** (catalogue complet renvoyé à chaque lot pour `merge_into_id`).
+- Déploiement : MCP `deploy_edge_function` (slug `jeupharma-ia-entites`, projet `kpjflntnotftpzffjbud`).
+
+## Requête
+```json
+{
+  "table": "indications",
+  "instruction": "fusionne les doublons et normalise les libellés",
+  "items": [
+    { "id": "uuid…", "valeur": "HTA" },
+    { "id": "uuid…", "valeur": "Hypertension artérielle" }
+  ]
+}
+```
+
+## Réponse
+```json
+{
+  "version": 1,
+  "table": "indications",
+  "count": 2,
+  "chunked": false,
+  "chunk_size": 200,
+  "propositions": [
+    {
+      "id": "uuid-source",
+      "action": "merge",
+      "merge_into_id": "uuid-cible",
+      "reason": "Doublon de « Hypertension artérielle »"
+    },
+    {
+      "id": "uuid-cible",
+      "action": "noop",
+      "reason": null
+    }
+  ],
+  "avertissements": [],
+  "model": "…",
+  "usage": {}
+}
+```
+
+Actions : `keep` | `rename` (`new_valeur`) | `merge` (`merge_into_id`) | `delete` | `noop`.  
+Application client (si **Accepter**) : `v2_modifier_entites` / `v2_fusionner_entites` / `v2_supprimer_entite`. Les `noop`/`keep` sont masqués dans la file.

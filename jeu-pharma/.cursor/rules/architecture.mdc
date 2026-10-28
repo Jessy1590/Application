@@ -44,7 +44,7 @@ alwaysApply: true
 ## Contenu pédagogique
 - Source : **cours physiques / supports** — saisie admin / SQL / enrichissement RCP condensé (référentiel) ; pubs DEUST = sous-ensemble cours.
 - BDPM **lecture seule** via `js/bdm.js` dans `admin/referentiel.html`.
-- IA studio (Modif parcours) : Edge `jeupharma-ia-blocs` ; IA référentiel (ajout fiche) : Edge `jeupharma-ia-matrice` — dossier `jeu-pharma/IA/` (Gemini ; clé uniquement côté Edge).
+- IA studio (Modif parcours) : Edge `jeupharma-ia-blocs` ; IA référentiel (ajout fiche) : Edge `jeupharma-ia-matrice` ; IA Vérifier les éléments : Edge `jeupharma-ia-entites` (propositions + validation unitaire) — dossier `jeu-pharma/IA/` (Gemini ; clé uniquement côté Edge).
 - **Fiches référentiel** : pour les molécules du parcours Cardio DEUST (et ajouts liés), la matrice peut être enrichie avec un **RCP condensé** (propre, lisible) ; effets indésirables = **fréquents** ou **rares mais graves** uniquement. Pas d’invention hors RCP/BDPM.
 - **Visibilité DEUST** (`mode_contenu = publications`) : seules les **connaissances publiées** sur les leçons accessibles (★ + déblocage, issues des **supports de cours**) sont visibles / jouables. Le RCP complet de la fiche **n’est pas** publié sur le parcours — il reste pour admin / référentiel.
 - Studio : blocs texte / vidéo embed / molécule / conseil / jeu / photo / recommandation / **section** ; modes Structure|Contenu + inspecteur Leçon|Bloc|Programme ; pubs **connaissance par connaissance** par leçon ; plages ★ + variantes texte (onglets Base/★N).
