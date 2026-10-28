@@ -78,30 +78,45 @@
   .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
   .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
   .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
-  .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); }
+  .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); width:100%; }
   .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
   .bh-verif-table th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
-    color:var(--ink-faint); padding:10px 10px; border-bottom:1px solid var(--line-soft);
+    color:var(--ink-faint); padding:10px 8px; border-bottom:1px solid var(--line-soft);
     background:var(--paper); position:sticky; top:0; z-index:1; white-space:nowrap;
   }
-  .bh-verif-table td{ padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
+  .bh-verif-table td{ padding:9px 8px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
   .bh-verif-table tr:last-child td{ border-bottom:none; }
   .bh-verif-table tr.ignored{ opacity:0.45; }
   .bh-verif-table tr.matched{ background:rgba(228,238,232,0.45); }
-  .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:78px; }
+  /* Colonnes fluides : Date | Mouvement | Montant | Lien | Actions */
+  .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:7%; white-space:nowrap; }
   .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){
-    width:18%; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;
+    width:16%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;
   }
-  .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:96px; }
-  .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:22%; }
-  .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:auto; min-width:340px; }
-  .bh-verif-match{ font-size:12px; line-height:1.35; }
-  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); }
-  .bh-verif-actions{ display:flex; flex-wrap:nowrap; gap:6px; align-items:center; }
-  .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
+  .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:9%; white-space:nowrap; }
+  .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){
+    width:20%; overflow:hidden;
+  }
+  .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:48%; }
+  .bh-verif-match{ font-size:12px; line-height:1.35; overflow:hidden; }
+  .bh-verif-match strong{
+    display:inline; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
+  }
+  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bh-verif-actions{ display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+  .bh-verif-actions .bh-btn{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
+  .bh-btn-done{
+    background:var(--sage-pale) !important; color:var(--sage-deep) !important;
+    border:1px solid var(--sage) !important; font-weight:600;
+  }
+  .bh-btn-done:hover{ background:#d5e6db !important; }
   .bh-verif-th-help{ display:inline-flex; align-items:center; gap:6px; }
   .bh-verif-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
+  .bh-verif-acc-tag{
+    display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
+    background:var(--line-soft); color:var(--ink-soft); margin-right:4px; vertical-align:middle;
+  }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
   .bh-manage-row:hover{ border-color: var(--sage); }
@@ -256,6 +271,9 @@
   .bh-tab svg{ width:16px; height:16px; flex-shrink:0; }
   .bh-tab.active{ color:var(--sage-deep); background:var(--sage-pale); }
   .bh-tab:hover:not(.active){ color:var(--sage-deep); }
+  /* Vérif = desktop uniquement */
+  .bh-tab[data-tab="verif"],
+  #view-verif{ display:none !important; }
 
 
   /* MISC */
@@ -438,13 +456,20 @@
     }
     .bh-saisies-col .bh-section-label{ margin-top:8px; }
 
-    /* Vérification : plein écran */
-    #view-verif.active{ display:flex; flex-direction:column; gap:14px; }
+    /* Vérification : desktop uniquement, plein écran */
+    .bh-tab[data-tab="verif"]{ display:flex !important; }
+    #view-verif{ display:none !important; }
+    #view-verif.active{ display:flex !important; flex-direction:column; gap:14px; }
     .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1fr 1fr 1.4fr auto; gap:10px; align-items:end; }
     .bh-verif-drop{ min-height:88px; }
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 260px); }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:16%; max-width:200px; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:380px; }
+    .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:6%; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:14%; }
+    .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:8%; }
+    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:18%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:54%; }
+    .bh-verif-actions{ flex-wrap:nowrap; gap:6px; }
+    .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; }
 
     /* Stats : grille large */
     .bh-topbar .bh-brand{ display:none; }
@@ -486,7 +511,11 @@
     #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); }
     .bh-view{ padding:16px 40px 48px; }
     .bh-topbar{ padding:22px 40px 14px; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:16%; }
+    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:20%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:50%; }
   }
+
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -993,12 +1022,46 @@
 
 <!-- VÉRIF : lier / choisir une autre saisie -->
 <div class="bh-sheet-overlay" id="bh-verif-link-overlay" onclick="if(event.target===this) BH.closeVerifLink()">
-  <div class="bh-sheet" style="max-width:520px;">
+  <div class="bh-sheet" style="max-width:560px;">
     <div class="bh-sheet-handle"></div>
     <h3 class="bh-sheet-title" style="margin-bottom:4px;">Lier à une saisie</h3>
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-link-desc"></p>
+    <div class="bh-field-label">Compte budget</div>
+    <select id="verif-link-account" class="bh-input" onchange="BH.refreshVerifLinkList()"></select>
+    <div class="bh-field-label">Rechercher</div>
+    <input type="text" id="verif-link-search" class="bh-input" placeholder="Libellé, montant…" oninput="BH.refreshVerifLinkList()">
     <div id="verif-link-list"></div>
     <button class="bh-btn bh-btn-ghost bh-btn-block" style="margin-top:12px;" onclick="BH.closeVerifLink()">Annuler</button>
+  </div>
+</div>
+
+<!-- VÉRIF : remboursement d'une dépense existante -->
+<div class="bh-sheet-overlay" id="bh-verif-refund-overlay" onclick="if(event.target===this) BH.closeVerifRefund()">
+  <div class="bh-sheet" style="max-width:560px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Remboursement</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-refund-desc"></p>
+    <div class="bh-field-label">Compte de la dépense remboursée</div>
+    <select id="verif-refund-account" class="bh-input" onchange="BH.refreshVerifRefundExpenses()"></select>
+    <div class="bh-field-label">Dépense remboursée</div>
+    <select id="verif-refund-expense" class="bh-input"></select>
+    <div class="bh-field-label">Compte qui reçoit le crédit (revenu)</div>
+    <select id="verif-refund-income-account" class="bh-input"></select>
+    <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; margin:12px 2px 6px; cursor:pointer;">
+      <input type="checkbox" id="verif-refund-until" style="width:auto; margin:2px 0 0;" onchange="document.getElementById('verif-refund-until-wrap').style.display=this.checked?'block':'none'">
+      <span>Ces frais / ce remboursement s’arrêtent à partir d’un mois (date de fin sur la dépense)</span>
+    </label>
+    <div id="verif-refund-until-wrap" style="display:none;">
+      <div class="bh-field-label">Dernier mois inclus</div>
+      <input type="month" id="verif-refund-until-month" class="bh-input">
+    </div>
+    <p style="font-size:11.5px; color:var(--ink-faint); margin:8px 2px 0;">
+      Crée un revenu « Remb. … » sur le compte crédit, le marque encaissé ce mois-ci, et peut poser une date de fin sur la dépense.
+    </p>
+    <div class="bh-sheet-actions">
+      <button class="bh-btn bh-btn-ghost" onclick="BH.closeVerifRefund()">Annuler</button>
+      <button class="bh-btn bh-btn-primary" onclick="BH.confirmVerifRefund()">Enregistrer</button>
+    </div>
   </div>
 </div>
 
@@ -1008,6 +1071,8 @@
     <div class="bh-sheet-handle"></div>
     <h3 class="bh-sheet-title" style="margin-bottom:4px;">Ajouter au portefeuille</h3>
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-wallet-desc"></p>
+    <div class="bh-field-label">Compte</div>
+    <select id="verif-wallet-account" class="bh-input" onchange="BH.refreshVerifWalletSelect()"></select>
     <div class="bh-field-label">Portefeuille</div>
     <select id="verif-wallet-select" class="bh-input"></select>
     <div class="bh-sheet-actions">
@@ -1138,10 +1203,16 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', linkOpId: null, walletOpId: null },
+    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', linkOpId: null, walletOpId: null, refundOpId: null },
 
     async init() {
       await this.fetchData();
+      // Si on réduit la fenêtre sous desktop alors qu'on est sur Vérif → retour Aujourd'hui
+      window.addEventListener('resize', () => {
+        if (this.activeTab === 'verif' && window.matchMedia('(max-width: 959px)').matches) {
+          this.switchTab('today');
+        }
+      });
       
       // Realtime try/catch (Empêche l'erreur de bloquer le Canvas)
       try {
@@ -1485,6 +1556,8 @@
     },
 
     switchTab(tab) {
+      // Vérif réservé au desktop
+      if (tab === 'verif' && window.matchMedia('(max-width: 959px)').matches) tab = 'today';
       this.activeTab = tab;
       document.querySelectorAll('.bh-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
       document.querySelectorAll('.bh-view').forEach(v => v.classList.remove('active'));
@@ -3464,47 +3537,56 @@
       else this.renderVerifTable();
     },
 
-    buildVerifCandidates(accId, mKey) {
+    buildVerifCandidates(accIdOrNull, mKey) {
+      const accIds = accIdOrNull
+        ? [accIdOrNull]
+        : this.getOrderedAccounts().map(a => a.id);
       const list = [];
-      const paidMap = this.state.months[accId + '_' + mKey] || {};
-      const paidInc = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
       const dim = (() => {
         const [y, m] = mKey.split('-').map(Number);
         return new Date(y, m, 0).getDate();
       })();
+      const accName = (id) => (this.state.accounts.find(a => a.id === id) || {}).name || '';
 
-      (this.state.expenses || []).filter(e => e.account_id === accId && !e.is_wallet).forEach(e => {
-        if (!this.isActiveInMonth(e, mKey)) return;
-        const day = Math.min(Number(e.day) || 1, dim);
-        const date = `${mKey}-${String(day).padStart(2, '0')}`;
-        list.push({
-          kind: 'expense', id: e.id, accId, label: e.description, amount: Number(e.amount),
-          date, paid: !!paidMap[e.id], category: e.category || ''
-        });
-      });
-      (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
-        const day = Math.min(Number(i.day) || 1, dim);
-        const date = `${mKey}-${String(day).padStart(2, '0')}`;
-        list.push({
-          kind: 'income', id: i.id, accId, label: i.description, amount: Number(i.amount),
-          date, paid: !!paidInc[i.id], category: ''
-        });
-      });
-      (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet).forEach(e => {
-        this.getWalletTx(accId, e.id, mKey).forEach(t => {
-          if (this.isExternalWalletApport(t)) return;
-          const day = Number(t.day) || 1;
-          const date = t.date || `${mKey}-${String(day).padStart(2, '0')}`;
+      accIds.forEach(accId => {
+        const paidMap = this.state.months[accId + '_' + mKey] || {};
+        const paidInc = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
+
+        (this.state.expenses || []).filter(e => e.account_id === accId && !e.is_wallet).forEach(e => {
+          if (!this.isActiveInMonth(e, mKey)) return;
+          const day = Math.min(Number(e.day) || 1, dim);
+          const date = `${mKey}-${String(day).padStart(2, '0')}`;
           list.push({
-            kind: 'wallet', id: t.id, expId: e.id, accId,
-            label: `${e.description} · ${t.description}`,
-            amount: Number(t.amount), date, paid: true, category: e.category || ''
+            kind: 'expense', id: e.id, accId, accName: accName(accId),
+            label: e.description, amount: Number(e.amount),
+            date, paid: !!paidMap[e.id], category: e.category || ''
           });
         });
-        // budget enveloppe lui-même comme cible possible
-        list.push({
-          kind: 'wallet-budget', id: e.id, accId, label: '👛 ' + e.description,
-          amount: Number(e.amount), date: `${mKey}-01`, paid: false, category: e.category || ''
+        (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
+          const day = Math.min(Number(i.day) || 1, dim);
+          const date = `${mKey}-${String(day).padStart(2, '0')}`;
+          list.push({
+            kind: 'income', id: i.id, accId, accName: accName(accId),
+            label: i.description, amount: Number(i.amount),
+            date, paid: !!paidInc[i.id], category: ''
+          });
+        });
+        (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet).forEach(e => {
+          this.getWalletTx(accId, e.id, mKey).forEach(t => {
+            if (this.isExternalWalletApport(t)) return;
+            const day = Number(t.day) || 1;
+            const date = t.date || `${mKey}-${String(day).padStart(2, '0')}`;
+            list.push({
+              kind: 'wallet', id: t.id, expId: e.id, accId, accName: accName(accId),
+              label: `${e.description} · ${t.description}`,
+              amount: Number(t.amount), date, paid: true, category: e.category || ''
+            });
+          });
+          list.push({
+            kind: 'wallet-budget', id: e.id, accId, accName: accName(accId),
+            label: '👛 ' + e.description,
+            amount: Number(e.amount), date: `${mKey}-01`, paid: false, category: e.category || ''
+          });
         });
       });
       return list;
@@ -3537,6 +3619,9 @@
       const sim = this.labelSimilarity(op.label, cand.label);
       score += Math.round(sim * 25);
       if (cand.paid && (cand.kind === 'expense' || cand.kind === 'income')) score += 4;
+      // Léger bonus si même compte que le relevé
+      if (cand.accId && this.verif.accId && cand.accId === this.verif.accId) score += 5;
+      else if (cand.accId && this.verif.accId && cand.accId !== this.verif.accId) score -= 3;
       return Math.max(0, Math.min(100, score));
     },
 
@@ -3545,11 +3630,11 @@
       const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
       this.verif.accId = accId;
       this.verif.mKey = mKey;
-      if (!accId || !this.verif.ops.length) { this.renderVerifTable(); return; }
+      if (!this.verif.ops.length) { this.renderVerifTable(); return; }
 
-      const candidates = this.buildVerifCandidates(accId, mKey);
+      // Cherche sur tous les comptes (ex. crédit CIC ↔ dépense compte joint)
+      const candidates = this.buildVerifCandidates(null, mKey);
       const used = new Set();
-      // Meilleurs matchs d'abord
       const scored = [];
       this.verif.ops.forEach(op => {
         if (op.ignored) { op.match = null; return; }
@@ -3625,6 +3710,7 @@
         if (m.kind === 'income') return m.paid ? 'Revenu déjà encaissé' : 'Revenu prévu';
         if (m.kind === 'wallet') return 'Mouvement portefeuille';
         if (m.kind === 'wallet-budget') return 'Portefeuille (enveloppe)';
+        if (m.kind === 'refund') return 'Remboursement';
         return m.kind;
       };
 
@@ -3635,16 +3721,27 @@
         let matchHtml = '<span style="color:var(--ink-faint);">Non trouvé</span>';
         if (op.ignored) matchHtml = '<span style="color:var(--ink-faint);">Oublié</span>';
         else if (op.match) {
-          matchHtml = `<div class="bh-verif-match"><strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)} · score ${op.match.score}%</div></div>`;
+          const tag = op.match.accName
+            ? `<span class="bh-verif-acc-tag">${this.esc(op.match.accName)}</span>`
+            : '';
+          matchHtml = `<div class="bh-verif-match">${tag}<strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)} · score ${op.match.score}%</div></div>`;
         }
+        const canValidate = op.match && (op.match.kind === 'expense' || op.match.kind === 'income' || op.match.kind === 'refund');
+        const already = !!(op.match && op.match.paid);
+        const validateBtn = canValidate
+          ? `<button type="button" class="bh-btn ${already ? 'bh-btn-done' : 'bh-btn-primary'}" title="${already ? 'Déjà validé ce mois-ci — recliquer met à jour le montant du relevé' : 'Marquer comme payé / encaissé avec le montant du relevé'}" onclick="BH.applyVerifMatch('${op.id}')">${already ? 'Déjà validé' : 'Valider'}</button>`
+          : '';
+        const refundBtn = Number(op.amount) > 0
+          ? `<button type="button" class="bh-btn bh-btn-outline" title="Créer un remboursement lié à une dépense déjà saisie (ex. frais bancaires remboursés)" onclick="BH.openVerifRefund('${op.id}')">Rembours.</button>`
+          : '';
         const actions = op.ignored
           ? `<button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
           : `<div class="bh-verif-actions">
-              ${op.match && (op.match.kind === 'expense' || op.match.kind === 'income') && !op.match.paid
-                ? `<button type="button" class="bh-btn bh-btn-primary" title="Marquer la saisie budgétée comme payée / encaissée avec le montant du relevé" onclick="BH.applyVerifMatch('${op.id}')">Valider</button>` : ''}
-              <button type="button" class="bh-btn bh-btn-outline" title="Choisir manuellement la saisie budget qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
+              ${validateBtn}
+              <button type="button" class="bh-btn bh-btn-outline" title="Choisir une saisie (tous comptes) qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
+              ${refundBtn}
               <button type="button" class="bh-btn bh-btn-outline" title="Créer une nouvelle dépense ou un nouveau revenu prérempli" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
-              <button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛 Portefeuille</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛</button>
               <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
             </div>`;
         return `<tr class="${cls}">
@@ -3660,12 +3757,13 @@
     showVerifActionsHelp() {
       this.openInfo('Actions de vérification', `
         <div style="font-size:13px; line-height:1.45; color:var(--ink);">
-          <p style="margin:0 0 12px;"><strong>Valider</strong> — Confirme le lien trouvé : marque la dépense / le revenu comme payé avec le montant du relevé.</p>
-          <p style="margin:0 0 12px;"><strong>Lier…</strong> — Si la suggestion est fausse, choisis toi-même la bonne saisie dans le budget.</p>
+          <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Marque la saisie liée comme payée. Vert pâle = déjà fait ce mois-ci.</p>
+          <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
+          <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli).</p>
-          <p style="margin:0 0 12px;"><strong>👛 Portefeuille</strong> — Ajoute le mouvement dans une enveloppe (courses, etc.).</p>
-          <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne (frais, hors budget…). Tu peux la réafficher plus tard.</p>
-          <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste à traiter.</p>
+          <p style="margin:0 0 12px;"><strong>👛</strong> — Ajoute le mouvement dans une enveloppe (n’importe quel compte).</p>
+          <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne. Tu peux la réafficher plus tard.</p>
+          <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
         </div>
       `);
     },
@@ -3705,12 +3803,13 @@
       const m = op.match;
       const amount = Math.abs(Number(op.amount));
       const mKey = this.verif.mKey || this.monthKey(new Date());
+      const wasPaid = !!m.paid;
       if (m.kind === 'expense') {
         await this.markPaid(m.id, amount, m.accId, mKey);
-        toast('Dépense validée depuis le relevé');
-      } else if (m.kind === 'income') {
+        toast(wasPaid ? 'Montant mis à jour (déjà validé)' : 'Dépense validée depuis le relevé');
+      } else if (m.kind === 'income' || m.kind === 'refund') {
         await this.markIncome(m.id, amount, m.accId, mKey);
-        toast('Revenu encaissé depuis le relevé');
+        toast(wasPaid ? 'Montant mis à jour (déjà encaissé)' : 'Revenu encaissé depuis le relevé');
       }
       m.paid = true;
       this.renderVerifTable();
@@ -3720,48 +3819,179 @@
       const op = this.findVerifOp(opId);
       if (!op) return;
       this.verif.linkOpId = opId;
-      const accId = this.verif.accId;
-      const mKey = this.verif.mKey;
-      const cands = this.buildVerifCandidates(accId, mKey)
-        .map(c => ({ ...c, score: this.scoreVerifMatch(op, c) }))
-        .sort((a, b) => b.score - a.score);
       document.getElementById('verif-link-desc').textContent =
         `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
+      const accSel = document.getElementById('verif-link-account');
+      const ordered = this.getOrderedAccounts();
+      accSel.innerHTML = `<option value="">Tous les comptes</option>` +
+        ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      // Par défaut : tous (pour lier un CIC à un compte joint) ; préselection du compte relevé en 2e choix
+      accSel.value = '';
+      const search = document.getElementById('verif-link-search');
+      if (search) search.value = '';
+      this.refreshVerifLinkList();
+      document.getElementById('bh-verif-link-overlay').classList.add('open');
+    },
+    refreshVerifLinkList() {
+      const op = this.findVerifOp(this.verif.linkOpId);
       const list = document.getElementById('verif-link-list');
+      if (!op || !list) return;
+      const accFilter = document.getElementById('verif-link-account')?.value || '';
+      const q = (document.getElementById('verif-link-search')?.value || '').trim().toLowerCase();
+      const mKey = this.verif.mKey;
+      let cands = this.buildVerifCandidates(accFilter || null, mKey)
+        .map(c => ({ ...c, score: this.scoreVerifMatch(op, c) }))
+        .sort((a, b) => b.score - a.score);
+      if (q) {
+        cands = cands.filter(c =>
+          [c.label, c.accName, c.kind, String(c.amount)].join(' ').toLowerCase().includes(q)
+        );
+      }
+      const kindFr = { expense: 'Dépense', income: 'Revenu', wallet: 'Portefeuille', 'wallet-budget': 'Enveloppe' };
       list.innerHTML = cands.length
-        ? cands.slice(0, 40).map(c => `
-          <div class="bh-manage-row" style="cursor:pointer;" onclick="BH.confirmVerifLink('${c.kind}','${c.id}','${c.expId || ''}')">
+        ? cands.slice(0, 50).map(c => `
+          <div class="bh-manage-row" style="cursor:pointer;" onclick="BH.confirmVerifLink('${c.kind}','${c.id}','${c.expId || ''}','${c.accId}')">
             <div>
-              <div style="font-weight:600;font-size:13.5px;">${this.esc(c.label)}</div>
-              <div style="font-size:11px;color:var(--ink-faint);">${c.kind}${c.paid ? ' · déjà traité' : ''} · score ${c.score}%</div>
+              <div style="font-weight:600;font-size:13.5px;"><span class="bh-verif-acc-tag">${this.esc(c.accName || '')}</span>${this.esc(c.label)}</div>
+              <div style="font-size:11px;color:var(--ink-faint);">${kindFr[c.kind] || c.kind}${c.paid ? ' · déjà traité' : ''} · score ${c.score}%</div>
             </div>
             <div class="num">${this.fmt(c.amount)}</div>
           </div>`).join('')
-        : '<div class="bh-empty">Aucune saisie sur ce compte pour ce mois.</div>';
-      document.getElementById('bh-verif-link-overlay').classList.add('open');
+        : '<div class="bh-empty">Aucune saisie trouvée.</div>';
     },
     closeVerifLink() {
       document.getElementById('bh-verif-link-overlay').classList.remove('open');
       this.verif.linkOpId = null;
     },
-    async confirmVerifLink(kind, id, expId) {
+    async confirmVerifLink(kind, id, expId, accIdParam) {
       const op = this.findVerifOp(this.verif.linkOpId);
       if (!op) return;
-      const accId = this.verif.accId;
+      const accId = accIdParam || this.verif.accId;
+      const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
       const amount = Math.abs(Number(op.amount));
       const mKey = this.verif.mKey || this.monthKey(new Date());
       this.closeVerifLink();
       if (kind === 'expense') {
-        op.match = { kind, id, accId, label: (this.state.expenses.find(e => e.id === id) || {}).description || 'Dépense', amount, paid: true, score: 100 };
+        const exp = this.state.expenses.find(e => e.id === id);
+        op.match = { kind, id, accId, accName, label: exp?.description || 'Dépense', amount, paid: true, score: 100 };
         await this.markPaid(id, amount, accId, mKey);
       } else if (kind === 'income') {
-        op.match = { kind, id, accId, label: (this.state.incomes.find(e => e.id === id) || {}).description || 'Revenu', amount, paid: true, score: 100 };
+        const inc = this.state.incomes.find(e => e.id === id);
+        op.match = { kind, id, accId, accName, label: inc?.description || 'Revenu', amount, paid: true, score: 100 };
         await this.markIncome(id, amount, accId, mKey);
       } else if (kind === 'wallet' || kind === 'wallet-budget') {
         const walletExpId = kind === 'wallet' ? (expId || id) : id;
         await this.addWalletTxFromVerif(walletExpId, accId, op);
-        op.match = { kind: 'wallet', id: 'new', expId: walletExpId, accId, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+        op.match = { kind: 'wallet', id: 'new', expId: walletExpId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
       }
+      this.renderVerifTable();
+    },
+
+    openVerifRefund(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op || !(Number(op.amount) > 0)) {
+        toast('Le remboursement s’applique aux crédits (montants positifs).');
+        return;
+      }
+      this.verif.refundOpId = opId;
+      document.getElementById('verif-refund-desc').textContent =
+        `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
+      const ordered = this.getOrderedAccounts();
+      const accOpts = ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      const expAcc = document.getElementById('verif-refund-account');
+      const incAcc = document.getElementById('verif-refund-income-account');
+      expAcc.innerHTML = accOpts;
+      incAcc.innerHTML = accOpts;
+      // Dépense souvent sur un autre compte ; crédit reçu sur le compte du relevé
+      expAcc.value = ordered[0]?.id || '';
+      incAcc.value = this.verif.accId || ordered[0]?.id || '';
+      const until = document.getElementById('verif-refund-until');
+      const untilMonth = document.getElementById('verif-refund-until-month');
+      if (until) until.checked = false;
+      document.getElementById('verif-refund-until-wrap').style.display = 'none';
+      if (untilMonth) untilMonth.value = this.verif.mKey || this.monthKey(new Date());
+      this.refreshVerifRefundExpenses();
+      document.getElementById('bh-verif-refund-overlay').classList.add('open');
+    },
+    refreshVerifRefundExpenses() {
+      const accId = document.getElementById('verif-refund-account')?.value;
+      const sel = document.getElementById('verif-refund-expense');
+      if (!sel) return;
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const exps = (this.state.expenses || [])
+        .filter(e => e.account_id === accId && !e.is_wallet && this.isActiveInMonth(e, mKey))
+        .slice()
+        .sort((a, b) => Math.abs(Number(a.amount) - Math.abs(Number(this.findVerifOp(this.verif.refundOpId)?.amount) || 0))
+          - Math.abs(Number(b.amount) - Math.abs(Number(this.findVerifOp(this.verif.refundOpId)?.amount) || 0)));
+      sel.innerHTML = exps.length
+        ? exps.map(e => `<option value="${e.id}">${this.esc(e.description)} · ${this.fmt(e.amount)}${e.category ? ' · ' + this.esc(e.category) : ''}</option>`).join('')
+        : '<option value="">Aucune dépense sur ce compte</option>';
+    },
+    closeVerifRefund() {
+      document.getElementById('bh-verif-refund-overlay').classList.remove('open');
+      this.verif.refundOpId = null;
+    },
+    async confirmVerifRefund() {
+      const op = this.findVerifOp(this.verif.refundOpId);
+      const expId = document.getElementById('verif-refund-expense')?.value;
+      const expAccId = document.getElementById('verif-refund-account')?.value;
+      const incAccId = document.getElementById('verif-refund-income-account')?.value;
+      if (!op || !expId || !incAccId) { toast('Choisis une dépense et un compte.'); return; }
+      const exp = this.state.expenses.find(e => e.id === expId);
+      if (!exp) { toast('Dépense introuvable.'); return; }
+      const amount = Math.abs(Number(op.amount));
+      const day = op.date ? Number(op.date.slice(8, 10)) : (Number(exp.day) || 1);
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const untilOn = document.getElementById('verif-refund-until')?.checked;
+      const untilMonth = document.getElementById('verif-refund-until-month')?.value || mKey;
+      const endDate = untilOn
+        ? (() => {
+            const [y, m] = untilMonth.split('-').map(Number);
+            const last = new Date(y, m, 0).getDate();
+            return untilMonth + '-' + String(last).padStart(2, '0');
+          })()
+        : null;
+
+      this.closeVerifRefund();
+      await withRetry(async () => {
+        // 1) Date de fin sur la dépense remboursée (frais qui s'arrêtent)
+        if (endDate) {
+          const { error } = await supabaseApp.from('expenses').update({ end_date: endDate }).eq('id', expId);
+          if (error) throw error;
+        }
+        // 2) Revenu de remboursement sur le compte qui reçoit le crédit
+        const desc = 'Remb. ' + (exp.description || op.label);
+        const existing = (this.state.incomes || []).find(i =>
+          i.account_id === incAccId &&
+          i.description === desc &&
+          Math.abs(Number(i.amount) - amount) < 0.02
+        );
+        let incomeId = existing?.id;
+        if (!incomeId) {
+          const res = await supabaseApp.from('incomes').insert([{
+            account_id: incAccId,
+            description: desc,
+            amount,
+            day
+          }]).select('id').single();
+          if (res.error) throw res.error;
+          incomeId = res.data.id;
+        }
+        // 3) Encaisser ce mois
+        let recs = { ...(this.state.monthsIncomes?.[incAccId + '_' + mKey] || {}) };
+        recs[incomeId] = { amount, on: new Date().toISOString(), refund_of: expId };
+        await this.upsertMonthRecord(incAccId, mKey, { paid_incomes: recs });
+
+        const accName = (this.state.accounts.find(a => a.id === incAccId) || {}).name || '';
+        op.match = {
+          kind: 'refund', id: incomeId, accId: incAccId, accName,
+          label: desc, amount, paid: true, score: 100, refundOf: expId
+        };
+        toast(endDate
+          ? `Remboursement enregistré · dépense jusqu’au ${this.fmtDate(endDate)}`
+          : 'Remboursement enregistré et encaissé');
+        this.fetchData();
+      }, 'remboursement depuis relevé');
       this.renderVerifTable();
     },
 
@@ -3785,17 +4015,25 @@
     openVerifWallet(opId) {
       const op = this.findVerifOp(opId);
       if (!op) return;
-      const wallets = (this.state.expenses || []).filter(e => e.account_id === this.verif.accId && e.is_wallet);
-      if (!wallets.length) {
-        toast('Aucun portefeuille sur ce compte');
-        return;
-      }
       this.verif.walletOpId = opId;
       document.getElementById('verif-wallet-desc').textContent =
         `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
-      const sel = document.getElementById('verif-wallet-select');
-      sel.innerHTML = wallets.map(w => `<option value="${w.id}">${this.esc(w.description)} (${this.fmt(w.amount)})</option>`).join('');
+      const ordered = this.getOrderedAccounts();
+      const accSel = document.getElementById('verif-wallet-account');
+      accSel.innerHTML = ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      accSel.value = this.verif.accId || ordered[0]?.id || '';
+      this.refreshVerifWalletSelect();
+      if (!document.getElementById('verif-wallet-select').options.length) {
+        toast('Aucun portefeuille sur ce compte — change de compte');
+      }
       document.getElementById('bh-verif-wallet-overlay').classList.add('open');
+    },
+    refreshVerifWalletSelect() {
+      const accId = document.getElementById('verif-wallet-account')?.value;
+      const sel = document.getElementById('verif-wallet-select');
+      if (!sel) return;
+      const wallets = (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet);
+      sel.innerHTML = wallets.map(w => `<option value="${w.id}">${this.esc(w.description)} (${this.fmt(w.amount)})</option>`).join('');
     },
     closeVerifWallet() {
       document.getElementById('bh-verif-wallet-overlay').classList.remove('open');
@@ -3804,10 +4042,12 @@
     async confirmVerifWallet() {
       const op = this.findVerifOp(this.verif.walletOpId);
       const expId = document.getElementById('verif-wallet-select')?.value;
+      const accId = document.getElementById('verif-wallet-account')?.value || this.verif.accId;
       if (!op || !expId) return;
       this.closeVerifWallet();
-      await this.addWalletTxFromVerif(expId, this.verif.accId, op);
-      op.match = { kind: 'wallet', id: 'new', expId, accId: this.verif.accId, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      await this.addWalletTxFromVerif(expId, accId, op);
+      const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
+      op.match = { kind: 'wallet', id: 'new', expId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
       this.renderVerifTable();
     },
 
