@@ -42,7 +42,7 @@
     'Fusionner : sélectionnez 2+ lignes, choisissez celle à garder ; les autres sont réassignées puis désactivées.',
     'Supprimer : retire les liaisons matrice et désactive l’entité (soft-delete).',
     'Attention DCI : fusionner deux DCI peut entrer en conflit si chaque DCI a déjà une fiche active.',
-    'IA : consigne libre → propositions à valider une à une. Avec une sélection, seule celle-ci est analysée (lot : les N premiers). Délai maximal de la fonction : 150 s.',
+    'IA : consigne libre → propositions à valider une à une. Cochez un élément, puis « Sélectionner N suivants » : les N lignes après lui (la dernière cochée s’il y en a plusieurs). Délai maximal de la fonction : 150 s.',
   ];
 
   const ACTION_LABELS = {
@@ -87,8 +87,8 @@
       + '<span class="jp-ref-entites-lot">'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entLot">Sélectionner</button>'
       + '<input type="number" id="entLotN" min="1" step="1" value="300" inputmode="numeric"'
-      + ' aria-label="Nombre de premiers éléments à sélectionner">'
-      + '<span>premiers</span>'
+      + ' aria-label="Nombre d’éléments suivants à sélectionner">'
+      + '<span>suivants</span>'
       + '</span>'
       + '<span class="jp-muted" id="entSelInfo"></span>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entCreate">Créer</button>'
@@ -139,15 +139,31 @@
     return n >= 1 ? n : 300;
   }
 
-  function selectFirstLot() {
+  function selectFollowingLot() {
     if (!state.rows.length) {
       global.JpToast?.warn?.('Aucun élément à sélectionner');
       return;
     }
-    const n = Math.min(lotSize(), state.rows.length);
+    if (!state.selected.size) {
+      global.JpToast?.warn?.('Cochez d’abord un élément : les suivants seront pris après lui');
+      return;
+    }
+    let anchor = -1;
+    state.rows.forEach((r, i) => {
+      if (state.selected.has(String(r.id))) anchor = i;
+    });
+    const start = anchor + 1;
+    if (start >= state.rows.length) {
+      global.JpToast?.warn?.('Aucun élément après celui-ci');
+      return;
+    }
+    const n = Math.min(lotSize(), state.rows.length - start);
     state.selected.clear();
-    state.rows.slice(0, n).forEach((r) => state.selected.add(String(r.id)));
+    state.rows.slice(start, start + n).forEach((r) => state.selected.add(String(r.id)));
     syncChecks();
+    const id = String(state.rows[start].id);
+    state.host?.querySelector('#entBody tr[data-id="' + id + '"]')
+      ?.scrollIntoView({ block: 'center' });
   }
 
   function selectedItems() {
@@ -518,7 +534,7 @@
     const scopeLabel = fromSelection ? 'la sélection' : 'la liste affichée';
     const hint = fromSelection
       ? 'Envoi de la sélection en un seul appel. Délai maximal de la fonction : 150 s.'
-      : 'Envoi de toute la liste affichée en un seul appel. Pour rester sous le délai de 150 s, sélectionnez un lot (par exemple les 300 premiers).';
+      : 'Envoi de toute la liste affichée en un seul appel. Pour rester sous le délai de 150 s, cochez un élément puis sélectionnez les suivants.';
 
     const backdrop = document.createElement('div');
     backdrop.className = 'jp-modal-backdrop jp-ia-backdrop jp-ia-entites-backdrop';
@@ -885,7 +901,7 @@
     host.querySelector('#entMerge').addEventListener('click', () => void doMerge());
     host.querySelector('#entDelete').addEventListener('click', () => void doDelete());
     host.querySelector('#entIA')?.addEventListener('click', () => openIaWizard());
-    host.querySelector('#entLot')?.addEventListener('click', selectFirstLot);
+    host.querySelector('#entLot')?.addEventListener('click', selectFollowingLot);
     host.querySelector('#entClearSel').addEventListener('click', clearSelection);
     host.querySelector('#entRefresh').addEventListener('click', () => void loadRows());
 

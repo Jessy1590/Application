@@ -45,7 +45,7 @@
       }
     } catch (_) { /* repli */ }
     const lotHint = fn === FN_ENTITES
-      ? ' Sélectionnez un lot plus petit (par exemple les 300 premiers), puis relancez.'
+      ? ' Cochez un élément, sélectionnez un lot de suivants plus petit, puis relancez.'
       : '';
     const blob = serverError + ' ' + serverMessage;
     if (status === 504 || code === 'IDLE_TIMEOUT' || /idle timeout|timed out|gateway timeout/i.test(blob)) {
