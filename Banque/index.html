@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Budget Partagé</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob: https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
@@ -62,6 +62,37 @@
   .bh-stats-grid{ display:contents; }
   .bh-sheet-actions{ display:flex; gap:8px; margin-top:16px; }
   .bh-sheet-actions .bh-btn{ flex:1; }
+
+  /* Vérification relevé */
+  .bh-verif-toolbar{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+  .bh-verif-drop{
+    border:1.5px dashed var(--line); border-radius:14px; background:var(--card);
+    padding:18px 16px; text-align:center; cursor:pointer; color:var(--ink-soft);
+    transition: border-color .15s, background .15s;
+  }
+  .bh-verif-drop:hover, .bh-verif-drop.drag{ border-color:var(--sage); background:var(--sage-pale); color:var(--sage-deep); }
+  .bh-verif-drop strong{ display:block; color:var(--ink); font-size:14px; margin-bottom:4px; }
+  .bh-verif-drop span{ font-size:12px; }
+  .bh-verif-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
+  .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
+  .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
+  .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); }
+  .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .bh-verif-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-faint); padding:10px 12px; border-bottom:1px solid var(--line-soft);
+    background:var(--paper); position:sticky; top:0; z-index:1;
+  }
+  .bh-verif-table td{ padding:10px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  .bh-verif-table tr:last-child td{ border-bottom:none; }
+  .bh-verif-table tr.ignored{ opacity:0.45; }
+  .bh-verif-table tr.matched{ background:rgba(228,238,232,0.45); }
+  .bh-verif-match{ font-size:12px; line-height:1.35; }
+  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); }
+  .bh-verif-actions{ display:flex; flex-wrap:wrap; gap:5px; }
+  .bh-verif-actions .bh-btn{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; }
+  .bh-verif-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
   .bh-manage-row:hover{ border-color: var(--sage); }
@@ -398,6 +429,13 @@
     }
     .bh-saisies-col .bh-section-label{ margin-top:8px; }
 
+    /* Vérification : plein écran */
+    #view-verif.active{ display:flex; flex-direction:column; gap:14px; }
+    .bh-verif-toolbar{ display:grid; grid-template-columns:1.2fr 1fr 1fr auto; gap:10px; align-items:end; }
+    .bh-verif-drop{ min-height:88px; }
+    .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 260px); }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ max-width:none; }
+
     /* Stats : grille large */
     .bh-topbar .bh-brand{ display:none; }
     .bh-topbar-row{ justify-content:flex-end; }
@@ -480,6 +518,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
       Stats
     </button>
+    <button class="bh-tab" data-tab="verif" onclick="BH.switchTab('verif')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Vérif
+    </button>
   </nav>
 
   <div class="bh-main">
@@ -561,6 +603,58 @@
           <div class="bh-section-label">Revenus / Remboursements</div>
           <div id="bh-incomes-groups"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- VUE 5 : VÉRIFICATION RELEVÉ -->
+    <div class="bh-view" id="view-verif">
+      <div class="bh-card bh-verif-toolbar" style="padding:14px;">
+        <div>
+          <div class="bh-field-label" style="margin-top:0;">Compte à vérifier</div>
+          <select id="verif-account" class="bh-input" style="margin:0;" onchange="BH.onVerifAccountChange()"></select>
+        </div>
+        <div>
+          <div class="bh-field-label" style="margin-top:0;">Mois du relevé</div>
+          <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()">
+        </div>
+        <div>
+          <div class="bh-field-label" style="margin-top:0;">Fichier</div>
+          <div class="bh-verif-drop" id="verif-drop" onclick="document.getElementById('verif-file').click()"
+               ondragover="event.preventDefault(); this.classList.add('drag')"
+               ondragleave="this.classList.remove('drag')"
+               ondrop="BH.onVerifDrop(event)">
+            <strong id="verif-drop-title">Déposer un relevé PDF ou CSV</strong>
+            <span>Export banque → texte extrait localement (rien n’est envoyé sur un serveur tiers)</span>
+          </div>
+          <input type="file" id="verif-file" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain" style="display:none;" onchange="BH.onVerifFile(this.files[0])">
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="bh-btn bh-btn-outline" onclick="BH.rematchVerif()">↻ Recalculer</button>
+          <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.clearVerifIgnored()">Réafficher oubliés</button>
+        </div>
+      </div>
+
+      <div class="bh-verif-stats" id="verif-stats">
+        <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
+        <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
+        <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
+      </div>
+
+      <div class="bh-verif-table-wrap">
+        <table class="bh-verif-table">
+          <thead>
+            <tr>
+              <th style="width:88px;">Date</th>
+              <th>Mouvement banque</th>
+              <th style="width:110px; text-align:right;">Montant</th>
+              <th>Lien budget</th>
+              <th style="width:220px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="verif-tbody">
+            <tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -872,7 +966,40 @@
   </div>
 </div>
 
+<!-- VÉRIF : lier / choisir une autre saisie -->
+<div class="bh-sheet-overlay" id="bh-verif-link-overlay" onclick="if(event.target===this) BH.closeVerifLink()">
+  <div class="bh-sheet" style="max-width:520px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Lier à une saisie</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-link-desc"></p>
+    <div id="verif-link-list"></div>
+    <button class="bh-btn bh-btn-ghost bh-btn-block" style="margin-top:12px;" onclick="BH.closeVerifLink()">Annuler</button>
+  </div>
+</div>
+
+<!-- VÉRIF : ajouter dans un portefeuille -->
+<div class="bh-sheet-overlay" id="bh-verif-wallet-overlay" onclick="if(event.target===this) BH.closeVerifWallet()">
+  <div class="bh-sheet" style="max-width:480px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Ajouter au portefeuille</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-wallet-desc"></p>
+    <div class="bh-field-label">Portefeuille</div>
+    <select id="verif-wallet-select" class="bh-input"></select>
+    <div class="bh-sheet-actions">
+      <button class="bh-btn bh-btn-ghost" onclick="BH.closeVerifWallet()">Annuler</button>
+      <button class="bh-btn bh-btn-primary" onclick="BH.confirmVerifWallet()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
 <div class="bh-toast" id="bh-toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+</script>
 
 <script>
   const cfg = window.SUPABASE_CONFIG;
@@ -986,6 +1113,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
+    verif: { ops: [], accId: '', mKey: '', fileName: '', linkOpId: null, walletOpId: null },
 
     async init() {
       await this.fetchData();
@@ -1355,6 +1483,7 @@
       if(this.activeTab === 'comptes') this.renderComptes();
       if(this.activeTab === 'saisies') this.renderSaisies();
       if(this.activeTab === 'stats') this.renderStats();
+      if(this.activeTab === 'verif') this.renderVerif();
     },
 
     // --- AUJOURD'HUI ---
@@ -2503,8 +2632,8 @@
       return end < today;
     },
 
-    async markPaid(expId, amount, accId) {
-      const mKey = this.monthKey(new Date());
+    async markPaid(expId, amount, accId, mKeyOpt) {
+      const mKey = mKeyOpt || this.monthKey(new Date());
       let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
       recs[expId] = { amount, on: new Date().toISOString() };
 
@@ -2528,8 +2657,8 @@
       }, 'annulation');
     },
 
-    async markIncome(incId, amount, accId) {
-      const mKey = this.monthKey(new Date());
+    async markIncome(incId, amount, accId, mKeyOpt) {
+      const mKey = mKeyOpt || this.monthKey(new Date());
       let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
       recs[incId] = { amount, on: new Date().toISOString() };
 
@@ -2873,26 +3002,625 @@
         return hay.includes(q);
       };
 
-      let eHtml = '', iHtml = '';
+      const ordered = this.getOrderedAccounts();
+      const expByAcc = new Map();
+      const incByAcc = new Map();
+      ordered.forEach(a => { expByAcc.set(a.id, []); incByAcc.set(a.id, []); });
+
       this.state.expenses.forEach(i => {
         const acc = this.state.accounts.find(a=>a.id===i.account_id);
         if (!matches(i, acc)) return;
-        const expiredCls = this.isExpired(i) ? ' bh-expired' : '';
-        eHtml += `<div class="bh-manage-row${expiredCls}" onclick="BH.openEditSheet('expense','${i.id}')">
-          <div><div class="bh-manage-row-desc" style="font-weight:600;font-size:14px;">${i.is_wallet ? '👛 ' : ''}${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${acc?.name} · ${i.is_wallet ? 'Portefeuille mensuel' : 'Le '+i.day} ${i.category ? '· '+this.esc(i.category) : ''}${this.isExpired(i) ? ' · ⚠️ Expirée le '+this.fmtDate(i.end_date) : ''}</div></div>
-          <div class="num">${this.fmt(i.amount)}</div>
-        </div>`;
+        if (!expByAcc.has(i.account_id)) expByAcc.set(i.account_id, []);
+        expByAcc.get(i.account_id).push(i);
       });
       this.state.incomes.forEach(i => {
         const acc = this.state.accounts.find(a=>a.id===i.account_id);
         if (!matches(i, acc)) return;
-        iHtml += `<div class="bh-manage-row" onclick="BH.openEditSheet('income','${i.id}')">
-          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${acc?.name}</div></div>
+        if (!incByAcc.has(i.account_id)) incByAcc.set(i.account_id, []);
+        incByAcc.get(i.account_id).push(i);
+      });
+
+      const rowExpense = (i, acc) => {
+        const expiredCls = this.isExpired(i) ? ' bh-expired' : '';
+        return `<div class="bh-manage-row${expiredCls}" onclick="BH.openEditSheet('expense','${i.id}')">
+          <div><div class="bh-manage-row-desc" style="font-weight:600;font-size:14px;">${i.is_wallet ? '👛 ' : ''}${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${i.is_wallet ? 'Portefeuille mensuel' : 'Le '+i.day}${i.category ? ' · '+this.esc(i.category) : ''}${this.isExpired(i) ? ' · ⚠️ Expirée le '+this.fmtDate(i.end_date) : ''}</div></div>
+          <div class="num">${this.fmt(i.amount)}</div>
+        </div>`;
+      };
+      const rowIncome = (i) => `<div class="bh-manage-row" onclick="BH.openEditSheet('income','${i.id}')">
+          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${i.day ? 'Le '+i.day : 'Revenu'}</div></div>
           <div class="num" style="color:var(--sage-deep);">${this.fmt(i.amount)}</div>
         </div>`;
+
+      const buildGroups = (byAcc, rowFn) => {
+        let html = '';
+        let any = false;
+        ordered.forEach(acc => {
+          const items = (byAcc.get(acc.id) || []).slice().sort((a,b) => {
+            if (!!a.is_wallet !== !!b.is_wallet) return a.is_wallet ? 1 : -1;
+            return (Number(a.day)||0) - (Number(b.day)||0);
+          });
+          if (!items.length) return;
+          any = true;
+          const total = items.reduce((s,x)=>s+(Number(x.amount)||0), 0);
+          html += `<div class="bh-manage-group">
+            <div class="bh-manage-group-title"><span>${this.esc(acc.name)}</span><span class="num">${this.fmt(total)} · ${items.length}</span></div>
+            ${items.map(i => rowFn(i, acc)).join('')}
+          </div>`;
+        });
+        // Comptes orphelins (plus dans la liste)
+        byAcc.forEach((items, accId) => {
+          if (ordered.some(a => a.id === accId) || !items.length) return;
+          any = true;
+          const total = items.reduce((s,x)=>s+(Number(x.amount)||0), 0);
+          html += `<div class="bh-manage-group">
+            <div class="bh-manage-group-title"><span>Compte inconnu</span><span class="num">${this.fmt(total)}</span></div>
+            ${items.map(i => rowFn(i, null)).join('')}
+          </div>`;
+        });
+        return any ? html : '<div class="bh-empty">Rien (ou aucun résultat)</div>';
+      };
+
+      document.getElementById('bh-expenses-groups').innerHTML = buildGroups(expByAcc, rowExpense);
+      document.getElementById('bh-incomes-groups').innerHTML = buildGroups(incByAcc, rowIncome);
+    },
+
+    // --- VÉRIFICATION RELEVÉ BANCAIRE ---
+    verifIgnoredKey() {
+      return 'bh-verif-ignored-' + (this.user?.id || 'anon');
+    },
+    loadVerifIgnored() {
+      try { return new Set(JSON.parse(localStorage.getItem(this.verifIgnoredKey()) || '[]')); }
+      catch { return new Set(); }
+    },
+    saveVerifIgnored(set) {
+      localStorage.setItem(this.verifIgnoredKey(), JSON.stringify([...set]));
+    },
+    verifFingerprint(op) {
+      return [op.date || '', Number(op.amount).toFixed(2), (op.label || '').slice(0, 60).toLowerCase()].join('|');
+    },
+    parseAmountFR(raw) {
+      if (raw == null) return NaN;
+      let s = String(raw).replace(/\s|\u00a0/g, '').replace(/€|EUR/gi, '').replace(/−/g, '-');
+      if (/,\d{1,2}$/.test(s) && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else if (s.includes(',')) s = s.replace(',', '.');
+      return Number(s);
+    },
+    parseDateFR(raw) {
+      const m = String(raw || '').trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+      if (!m) return null;
+      let y = Number(m[3]);
+      if (y < 100) y += 2000;
+      const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
+      if (isNaN(d.getTime())) return null;
+      return d.toISOString().slice(0, 10);
+    },
+    normalizeLabel(s) {
+      return String(s || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, ' ').trim();
+    },
+    labelSimilarity(a, b) {
+      const ta = new Set(this.normalizeLabel(a).split(' ').filter(w => w.length > 2));
+      const tb = new Set(this.normalizeLabel(b).split(' ').filter(w => w.length > 2));
+      if (!ta.size || !tb.size) return 0;
+      let inter = 0;
+      ta.forEach(w => { if (tb.has(w)) inter++; });
+      return inter / Math.max(ta.size, tb.size);
+    },
+
+    parseBankCsv(text) {
+      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+      if (!lines.length) return [];
+      const sep = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
+      const split = (line) => {
+        const out = []; let cur = '', q = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { q = !q; continue; }
+          if (c === sep && !q) { out.push(cur.trim()); cur = ''; continue; }
+          cur += c;
+        }
+        out.push(cur.trim());
+        return out;
+      };
+      const rows = lines.map(split);
+      const header = rows[0].map(h => h.toLowerCase());
+      const looksHeader = header.some(h => /date|libell|label|montant|debit|credit|amount/.test(h));
+      const data = looksHeader ? rows.slice(1) : rows;
+      const idx = {
+        date: header.findIndex(h => /date/.test(h)),
+        label: header.findIndex(h => /libell|label|desc|motif|communication/.test(h)),
+        amount: header.findIndex(h => /montant|amount|sum/.test(h)),
+        debit: header.findIndex(h => /d[eé]bit|sortie/.test(h)),
+        credit: header.findIndex(h => /cr[eé]dit|entr[eé]e/.test(h))
+      };
+      const ops = [];
+      data.forEach((cols, i) => {
+        if (!cols.length || cols.every(c => !c)) return;
+        let date = looksHeader && idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : this.parseDateFR(cols[0]);
+        let label = looksHeader && idx.label >= 0 ? cols[idx.label] : (cols[1] || cols[0] || '');
+        let amount = NaN;
+        if (looksHeader && idx.amount >= 0) amount = this.parseAmountFR(cols[idx.amount]);
+        else if (looksHeader && (idx.debit >= 0 || idx.credit >= 0)) {
+          const d = idx.debit >= 0 ? this.parseAmountFR(cols[idx.debit]) : 0;
+          const c = idx.credit >= 0 ? this.parseAmountFR(cols[idx.credit]) : 0;
+          amount = (Number.isFinite(c) && c ? Math.abs(c) : 0) - (Number.isFinite(d) && d ? Math.abs(d) : 0);
+          if (!amount && Number.isFinite(d) && d) amount = -Math.abs(d);
+          if (!amount && Number.isFinite(c) && c) amount = Math.abs(c);
+        } else {
+          for (let j = cols.length - 1; j >= 0; j--) {
+            const n = this.parseAmountFR(cols[j]);
+            if (Number.isFinite(n) && Math.abs(n) > 0) { amount = n; break; }
+          }
+        }
+        if (!date || !Number.isFinite(amount) || amount === 0) return;
+        // Convention app : dépenses positives sortantes → on stocke le signe banque (crédit +, débit -)
+        ops.push({ id: 'csv-' + i, date, label: String(label || 'Mouvement').slice(0, 180), amount });
       });
-      document.getElementById('bh-expenses-groups').innerHTML = eHtml || '<div class="bh-empty">Rien (ou aucun résultat)</div>';
-      document.getElementById('bh-incomes-groups').innerHTML = iHtml || '<div class="bh-empty">Rien (ou aucun résultat)</div>';
+      return ops;
+    },
+
+    parseBankPdfText(text) {
+      const lines = text.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const ops = [];
+      const dateRe = /^(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})\b/;
+      const amountRe = /([-+−]?\s*\d{1,3}(?:[\s\u00a0.]\d{3})*[.,]\d{2})\s*(?:€|EUR)?\s*$/i;
+      lines.forEach((line, i) => {
+        const dm = line.match(dateRe);
+        const am = line.match(amountRe);
+        if (!dm || !am) return;
+        const date = this.parseDateFR(dm[1]);
+        let amount = this.parseAmountFR(am[1]);
+        if (!date || !Number.isFinite(amount) || amount === 0) return;
+        let label = line.slice(dm[0].length, am.index).replace(/\s+/g, ' ').trim();
+        // 2e date (valeur) souvent présente
+        label = label.replace(/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\s*/, '').trim();
+        if (!label || label.length < 2) label = 'Mouvement';
+        // Si le montant n'a pas de signe et le contexte dit débit, on garde tel quel :
+        // l'utilisateur choisit le compte ; on affichera débit/crédit via le signe si présent.
+        ops.push({ id: 'pdf-' + i, date, label: label.slice(0, 180), amount });
+      });
+      return ops;
+    },
+
+    async extractPdfText(file) {
+      if (!window.pdfjsLib) throw new Error('PDF.js non chargé');
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let text = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        let lastY = null;
+        const parts = [];
+        content.items.forEach(item => {
+          const y = item.transform ? item.transform[5] : null;
+          if (lastY != null && y != null && Math.abs(lastY - y) > 4) parts.push('\n');
+          else if (parts.length) parts.push(' ');
+          parts.push(item.str);
+          lastY = y;
+        });
+        text += parts.join('') + '\n';
+      }
+      return text;
+    },
+
+    async onVerifFile(file) {
+      if (!file) return;
+      const dropTitle = document.getElementById('verif-drop-title');
+      try {
+        if (dropTitle) dropTitle.textContent = 'Lecture de ' + file.name + '…';
+        let ops = [];
+        const name = (file.name || '').toLowerCase();
+        if (name.endsWith('.csv') || name.endsWith('.txt') || file.type.includes('csv') || file.type === 'text/plain') {
+          ops = this.parseBankCsv(await file.text());
+        } else {
+          const text = await this.extractPdfText(file);
+          ops = this.parseBankPdfText(text);
+          if (!ops.length) {
+            // fallback : parfois le PDF est une seule ligne longue
+            ops = this.parseBankPdfText(text.replace(/(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/g, '\n$1'));
+          }
+        }
+        if (!ops.length) {
+          toast('Aucune opération détectée. Essaie un export CSV de ta banque (plus fiable).');
+          if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
+          return;
+        }
+        const ignored = this.loadVerifIgnored();
+        const mSel = document.getElementById('verif-month')?.value;
+        const filtered = mSel
+          ? ops.filter(o => o.date.slice(0, 7) === mSel)
+          : ops;
+        this.verif.ops = (filtered.length ? filtered : ops).map(o => ({
+          ...o,
+          ignored: ignored.has(this.verifFingerprint(o)),
+          match: null
+        }));
+        this.verif.fileName = file.name;
+        if (dropTitle) dropTitle.textContent = file.name + ' · ' + this.verif.ops.length + ' lignes';
+        this.rematchVerif();
+        toast(this.verif.ops.length + ' opérations importées');
+      } catch (e) {
+        console.error(e);
+        toast('Impossible de lire le fichier : ' + (e.message || e));
+        if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
+      }
+      const input = document.getElementById('verif-file');
+      if (input) input.value = '';
+    },
+    onVerifDrop(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) this.onVerifFile(file);
+    },
+    onVerifAccountChange() {
+      this.verif.accId = document.getElementById('verif-account').value;
+      this.rematchVerif();
+    },
+    onVerifMonthChange() {
+      this.verif.mKey = document.getElementById('verif-month').value;
+      if (this.verif.ops.length && this.verif.fileName) this.rematchVerif();
+      else this.renderVerifTable();
+    },
+
+    buildVerifCandidates(accId, mKey) {
+      const list = [];
+      const paidMap = this.state.months[accId + '_' + mKey] || {};
+      const paidInc = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
+      const dim = (() => {
+        const [y, m] = mKey.split('-').map(Number);
+        return new Date(y, m, 0).getDate();
+      })();
+
+      (this.state.expenses || []).filter(e => e.account_id === accId && !e.is_wallet).forEach(e => {
+        if (!this.isActiveInMonth(e, mKey)) return;
+        const day = Math.min(Number(e.day) || 1, dim);
+        const date = `${mKey}-${String(day).padStart(2, '0')}`;
+        list.push({
+          kind: 'expense', id: e.id, accId, label: e.description, amount: Number(e.amount),
+          date, paid: !!paidMap[e.id], category: e.category || ''
+        });
+      });
+      (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
+        const day = Math.min(Number(i.day) || 1, dim);
+        const date = `${mKey}-${String(day).padStart(2, '0')}`;
+        list.push({
+          kind: 'income', id: i.id, accId, label: i.description, amount: Number(i.amount),
+          date, paid: !!paidInc[i.id], category: ''
+        });
+      });
+      (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet).forEach(e => {
+        this.getWalletTx(accId, e.id, mKey).forEach(t => {
+          if (this.isExternalWalletApport(t)) return;
+          const day = Number(t.day) || 1;
+          const date = t.date || `${mKey}-${String(day).padStart(2, '0')}`;
+          list.push({
+            kind: 'wallet', id: t.id, expId: e.id, accId,
+            label: `${e.description} · ${t.description}`,
+            amount: Number(t.amount), date, paid: true, category: e.category || ''
+          });
+        });
+        // budget enveloppe lui-même comme cible possible
+        list.push({
+          kind: 'wallet-budget', id: e.id, accId, label: '👛 ' + e.description,
+          amount: Number(e.amount), date: `${mKey}-01`, paid: false, category: e.category || ''
+        });
+      });
+      return list;
+    },
+
+    scoreVerifMatch(op, cand) {
+      // Banque : sorties souvent négatives ; budget dépenses positives
+      const bankAbs = Math.abs(Number(op.amount));
+      const candAbs = Math.abs(Number(cand.amount));
+      const amountDiff = Math.abs(bankAbs - candAbs);
+      if (amountDiff > 0.05 && amountDiff / Math.max(bankAbs, 1) > 0.02) return 0;
+      let score = 55;
+      if (amountDiff <= 0.02) score += 20;
+      else score += 10;
+
+      const signBank = Number(op.amount) >= 0 ? 1 : -1;
+      const expectIncome = cand.kind === 'income' || (cand.kind === 'wallet' && Number(cand.amount) < 0);
+      if ((signBank > 0 && expectIncome) || (signBank < 0 && !expectIncome) || cand.kind === 'wallet-budget') score += 8;
+      else if (cand.kind !== 'wallet') score -= 15;
+
+      if (op.date && cand.date) {
+        const d1 = new Date(op.date + 'T00:00:00');
+        const d2 = new Date(cand.date + 'T00:00:00');
+        const days = Math.abs((d1 - d2) / 86400000);
+        if (days <= 1) score += 18;
+        else if (days <= 3) score += 12;
+        else if (days <= 7) score += 6;
+        else if (days > 14 && cand.kind !== 'wallet-budget') score -= 10;
+      }
+      const sim = this.labelSimilarity(op.label, cand.label);
+      score += Math.round(sim * 25);
+      if (cand.paid && (cand.kind === 'expense' || cand.kind === 'income')) score += 4;
+      return Math.max(0, Math.min(100, score));
+    },
+
+    rematchVerif() {
+      const accId = this.verif.accId || document.getElementById('verif-account')?.value;
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      this.verif.accId = accId;
+      this.verif.mKey = mKey;
+      if (!accId || !this.verif.ops.length) { this.renderVerifTable(); return; }
+
+      const candidates = this.buildVerifCandidates(accId, mKey);
+      const used = new Set();
+      // Meilleurs matchs d'abord
+      const scored = [];
+      this.verif.ops.forEach(op => {
+        if (op.ignored) { op.match = null; return; }
+        candidates.forEach(c => {
+          const score = this.scoreVerifMatch(op, c);
+          if (score >= 55) scored.push({ opId: op.id, cand: c, score });
+        });
+      });
+      scored.sort((a, b) => b.score - a.score);
+      const assigned = new Map();
+      scored.forEach(({ opId, cand, score }) => {
+        if (assigned.has(opId)) return;
+        const key = cand.kind + ':' + cand.id;
+        if (used.has(key) && cand.kind !== 'wallet-budget') return;
+        used.add(key);
+        assigned.set(opId, { ...cand, score });
+      });
+      this.verif.ops.forEach(op => {
+        if (op.ignored) { op.match = null; return; }
+        op.match = assigned.get(op.id) || null;
+      });
+      this.renderVerifTable();
+    },
+
+    renderVerif() {
+      const accSel = document.getElementById('verif-account');
+      const monthInp = document.getElementById('verif-month');
+      if (!accSel || !monthInp) return;
+      const prevAcc = this.verif.accId || accSel.value;
+      const ordered = this.getOrderedAccounts();
+      accSel.innerHTML = ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      const pick = ordered.some(a => a.id === prevAcc) ? prevAcc : (this.state.profile?.main_account_id || ordered[0]?.id || '');
+      if (pick) accSel.value = pick;
+      this.verif.accId = accSel.value;
+      if (!monthInp.value) monthInp.value = this.monthKey(new Date());
+      this.verif.mKey = monthInp.value;
+      this.renderVerifTable();
+    },
+
+    renderVerifTable() {
+      const tbody = document.getElementById('verif-tbody');
+      if (!tbody) return;
+      const ops = this.verif.ops || [];
+      let matched = 0, pending = 0;
+      ops.forEach(o => {
+        if (o.ignored) return;
+        if (o.match && o.match.score >= 70) matched++;
+        else pending++;
+      });
+      const elT = document.getElementById('verif-stat-total');
+      const elM = document.getElementById('verif-stat-matched');
+      const elP = document.getElementById('verif-stat-pending');
+      if (elT) elT.textContent = String(ops.length);
+      if (elM) elM.textContent = String(matched);
+      if (elP) elP.textContent = String(pending);
+
+      if (!ops.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>';
+        return;
+      }
+
+      const kindLabel = (m) => {
+        if (!m) return '';
+        if (m.kind === 'expense') return m.paid ? 'Dépense déjà validée' : 'Dépense budgétée';
+        if (m.kind === 'income') return m.paid ? 'Revenu déjà encaissé' : 'Revenu prévu';
+        if (m.kind === 'wallet') return 'Mouvement portefeuille';
+        if (m.kind === 'wallet-budget') return 'Portefeuille (enveloppe)';
+        return m.kind;
+      };
+
+      tbody.innerHTML = ops.slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).map(op => {
+        const cls = op.ignored ? 'ignored' : (op.match && op.match.score >= 70 ? 'matched' : '');
+        const amtColor = op.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
+        const dateLbl = op.date ? new Date(op.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+        let matchHtml = '<span style="color:var(--ink-faint);">Non trouvé</span>';
+        if (op.ignored) matchHtml = '<span style="color:var(--ink-faint);">Oublié</span>';
+        else if (op.match) {
+          matchHtml = `<div class="bh-verif-match"><strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)} · score ${op.match.score}%</div></div>`;
+        }
+        const actions = op.ignored
+          ? `<button type="button" class="bh-btn bh-btn-ghost" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
+          : `<div class="bh-verif-actions">
+              ${op.match && (op.match.kind === 'expense' || op.match.kind === 'income') && !op.match.paid
+                ? `<button type="button" class="bh-btn bh-btn-primary" onclick="BH.applyVerifMatch('${op.id}')">Valider</button>` : ''}
+              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
+              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
+              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifWallet('${op.id}')">👛</button>
+              <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
+            </div>`;
+        return `<tr class="${cls}">
+          <td>${dateLbl}</td>
+          <td>${this.esc(op.label)}</td>
+          <td class="num" style="text-align:right;color:${amtColor};">${this.fmt(op.amount)}</td>
+          <td>${matchHtml}</td>
+          <td>${actions}</td>
+        </tr>`;
+      }).join('');
+    },
+
+    findVerifOp(opId) {
+      return (this.verif.ops || []).find(o => o.id === opId);
+    },
+    ignoreVerifOp(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      op.ignored = true;
+      op.match = null;
+      const set = this.loadVerifIgnored();
+      set.add(this.verifFingerprint(op));
+      this.saveVerifIgnored(set);
+      this.renderVerifTable();
+    },
+    unignoreVerifOp(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      op.ignored = false;
+      const set = this.loadVerifIgnored();
+      set.delete(this.verifFingerprint(op));
+      this.saveVerifIgnored(set);
+      this.rematchVerif();
+    },
+    clearVerifIgnored() {
+      this.saveVerifIgnored(new Set());
+      (this.verif.ops || []).forEach(o => { o.ignored = false; });
+      this.rematchVerif();
+      toast('Oubliés réaffichés');
+    },
+
+    async applyVerifMatch(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op?.match) return;
+      const m = op.match;
+      const amount = Math.abs(Number(op.amount));
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      if (m.kind === 'expense') {
+        await this.markPaid(m.id, amount, m.accId, mKey);
+        toast('Dépense validée depuis le relevé');
+      } else if (m.kind === 'income') {
+        await this.markIncome(m.id, amount, m.accId, mKey);
+        toast('Revenu encaissé depuis le relevé');
+      }
+      m.paid = true;
+      this.renderVerifTable();
+    },
+
+    openVerifLink(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      this.verif.linkOpId = opId;
+      const accId = this.verif.accId;
+      const mKey = this.verif.mKey;
+      const cands = this.buildVerifCandidates(accId, mKey)
+        .map(c => ({ ...c, score: this.scoreVerifMatch(op, c) }))
+        .sort((a, b) => b.score - a.score);
+      document.getElementById('verif-link-desc').textContent =
+        `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
+      const list = document.getElementById('verif-link-list');
+      list.innerHTML = cands.length
+        ? cands.slice(0, 40).map(c => `
+          <div class="bh-manage-row" style="cursor:pointer;" onclick="BH.confirmVerifLink('${c.kind}','${c.id}','${c.expId || ''}')">
+            <div>
+              <div style="font-weight:600;font-size:13.5px;">${this.esc(c.label)}</div>
+              <div style="font-size:11px;color:var(--ink-faint);">${c.kind}${c.paid ? ' · déjà traité' : ''} · score ${c.score}%</div>
+            </div>
+            <div class="num">${this.fmt(c.amount)}</div>
+          </div>`).join('')
+        : '<div class="bh-empty">Aucune saisie sur ce compte pour ce mois.</div>';
+      document.getElementById('bh-verif-link-overlay').classList.add('open');
+    },
+    closeVerifLink() {
+      document.getElementById('bh-verif-link-overlay').classList.remove('open');
+      this.verif.linkOpId = null;
+    },
+    async confirmVerifLink(kind, id, expId) {
+      const op = this.findVerifOp(this.verif.linkOpId);
+      if (!op) return;
+      const accId = this.verif.accId;
+      const amount = Math.abs(Number(op.amount));
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      this.closeVerifLink();
+      if (kind === 'expense') {
+        op.match = { kind, id, accId, label: (this.state.expenses.find(e => e.id === id) || {}).description || 'Dépense', amount, paid: true, score: 100 };
+        await this.markPaid(id, amount, accId, mKey);
+      } else if (kind === 'income') {
+        op.match = { kind, id, accId, label: (this.state.incomes.find(e => e.id === id) || {}).description || 'Revenu', amount, paid: true, score: 100 };
+        await this.markIncome(id, amount, accId, mKey);
+      } else if (kind === 'wallet' || kind === 'wallet-budget') {
+        const walletExpId = kind === 'wallet' ? (expId || id) : id;
+        await this.addWalletTxFromVerif(walletExpId, accId, op);
+        op.match = { kind: 'wallet', id: 'new', expId: walletExpId, accId, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      }
+      this.renderVerifTable();
+    },
+
+    verifAddAsEntry(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      const isIncome = Number(op.amount) > 0;
+      this.openAddSheet();
+      document.getElementById('f-type').value = isIncome ? 'income' : 'expense';
+      this.updateSheetForm();
+      document.getElementById('f-desc').value = op.label;
+      document.getElementById('f-amount').value = Math.abs(Number(op.amount)).toFixed(2);
+      if (op.date) {
+        const day = Number(op.date.slice(8, 10));
+        document.getElementById('f-day').value = day;
+      }
+      this.populateSheetSelects(this.verif.accId, '');
+      toast('Formulaire prérempli — enregistre pour créer la saisie');
+    },
+
+    openVerifWallet(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      const wallets = (this.state.expenses || []).filter(e => e.account_id === this.verif.accId && e.is_wallet);
+      if (!wallets.length) {
+        toast('Aucun portefeuille sur ce compte');
+        return;
+      }
+      this.verif.walletOpId = opId;
+      document.getElementById('verif-wallet-desc').textContent =
+        `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
+      const sel = document.getElementById('verif-wallet-select');
+      sel.innerHTML = wallets.map(w => `<option value="${w.id}">${this.esc(w.description)} (${this.fmt(w.amount)})</option>`).join('');
+      document.getElementById('bh-verif-wallet-overlay').classList.add('open');
+    },
+    closeVerifWallet() {
+      document.getElementById('bh-verif-wallet-overlay').classList.remove('open');
+      this.verif.walletOpId = null;
+    },
+    async confirmVerifWallet() {
+      const op = this.findVerifOp(this.verif.walletOpId);
+      const expId = document.getElementById('verif-wallet-select')?.value;
+      if (!op || !expId) return;
+      this.closeVerifWallet();
+      await this.addWalletTxFromVerif(expId, this.verif.accId, op);
+      op.match = { kind: 'wallet', id: 'new', expId, accId: this.verif.accId, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      this.renderVerifTable();
+    },
+
+    async addWalletTxFromVerif(expId, accId, op) {
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      // Le relevé peut être d'un autre mois que "en cours" — on écrit sur le mois du relevé
+      const opKey = (op.date || '').slice(0, 7);
+      const writeKey = opKey || mKey;
+      let amount = Number(op.amount);
+      // Dans les portefeuilles, sortie = positif
+      if (amount < 0) amount = Math.abs(amount);
+      else if (amount > 0) {
+        // crédit banque → remboursement dans l'enveloppe
+        amount = -Math.abs(amount);
+      }
+      const day = op.date ? Number(op.date.slice(8, 10)) : 1;
+      const bucket = this.state.walletTx?.[accId + '_' + writeKey] || {};
+      const list = (bucket[expId] || []).slice();
+      list.push({
+        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+        description: op.label,
+        amount,
+        day,
+        date: op.date,
+        kind: amount < 0 ? 'refund' : 'expense'
+      });
+      const newBucket = { ...bucket, [expId]: list };
+      await withRetry(async () => {
+        await this.upsertMonthRecord(accId, writeKey, { wallet_transactions: newBucket });
+        toast('Ajouté au portefeuille');
+        this.fetchData();
+      }, 'ajout portefeuille depuis relevé');
     },
 
     renderStats() {

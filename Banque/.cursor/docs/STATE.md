@@ -18,9 +18,12 @@
   - Export CSV et PDF.
   - Système de Backup local / Restauration (JSON complet).
   - Notifications locales pour alerter sur les échéances proches (à j-2).
-- **Interface responsive (PWA) :** Mobile inchangé (colonne 560px, tabbar bas, bottom sheets). Desktop ≥960px : sidebar de navigation, contenu large multi-colonnes (Aujourd’hui / Comptes / Saisies / Stats), modales centrées.
+- **Interface responsive (PWA) :** Mobile inchangé (colonne 560px, tabbar bas, bottom sheets). Desktop ≥960px : sidebar de navigation, contenu large multi-colonnes (Aujourd’hui / Comptes / Saisies / Stats / Vérif), modales centrées.
+- **Saisies par compte :** Dépenses et revenus groupés par compte (totaux + compteur).
+- **Vérification relevé (MVP) :** Onglet Vérif — import PDF/CSV local (pdf.js), matching vs budget, actions Valider / Lier / + Saisie / Portefeuille / Oublier.
 
 ## Prochaines étapes de développement (TODO)
 *(Liste à mettre à jour lors de nos prochaines sessions de développement)*
 - [ ] Mettre en place un système de relances widget sur iphone pour validé facilement les données.
+- [ ] Améliorer le module Vérif (OFX, apprentissage des libellés, écarts budget↔banque, OCR PDF scannés).
 - [ ] Mettre en place un systeme de lecture du compte bancaire en directe ou via un systeme tierce pour validé ou modifier les montants avec mon accord
