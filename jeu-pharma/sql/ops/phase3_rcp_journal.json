@@ -1,0 +1,253 @@
+{
+  "phase": 3,
+  "title": "Cardio DEUST — RCP référentiel (allowlist BDPM/EMA)",
+  "started_at": "2026-10-28T14:44:04.617Z",
+  "rules": {
+    "sources": [
+      "base-donnees-publique.medicaments.gouv.fr",
+      "ema.europa.eu"
+    ],
+    "no_invention": true,
+    "ei": "frequents_ou_rares_graves_si_RCP"
+  },
+  "entries": [
+    {
+      "dci": "Chlortalidone",
+      "matrice_id": null,
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "no_cis_mono_fr — uniquement en asso (Tenoretic CIS 62980497) ; pas de création mono sans RCP mono"
+    },
+    {
+      "dci": "Altizide",
+      "matrice_id": null,
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "no_cis_mono_fr — uniquement en asso (Aldactazine CIS 69724251)"
+    },
+    {
+      "dci": "Méthyclothiazide",
+      "matrice_id": null,
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "no_cis_fr — search_products vide ; Prestol = triamtérène+HCT (pas méthyclothiazide)"
+    },
+    {
+      "dci": "Sacubitril",
+      "matrice_id": null,
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "no_cis_mono_fr — uniquement complexe Entresto (sacubitril+valsartan)"
+    },
+    {
+      "dci": "Sulfate ferreux",
+      "matrice_id": null,
+      "cis": "61879666",
+      "source": "proxy_sels_ferreux",
+      "reused": 1,
+      "created": 0,
+      "status": "skip_create_proxy",
+      "reason": "proxy → fiche existante Sels ferreux (Tardyferon CIS 61879666) ; pas de 2e mono"
+    },
+    {
+      "dci": "Aspirine",
+      "matrice_id": null,
+      "cis": null,
+      "source": "proxy_aas",
+      "reused": 1,
+      "created": 0,
+      "status": "skip_create_proxy",
+      "reason": "mapper → Acide acétylsalicylique existant (déjà densifié)"
+    },
+    {
+      "dci": "Désirudine",
+      "matrice_id": "15dace8a-f7b8-4d7e-b388-8eb9a860fee1",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Revasc absent BDM FR ; pas d’invention"
+    },
+    {
+      "dci": "Lépirudine",
+      "matrice_id": "7fd0485c-b7cb-445d-ac0f-3984eddb245e",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Refludan absent BDM FR"
+    },
+    {
+      "dci": "Éprosartan",
+      "matrice_id": "9a9eb95a-70fd-4871-ae36-c7f69200895c",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Teveten absent BDM FR"
+    },
+    {
+      "dci": "Rétéplase",
+      "matrice_id": "6f8158c7-8836-4a76-a636-9800c119443b",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Rapilysin/reteplase absent BDM FR"
+    },
+    {
+      "dci": "Streptokinase",
+      "matrice_id": "04463bf2-ee7e-4e61-a864-9383bd77524b",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Streptase absent BDM FR"
+    },
+    {
+      "dci": "Ruscoside",
+      "matrice_id": "474ef71c-3530-45fe-82d4-22be995087c4",
+      "cis": null,
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "manual_absent_bdm — Cirkan/ruscoside absent ; hits Ruscus = homéopathie (rejeté)"
+    },
+    {
+      "dci": "Alginate de calcium",
+      "matrice_id": "c63e3099-8a74-42bf-9b33-efd88ab29da1",
+      "cis": "63517694",
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "cis_suspect — CIS alginate/sodium 63517694 ≠ pansement calcique"
+    },
+    {
+      "dci": "Nébivolol + hydrochlorothiazide",
+      "matrice_id": "43e31250-8f71-4538-be5f-ba4aa4d47d9c",
+      "cis": "67856966",
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "cis_suspect + no_asso_cis_fr — 67856966 = nébivolol mono ; search asso HCT vide"
+    },
+    {
+      "dci": "Triamtérène + méthyclothiazide",
+      "matrice_id": "694ce30c-89bd-47be-9434-acfc2fffa602",
+      "cis": "63870751",
+      "source": null,
+      "reused": 0,
+      "created": 0,
+      "status": "skip",
+      "reason": "cis_suspect — 63870751 Prestol = triamtérène+HCT (pas méthyclothiazide) ; pas de spécialité FR méthyclothiazide"
+    },
+    {
+      "dci": "Amiloride + furosémide",
+      "matrice_id": "2db88479-3f2f-4a9c-8a81-805c057278a1",
+      "cis": "63824615",
+      "source": "ansm_html",
+      "url": "https://base-donnees-publique.medicaments.gouv.fr/medicament/63824615/extrait",
+      "reused": 48,
+      "created": 3,
+      "status": "ok",
+      "note": "Logirene — CIS correct (remplace Moduretic 68045361 cis_suspect)",
+      "publish_after": false
+    },
+    {
+      "dci": "Idarucizumab",
+      "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+      "cis": "63555182",
+      "source": "epar_pdf",
+      "url": "https://www.ema.europa.eu/fr/documents/product-information/praxbind-epar-product-information_fr.pdf",
+      "reused": 24,
+      "created": 3,
+      "status": "ok",
+      "note": "Praxbind — densite Ind/CI/EI faible",
+      "publish_after": false
+    },
+    {
+      "dci": "Naftazone",
+      "matrice_id": "89d61300-8511-4ef8-95af-649d6d349009",
+      "cis": "60073451",
+      "source": "ansm_html",
+      "url": "https://base-donnees-publique.medicaments.gouv.fr/medicament/60073451/extrait",
+      "reused": 15,
+      "created": 3,
+      "status": "ok",
+      "note": "Etioven — densite faible",
+      "publish_after": false
+    },
+    {
+      "dci": "Folinate de calcium",
+      "matrice_id": "b11555be-dc28-43ad-ae54-38b761d9059f",
+      "cis": "60666074",
+      "source": "ansm_html",
+      "url": "https://base-donnees-publique.medicaments.gouv.fr/medicament/60666074/extrait",
+      "reused": 34,
+      "created": 3,
+      "status": "ok",
+      "note": "FOLINATE AGUETTANT 100 mg — publier apres RCP",
+      "publish_after": true
+    }
+  ],
+  "composants_backfill": [
+    {
+      "asso": "Clopidogrel + aspirine",
+      "matrice_id": "04061350-4766-4925-9f69-09681a21de92",
+      "composant_dci": "Acide acétylsalicylique",
+      "composant_matrice_id": "de52a954-d5c1-434a-ab55-df2d6af685d3",
+      "ordre": 1,
+      "note": "aspirine → AAS"
+    },
+    {
+      "asso": "Acide ascorbique + sulfate ferreux",
+      "matrice_id": "a19b0c1d-7c86-4b55-b27f-c134be7828db",
+      "composant_dci": "Sels ferreux",
+      "composant_matrice_id": "d122d669-2f7c-48ed-a517-aa6e4bd765b8",
+      "ordre": 1,
+      "note": "sulfate ferreux → proxy sels ferreux"
+    }
+  ],
+  "totals": {
+    "ok": 4,
+    "skip": 13,
+    "proxy": 2,
+    "error": 0,
+    "reused": 121,
+    "created": 12
+  },
+  "verification": {
+    "matrice_composants_liens": 78,
+    "assos_lt2_composants": 5,
+    "monos_crees": 0,
+    "folinate_statut": "publie",
+    "densites_apres": {
+      "Amiloride + furosémide": { "n_ind": 1, "n_ci": 7, "n_ei": 7, "n_comp": 2, "cis": "63824615" },
+      "Idarucizumab": { "n_ind": 2, "n_ci": 0, "n_ei": 3, "cis": "63555182" },
+      "Naftazone": { "n_ind": 1, "n_ci": 2, "n_ei": 1, "cis": "60073451" },
+      "Folinate de calcium": { "n_ind": 1, "n_ci": 4, "n_ei": 7, "statut": "publie", "cis": "60666074" }
+    },
+    "audit_42": "Majorité densités §4.2 déjà OK (regen antérieure) ; Phase 3 = restes + CIS Logirene + skips monos"
+  },
+  "finished_at": "2026-10-28T14:45:38.828Z"
+}

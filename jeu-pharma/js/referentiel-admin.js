@@ -698,12 +698,30 @@
     });
   }
 
+  function renderComposants(items) {
+    const box = $('composantsBox');
+    const list = $('composantsList');
+    if (!box || !list) return;
+    const arr = Array.isArray(items) ? items : [];
+    if (!arr.length) {
+      box.hidden = true;
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = arr.map((c) => {
+      const label = esc(c.dci || '—');
+      return '<li>' + label + '</li>';
+    }).join('');
+    box.hidden = false;
+  }
+
   function resetForm() {
     editingId = null;
     pickerMulti = {};
     $('editorTitle').textContent = 'Nouvelle fiche';
     $('fStatutEd').value = 'brouillon';
     $('edValBadge').innerHTML = '';
+    renderComposants([]);
     for (const c of CHAMPS) {
       const input = $('val_' + c.code);
       if (!input) continue;
@@ -772,6 +790,15 @@
       } else {
         setMulti(c.code, multiArr(row, c.code).filter((x) => x && x.id)
           .map((x) => ({ id: x.id, valeur: MED().labelFrom(x) })));
+      }
+    }
+    renderComposants([]);
+    if (row.id && String(row.dci || '').includes(' + ')) {
+      try {
+        const comps = await MED().listComposants(row.id);
+        renderComposants(comps);
+      } catch (e) {
+        /* lecture optionnelle Phase 1 */
       }
     }
     highlightRow(row.id);

@@ -78,6 +78,14 @@
   .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
   .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
   .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
+  .bh-verif-stat.clickable{ cursor:pointer; transition: border-color .15s, box-shadow .15s; user-select:none; }
+  .bh-verif-stat.clickable:hover{ border-color:var(--sage); }
+  .bh-verif-stat.clickable.active{
+    border-color:var(--sage); box-shadow:inset 0 0 0 1px var(--sage);
+    background:var(--sage-pale);
+  }
+  .bh-verif-score-filter{ display:flex; align-items:end; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
+  .bh-verif-score-filter .bh-input{ margin:0; min-width:140px; width:auto; }
   .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); width:100%; }
   .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
   .bh-verif-table th{
@@ -89,16 +97,19 @@
   .bh-verif-table tr:last-child td{ border-bottom:none; }
   .bh-verif-table tr.ignored{ opacity:0.45; }
   .bh-verif-table tr.matched{ background:rgba(228,238,232,0.45); }
-  /* Colonnes fluides : Date | Mouvement | Montant | Lien | Actions */
+  /* Colonnes : Date | Mouvement | Montant | Score | Lien | Actions */
   .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:7%; white-space:nowrap; }
   .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){
-    width:16%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;
+    width:14%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;
   }
   .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:9%; white-space:nowrap; }
-  .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){
-    width:20%; overflow:hidden;
-  }
-  .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:48%; }
+  .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:7%; white-space:nowrap; text-align:right; }
+  .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:18%; overflow:hidden; }
+  .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:45%; }
+  .bh-verif-score-cell{ font-variant-numeric:tabular-nums; font-weight:700; }
+  .bh-verif-score-cell.hi{ color:var(--sage-deep); }
+  .bh-verif-score-cell.mid{ color:var(--amber); }
+  .bh-verif-score-cell.lo{ color:var(--ink-faint); }
   .bh-verif-match{ font-size:12px; line-height:1.35; overflow:hidden; }
   .bh-verif-match strong{
     display:inline; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
@@ -515,10 +526,11 @@
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 320px); }
     .bh-verif-status-wrap{ max-height:calc(100vh - 280px); }
     .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:6%; }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:14%; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:13%; }
     .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:8%; }
-    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:18%; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:54%; }
+    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:6%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:17%; }
+    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:50%; }
     .bh-verif-actions{ flex-wrap:nowrap; gap:6px; }
     .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; }
 
@@ -562,9 +574,9 @@
     #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); }
     .bh-view{ padding:16px 40px 48px; }
     .bh-topbar{ padding:22px 40px 14px; }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:16%; }
-    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:20%; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:50%; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:15%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:18%; }
+    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:48%; }
   }
 
 </style>
@@ -744,11 +756,33 @@
         </div>
 
         <div class="bh-verif-stats" id="verif-stats">
+          <div class="bh-verif-stat clickable" id="verif-stat-card-all" onclick="BH.setVerifListFilter('all')" title="Afficher toutes les lignes">
+            <div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div>
+          </div>
           <div class="bh-verif-stat"><div class="lbl">Banque</div><div class="val" style="font-size:14px;" id="verif-stat-bank">—</div></div>
-          <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
-          <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
-          <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
-          <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-stat-unverified">0</div></div>
+          <div class="bh-verif-stat clickable" id="verif-stat-card-matched" onclick="BH.setVerifListFilter('matched')" title="Filtrer les correspondances trouvées">
+            <div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div>
+          </div>
+          <div class="bh-verif-stat clickable" id="verif-stat-card-pending" onclick="BH.setVerifListFilter('pending')" title="Filtrer les lignes à traiter">
+            <div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div>
+          </div>
+          <div class="bh-verif-stat clickable" id="verif-stat-card-unverified" onclick="BH.setVerifListFilter('unverified')" title="Voir les saisies budget non vérifiées">
+            <div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-stat-unverified">0</div>
+          </div>
+        </div>
+
+        <div class="bh-verif-score-filter">
+          <div>
+            <div class="bh-field-label" style="margin-top:0;">Filtrer par score</div>
+            <select id="verif-score-filter" class="bh-input" onchange="BH.onVerifScoreFilterChange()">
+              <option value="">Tous les scores</option>
+              <option value="none">Sans correspondance</option>
+              <option value="55">Score ≥ 55 %</option>
+              <option value="70">Score ≥ 70 %</option>
+              <option value="85">Score ≥ 85 %</option>
+              <option value="100">Score = 100 %</option>
+            </select>
+          </div>
         </div>
 
         <div class="bh-verif-table-wrap">
@@ -758,6 +792,7 @@
                 <th>Date</th>
                 <th>Mouvement</th>
                 <th style="text-align:right;">Montant</th>
+                <th style="text-align:right;">Score</th>
                 <th>Lien budget</th>
                 <th>
                   <span class="bh-verif-th-help">
@@ -768,7 +803,7 @@
               </tr>
             </thead>
             <tbody id="verif-tbody">
-              <tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
+              <tr><td colspan="6" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
             </tbody>
           </table>
         </div>
@@ -776,9 +811,15 @@
 
       <div class="bh-verif-pane" id="verif-pane-status">
         <div class="bh-verif-stats" id="verif-status-stats">
-          <div class="bh-verif-stat"><div class="lbl">Total</div><div class="val num" id="verif-status-total">0</div></div>
-          <div class="bh-verif-stat"><div class="lbl">Vérifiées</div><div class="val num" style="color:var(--sage-deep);" id="verif-status-ok">0</div></div>
-          <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-status-ko">0</div></div>
+          <div class="bh-verif-stat clickable" id="verif-status-card-all" onclick="BH.setVerifStatusFilter('all')" title="Toutes les saisies">
+            <div class="lbl">Total</div><div class="val num" id="verif-status-total">0</div>
+          </div>
+          <div class="bh-verif-stat clickable" id="verif-status-card-ok" onclick="BH.setVerifStatusFilter('ok')" title="Saisies déjà vérifiées">
+            <div class="lbl">Vérifiées</div><div class="val num" style="color:var(--sage-deep);" id="verif-status-ok">0</div>
+          </div>
+          <div class="bh-verif-stat clickable" id="verif-status-card-ko" onclick="BH.setVerifStatusFilter('ko')" title="Saisies non vérifiées">
+            <div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-status-ko">0</div>
+          </div>
         </div>
         <div class="bh-verif-status-wrap">
           <div class="bh-verif-status-list" id="verif-status-list">
@@ -1279,7 +1320,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', linkOpId: null, walletOpId: null, refundOpId: null },
+    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, walletOpId: null, refundOpId: null },
 
     async init() {
       await this.fetchData();
@@ -3426,6 +3467,75 @@
       if (this.verif.pane === 'status') this.renderVerifStatus();
       else this.renderVerifTable();
     },
+    setVerifListFilter(filter) {
+      const next = filter || 'all';
+      if (next === 'unverified') {
+        this.verif.statusFilter = this.verif.statusFilter === 'ko' && this.verif.pane === 'status' ? 'all' : 'ko';
+        this.switchVerifPane('status');
+        return;
+      }
+      this.verif.listFilter = this.verif.listFilter === next ? 'all' : next;
+      if (this.verif.pane !== 'releve') this.switchVerifPane('releve');
+      else this.renderVerifTable();
+    },
+    setVerifStatusFilter(filter) {
+      const next = filter || 'all';
+      this.verif.statusFilter = this.verif.statusFilter === next ? 'all' : next;
+      this.renderVerifStatus();
+    },
+    onVerifScoreFilterChange() {
+      const sel = document.getElementById('verif-score-filter');
+      this.verif.scoreFilter = sel ? sel.value : '';
+      this.renderVerifTable();
+    },
+    verifOpPassesFilters(op) {
+      const listFilter = this.verif.listFilter || 'all';
+      const scoreFilter = this.verif.scoreFilter || '';
+      const score = op.match ? Number(op.match.score) || 0 : 0;
+      const isMatched = !op.ignored && op.match && score >= 70;
+      const isPending = !op.ignored && !isMatched;
+
+      if (listFilter === 'matched' && !isMatched) return false;
+      if (listFilter === 'pending' && !isPending) return false;
+
+      if (scoreFilter === 'none') {
+        if (op.ignored || (op.match && score > 0)) return false;
+      } else if (scoreFilter) {
+        const min = Number(scoreFilter);
+        if (!op.match || score < min) return false;
+      }
+      return true;
+    },
+    syncVerifFilterUi() {
+      const listFilter = this.verif.listFilter || 'all';
+      const map = {
+        all: 'verif-stat-card-all',
+        matched: 'verif-stat-card-matched',
+        pending: 'verif-stat-card-pending'
+      };
+      Object.keys(map).forEach(key => {
+        const el = document.getElementById(map[key]);
+        if (el) el.classList.toggle('active', listFilter === key);
+      });
+      const unv = document.getElementById('verif-stat-card-unverified');
+      if (unv) unv.classList.toggle('active', this.verif.pane === 'status' && this.verif.statusFilter === 'ko');
+
+      const statusFilter = this.verif.statusFilter || 'all';
+      const sMap = {
+        all: 'verif-status-card-all',
+        ok: 'verif-status-card-ok',
+        ko: 'verif-status-card-ko'
+      };
+      Object.keys(sMap).forEach(key => {
+        const el = document.getElementById(sMap[key]);
+        if (el) el.classList.toggle('active', statusFilter === key);
+      });
+
+      const scoreSel = document.getElementById('verif-score-filter');
+      if (scoreSel && scoreSel.value !== (this.verif.scoreFilter || '')) {
+        scoreSel.value = this.verif.scoreFilter || '';
+      }
+    },
     renderVerifStatus() {
       const listEl = document.getElementById('verif-status-list');
       if (!listEl) return;
@@ -3442,15 +3552,27 @@
       if (elOk) elOk.textContent = String(ok);
       if (elKo) elKo.textContent = String(ko);
       if (elUn) elUn.textContent = String(ko);
+      this.syncVerifFilterUi();
+
+      const statusFilter = this.verif.statusFilter || 'all';
+      const visible = rows.filter(r => {
+        if (statusFilter === 'ok') return r.verified;
+        if (statusFilter === 'ko') return !r.verified;
+        return true;
+      });
 
       if (!rows.length) {
         listEl.innerHTML = '<div class="bh-verif-status-empty">Aucune dépense, revenu ou remboursement sur ce compte / mois.</div>';
         return;
       }
+      if (!visible.length) {
+        listEl.innerHTML = '<div class="bh-verif-status-empty">Aucune saisie pour ce filtre.</div>';
+        return;
+      }
 
       let html = '';
       let lastGroup = '';
-      rows.forEach(r => {
+      visible.forEach(r => {
         if (r.group !== lastGroup) {
           lastGroup = r.group;
           html += `<div class="bh-verif-status-group">${this.esc(r.group)}</div>`;
@@ -4086,9 +4208,10 @@
       if (elM) elM.textContent = String(matched);
       if (elP) elP.textContent = String(pending);
       this.renderUnverifiedExpenses();
+      this.syncVerifFilterUi();
 
       if (!ops.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>';
         return;
       }
 
@@ -4102,8 +4225,15 @@
         return m.kind;
       };
 
-      tbody.innerHTML = ops.slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).map(op => {
-        const cls = op.ignored ? 'ignored' : (op.match && op.match.score >= 70 ? 'matched' : '');
+      const visible = ops.filter(op => this.verifOpPassesFilters(op));
+      if (!visible.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="bh-verif-empty">Aucune ligne pour ce filtre.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = visible.slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).map(op => {
+        const score = op.match ? Number(op.match.score) || 0 : 0;
+        const cls = op.ignored ? 'ignored' : (op.match && score >= 70 ? 'matched' : '');
         const amtColor = op.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
         const dateLbl = op.date ? new Date(op.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
         let matchHtml = '<span style="color:var(--ink-faint);">Non trouvé</span>';
@@ -4112,8 +4242,12 @@
           const tag = op.match.accName
             ? `<span class="bh-verif-acc-tag">${this.esc(op.match.accName)}</span>`
             : '';
-          matchHtml = `<div class="bh-verif-match">${tag}<strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)} · score ${op.match.score}%</div></div>`;
+          matchHtml = `<div class="bh-verif-match">${tag}<strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)}</div></div>`;
         }
+        const scoreCls = !op.match || op.ignored ? 'lo' : (score >= 70 ? 'hi' : (score >= 55 ? 'mid' : 'lo'));
+        const scoreHtml = op.ignored
+          ? '—'
+          : (op.match ? `${score}&nbsp;%` : '—');
         const canValidate = op.match && (op.match.kind === 'expense' || op.match.kind === 'income' || op.match.kind === 'refund');
         const already = !!(op.match && op.match.paid);
         const validateBtn = canValidate
@@ -4145,6 +4279,7 @@
           <td>${dateLbl}</td>
           <td title="${this.esc(op.labelRaw || op.label)}">${this.esc(op.label)}</td>
           <td class="num" style="text-align:right;color:${amtColor};">${this.fmt(op.amount)}</td>
+          <td class="num bh-verif-score-cell ${scoreCls}" style="text-align:right;">${scoreHtml}</td>
           <td>${matchHtml}</td>
           <td>${actions}</td>
         </tr>`;

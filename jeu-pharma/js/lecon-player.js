@@ -208,9 +208,75 @@
     return (typeJeu === 'ordonnance' ? 'ordonnances/jouer.html' : 'jeux/jouer.html') + q;
   }
 
+  /** Palette stable composants d’association (ordre 0…n). */
+  const ASSO_PALETTE = [
+    { bg: '#dbeafe', fg: '#1e3a8a', border: '#3b82f6' },
+    { bg: '#fce7f3', fg: '#9d174d', border: '#ec4899' },
+    { bg: '#dcfce7', fg: '#14532d', border: '#22c55e' },
+    { bg: '#ffedd5', fg: '#9a3412', border: '#f97316' },
+    { bg: '#e0e7ff', fg: '#3730a3', border: '#6366f1' },
+  ];
+  const ASSO_BLEND = { bg: '#ede9fe', fg: '#5b21b6', border: '#8b5cf6' };
+
+  function assoTone(comp, index) {
+    if (comp && comp.couleur && /^#[0-9a-f]{3,8}$/i.test(String(comp.couleur).trim())) {
+      const hex = String(comp.couleur).trim();
+      return { bg: hex + '22', fg: hex, border: hex };
+    }
+    return ASSO_PALETTE[index % ASSO_PALETTE.length];
+  }
+
+  function chipStyle(tone) {
+    if (!tone) return '';
+    return ' style="background:' + esc(tone.bg) + ';color:' + esc(tone.fg)
+      + ';border:1px solid ' + esc(tone.border) + '"';
+  }
+
   function ficheHtml(fiche) {
     const champs = fiche.champs || {};
-    let body = '<div class="jp-mol-head"><strong class="jp-mol-dci">' + esc(fiche.dci || '') + '</strong>';
+    const comps = Array.isArray(fiche.composants)
+      ? fiche.composants.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+      : [];
+    const isAsso = comps.length >= 2;
+
+    // entite_id → index composant (pour colorer les chips publiés)
+    const entiteToComp = new Map();
+    if (isAsso) {
+      comps.forEach((c, i) => {
+        const ids = Array.isArray(c.entite_ids) ? c.entite_ids : [];
+        ids.forEach((raw) => {
+          const id = typeof raw === 'string' ? raw : (raw && raw.toString ? raw.toString() : '');
+          if (id) entiteToComp.set(id, i);
+        });
+      });
+    }
+
+    function toneForItem(item) {
+      if (!isAsso) return null;
+      const eid = item && (item.entite_id || item.id);
+      if (eid != null && entiteToComp.has(String(eid))) {
+        return assoTone(comps[entiteToComp.get(String(eid))], entiteToComp.get(String(eid)));
+      }
+      // Spécifique association (non hérité d’un mono connu)
+      return ASSO_BLEND;
+    }
+
+    let body = '<div class="jp-mol-head' + (isAsso ? ' jp-mol-head--asso' : '') + '">';
+    if (isAsso) {
+      body += '<p class="jp-mol-asso-label">Association</p>';
+    }
+    body += '<strong class="jp-mol-dci">' + esc(fiche.dci || '') + '</strong>';
+    if (isAsso) {
+      body += '<div class="jp-mol-asso-legend" role="list" aria-label="Composition">';
+      comps.forEach((c, i) => {
+        const t = assoTone(c, i);
+        body += '<span class="jp-mol-asso-pill" role="listitem"' + chipStyle(t) + '>'
+          + esc(c.dci || 'Composant') + '</span>';
+      });
+      body += '<span class="jp-mol-asso-pill jp-mol-asso-pill--blend" role="listitem"'
+        + chipStyle(ASSO_BLEND) + '>Spécifique association</span>';
+      body += '</div>';
+    }
     const noms = (fiche.noms_commerciaux || []).map((n) => n.valeur).filter(Boolean);
     if (noms.length) {
       body += '<div class="jp-chip-list jp-chip-list--noms">'
@@ -222,10 +288,15 @@
       .sort((a, b) => champRank(a) - champRank(b));
     let dl = '';
     codes.forEach((code) => {
-      const vals = (champs[code] || []).map((x) => x.valeur).filter(Boolean);
-      if (!vals.length) return;
-      dl += '<div class="jp-mol-row"><dt>' + esc(champLibelle(code)) + '</dt><dd>'
-        + vals.map((v) => '<span class="jp-chip">' + esc(v) + '</span>').join('') + '</dd></div>';
+      const items = (champs[code] || []).filter((x) => x && x.valeur);
+      if (!items.length) return;
+      dl += '<div class="jp-mol-row' + (isAsso ? ' jp-mol-row--asso' : '') + '"><dt>'
+        + esc(champLibelle(code)) + '</dt><dd>'
+        + items.map((it) => {
+          const t = toneForItem(it);
+          return '<span class="jp-chip' + (t ? ' jp-chip--asso' : '') + '"' + chipStyle(t) + '>'
+            + esc(it.valeur) + '</span>';
+        }).join('') + '</dd></div>';
     });
     if (dl) body += '<dl class="jp-mol-fields">' + dl + '</dl>';
     return body;

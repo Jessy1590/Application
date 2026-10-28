@@ -1,0 +1,174 @@
+{
+  "started_at": "2026-10-28T15:14:57.918Z",
+  "project": "kpjflntnotftpzffjbud",
+  "phase": "3b",
+  "rule": "Sources ONLY base-donnees-publique.medicaments.gouv.fr puis ema.europa.eu ; réutiliser entités ; pas d’invention",
+  "ok": [
+    {
+      "matrice_id": "15dace8a-f7b8-4d7e-b388-8eb9a860fee1",
+      "dci": "Désirudine",
+      "status": "ok",
+      "cis": null,
+      "source": "ema_epar_pdf",
+      "stats": {
+        "reused": 44,
+        "created": 3
+      },
+      "url": "https://www.ema.europa.eu/fr/documents/product-information/revasc-epar-product-information_fr.pdf",
+      "note": "Revasc EPAR FR (AMM retirée) — densités CI/EI"
+    },
+    {
+      "matrice_id": "7fd0485c-b7cb-445d-ac0f-3984eddb245e",
+      "dci": "Lépirudine",
+      "status": "ok",
+      "cis": null,
+      "source": "ema_epar_pdf",
+      "stats": {
+        "reused": 41,
+        "created": 3
+      },
+      "url": "https://www.ema.europa.eu/fr/documents/product-information/refludan-epar-product-information_fr.pdf",
+      "note": "Refludan EPAR FR (AMM retirée) — densités CI/EI"
+    },
+    {
+      "matrice_id": "6f8158c7-8836-4a76-a636-9800c119443b",
+      "dci": "Rétéplase",
+      "status": "ok",
+      "cis": null,
+      "source": "ema_epar_pdf",
+      "stats": {
+        "reused": 36,
+        "created": 3
+      },
+      "url": "https://www.ema.europa.eu/fr/documents/product-information/rapilysin-epar-product-information_fr.pdf",
+      "note": "Rapilysin EPAR FR (AMM retirée 2024)"
+    },
+    {
+      "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+      "dci": "Idarucizumab",
+      "status": "ok",
+      "cis": "63555182",
+      "source": "ema_epar_pdf",
+      "stats": {
+        "reused": 23,
+        "created": 3
+      },
+      "url": "https://www.ema.europa.eu/fr/documents/product-information/praxbind-epar-product-information_fr.pdf",
+      "note": "Praxbind — re-apply CI (n_ci=0 après phase3)"
+    }
+  ],
+  "skip": [
+    {
+      "dci": "Streptokinase",
+      "reason": "no_cis_or_rcp_vide",
+      "note": "BDM FR vide ; pas d’EPAR EMA centralisé → skip",
+      "matrice_id": "04463bf2-ee7e-4e61-a864-9383bd77524b"
+    },
+    {
+      "dci": "Ruscoside",
+      "reason": "no_cis_or_rcp_vide",
+      "note": "Cirkan absent ; hits Ruscus = homéopathie (rejeté)",
+      "matrice_id": "474ef71c-3530-45fe-82d4-22be995087c4"
+    },
+    {
+      "dci": "Chlortalidone",
+      "reason": "no_cis_mono_fr_ema",
+      "note": "Partenaire Aténolol/Métoprolol+chlortalidone ; Tenoretic = asso seulement",
+      "backfill_assos_pending": [
+        "Aténolol + chlortalidone",
+        "Métoprolol + chlortalidone"
+      ]
+    },
+    {
+      "dci": "Altizide",
+      "reason": "no_cis_mono_fr_ema",
+      "note": "Partenaire Spironolactone+altizide ; Aldactazine = asso seulement",
+      "backfill_assos_pending": [
+        "Spironolactone + altizide"
+      ]
+    },
+    {
+      "dci": "Méthyclothiazide",
+      "reason": "no_cis_mono_fr_ema",
+      "note": "Partenaire Triamtérène+méthyclothiazide ; Prestol = triam+HCT (suspect)",
+      "backfill_assos_pending": [
+        "Triamtérène + méthyclothiazide"
+      ]
+    },
+    {
+      "dci": "Sacubitril",
+      "reason": "no_cis_mono_fr_ema",
+      "note": "Partenaire Sacubitril+valsartan ; Entresto = complexe (pas mono). Valsartan déjà lié.",
+      "backfill_assos_pending": [
+        "Sacubitril + valsartan"
+      ]
+    }
+  ],
+  "errors": [],
+  "monos": [
+    {
+      "dci": "Chlortalidone",
+      "status": "not_created",
+      "reason": "no_cis_mono_fr_ema"
+    },
+    {
+      "dci": "Altizide",
+      "status": "not_created",
+      "reason": "no_cis_mono_fr_ema"
+    },
+    {
+      "dci": "Méthyclothiazide",
+      "status": "not_created",
+      "reason": "no_cis_mono_fr_ema"
+    },
+    {
+      "dci": "Sacubitril",
+      "status": "not_created",
+      "reason": "no_cis_mono_fr_ema"
+    }
+  ],
+  "composants": [
+    {
+      "status": "already_linked",
+      "asso_id": "0415e982-3813-4b5c-8534-e93933343ce8",
+      "composant_matrice_id": "0130eef2-c8af-4d30-9370-5e61b8215d0d",
+      "composant_dci": "Valsartan",
+      "note": "Valsartan déjà en matrice_composants pour Sacubitril+valsartan"
+    }
+  ],
+  "finished_at": "2026-10-28T15:16:27.485Z",
+  "totals": {
+    "ok": 4,
+    "skip": 6,
+    "errors": 0,
+    "monos_pending": 0,
+    "monos_not_created": 4
+  },
+  "verification": {
+    "n_matrices": 164,
+    "densite_min_ok": 161,
+    "densite_faible": 3,
+    "asso_ge2": 35,
+    "asso_1_comp": 5,
+    "faibles": [
+      {
+        "dci": "Idarucizumab",
+        "n_ci": 0,
+        "n_ei": 3,
+        "reason": "RCP Praxbind §4.3 = Aucune. — pas d'invention"
+      },
+      {
+        "dci": "Ruscoside",
+        "n_ci": 0,
+        "n_ei": 0,
+        "reason": "no_cis_or_rcp_vide"
+      },
+      {
+        "dci": "Streptokinase",
+        "n_ci": 0,
+        "n_ei": 0,
+        "reason": "no_cis_or_rcp_vide"
+      }
+    ]
+  }
+}

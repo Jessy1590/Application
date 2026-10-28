@@ -142,6 +142,16 @@
     return data;
   }
 
+  /** Composants d’une fiche association : [{id,dci,ordre,couleur}]. */
+  async function listComposants(matriceId) {
+    if (!matriceId) return [];
+    const { data, error } = await sb().rpc('v2_matrice_composants', {
+      p_matrice_id: matriceId,
+    });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  }
+
   /** Fiche active (non archive) pour une DCI, sinon null. */
   async function findByDciId(dciId, excludeId) {
     if (!dciId) return null;
@@ -429,6 +439,7 @@
   global.JpMedicaments = {
     list,
     getById,
+    listComposants,
     findByDciId,
     save,
     setStatut,

@@ -1,6 +1,22 @@
 # État Jeu Pharma (handoff)
 
-Dernière mise à jour : 2026-10-14 — **Ops 050** : retrait pubs mol obsolètes (retour post-048).
+Dernière mise à jour : 2026-10-28 — **Phase 5 QA Cardio DEUST** PASS (voir `PHASE5_QA_CARDIO_DEUST.md`).
+
+## Cardio DEUST enrichissement (077–079 + phase3 — remote 2026-10-28)
+
+Parcours `cardiovasculaires_deust_2a` — plan `cardio_deust_enrichissement` ; audit Phase 0 validé (`AUDIT_CARDIO_DEUST_PHASE0.md`).
+
+| Ops | Contenu | État |
+|-----|---------|------|
+| **`077`** | Table `matrice_composants` + RLS / fiche résolue composants ; backfill liens A/B | **78** liens remote |
+| **`078`** | Liaisons blocs `molecule` + sync pubs base **dci / nom_commercial** (cours) | Leçons prévues ≥1 mol ; physio exclues |
+| **phase3** | RCP référentiel allowlist BDPM/EMA ; journal CIS/source | **4 OK**, **13 skip**, **2 proxy** (`PHASE3_RCP_JOURNAL.md`) |
+| **`079`** | Jeux validation + critères alignés (fix mismatch GR, critères plaquettes, 7 jeux CV) | **18** modèles actifs |
+
+Assos parcours : **35** avec ≥2 composants ; **5** à 1 composant (chlortalidone / altizide / méthyclothiazide / sacubitril — skips anti-invention).  
+QA Phase 5 : **PASS** — 0 bloc molécule visible vide ; critères jeux alignés (GB skip) ; pubs nouvelles leçons = identité ; pas de correctif bloquant.
+
+SQL : `sql/077_matrice_composants.sql`, `sql/ops/078_liaisons_molecules_deust.sql`, `sql/ops/phase3_rcp_journal.json`, `sql/ops/079_jeux_deust.sql`.
 
 ## Ops 050 — pubs molécules parcours (2026-10-14)
 - Soft-off **261** pubs mol actives (dont **138** `cours_cardio_deust_2a` + **123** `rcp_bdpm_cardio_deust` ; **44** Sels ferreux sur `sang_rappel` + Pathologie GR).
@@ -510,6 +526,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] **`040` multi-niveaux ★** · **`041` purge profil / hospitalier-complexe** (vue sans `*_niveaux` / hospitalier — remplace l’intention de `018`)
 - [~] `018_vue_sans_niveaux_entite` — **obsolète** (couvert par `041`)
 - [x] **`076` suppression `cardiovasculaires_v2`** (`sql/076_supprimer_cardiovasculaires_v2.sql`, MCP 2026-10-28) : parcours + modules/blocs/jeux JP-V2* + inscription ; `073`/`074` marqués obsolètes (ne plus relancer)
+- [x] **`077`–`079` + phase3 Cardio DEUST** (MCP 2026-10-28) : composants, liaisons/pubs identité, RCP journalisé, jeux ; QA Phase 5 PASS (`PHASE5_QA_CARDIO_DEUST.md`)
 
 ### Surfaces
 - Hub joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux

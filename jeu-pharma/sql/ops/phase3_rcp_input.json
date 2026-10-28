@@ -1,0 +1,27 @@
+[
+  {
+    "matrice_id": "2db88479-3f2f-4a9c-8a81-805c057278a1",
+    "dci": "Amiloride + furosémide",
+    "cis_fixed": "63824615",
+    "note": "Logirene — CIS correct (remplace Moduretic 68045361 cis_suspect)"
+  },
+  {
+    "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+    "dci": "Idarucizumab",
+    "cis_fixed": "63555182",
+    "note": "Praxbind — densite Ind/CI/EI faible"
+  },
+  {
+    "matrice_id": "89d61300-8511-4ef8-95af-649d6d349009",
+    "dci": "Naftazone",
+    "cis_fixed": "60073451",
+    "note": "Etioven — densite faible"
+  },
+  {
+    "matrice_id": "b11555be-dc28-43ad-ae54-38b761d9059f",
+    "dci": "Folinate de calcium",
+    "cis_fixed": "60666074",
+    "note": "FOLINATE AGUETTANT 100 mg — publier apres RCP",
+    "publish_after": true
+  }
+]

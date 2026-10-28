@@ -637,6 +637,33 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
 .jp-mol-slot { padding: 0.2rem 0.1rem; }
 .jp-mol-dci { display: block; font-family: var(--jp-font-display, Georgia, serif); font-size: 1.35rem; line-height: 1.25; }
 .jp-mol-fields { margin: 0.8rem 0 0; }
+
+/* Association : légende composants + chips colorés */
+.jp-mol-head--asso { padding-bottom: 0.35rem; }
+.jp-mol-asso-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #5b21b6;
+}
+.jp-mol-asso-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0.2rem;
+}
+.jp-mol-asso-pill {
+  display: inline-block;
+  padding: 0.22rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.jp-mol-asso-pill--blend { font-style: italic; }
+.jp-chip--asso { border-radius: 0.55rem; }
 .jp-mol-row {
   display: grid;
   grid-template-columns: minmax(7rem, 30%) 1fr;
