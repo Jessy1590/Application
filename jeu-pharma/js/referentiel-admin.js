@@ -1209,7 +1209,7 @@
       'Ce qui est visible par les apprenants se règle dans Modif parcours.',
       'Comparaison : tableau des molécules d’un parcours / chapitre / leçon, fusion et valeurs ★.',
       'Vérifier les éléments : renommer / fusionner / supprimer une table d’entités.',
-      'Gestion par groupe : aligner indications, CI, classes… sur plusieurs DCI cochées.',
+      'Gestion par groupe : filtrer DCI (texte / classes) puis aligner indications, CI… sur les cochées.',
     ]));
     fillStaticSelects();
     buildFields();

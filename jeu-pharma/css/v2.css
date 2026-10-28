@@ -1405,6 +1405,19 @@
   display: grid;
   gap: 0.45rem;
 }
+.jp-ref-groupe-list-toolbar .jp-ref-entites-search {
+  max-width: none;
+  width: 100%;
+}
+.jp-ref-groupe-class-filters {
+  display: grid;
+  gap: 0.35rem;
+}
+.jp-ref-groupe-class-filters .jp-ref-groupe-ta {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+}
 .jp-ref-groupe-list-actions {
   display: flex;
   flex-wrap: wrap;

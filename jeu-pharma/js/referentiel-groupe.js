@@ -1,5 +1,6 @@
 /**
  * Admin Référentiel — Gestion par groupe (aligner des champs sur plusieurs fiches DCI).
+ * Filtres liste : texte DCI/nom ∩ classe théra ∩ classe pharma (typeahead entités).
  * Réutilise JpMedicaments.replaceLiaisons + JpTypeahead.entiteSource(allowCreate).
  */
 (function (global) {
@@ -73,13 +74,18 @@
     mainEl: null,
     all: [],
     filter: '',
+    filterClasseThId: null,
+    filterClassePhId: null,
     selected: new Set(),
     ctrls: [],
+    filterCtrls: [],
     busy: false,
   };
 
   const HELP_LINES = [
-    'Filtrez les DCI (ex. « sartan ») puis cochez les fiches à aligner.',
+    'Filtrez par texte DCI/nom (ex. « sartan ») et/ou par classe thérapeutique / pharmacologique.',
+    'Plusieurs filtres actifs = intersection (une fiche doit tout satisfaire).',
+    'Cochez les fiches affichées, puis alignez les champs à droite.',
     'Champs multi : Ajouter / Retirer une valeur, ou Remplacer toute la liste par les chips choisies.',
     'Champs singuliers : Appliquer la même valeur sur toutes les fiches sélectionnées.',
     'Seules les fiches cochées sont modifiées — le reste du référentiel n’est pas touché.',
@@ -90,6 +96,13 @@
       try { c?.destroy?.(); } catch (_) { /* ignore */ }
     });
     state.ctrls = [];
+  }
+
+  function destroyFilterCtrls() {
+    (state.filterCtrls || []).forEach((c) => {
+      try { c?.destroy?.(); } catch (_) { /* ignore */ }
+    });
+    state.filterCtrls = [];
   }
 
   function onCreateEntite(table) {
@@ -125,9 +138,14 @@
       + '<div class="jp-ref-groupe-list-toolbar">'
       + '<input type="search" id="grpFilter" class="jp-ref-entites-search" '
       + 'placeholder="Filtrer DCI / nom… ex. sartan" aria-label="Filtrer les DCI" autocomplete="off">'
+      + '<div class="jp-ref-groupe-class-filters">'
+      + '<div id="grpFiltClasseTh" class="jp-ref-groupe-ta" aria-label="Classe thérapeutique"></div>'
+      + '<div id="grpFiltClassePh" class="jp-ref-groupe-ta" aria-label="Classe pharmacologique"></div>'
+      + '</div>'
       + '<div class="jp-ref-groupe-list-actions">'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="grpSelectVisible">Tout cocher (filtrés)</button>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="grpClearSel">Effacer</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="grpClearSel">Effacer sélection</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="grpClearFilt">Effacer filtres</button>'
       + '</div></div>'
       + '<div id="grpList" class="jp-ref-groupe-list"><p class="jp-muted">Chargement…</p></div>'
       + '</aside>'
@@ -138,17 +156,51 @@
       + '</div></div>';
   }
 
+  /** Ids de classe liés à la fiche (jonction + FK d’ordre 0). */
+  function classeIdsOf(row, code) {
+    const ids = new Set();
+    const fk = code === 'classe_therapeutique'
+      ? 'classe_therapeutique_id'
+      : (code === 'classe_pharmacologique' ? 'classe_pharmacologique_id' : null);
+    if (fk && row?.[fk]) ids.add(String(row[fk]));
+    const arr = Array.isArray(row?.[code]) ? row[code] : [];
+    arr.forEach((x) => {
+      if (x?.id) ids.add(String(x.id));
+    });
+    return ids;
+  }
+
+  function rowMatchesText(r, q, qn) {
+    if (!q) return true;
+    const dci = String(r.dci || '').toLowerCase();
+    const dciN = ENT().normaliser(r.dci || '');
+    const noms = String(MED().formatNoms?.(r) || '').toLowerCase();
+    const nomsN = ENT().normaliser(noms);
+    return dci.includes(q) || dciN.includes(qn) || noms.includes(q) || nomsN.includes(qn);
+  }
+
+  /**
+   * Filtre liste : intersection des critères actifs (texte ∩ classe théra ∩ classe pharma).
+   * Une classe choisie = fiches liées à cet id (jonction ou FK).
+   */
   function filteredRows() {
     const q = String(state.filter || '').trim().toLowerCase();
-    const qn = ENT().normaliser(q);
-    if (!q) return state.all;
+    const qn = q ? ENT().normaliser(q) : '';
+    const thId = state.filterClasseThId ? String(state.filterClasseThId) : null;
+    const phId = state.filterClassePhId ? String(state.filterClassePhId) : null;
+    if (!q && !thId && !phId) return state.all;
     return state.all.filter((r) => {
-      const dci = String(r.dci || '').toLowerCase();
-      const dciN = ENT().normaliser(r.dci || '');
-      const noms = String(MED().formatNoms?.(r) || '').toLowerCase();
-      const nomsN = ENT().normaliser(noms);
-      return dci.includes(q) || dciN.includes(qn) || noms.includes(q) || nomsN.includes(qn);
+      if (!rowMatchesText(r, q, qn)) return false;
+      if (thId && !classeIdsOf(r, 'classe_therapeutique').has(thId)) return false;
+      if (phId && !classeIdsOf(r, 'classe_pharmacologique').has(phId)) return false;
+      return true;
     });
+  }
+
+  function hasActiveFilters() {
+    return !!(String(state.filter || '').trim()
+      || state.filterClasseThId
+      || state.filterClassePhId);
   }
 
   function paintCount() {
@@ -172,7 +224,7 @@
     const rows = filteredRows();
     if (!rows.length) {
       box.innerHTML = '<p class="jp-muted">Aucune fiche'
-        + (state.filter ? ' pour « ' + esc(state.filter) + ' »' : '') + '.</p>';
+        + (hasActiveFilters() ? ' pour ces filtres' : '') + '.</p>';
       paintCount();
       return;
     }
@@ -200,6 +252,49 @@
       });
     });
     paintCount();
+  }
+
+  function mountClassFilters() {
+    destroyFilterCtrls();
+    const ta = TA();
+    const hostTh = state.host?.querySelector('#grpFiltClasseTh');
+    const hostPh = state.host?.querySelector('#grpFiltClassePh');
+    if (!ta?.entiteSource || !hostTh || !hostPh) return;
+
+    const onFilt = () => { renderList(); };
+
+    state.filterCtrls.push(ta.combo(hostTh, {
+      search: ta.entiteSource('classes_therapeutiques', { limit: 14 }),
+      minChars: 0,
+      placeholder: 'Classe thérapeutique…',
+      ariaLabel: 'Filtrer par classe thérapeutique',
+      onChange: (it) => {
+        state.filterClasseThId = it?.id || null;
+        onFilt();
+      },
+    }));
+    state.filterCtrls.push(ta.combo(hostPh, {
+      search: ta.entiteSource('classes_pharmacologiques', { limit: 14 }),
+      minChars: 0,
+      placeholder: 'Classe pharmacologique…',
+      ariaLabel: 'Filtrer par classe pharmacologique',
+      onChange: (it) => {
+        state.filterClassePhId = it?.id || null;
+        onFilt();
+      },
+    }));
+  }
+
+  function clearFilters() {
+    state.filter = '';
+    state.filterClasseThId = null;
+    state.filterClassePhId = null;
+    const inp = state.host?.querySelector('#grpFilter');
+    if (inp) inp.value = '';
+    (state.filterCtrls || []).forEach((c) => {
+      try { c?.clear?.(true); } catch (_) { /* ignore */ }
+    });
+    renderList();
   }
 
   function mountOps() {
@@ -479,6 +574,8 @@
     host.innerHTML = shellHtml();
     state.open = true;
     state.filter = '';
+    state.filterClasseThId = null;
+    state.filterClassePhId = null;
     state.selected.clear();
     document.body.classList.add('jp-comparaison-open');
     if (location.hash !== '#groupe') {
@@ -505,7 +602,9 @@
       state.selected.clear();
       renderList();
     });
+    host.querySelector('#grpClearFilt').addEventListener('click', clearFilters);
 
+    mountClassFilters();
     mountOps();
     await loadAll();
   }
@@ -513,7 +612,11 @@
   function close() {
     if (!state.open) return;
     destroyCtrls();
+    destroyFilterCtrls();
     state.selected.clear();
+    state.filter = '';
+    state.filterClasseThId = null;
+    state.filterClassePhId = null;
     state.all = [];
     if (state.host) {
       state.host.hidden = true;
