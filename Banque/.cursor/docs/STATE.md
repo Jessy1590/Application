@@ -20,8 +20,8 @@
   - Notifications locales pour alerter sur les échéances proches (à j-2).
 - **Interface responsive (PWA) :** Mobile inchangé (colonne 560px, tabbar bas, bottom sheets). Desktop ≥960px : sidebar de navigation, contenu large multi-colonnes (Aujourd’hui / Comptes / Saisies / Stats / Vérif), modales centrées.
 - **Saisies par compte :** Dépenses et revenus groupés par compte (totaux + compteur).
-- **Vérification relevé :** Onglet Vérif (desktop) — sous-vues Relevé (import CSV/PDF, matching, Enregistrer) et Vérification (dépenses / revenus / remboursements colorés vérifié ou non).
-- **Persistance vérifs :** Table Supabase `bank_verifications` — actions unitaires + bouton Enregistrer (lot).
+- **Vérification relevé :** Onglet Vérif (desktop) — sous-vues Relevé (import CSV/PDF, matching, Enregistrer) et Vérification (dépenses / mouvements portefeuille / revenus / remboursements colorés vérifié ou non).
+- **Persistance vérifs :** Table Supabase `bank_verifications` — actions unitaires + bouton Enregistrer (lot) ; portefeuille lié à l’id de transaction.
 
 ## Prochaines étapes de développement (TODO)
 *(Liste à mettre à jour lors de nos prochaines sessions de développement)*

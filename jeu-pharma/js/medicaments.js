@@ -152,6 +152,24 @@
     return Array.isArray(data) ? data : [];
   }
 
+  /** Remplace les composants d’une association (ordre = index). */
+  async function replaceComposants(matriceId, composantIds) {
+    if (!matriceId) throw new Error('matrice requise');
+    const ids = (composantIds || []).filter(Boolean).map(String)
+      .filter((id, i, arr) => id !== String(matriceId) && arr.indexOf(id) === i);
+    const { error: delErr } = await sb().from('matrice_composants').delete().eq('matrice_id', matriceId);
+    if (delErr) throw delErr;
+    if (!ids.length) return [];
+    const rows = ids.map((cid, ordre) => ({
+      matrice_id: matriceId,
+      composant_matrice_id: cid,
+      ordre,
+    }));
+    const { error: insErr } = await sb().from('matrice_composants').insert(rows);
+    if (insErr) throw insErr;
+    return listComposants(matriceId);
+  }
+
   /** Fiche active (non archive) pour une DCI, sinon null. */
   async function findByDciId(dciId, excludeId) {
     if (!dciId) return null;
@@ -440,6 +458,8 @@
     list,
     getById,
     listComposants,
+    replaceComposants,
+    replaceLiaisons,
     findByDciId,
     save,
     setStatut,

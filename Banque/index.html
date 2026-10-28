@@ -3308,19 +3308,38 @@
       const expense = new Set();
       const income = new Set();
       const refund = new Set();
+      const wallet = new Set();
       this.getBankVerifsForMonth(mKey).forEach(v => {
         if (v.status === 'ignored') return;
         const id = v.linked_id != null ? String(v.linked_id) : '';
         if (v.linked_kind === 'expense' && id) expense.add(id);
         if (v.linked_kind === 'income' && id) income.add(id);
+        if (v.linked_kind === 'wallet' && id) wallet.add(id);
         if (v.linked_kind === 'refund' && id) {
           refund.add(id);
           income.add(id);
         }
         const refundOf = v.meta && v.meta.refund_of;
         if (refundOf) expense.add(String(refundOf));
+        const walletTx = v.meta && (v.meta.tx_id || v.meta.wallet_tx_id);
+        if (walletTx) wallet.add(String(walletTx));
       });
-      return { expense, income, refund };
+      return { expense, income, refund, wallet };
+    },
+    walletVerifLink(m) {
+      // Mouvement portefeuille : linked_id = id de la transaction, meta.exp_id = enveloppe
+      const txId = m?.kind === 'wallet' ? m.id : null;
+      const expId = m?.expId || (m?.kind === 'wallet-budget' ? m.id : null);
+      return {
+        kind: 'wallet',
+        id: txId || expId,
+        accId: m?.accId,
+        score: m?.score,
+        meta: {
+          exp_id: expId || null,
+          tx_id: txId && txId !== 'new' ? txId : null
+        }
+      };
     },
     verifiedExpenseIds(mKey) {
       return this.verifiedLinkedSets(mKey).expense;
@@ -3426,6 +3445,31 @@
         });
       });
 
+      (this.state.expenses || []).forEach(e => {
+        if (!accIds.includes(e.account_id) || !e.is_wallet || !this.isActiveInMonth(e, mKey)) return;
+        this.getWalletTx(e.account_id, e.id, mKey).forEach(t => {
+          if (this.isExternalWalletApport(t)) return;
+          const txId = String(t.id);
+          const day = Number(t.day) || 1;
+          const amt = Number(t.amount) || 0;
+          rows.push({
+            kind: 'wallet',
+            group: 'Portefeuille',
+            id: txId,
+            label: `${e.description} · ${t.description || 'Mouvement'}`,
+            amount: Math.abs(amt),
+            day,
+            category: e.category || '',
+            accId: e.account_id,
+            accName: accName(e.account_id),
+            paid: true,
+            verified: sets.wallet.has(txId),
+            walletExpId: e.id,
+            walletSign: amt < 0 ? 'refund' : 'expense'
+          });
+        });
+      });
+
       (this.state.incomes || []).forEach(i => {
         if (!accIds.includes(i.account_id)) return;
         const isRefund = this.isIncomeRefund(i, mKey);
@@ -3448,7 +3492,7 @@
         });
       });
 
-      const order = { Dépenses: 0, Revenus: 1, Remboursements: 2 };
+      const order = { Dépenses: 0, Portefeuille: 1, Revenus: 2, Remboursements: 3 };
       return rows.sort((a, b) =>
         (order[a.group] - order[b.group]) ||
         a.day - b.day ||
@@ -3579,9 +3623,11 @@
         }
         const state = r.verified ? 'ok' : 'ko';
         const badge = r.verified ? 'Vérifié' : 'Non vérifié';
-        const paidLbl = r.kind === 'expense'
-          ? (r.paid ? 'payée' : 'non payée')
-          : (r.paid ? 'encaissé' : 'non encaissé');
+        const paidLbl = r.kind === 'wallet'
+          ? (r.walletSign === 'refund' ? 'crédit enveloppe' : 'dépense enveloppe')
+          : (r.kind === 'expense'
+            ? (r.paid ? 'payée' : 'non payée')
+            : (r.paid ? 'encaissé' : 'non encaissé'));
         html += `
           <div class="bh-verif-status-row ${state}">
             <div>
@@ -3622,10 +3668,14 @@
         const m = op.match;
         if (!m || Number(m.score) < 70) continue;
         let status = 'matched';
-        let link = { kind: m.kind, id: m.expId || m.id, accId: m.accId, score: m.score };
-        if (m.kind === 'wallet' || m.kind === 'wallet-budget') {
+        let link = { kind: m.kind, id: m.id, accId: m.accId, score: m.score };
+        if (m.kind === 'wallet') {
+          // Uniquement les txs déjà présentes (pas wallet-budget : créerait un doublon)
+          if (!m.id || m.id === 'new') continue;
           status = 'wallet';
-          link = { kind: 'wallet', id: m.expId || m.id, accId: m.accId, score: m.score };
+          link = this.walletVerifLink(m);
+        } else if (m.kind === 'wallet-budget') {
+          continue;
         } else if (m.kind === 'refund') {
           status = 'refund';
           link = {
@@ -4150,12 +4200,20 @@
         if (op.ignored) { op.match = null; return; }
         const saved = dbByFp.get(this.verifFingerprint(op));
         if (saved && saved.status !== 'ignored' && saved.linked_kind && saved.linked_id) {
-          const linked = candidates.find(c =>
-            String(c.id) === String(saved.linked_id) &&
-            (c.kind === saved.linked_kind ||
-              (saved.linked_kind === 'wallet' && (c.kind === 'wallet' || c.kind === 'wallet-budget')) ||
-              (saved.linked_kind === 'refund' && c.kind === 'income'))
-          );
+          const savedTxId = saved.meta?.tx_id || saved.meta?.wallet_tx_id || null;
+          const linked = candidates.find(c => {
+            if (saved.linked_kind === 'wallet') {
+              // Préférer la transaction portefeuille (id tx), pas l’enveloppe
+              if (c.kind === 'wallet') {
+                if (savedTxId && String(c.id) === String(savedTxId)) return true;
+                if (String(c.id) === String(saved.linked_id)) return true;
+              }
+              return false;
+            }
+            return String(c.id) === String(saved.linked_id) &&
+              (c.kind === saved.linked_kind ||
+                (saved.linked_kind === 'refund' && c.kind === 'income'));
+          });
           if (linked) {
             const key = linked.kind + ':' + linked.id;
             used.add(key);
@@ -4256,7 +4314,7 @@
         // Portefeuille : déjà dedans (vert pâle) / enveloppe suggérée (vert) / sinon ouvrir le choix
         let walletBtn = '';
         if (op.match && op.match.kind === 'wallet') {
-          walletBtn = `<button type="button" class="bh-btn bh-btn-done" title="Déjà présent dans ce portefeuille — recliquer pour en choisir un autre" onclick="BH.openVerifWallet('${op.id}')">Dans portefeuille</button>`;
+          walletBtn = `<button type="button" class="bh-btn bh-btn-done" title="Confirmer la vérification de ce mouvement portefeuille (ou recliquer Enregistrer)" onclick="BH.confirmExistingWalletVerif('${op.id}')">Dans portefeuille</button>`;
         } else if (op.match && op.match.kind === 'wallet-budget') {
           walletBtn = `<button type="button" class="bh-btn bh-btn-primary" title="Ajouter ce montant dans l’enveloppe suggérée" onclick="BH.applyVerifWalletMatch('${op.id}')">+ Portefeuille</button>`;
         } else {
@@ -4293,7 +4351,7 @@
           <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli).</p>
-          <p style="margin:0 0 12px;"><strong>+ Portefeuille / Dans portefeuille</strong> — Ajoute dans une enveloppe. Vert pâle = déjà présent dans un portefeuille.</p>
+          <p style="margin:0 0 12px;"><strong>+ Portefeuille / Dans portefeuille</strong> — Ajoute dans une enveloppe, ou confirme qu’un mouvement déjà saisi est vérifié. Vert pâle = déjà présent.</p>
           <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne. Tu peux la réafficher plus tard.</p>
           <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
         </div>
@@ -4366,15 +4424,25 @@
         return;
       }
       const m = op.match;
-      await this.addWalletTxFromVerif(m.id, m.accId, op);
+      const txId = await this.addWalletTxFromVerif(m.id, m.accId, op);
+      if (!txId) return;
       op.match = {
-        kind: 'wallet', id: 'new', expId: m.id, accId: m.accId, accName: m.accName,
+        kind: 'wallet', id: txId, expId: m.id, accId: m.accId, accName: m.accName,
         label: m.label, amount: Number(op.amount), paid: true, score: 100
       };
-      await this.upsertBankVerification(op, 'wallet', {
-        kind: 'wallet', id: m.id, accId: m.accId, score: 100
-      });
+      await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       this.renderVerifTable();
+    },
+    async confirmExistingWalletVerif(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op?.match || op.match.kind !== 'wallet' || !op.match.id || op.match.id === 'new') {
+        this.openVerifWallet(opId);
+        return;
+      }
+      await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
+      toast('Mouvement portefeuille vérifié');
+      this.renderVerifTable();
+      this.renderVerifStatus();
     },
 
     openVerifLink(opId) {
@@ -4443,11 +4511,21 @@
         op.match = { kind, id, accId, accName, label: inc?.description || 'Revenu', amount, paid: true, score: 100 };
         await this.markIncome(id, amount, accId, mKey);
         await this.upsertBankVerification(op, 'matched', { kind: 'income', id, accId, score: 100 });
-      } else if (kind === 'wallet' || kind === 'wallet-budget') {
-        const walletExpId = kind === 'wallet' ? (expId || id) : id;
-        await this.addWalletTxFromVerif(walletExpId, accId, op);
-        op.match = { kind: 'wallet', id: 'new', expId: walletExpId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
-        await this.upsertBankVerification(op, 'wallet', { kind: 'wallet', id: walletExpId, accId, score: 100 });
+      } else if (kind === 'wallet') {
+        // Transaction déjà présente dans l’enveloppe : on enregistre le rapprochement
+        op.match = {
+          kind: 'wallet', id, expId: expId || null, accId, accName,
+          label: op.label, amount: Number(op.amount), paid: true, score: 100
+        };
+        await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
+      } else if (kind === 'wallet-budget') {
+        const txId = await this.addWalletTxFromVerif(id, accId, op);
+        if (!txId) return;
+        op.match = {
+          kind: 'wallet', id: txId, expId: id, accId, accName,
+          label: op.label, amount: Number(op.amount), paid: true, score: 100
+        };
+        await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       }
       this.renderVerifTable();
     },
@@ -4614,10 +4692,11 @@
       const accId = document.getElementById('verif-wallet-account')?.value || this.verif.accId;
       if (!op || !expId) return;
       this.closeVerifWallet();
-      await this.addWalletTxFromVerif(expId, accId, op);
+      const txId = await this.addWalletTxFromVerif(expId, accId, op);
+      if (!txId) return;
       const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
-      op.match = { kind: 'wallet', id: 'new', expId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
-      await this.upsertBankVerification(op, 'wallet', { kind: 'wallet', id: expId, accId, score: 100 });
+      op.match = { kind: 'wallet', id: txId, expId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       this.renderVerifTable();
     },
 
@@ -4635,9 +4714,10 @@
       }
       const day = op.date ? Number(op.date.slice(8, 10)) : 1;
       const bucket = this.state.walletTx?.[accId + '_' + writeKey] || {};
-      const list = (bucket[expId] || []).slice();
+      const list = (bucket[expId] || bucket[String(expId)] || []).slice();
+      const txId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
       list.push({
-        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+        id: txId,
         description: op.label,
         amount,
         day,
@@ -4645,11 +4725,16 @@
         kind: amount < 0 ? 'refund' : 'expense'
       });
       const newBucket = { ...bucket, [expId]: list };
-      await withRetry(async () => {
+      const result = await withRetry(async () => {
         await this.upsertMonthRecord(accId, writeKey, { wallet_transactions: newBucket });
+        // Mise à jour locale immédiate (évite d’attendre fetchData pour le statut vérif)
+        if (!this.state.walletTx) this.state.walletTx = {};
+        this.state.walletTx[accId + '_' + writeKey] = newBucket;
         toast('Ajouté au portefeuille');
         this.fetchData();
+        return txId;
       }, 'ajout portefeuille depuis relevé');
+      return result;
     },
 
     renderStats() {

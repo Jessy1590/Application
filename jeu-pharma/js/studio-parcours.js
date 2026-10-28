@@ -47,6 +47,7 @@
     variantScratch: {}, // blocId -> { field, base, tabs }
     editors: {}, // blocId:field[:vN] -> richtext instance
     molChips: {}, // blocId -> instance chips
+    molEdit: {}, // blocId -> JpStudioMolEdit controller
     recoCombos: {}, // rowId -> typeahead cible (bloc recommandation)
     recoTargetCache: null, // { parcours, lecons, chapitres } multi-parcours
     molLabels: {}, // matriceId -> { label, sub }
@@ -1847,13 +1848,17 @@
         + (tab === 'base' ? 'Molécules (base)' : 'Ajouts molécules ★' + tab)
         + '</label>'
         + '<div class="jp-mol-multi" data-mol-multi="' + b.id + '"></div>'
-        + '<small class="jp-field-hint">Tapez une DCI ou un nom commercial.'
+        + '<small class="jp-field-hint">Tapez une DCI ou un nom commercial. Cochez pour un mini-groupe ; cliquez le nom pour éditer.'
         + (tab === 'base' ? '' : ' Uniquement les ajouts de cet onglet — la base est héritée.')
         + '</small></div>'
         + '<div class="jp-mol-bloc-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-new="' + b.id + '">Nouvelle molécule</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-asso="' + b.id + '">Nouvelle association</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-groupe="' + b.id + '" hidden>Éditer le groupe</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-prog="' + b.id + '">Valeurs affichées…'
         + (nVals ? ' (' + nVals + ')' : '') + '</button>'
-        + '</div>';
+        + '</div>'
+        + '<div class="jp-mol-panel" data-mol-panel="' + b.id + '" hidden></div>';
     }
     if (b.type_bloc === 'conseil') {
       ensureVariantScratch(b.id, 'conseil', p);
@@ -2231,6 +2236,64 @@
     mountVariantRte(card, b, host);
   }
 
+  function destroyMolEdit(blocId) {
+    state.molEdit[blocId]?.close?.();
+    delete state.molEdit[blocId];
+  }
+
+  function ensureMolEdit(card, b) {
+    const id = b.id;
+    const panel = card.querySelector('[data-mol-panel="' + id + '"]');
+    if (!panel || !global.JpStudioMolEdit) return null;
+    if (state.molEdit[id]) return state.molEdit[id];
+    const ctrl = global.JpStudioMolEdit.createController({
+      host: panel,
+      blocId: id,
+      moduleId: selectedModule()?.id || null,
+      referentielHref: referentielEditHref,
+      getLayer: () => {
+        const tab = state.variantTab || 'base';
+        return molLayerOf(effPayload(b), tab);
+      },
+      writeLayer: (layer) => {
+        const tab = state.variantTab || 'base';
+        writeMolPayload(id, setMolLayerOnPayload(effPayload(b), tab, layer));
+        const nVals = Object.values(layer.valeurs || {}).reduce((n, a) => n + (a || []).length, 0);
+        const progBtn = card.querySelector('[data-mol-prog="' + id + '"]');
+        if (progBtn) {
+          progBtn.textContent = 'Valeurs affichées…' + (nVals ? ' (' + nVals + ')' : '');
+        }
+      },
+      saveDraft: () => saveDraft(id),
+      addMatriceToBloc: (item) => {
+        if (!item?.id) return;
+        state.molLabels[item.id] = { label: item.label, sub: item.sub || '' };
+        const chips = state.molChips[id];
+        if (chips) {
+          const has = (chips.getIds?.() || []).some((x) => String(x) === String(item.id));
+          if (!has) chips.add(item);
+          else {
+            syncMolChipsToState(id);
+            scheduleSave(id);
+          }
+        } else {
+          syncMolChipsToState(id);
+          scheduleSave(id);
+        }
+      },
+    });
+    state.molEdit[id] = ctrl;
+    return ctrl;
+  }
+
+  function updateMolGroupeBtn(card, b, checkedIds) {
+    const btn = card.querySelector('[data-mol-groupe="' + b.id + '"]');
+    if (!btn) return;
+    const n = (checkedIds || []).length;
+    btn.hidden = n < 2;
+    btn.textContent = n >= 2 ? 'Éditer le groupe (' + n + ')' : 'Éditer le groupe';
+  }
+
   function mountMolChips(card, b) {
     const id = b.id;
     const host = card.querySelector('[data-mol-multi]');
@@ -2239,18 +2302,47 @@
     const layer = molLayerOf(effPayload(b), tab);
     const initial = layer.matrice_ids.map(molItem);
     state.molChips[id]?.destroy?.();
+    destroyMolEdit(id);
     state.molChips[id] = global.JpTypeahead.chips(host, {
       search: global.JpTypeahead.matriceSource({ limit: 15 }),
       minChars: 1,
       placeholder: tab === 'base' ? 'Ajouter une molécule…' : 'Ajouter une molécule (★' + tab + ')…',
       ariaLabel: 'Ajouter une molécule',
       initial,
+      chipSelectable: true,
       chipEditHref: referentielEditHref,
+      onChipClick: (it) => {
+        const edit = ensureMolEdit(card, b);
+        edit?.openFiche?.(it.id);
+      },
+      onCheckedChange: (ids) => updateMolGroupeBtn(card, b, ids),
       onChange: (items) => {
         items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
         syncMolChipsToState(id);
         scheduleSave(id);
+        updateMolGroupeBtn(card, b, state.molChips[id]?.getCheckedIds?.() || []);
       },
+    });
+    updateMolGroupeBtn(card, b, []);
+  }
+
+  function bindMolBlocActions(card, b) {
+    if (!card || !b || b.type_bloc !== 'molecule') return;
+    card.querySelectorAll('[data-mol-new="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        ensureMolEdit(card, b)?.openCreate?.();
+      });
+    });
+    card.querySelectorAll('[data-mol-asso="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        ensureMolEdit(card, b)?.openAsso?.();
+      });
+    });
+    card.querySelectorAll('[data-mol-groupe="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const ids = state.molChips[b.id]?.getCheckedIds?.() || [];
+        ensureMolEdit(card, b)?.openGroupe?.(ids);
+      });
     });
   }
 
@@ -2267,6 +2359,7 @@
     }
     state.molChips[b.id]?.destroy?.();
     delete state.molChips[b.id];
+    destroyMolEdit(b.id);
     body.innerHTML = blockBodyHtml(b);
     // Rebind onglets + chips + bouton valeurs (header inchangé)
     card.querySelectorAll('.jp-block-body .jp-vtab[data-vtab]').forEach((btn) => {
@@ -2278,6 +2371,7 @@
         syncMolChipsToState(b.id);
         state.molChips[b.id]?.destroy?.();
         delete state.molChips[b.id];
+        destroyMolEdit(b.id);
         void saveDraft(b.id).then(() => {
           state.variantTab = next;
           remountMolContenu(card, b);
@@ -2285,6 +2379,7 @@
       });
     });
     mountMolChips(card, b);
+    bindMolBlocActions(card, b);
     card.querySelectorAll('[data-mol-prog]').forEach((btn) => {
       btn.addEventListener('click', () => void openBlocValeurs(btn.getAttribute('data-mol-prog')));
     });
@@ -2308,6 +2403,7 @@
           syncMolChipsToState(id);
           state.molChips[id]?.destroy?.();
           delete state.molChips[id];
+          destroyMolEdit(id);
           void saveDraft(id).then(() => {
             state.variantTab = next;
             remountMolContenu(card, b);
@@ -2331,7 +2427,10 @@
         onChange: () => scheduleSave(id),
       });
     });
-    if (b.type_bloc === 'molecule') mountMolChips(card, b);
+    if (b.type_bloc === 'molecule') {
+      mountMolChips(card, b);
+      bindMolBlocActions(card, b);
+    }
     card.querySelectorAll('input[data-field], select[data-field]').forEach((inp) => {
       const ev = inp.tagName === 'SELECT' ? 'change' : 'input';
       inp.addEventListener(ev, () => {

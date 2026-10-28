@@ -169,10 +169,11 @@
    * Choix unique. `host` = conteneur vide.
    * @param {HTMLElement} host
    * @param {{
-   *   search: (q: string) => Promise<Array<{id:any,label:string,sub?:string,group?:string,badge?:string,data?:any}>>,
+   *   search: (q: string) => Promise<Array<{id:any,label:string,sub?:string,group?:string,badge?:string,data?:any,create?:boolean}>>,
    *   placeholder?: string, minChars?: number, debounce?: number, emptyText?: string, hint?: string,
    *   ariaLabel?: string, inputId?: string, initial?: object|null,
-   *   clearOnPick?: boolean, onChange?: (item: object|null) => void, onPick?: (item: object) => void
+   *   clearOnPick?: boolean, onChange?: (item: object|null) => void, onPick?: (item: object) => void,
+   *   onCreate?: (label: string) => Promise<object|null>
    * }} opts
    */
   function combo(host, opts) {
@@ -192,19 +193,37 @@
 
     function syncClear() { clearBtn.hidden = !(input.value && !opts.clearOnPick) && !selected; }
 
-    const eng = engine(host, input, listEl, opts, function (it) {
-      if (opts.clearOnPick) {
-        input.value = '';
-        selected = null;
-        syncClear();
-        if (opts.onPick) opts.onPick(it);
-        return;
+    async function resolvePick(it) {
+      var item = it;
+      if (item && item.create && typeof opts.onCreate === 'function') {
+        try {
+          item = await opts.onCreate(item.label || input.value.trim());
+        } catch (e) {
+          if (global.JpToast && global.JpToast.fromError) global.JpToast.fromError(e);
+          return null;
+        }
+        if (!item || item.id == null) return null;
       }
-      selected = it;
-      input.value = it.label;
-      syncClear();
-      if (opts.onChange) opts.onChange(it);
-      if (opts.onPick) opts.onPick(it);
+      return item;
+    }
+
+    const eng = engine(host, input, listEl, opts, function (it) {
+      void (async function () {
+        const item = await resolvePick(it);
+        if (!item || item.create) return;
+        if (opts.clearOnPick) {
+          input.value = '';
+          selected = null;
+          syncClear();
+          if (opts.onPick) opts.onPick(item);
+          return;
+        }
+        selected = item;
+        input.value = item.label;
+        syncClear();
+        if (opts.onChange) opts.onChange(item);
+        if (opts.onPick) opts.onPick(item);
+      })();
     });
 
     input.addEventListener('input', function () {
@@ -252,10 +271,13 @@
   /**
    * Choix multiple (pastilles). Les éléments déjà choisis sont exclus des résultats.
    * @param {HTMLElement} host
-   * @param {object} opts  mêmes options que combo + `initial: item[]`, `onChange(items)`, `chipEditHref(id, item)?`
+   * @param {object} opts  mêmes options que combo + `initial`, `onChange(items)`, `chipEditHref(id, item)?`,
+   *   `chipSelectable?`, `onChipClick(item)?`, `onCheckedChange(ids)?`, `onCreate?(label)=>Promise<item>`,
+   *   `resolvePick?(item)=>Promise<item|null>` (ex. créer une entité avant d’ajouter)
    */
   function chips(host, opts) {
     host.classList.add('jp-ta', 'jp-ta-multi');
+    if (opts.chipSelectable) host.classList.add('jp-ta-selectable');
     host.innerHTML = '<div class="jp-ta-box"><span class="jp-ta-chips"></span>'
       + '<input type="text" class="jp-ta-input" role="combobox" aria-autocomplete="list" '
       + 'aria-expanded="false" autocomplete="off" spellcheck="false"></div>'
@@ -268,45 +290,113 @@
     if (opts.ariaLabel) input.setAttribute('aria-label', opts.ariaLabel);
 
     const sel = new Map();
+    const checked = new Set();
 
     function paintChips() {
       chipsEl.innerHTML = Array.from(sel.values()).map(function (it) {
+        var id = String(it.id);
         var edit = '';
         if (opts.chipEditHref) {
           var href = opts.chipEditHref(it.id, it);
           if (href) {
-            edit = '<a class="jp-ta-chip-edit" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer" aria-label="Modifier">'
+            edit = '<a class="jp-ta-chip-edit" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer" aria-label="Ouvrir le référentiel">'
               + CHIP_EDIT_ICON + '</a>';
           }
         }
-        return '<span class="jp-ta-chip" title="' + esc(it.sub || '') + '">' + esc(it.label)
+        var check = '';
+        if (opts.chipSelectable) {
+          check = '<label class="jp-ta-chip-check" title="Sélectionner">'
+            + '<input type="checkbox" data-check-id="' + esc(id) + '"'
+            + (checked.has(id) ? ' checked' : '') + ' aria-label="Sélectionner">'
+            + '</label>';
+        }
+        var labelCls = opts.onChipClick ? ' jp-ta-chip-label is-clickable' : ' jp-ta-chip-label';
+        return '<span class="jp-ta-chip' + (checked.has(id) ? ' is-checked' : '') + '" data-chip-id="' + esc(id)
+          + '" title="' + esc(it.sub || '') + '">'
+          + check
+          + '<button type="button" class="' + labelCls.trim() + '" data-chip-open="' + esc(id) + '">'
+          + esc(it.label) + '</button>'
           + edit
-          + '<button type="button" class="jp-ta-chip-x" data-id="' + esc(it.id) + '" aria-label="Retirer">×</button></span>';
+          + '<button type="button" class="jp-ta-chip-x" data-id="' + esc(id) + '" aria-label="Retirer">×</button></span>';
       }).join('');
     }
 
-    function changed() {
-      paintChips();
-      if (opts.onChange) opts.onChange(Array.from(sel.values()));
+    function fireChecked() {
+      if (opts.onCheckedChange) opts.onCheckedChange(Array.from(checked));
     }
 
-    const eng = engine(host, input, listEl, Object.assign({}, opts, {
-      exclude: function (it) { return sel.has(String(it.id)); },
-    }), function (it) {
-      sel.set(String(it.id), it);
+    function changed() {
+      // Retirer les cochés absents
+      Array.from(checked).forEach(function (id) {
+        if (!sel.has(id)) checked.delete(id);
+      });
+      paintChips();
+      if (opts.onChange) opts.onChange(Array.from(sel.values()));
+      fireChecked();
+    }
+
+    async function resolveAndAdd(it) {
+      var item = it;
+      if (item && item.create && typeof opts.onCreate === 'function') {
+        try {
+          item = await opts.onCreate(item.label || '');
+        } catch (e) {
+          if (global.JpToast && global.JpToast.fromError) global.JpToast.fromError(e);
+          return;
+        }
+        if (!item || item.id == null) return;
+      } else if (typeof opts.resolvePick === 'function') {
+        try {
+          item = await opts.resolvePick(item);
+        } catch (e) {
+          if (global.JpToast && global.JpToast.fromError) global.JpToast.fromError(e);
+          return;
+        }
+        if (!item || item.id == null) return;
+      }
+      if (!item || item.id == null || item.create) return;
+      sel.set(String(item.id), item);
       input.value = '';
       changed();
       input.focus();
       void eng.run();
-    });
+    }
+
+    const eng = engine(host, input, listEl, Object.assign({}, opts, {
+      exclude: function (it) {
+        if (it && it.create) return false;
+        return sel.has(String(it.id));
+      },
+    }), function (it) { void resolveAndAdd(it); });
 
     chipsEl.addEventListener('click', function (e) {
-      const b = e.target.closest('.jp-ta-chip-x');
-      if (!b) return;
-      e.preventDefault();
-      e.stopPropagation();
-      sel.delete(String(b.getAttribute('data-id')));
-      changed();
+      const x = e.target.closest('.jp-ta-chip-x');
+      if (x) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = String(x.getAttribute('data-id'));
+        sel.delete(id);
+        checked.delete(id);
+        changed();
+        return;
+      }
+      if (e.target.closest('.jp-ta-chip-edit') || e.target.closest('.jp-ta-chip-check')) return;
+      const openBtn = e.target.closest('[data-chip-open]');
+      if (openBtn && opts.onChipClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        const it = sel.get(String(openBtn.getAttribute('data-chip-open')));
+        if (it) opts.onChipClick(it);
+      }
+    });
+    chipsEl.addEventListener('change', function (e) {
+      const cb = e.target.closest('input[data-check-id]');
+      if (!cb) return;
+      const id = String(cb.getAttribute('data-check-id'));
+      if (cb.checked) checked.add(id);
+      else checked.delete(id);
+      paintChips();
+      fireChecked();
     });
     box.addEventListener('click', function (e) {
       if (e.target === box || e.target === chipsEl) input.focus();
@@ -315,6 +405,7 @@
       if (e.key === 'Backspace' && !input.value && sel.size) {
         const last = Array.from(sel.keys()).pop();
         sel.delete(last);
+        checked.delete(last);
         changed();
       }
     });
@@ -326,9 +417,23 @@
       input: input,
       getItems: function () { return Array.from(sel.values()); },
       getIds: function () { return Array.from(sel.values()).map(function (it) { return it.id; }); },
+      getCheckedIds: function () { return Array.from(checked); },
+      setCheckedIds: function (ids, silent) {
+        checked.clear();
+        (ids || []).forEach(function (id) {
+          if (sel.has(String(id))) checked.add(String(id));
+        });
+        paintChips();
+        if (!silent) fireChecked();
+      },
       add: function (it) { sel.set(String(it.id), it); changed(); },
-      remove: function (id) { sel.delete(String(id)); changed(); },
-      clear: function () { sel.clear(); changed(); },
+      remove: function (id) {
+        sel.delete(String(id));
+        checked.delete(String(id));
+        changed();
+      },
+      clear: function () { sel.clear(); checked.clear(); changed(); },
+      destroy: function () { host.innerHTML = ''; },
     };
   }
 
@@ -348,18 +453,33 @@
     };
   }
 
-  /** Entité à valeur (secteurs, classes, indications…) : id + valeur + valeur_norm. */
+  /**
+   * Entité à valeur (secteurs, classes, indications…) : id + valeur + valeur_norm.
+   * `allowCreate: true` → propose « Créer « … » » seulement si aucun résultat ne correspond.
+   */
   function entiteSource(table, o) {
     const limit = (o && o.limit) || 12;
+    const allowCreate = !!(o && o.allowCreate);
     return async function (q) {
+      const raw = String(q == null ? '' : q).trim();
       const t = safeTerm(q);
       let query = sb().from(table).select('id, valeur, valeur_norm').eq('actif', true);
       if (t) query = query.or('valeur.ilike.%' + t + '%,valeur_norm.ilike.%' + norm(t) + '%');
       const { data, error } = await query.order('valeur').limit(limit);
       if (error) throw error;
-      return (data || []).map(function (r) {
+      const items = (data || []).map(function (r) {
         return { id: r.id, label: r.valeur || '', data: { valeur_norm: r.valeur_norm || '' } };
       });
+      if (allowCreate && raw && !items.length) {
+        items.push({
+          id: '__create__:' + raw,
+          label: raw,
+          create: true,
+          badge: 'Créer',
+          sub: 'Nouvelle entité',
+        });
+      }
+      return items;
     };
   }
 
