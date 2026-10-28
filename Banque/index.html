@@ -3170,9 +3170,9 @@
       return s.slice(0, 180);
     },
 
-    parseBankCsv(text) {
+    splitCsvRows(text) {
       const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
-      if (!lines.length) return [];
+      if (!lines.length) return { header: [], rows: [], sep: ';' };
       const sep = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
       const split = (line) => {
         const out = []; let cur = '', q = false;
@@ -3186,78 +3186,145 @@
         return out;
       };
       const rows = lines.map(split);
-      const headerRaw = rows[0];
-      const header = headerRaw.map(h => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      // Crédit Agricole / banques FR : Date;Date de valeur;Débit;Crédit;Libellé;Solde
-      const looksHeader = header.some(h =>
-        /^(date|libelle|label|montant|debit|credit|amount|solde)/.test(h) ||
-        /date de valeur|libell|d.?bit|cr.?dit/.test(h)
-      );
-      const data = looksHeader ? rows.slice(1) : rows;
-      const findCol = (...preds) => {
-        for (const pred of preds) {
-          const i = header.findIndex(pred);
-          if (i >= 0) return i;
-        }
-        return -1;
-      };
-      let idx = {
-        // Date d'opération (pas date de valeur)
-        date: findCol(h => h === 'date', h => /^date$/.test(h), h => h.startsWith('date') && !/valeur/.test(h), h => /date/.test(h)),
-        label: findCol(h => /libell|label|desc|motif|communication/.test(h)),
-        amount: findCol(h => /^(montant|amount|sum)$/.test(h) || (/montant|amount/.test(h) && !/solde/.test(h))),
-        debit: findCol(h => /^debit$/.test(h), h => /d.?bit|sortie/.test(h)),
-        credit: findCol(h => /^credit$/.test(h), h => /cr.?dit|entree/.test(h))
-      };
-      // Fallback positionnel format CA (6 colonnes)
-      const isCaLayout = header.length >= 5 && header[0] === 'date' &&
-        (header[1] || '').includes('date') &&
-        (idx.debit < 0 || idx.credit < 0 || idx.label < 0);
-      if (isCaLayout) {
-        idx = {
-          date: 0,
-          debit: idx.debit >= 0 ? idx.debit : 2,
-          credit: idx.credit >= 0 ? idx.credit : 3,
-          label: idx.label >= 0 ? idx.label : 4,
-          amount: -1
-        };
+      const header = rows[0].map(h => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      return { header, rows, sep, data: rows.slice(1) };
+    },
+    findCsvCol(header, ...preds) {
+      for (const pred of preds) {
+        const i = header.findIndex(pred);
+        if (i >= 0) return i;
       }
-      const cellAmount = (raw) => {
-        if (raw == null || String(raw).trim() === '') return null;
-        const n = this.parseAmountFR(raw);
-        return Number.isFinite(n) && n !== 0 ? n : null;
+      return -1;
+    },
+    cellAmount(raw) {
+      if (raw == null || String(raw).trim() === '') return null;
+      const n = this.parseAmountFR(raw);
+      return Number.isFinite(n) && n !== 0 ? n : null;
+    },
+    detectBankFormat(header, preferred) {
+      if (preferred && preferred !== 'auto') return preferred;
+      const h = header.join('|');
+      // Revolut : Type, Product, Started Date, Completed Date, Description, Amount…
+      if (/started date|completed date/.test(h) && /description/.test(h) && /amount/.test(h)) return 'revolut';
+      if (header.includes('type') && header.includes('description') && header.includes('amount') && header.includes('state')) return 'revolut';
+      // CIC : Date d'opération + Montant (une colonne) ; pas de Débit/Crédit séparés
+      const hasOpDate = header.some(x => /date d.?operation|date operation/.test(x));
+      const hasMontant = header.some(x => /^montant$/.test(x));
+      const hasDebit = header.some(x => /^debit$/.test(x) || /d.?bit/.test(x));
+      const hasCredit = header.some(x => /^credit$/.test(x) || /cr.?dit/.test(x));
+      if ((hasOpDate || (hasMontant && !hasDebit)) && hasMontant && !hasDebit) return 'cic';
+      // Crédit Agricole : Date + Débit + Crédit + Libellé
+      if (hasDebit && hasCredit) return 'ca';
+      if (header[0] === 'date' && hasDebit) return 'ca';
+      return 'ca'; // défaut FR courant
+    },
+
+    parseBankCsv(text, preferredBank) {
+      const { header, data } = this.splitCsvRows(text);
+      if (!header.length) return { ops: [], bank: 'auto' };
+      const bank = this.detectBankFormat(header, preferredBank);
+      let ops = [];
+      if (bank === 'revolut') ops = this.parseCsvRevolut(header, data);
+      else if (bank === 'cic') ops = this.parseCsvCic(header, data);
+      else ops = this.parseCsvCreditAgricole(header, data);
+      return { ops, bank };
+    },
+
+    parseCsvCreditAgricole(header, data) {
+      // Date;Date de valeur;Débit;Crédit;Libellé;Solde
+      let idx = {
+        date: this.findCsvCol(header, h => h === 'date', h => h.startsWith('date') && !/valeur/.test(h), h => /date/.test(h)),
+        label: this.findCsvCol(header, h => /libell|label|desc|motif|communication/.test(h)),
+        debit: this.findCsvCol(header, h => /^debit$/.test(h), h => /d.?bit|sortie/.test(h)),
+        credit: this.findCsvCol(header, h => /^credit$/.test(h), h => /cr.?dit|entree/.test(h))
+      };
+      if (header.length >= 5 && header[0] === 'date' && (idx.debit < 0 || idx.credit < 0 || idx.label < 0)) {
+        idx = { date: 0, debit: idx.debit >= 0 ? idx.debit : 2, credit: idx.credit >= 0 ? idx.credit : 3, label: idx.label >= 0 ? idx.label : 4 };
+      }
+      const ops = [];
+      data.forEach((cols, i) => {
+        if (!cols.length || cols.every(c => !c)) return;
+        const date = idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : null;
+        const label = idx.label >= 0 ? cols[idx.label] : '';
+        const d = idx.debit >= 0 ? this.cellAmount(cols[idx.debit]) : null;
+        const c = idx.credit >= 0 ? this.cellAmount(cols[idx.credit]) : null;
+        let amount = NaN;
+        if (d != null && c == null) amount = -Math.abs(d);
+        else if (c != null && d == null) amount = Math.abs(c);
+        else if (d != null && c != null) amount = Math.abs(c) - Math.abs(d);
+        if (!date || !Number.isFinite(amount) || amount === 0) return;
+        ops.push({ id: 'csv-' + i, date, label: this.cleanBankLabel(label), labelRaw: String(label || '').slice(0, 180), amount });
+      });
+      return ops;
+    },
+
+    parseCsvCic(header, data) {
+      // Date d'opération,Date de valeur,Montant,Libellé,Solde
+      // Convention CIC export : montant positif = débit (sortie), négatif = crédit (entrée) → on inverse
+      // Variante possible : colonnes Débit/Crédit comme le CA
+      const hasDebit = header.some(x => /^debit$/.test(x) || /d.?bit/.test(x));
+      const hasCredit = header.some(x => /^credit$/.test(x) || /cr.?dit/.test(x));
+      if (hasDebit && hasCredit) return this.parseCsvCreditAgricole(header, data);
+
+      const idx = {
+        date: this.findCsvCol(header,
+          h => /date d.?operation|date operation/.test(h),
+          h => h === 'date',
+          h => h.startsWith('date') && !/valeur/.test(h),
+          h => /date/.test(h)),
+        label: this.findCsvCol(header, h => /libell|label|desc|motif|communication/.test(h)),
+        amount: this.findCsvCol(header, h => /^montant$/.test(h), h => /montant|amount/.test(h) && !/solde/.test(h))
       };
       const ops = [];
       data.forEach((cols, i) => {
         if (!cols.length || cols.every(c => !c)) return;
-        let date = looksHeader && idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : this.parseDateFR(cols[0]);
-        let label = looksHeader && idx.label >= 0 ? cols[idx.label] : (cols[1] || cols[0] || '');
-        let amount = NaN;
-        if (looksHeader && idx.amount >= 0) {
-          const n = cellAmount(cols[idx.amount]);
-          if (n != null) amount = n;
-        } else if (looksHeader && (idx.debit >= 0 || idx.credit >= 0)) {
-          // Format CA : Débit (souvent déjà négatif) / Crédit (positif) dans colonnes séparées
-          const d = idx.debit >= 0 ? cellAmount(cols[idx.debit]) : null;
-          const c = idx.credit >= 0 ? cellAmount(cols[idx.credit]) : null;
-          if (d != null && c == null) amount = -Math.abs(d);
-          else if (c != null && d == null) amount = Math.abs(c);
-          else if (d != null && c != null) amount = Math.abs(c) - Math.abs(d);
-        } else {
-          for (let j = 1; j < cols.length; j++) {
-            const n = cellAmount(cols[j]);
-            if (n != null) { amount = n; break; }
+        const date = idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : null;
+        const label = idx.label >= 0 ? cols[idx.label] : '';
+        const raw = idx.amount >= 0 ? this.cellAmount(cols[idx.amount]) : null;
+        if (!date || raw == null) return;
+        const amount = -raw; // invert CIC sign → convention app (sortie -, entrée +)
+        if (!Number.isFinite(amount) || amount === 0) return;
+        ops.push({ id: 'csv-' + i, date, label: this.cleanBankLabel(label), labelRaw: String(label || '').slice(0, 180), amount });
+      });
+      return ops;
+    },
+
+    parseCsvRevolut(header, data) {
+      // Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+      const idx = {
+        completed: this.findCsvCol(header, h => /completed date/.test(h)),
+        started: this.findCsvCol(header, h => /started date/.test(h)),
+        date: this.findCsvCol(header, h => h === 'date'),
+        label: this.findCsvCol(header, h => /description|libell|label/.test(h)),
+        amount: this.findCsvCol(header, h => h === 'amount' || /^montant$/.test(h)),
+        fee: this.findCsvCol(header, h => h === 'fee' || /frais/.test(h)),
+        state: this.findCsvCol(header, h => h === 'state' || /etat|statut/.test(h)),
+        type: this.findCsvCol(header, h => h === 'type')
+      };
+      const ops = [];
+      data.forEach((cols, i) => {
+        if (!cols.length || cols.every(c => !c)) return;
+        const state = idx.state >= 0 ? String(cols[idx.state] || '').toUpperCase() : 'COMPLETED';
+        if (state && !/COMPLETED|COMPLETE|REUSSI|SUCCESS/.test(state)) return;
+        const dateRaw = (idx.completed >= 0 && cols[idx.completed]) || (idx.started >= 0 && cols[idx.started]) || (idx.date >= 0 && cols[idx.date]) || '';
+        const date = this.parseDateFR(dateRaw);
+        const label = idx.label >= 0 ? cols[idx.label] : '';
+        let amount = idx.amount >= 0 ? this.cellAmount(cols[idx.amount]) : null;
+        // Fee Revolut souvent séparée (négative ou positive) — on l’ajoute au montant si absente du Amount
+        if (idx.fee >= 0) {
+          const fee = this.cellAmount(cols[idx.fee]);
+          if (fee != null && amount != null && Math.abs(fee) > 0) {
+            // Fee sortante : toujours négative pour le solde
+            amount = amount - Math.abs(fee);
           }
         }
-        if (!date || !Number.isFinite(amount) || amount === 0) return;
-        const clean = this.cleanBankLabel(label);
-        ops.push({
-          id: 'csv-' + i,
-          date,
-          label: clean,
-          labelRaw: String(label || '').slice(0, 180),
-          amount
-        });
+        if (!date || amount == null) return;
+        const type = idx.type >= 0 ? cols[idx.type] : '';
+        let clean = this.cleanBankLabel(label);
+        if (type && !/card payment|transfer|topup/i.test(type)) {
+          // garder le type utile (ex. ATM)
+        }
+        ops.push({ id: 'csv-' + i, date, label: clean || String(type || 'Mouvement'), labelRaw: String(label || '').slice(0, 180), amount });
       });
       return ops;
     },
@@ -3315,7 +3382,10 @@
         let ops = [];
         const name = (file.name || '').toLowerCase();
         if (name.endsWith('.csv') || name.endsWith('.txt') || file.type.includes('csv') || file.type === 'text/plain') {
-          ops = this.parseBankCsv(await this.readCsvText(file));
+          const preferred = document.getElementById('verif-bank')?.value || this.verif.bank || 'auto';
+          const parsed = this.parseBankCsv(await this.readCsvText(file), preferred);
+          ops = parsed.ops || [];
+          this.verif.bankDetected = parsed.bank || '';
           // Aligner le mois du filtre sur le mois dominant du fichier
           if (ops.length) {
             const months = {};
@@ -3350,9 +3420,12 @@
           match: null
         }));
         this.verif.fileName = file.name;
+        const bankName = this.bankLabel(this.verif.bankDetected);
         if (dropTitle) dropTitle.textContent = file.name + ' · ' + this.verif.ops.length + ' lignes';
+        const dropSub = document.getElementById('verif-drop-sub');
+        if (dropSub) dropSub.textContent = 'Format détecté : ' + bankName;
         this.rematchVerif();
-        toast(this.verif.ops.length + ' opérations importées');
+        toast(this.verif.ops.length + ' opérations · ' + bankName);
       } catch (e) {
         console.error(e);
         toast('Impossible de lire le fichier : ' + (e.message || e));
@@ -3490,6 +3563,7 @@
     renderVerif() {
       const accSel = document.getElementById('verif-account');
       const monthInp = document.getElementById('verif-month');
+      const bankSel = document.getElementById('verif-bank');
       if (!accSel || !monthInp) return;
       const prevAcc = this.verif.accId || accSel.value;
       const ordered = this.getOrderedAccounts();
@@ -3499,6 +3573,11 @@
       this.verif.accId = accSel.value;
       if (!monthInp.value) monthInp.value = this.monthKey(new Date());
       this.verif.mKey = monthInp.value;
+      if (bankSel) {
+        const saved = localStorage.getItem('bh-verif-bank') || this.verif.bank || 'auto';
+        bankSel.value = saved;
+        this.verif.bank = saved;
+      }
       this.renderVerifTable();
     },
 
@@ -3512,9 +3591,11 @@
         if (o.match && o.match.score >= 70) matched++;
         else pending++;
       });
+      const elB = document.getElementById('verif-stat-bank');
       const elT = document.getElementById('verif-stat-total');
       const elM = document.getElementById('verif-stat-matched');
       const elP = document.getElementById('verif-stat-pending');
+      if (elB) elB.textContent = this.bankLabel(this.verif.bankDetected) || '—';
       if (elT) elT.textContent = String(ops.length);
       if (elM) elM.textContent = String(matched);
       if (elP) elP.textContent = String(pending);
