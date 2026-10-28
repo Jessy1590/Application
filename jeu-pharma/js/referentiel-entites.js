@@ -42,7 +42,7 @@
     'Fusionner : sélectionnez 2+ lignes, choisissez celle à garder ; les autres sont réassignées puis désactivées.',
     'Supprimer : retire les liaisons matrice et désactive l’entité (soft-delete).',
     'Attention DCI : fusionner deux DCI peut entrer en conflit si chaque DCI a déjà une fiche active.',
-    'IA : consigne libre → propositions (renommer / fusionner / supprimer) à valider une à une ; rien n’est appliqué sans acceptation.',
+    'IA : consigne libre → propositions à valider une à une. Avec une sélection, seule celle-ci est analysée (lot : les N premiers). Délai maximal de la fonction : 150 s.',
   ];
 
   const ACTION_LABELS = {
@@ -84,6 +84,13 @@
       + 'aria-label="Filtrer les entités" autocomplete="off" value="' + esc(state.q) + '">'
       + '<label class="jp-ref-entites-check"><input type="checkbox" id="entInactive"'
       + (state.showInactive ? ' checked' : '') + '> Inclure inactifs</label>'
+      + '<span class="jp-ref-entites-lot">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="entLot">Sélectionner</button>'
+      + '<input type="number" id="entLotN" min="1" step="1" value="300" inputmode="numeric"'
+      + ' aria-label="Nombre de premiers éléments à sélectionner">'
+      + '<span>premiers</span>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="entAddAll">Tout ajouter</button>'
+      + '</span>'
       + '<span class="jp-muted" id="entSelInfo"></span>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entCreate">Créer</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="entRename" disabled>Renommer</button>'
@@ -115,12 +122,42 @@
     if (btnClear) btnClear.hidden = n === 0;
   }
 
-  function clearSelection() {
-    state.selected.clear();
+  function syncChecks() {
     state.host?.querySelectorAll('input[data-ent-id]').forEach((inp) => {
-      inp.checked = false;
+      inp.checked = state.selected.has(inp.getAttribute('data-ent-id'));
     });
     paintSelInfo();
+  }
+
+  function clearSelection() {
+    state.selected.clear();
+    syncChecks();
+  }
+
+  function lotSize() {
+    const raw = Number(state.host?.querySelector('#entLotN')?.value);
+    const n = Number.isFinite(raw) ? Math.floor(raw) : 300;
+    return n >= 1 ? n : 300;
+  }
+
+  function selectFirstLot() {
+    if (!state.rows.length) {
+      global.JpToast?.warn?.('Aucun élément à sélectionner');
+      return;
+    }
+    const n = Math.min(lotSize(), state.rows.length);
+    state.selected.clear();
+    state.rows.slice(0, n).forEach((r) => state.selected.add(String(r.id)));
+    syncChecks();
+  }
+
+  function addAllDisplayed() {
+    if (!state.rows.length) {
+      global.JpToast?.warn?.('Aucun élément à sélectionner');
+      return;
+    }
+    state.rows.forEach((r) => state.selected.add(String(r.id)));
+    syncChecks();
   }
 
   function selectedItems() {
@@ -468,7 +505,13 @@
 
     const maxItems = G.ENTITES_MAX_ITEMS || 10000;
     const maxInst = G.ENTITES_INSTRUCTION_MAX || 4000;
-    const items = state.rows.slice(0, maxItems).map((r) => ({
+    const fromSelection = state.selected.size > 0;
+    const source = fromSelection ? selectedItems() : state.rows;
+    if (fromSelection && !source.length) {
+      global.JpToast?.warn?.('La sélection ne correspond à aucun élément affiché');
+      return;
+    }
+    const items = source.slice(0, maxItems).map((r) => ({
       id: r.id,
       valeur: String(r.valeur || '').trim(),
     })).filter((x) => x.id && x.valeur);
@@ -477,11 +520,15 @@
       global.JpToast?.warn?.('Aucun élément valide');
       return;
     }
-    if (state.rows.length > maxItems) {
+    if (source.length > maxItems) {
       global.JpToast?.warn?.(
         'Liste tronquée à ' + maxItems + ' pour l’IA (filtrez pour cibler le reste).',
       );
     }
+    const scopeLabel = fromSelection ? 'la sélection' : 'la liste affichée';
+    const hint = fromSelection
+      ? 'Envoi de la sélection en un seul appel. Délai maximal de la fonction : 150 s.'
+      : 'Envoi de toute la liste affichée en un seul appel. Pour rester sous le délai de 150 s, sélectionnez un lot (par exemple les 300 premiers).';
 
     const backdrop = document.createElement('div');
     backdrop.className = 'jp-modal-backdrop jp-ia-backdrop jp-ia-entites-backdrop';
@@ -490,7 +537,7 @@
     backdrop.innerHTML = ''
       + '<div class="jp-modal jp-ia-modal jp-ia-entites-modal">'
       + '<h2>IA — propositions sur les éléments</h2>'
-      + '<p class="jp-ia-lead">Consigne libre + liste actuelle (<strong>' + items.length + '</strong> élément'
+      + '<p class="jp-ia-lead">Consigne libre + ' + scopeLabel + ' (<strong>' + items.length + '</strong> élément'
       + (items.length > 1 ? 's' : '') + ' de « '
       + esc(champOfTable(state.table)?.libelle || state.table)
       + ' »). Aucune écriture tant que vous n’acceptez pas une proposition.</p>'
@@ -498,8 +545,7 @@
       + '<div class="jp-field"><label for="entIaInst">Consigne</label>'
       + '<textarea id="entIaInst" rows="4" maxlength="' + maxInst + '" '
       + 'placeholder="Ex. fusionne les doublons, normalise les libellés, corrige les majuscules…"></textarea></div>'
-      + '<p class="jp-field-hint">Envoi de toute la liste chargée / filtrée en un seul appel IA'
-      + ' (pas de lots).</p>'
+      + '<p class="jp-field-hint">' + esc(hint) + '</p>'
       + '<div class="jp-ia-status" id="entIaStatus" role="status" aria-live="polite" hidden></div>'
       + '</div>'
       + '<div class="jp-ia-panel" data-panel="review" hidden>'
@@ -787,6 +833,8 @@
     host.querySelector('#entMerge').addEventListener('click', () => void doMerge());
     host.querySelector('#entDelete').addEventListener('click', () => void doDelete());
     host.querySelector('#entIA')?.addEventListener('click', () => openIaWizard());
+    host.querySelector('#entLot')?.addEventListener('click', selectFirstLot);
+    host.querySelector('#entAddAll')?.addEventListener('click', addAllDisplayed);
     host.querySelector('#entClearSel').addEventListener('click', clearSelection);
     host.querySelector('#entRefresh').addEventListener('click', () => void loadRows());
 

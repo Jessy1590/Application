@@ -1338,6 +1338,23 @@
   font-weight: 500;
   white-space: nowrap;
 }
+.jp-ref-entites-lot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.jp-ref-entites-lot input[type="number"] {
+  width: 4.75rem;
+  font: inherit;
+  font-weight: 400;
+  padding: 0.35rem 0.4rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.45rem;
+  background: #fff;
+}
 .jp-ref-entites-table-list {
   width: 100%;
   min-width: 0;
