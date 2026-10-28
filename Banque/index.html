@@ -113,16 +113,55 @@
   .bh-btn-done:hover{ background:#d5e6db !important; }
   .bh-verif-th-help{ display:inline-flex; align-items:center; gap:6px; }
   .bh-verif-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
-  .bh-verif-unverified{ margin-bottom:12px; }
-  .bh-verif-unverified .bh-section-label{ margin-bottom:8px; }
-  .bh-verif-unverified-list{ display:flex; flex-direction:column; gap:6px; }
-  .bh-verif-unverified-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:10px 12px; border:1px solid var(--line-soft); border-radius:10px; background:var(--card);
-    font-size:13px;
+  .bh-verif-subnav{
+    display:flex; gap:6px; padding:4px; background:var(--card);
+    border:1px solid var(--line-soft); border-radius:12px; width:fit-content;
   }
-  .bh-verif-unverified-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
-  .bh-verif-unverified-empty{ padding:12px; text-align:center; color:var(--ink-soft); font-size:13px; }
+  .bh-verif-subnav button{
+    border:none; background:transparent; cursor:pointer; font:inherit;
+    padding:8px 16px; border-radius:9px; font-size:13px; font-weight:600;
+    color:var(--ink-soft);
+  }
+  .bh-verif-subnav button.active{
+    background:var(--sage-pale); color:var(--sage-deep);
+  }
+  .bh-verif-pane{ display:none; flex-direction:column; gap:12px; flex:1; min-height:0; }
+  .bh-verif-pane.active{ display:flex; }
+  .bh-verif-status-wrap{
+    overflow:auto; border:1px solid var(--line-soft); border-radius:14px;
+    background:var(--card); flex:1; min-height:0;
+  }
+  .bh-verif-status-list{ display:flex; flex-direction:column; gap:0; }
+  .bh-verif-status-group{
+    padding:12px 14px 6px; font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--ink-faint); background:var(--paper);
+    border-bottom:1px solid var(--line-soft); position:sticky; top:0; z-index:1;
+  }
+  .bh-verif-status-row{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:11px 14px; border-bottom:1px solid var(--line-soft); font-size:13px;
+    border-left:4px solid transparent;
+  }
+  .bh-verif-status-row:last-child{ border-bottom:none; }
+  .bh-verif-status-row.ok{
+    border-left-color:var(--sage);
+    background:rgba(228,238,232,0.55);
+  }
+  .bh-verif-status-row.ko{
+    border-left-color:var(--clay);
+    background:rgba(174,75,60,0.06);
+  }
+  .bh-verif-status-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .bh-verif-status-badge{
+    font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; white-space:nowrap;
+  }
+  .bh-verif-status-row.ok .bh-verif-status-badge{
+    background:var(--sage-pale); color:var(--sage-deep);
+  }
+  .bh-verif-status-row.ko .bh-verif-status-badge{
+    background:rgba(174,75,60,0.12); color:var(--clay);
+  }
+  .bh-verif-status-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
   .bh-verif-acc-tag{
     display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
     background:var(--line-soft); color:var(--ink-soft); margin-right:4px; vertical-align:middle;
@@ -470,9 +509,11 @@
     .bh-tab[data-tab="verif"]{ display:flex !important; }
     #view-verif{ display:none !important; }
     #view-verif.active{ display:flex !important; flex-direction:column; gap:14px; }
-    .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1fr 1fr 1.4fr auto; gap:10px; align-items:end; }
+    .bh-verif-filters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; max-width:480px; }
+    .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1.4fr auto; gap:10px; align-items:end; }
     .bh-verif-drop{ min-height:88px; }
-    .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 260px); }
+    .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 320px); }
+    .bh-verif-status-wrap{ max-height:calc(100vh - 280px); }
     .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:6%; }
     .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:14%; }
     .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:8%; }
@@ -657,76 +698,93 @@
 
     <!-- VUE 5 : VÉRIFICATION RELEVÉ -->
     <div class="bh-view" id="view-verif">
-      <div class="bh-card bh-verif-toolbar" style="padding:14px;">
+      <div class="bh-card bh-verif-filters" style="padding:14px;">
         <div>
-          <div class="bh-field-label" style="margin-top:0;">Compte à vérifier</div>
+          <div class="bh-field-label" style="margin-top:0;">Compte</div>
           <select id="verif-account" class="bh-input" style="margin:0;" onchange="BH.onVerifAccountChange()"></select>
         </div>
         <div>
-          <div class="bh-field-label" style="margin-top:0;">Banque</div>
-          <select id="verif-bank" class="bh-input" style="margin:0;" onchange="BH.onVerifBankChange()">
-            <option value="auto">Auto-détecter</option>
-            <option value="ca">Crédit Agricole</option>
-            <option value="cic">CIC</option>
-            <option value="revolut">Revolut</option>
-          </select>
-        </div>
-        <div>
-          <div class="bh-field-label" style="margin-top:0;">Mois du relevé</div>
+          <div class="bh-field-label" style="margin-top:0;">Mois</div>
           <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()">
         </div>
-        <div>
-          <div class="bh-field-label" style="margin-top:0;">Fichier CSV</div>
-          <div class="bh-verif-drop" id="verif-drop" onclick="document.getElementById('verif-file').click()"
-               ondragover="event.preventDefault(); this.classList.add('drag')"
-               ondragleave="this.classList.remove('drag')"
-               ondrop="BH.onVerifDrop(event)">
-            <strong id="verif-drop-title">Déposer un CSV (CA · CIC · Revolut)</strong>
-            <span id="verif-drop-sub">Ou PDF. Traitement local — rien n’est envoyé ailleurs.</span>
+      </div>
+
+      <div class="bh-verif-subnav" role="tablist" aria-label="Sous-vues vérification">
+        <button type="button" class="active" data-verif-pane="releve" onclick="BH.switchVerifPane('releve')">Relevé</button>
+        <button type="button" data-verif-pane="status" onclick="BH.switchVerifPane('status')">Vérification</button>
+      </div>
+
+      <div class="bh-verif-pane active" id="verif-pane-releve">
+        <div class="bh-card bh-verif-toolbar" style="padding:14px;">
+          <div>
+            <div class="bh-field-label" style="margin-top:0;">Banque</div>
+            <select id="verif-bank" class="bh-input" style="margin:0;" onchange="BH.onVerifBankChange()">
+              <option value="auto">Auto-détecter</option>
+              <option value="ca">Crédit Agricole</option>
+              <option value="cic">CIC</option>
+              <option value="revolut">Revolut</option>
+            </select>
           </div>
-          <input type="file" id="verif-file" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain" style="display:none;" onchange="BH.onVerifFile(this.files[0])">
+          <div>
+            <div class="bh-field-label" style="margin-top:0;">Fichier CSV</div>
+            <div class="bh-verif-drop" id="verif-drop" onclick="document.getElementById('verif-file').click()"
+                 ondragover="event.preventDefault(); this.classList.add('drag')"
+                 ondragleave="this.classList.remove('drag')"
+                 ondrop="BH.onVerifDrop(event)">
+              <strong id="verif-drop-title">Déposer un CSV (CA · CIC · Revolut)</strong>
+              <span id="verif-drop-sub">Ou PDF. Traitement local — rien n’est envoyé ailleurs.</span>
+            </div>
+            <input type="file" id="verif-file" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain" style="display:none;" onchange="BH.onVerifFile(this.files[0])">
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="bh-btn bh-btn-primary" onclick="BH.saveVerifBatch()">Enregistrer</button>
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.rematchVerif()">↻ Recalculer</button>
+            <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.clearVerifIgnored()">Réafficher oubliés</button>
+          </div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="bh-btn bh-btn-outline" onclick="BH.rematchVerif()">↻ Recalculer</button>
-          <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.clearVerifIgnored()">Réafficher oubliés</button>
+
+        <div class="bh-verif-stats" id="verif-stats">
+          <div class="bh-verif-stat"><div class="lbl">Banque</div><div class="val" style="font-size:14px;" id="verif-stat-bank">—</div></div>
+          <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
+          <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
+          <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
+          <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-stat-unverified">0</div></div>
+        </div>
+
+        <div class="bh-verif-table-wrap">
+          <table class="bh-verif-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Mouvement</th>
+                <th style="text-align:right;">Montant</th>
+                <th>Lien budget</th>
+                <th>
+                  <span class="bh-verif-th-help">
+                    Actions
+                    <button type="button" class="bh-info-btn" title="Aide des actions" onclick="BH.showVerifActionsHelp()" aria-label="Aide des actions">?</button>
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody id="verif-tbody">
+              <tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="bh-verif-stats" id="verif-stats">
-        <div class="bh-verif-stat"><div class="lbl">Banque</div><div class="val" style="font-size:14px;" id="verif-stat-bank">—</div></div>
-        <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
-        <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
-        <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
-        <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-stat-unverified">0</div></div>
-      </div>
-
-      <div class="bh-card bh-verif-unverified" id="verif-unverified-wrap">
-        <div class="bh-section-label">Dépenses non vérifiées ce mois</div>
-        <div class="bh-verif-unverified-list" id="verif-unverified-list">
-          <div class="bh-verif-unverified-empty">Choisis un mois pour voir les dépenses sans rapprochement bancaire.</div>
+      <div class="bh-verif-pane" id="verif-pane-status">
+        <div class="bh-verif-stats" id="verif-status-stats">
+          <div class="bh-verif-stat"><div class="lbl">Total</div><div class="val num" id="verif-status-total">0</div></div>
+          <div class="bh-verif-stat"><div class="lbl">Vérifiées</div><div class="val num" style="color:var(--sage-deep);" id="verif-status-ok">0</div></div>
+          <div class="bh-verif-stat"><div class="lbl">Non vérifiées</div><div class="val num" style="color:var(--clay);" id="verif-status-ko">0</div></div>
         </div>
-      </div>
-
-      <div class="bh-verif-table-wrap">
-        <table class="bh-verif-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Mouvement</th>
-              <th style="text-align:right;">Montant</th>
-              <th>Lien budget</th>
-              <th>
-                <span class="bh-verif-th-help">
-                  Actions
-                  <button type="button" class="bh-info-btn" title="Aide des actions" onclick="BH.showVerifActionsHelp()" aria-label="Aide des actions">?</button>
-                </span>
-              </th>
-            </tr>
-          </thead>
-          <tbody id="verif-tbody">
-            <tr><td colspan="5" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
-          </tbody>
-        </table>
+        <div class="bh-verif-status-wrap">
+          <div class="bh-verif-status-list" id="verif-status-list">
+            <div class="bh-verif-status-empty">Choisis un mois pour voir le statut de chaque saisie.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1221,7 +1279,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', linkOpId: null, walletOpId: null, refundOpId: null },
+    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', linkOpId: null, walletOpId: null, refundOpId: null },
 
     async init() {
       await this.fetchData();
@@ -3205,18 +3263,35 @@
       this.getBankVerifsForMonth(mKey).forEach(v => { if (v.fingerprint) map.set(v.fingerprint, v); });
       return map;
     },
-    verifiedExpenseIds(mKey) {
-      const ids = new Set();
+    verifiedLinkedSets(mKey) {
+      const expense = new Set();
+      const income = new Set();
+      const refund = new Set();
       this.getBankVerifsForMonth(mKey).forEach(v => {
         if (v.status === 'ignored') return;
-        if (v.linked_kind === 'expense' && v.linked_id) ids.add(String(v.linked_id));
+        const id = v.linked_id != null ? String(v.linked_id) : '';
+        if (v.linked_kind === 'expense' && id) expense.add(id);
+        if (v.linked_kind === 'income' && id) income.add(id);
+        if (v.linked_kind === 'refund' && id) {
+          refund.add(id);
+          income.add(id);
+        }
         const refundOf = v.meta && v.meta.refund_of;
-        if (refundOf) ids.add(String(refundOf));
+        if (refundOf) expense.add(String(refundOf));
       });
-      return ids;
+      return { expense, income, refund };
+    },
+    verifiedExpenseIds(mKey) {
+      return this.verifiedLinkedSets(mKey).expense;
     },
     isExpenseVerified(expId, mKey) {
       return this.verifiedExpenseIds(mKey).has(String(expId));
+    },
+    isIncomeRefund(inc, mKey) {
+      if (!inc) return false;
+      if (/^remb\.?\s/i.test(inc.description || '')) return true;
+      const paid = this.state.monthsIncomes?.[inc.account_id + '_' + mKey]?.[inc.id];
+      return !!(paid && paid.refund_of);
     },
     patchLocalBankVerif(row) {
       const list = (this.state.bankVerifications || []).slice();
@@ -3283,21 +3358,21 @@
       }, 'suppression vérification');
       if (result) this.removeLocalBankVerif(mKey, fingerprint);
     },
-    listUnverifiedExpenses(mKey, accId) {
+    listBudgetStatusRows(mKey, accId) {
       if (!mKey) return [];
-      const verified = this.verifiedExpenseIds(mKey);
+      const sets = this.verifiedLinkedSets(mKey);
       const accIds = accId
         ? [accId]
         : this.getOrderedAccounts().map(a => a.id);
       const accName = (id) => (this.state.accounts.find(a => a.id === id) || {}).name || '';
-      return (this.state.expenses || [])
-        .filter(e =>
-          accIds.includes(e.account_id) &&
-          !e.is_wallet &&
-          this.isActiveInMonth(e, mKey) &&
-          !verified.has(String(e.id))
-        )
-        .map(e => ({
+      const rows = [];
+
+      (this.state.expenses || []).forEach(e => {
+        if (!accIds.includes(e.account_id) || e.is_wallet || !this.isActiveInMonth(e, mKey)) return;
+        const paid = !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id];
+        rows.push({
+          kind: 'expense',
+          group: 'Dépenses',
           id: e.id,
           label: e.description,
           amount: Number(e.amount),
@@ -3305,31 +3380,148 @@
           category: e.category || '',
           accId: e.account_id,
           accName: accName(e.account_id),
-          paid: !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id]
-        }))
-        .sort((a, b) => a.day - b.day || a.label.localeCompare(b.label, 'fr'));
+          paid,
+          verified: sets.expense.has(String(e.id))
+        });
+      });
+
+      (this.state.incomes || []).forEach(i => {
+        if (!accIds.includes(i.account_id)) return;
+        const isRefund = this.isIncomeRefund(i, mKey);
+        const paid = !!(this.state.monthsIncomes?.[i.account_id + '_' + mKey] || {})[i.id];
+        const verified = isRefund
+          ? (sets.refund.has(String(i.id)) || sets.income.has(String(i.id)))
+          : sets.income.has(String(i.id));
+        rows.push({
+          kind: isRefund ? 'refund' : 'income',
+          group: isRefund ? 'Remboursements' : 'Revenus',
+          id: i.id,
+          label: i.description,
+          amount: Number(i.amount),
+          day: Number(i.day) || 1,
+          category: '',
+          accId: i.account_id,
+          accName: accName(i.account_id),
+          paid,
+          verified
+        });
+      });
+
+      const order = { Dépenses: 0, Revenus: 1, Remboursements: 2 };
+      return rows.sort((a, b) =>
+        (order[a.group] - order[b.group]) ||
+        a.day - b.day ||
+        a.label.localeCompare(b.label, 'fr')
+      );
     },
-    renderUnverifiedExpenses() {
-      const listEl = document.getElementById('verif-unverified-list');
-      const statEl = document.getElementById('verif-stat-unverified');
+    switchVerifPane(pane) {
+      this.verif.pane = pane === 'status' ? 'status' : 'releve';
+      document.querySelectorAll('.bh-verif-subnav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.verifPane === this.verif.pane);
+      });
+      const releve = document.getElementById('verif-pane-releve');
+      const status = document.getElementById('verif-pane-status');
+      if (releve) releve.classList.toggle('active', this.verif.pane === 'releve');
+      if (status) status.classList.toggle('active', this.verif.pane === 'status');
+      if (this.verif.pane === 'status') this.renderVerifStatus();
+      else this.renderVerifTable();
+    },
+    renderVerifStatus() {
+      const listEl = document.getElementById('verif-status-list');
       if (!listEl) return;
       const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
       const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
-      const rows = this.listUnverifiedExpenses(mKey, accId || null);
-      if (statEl) statEl.textContent = String(rows.length);
+      const rows = this.listBudgetStatusRows(mKey, accId || null);
+      const ok = rows.filter(r => r.verified).length;
+      const ko = rows.length - ok;
+      const elT = document.getElementById('verif-status-total');
+      const elOk = document.getElementById('verif-status-ok');
+      const elKo = document.getElementById('verif-status-ko');
+      const elUn = document.getElementById('verif-stat-unverified');
+      if (elT) elT.textContent = String(rows.length);
+      if (elOk) elOk.textContent = String(ok);
+      if (elKo) elKo.textContent = String(ko);
+      if (elUn) elUn.textContent = String(ko);
+
       if (!rows.length) {
-        listEl.innerHTML = '<div class="bh-verif-unverified-empty">Toutes les dépenses actives de ce mois sont vérifiées (ou aucune dépense).</div>';
+        listEl.innerHTML = '<div class="bh-verif-status-empty">Aucune dépense, revenu ou remboursement sur ce compte / mois.</div>';
         return;
       }
-      listEl.innerHTML = rows.map(r => `
-        <div class="bh-verif-unverified-row">
-          <div>
-            <div><span class="bh-verif-acc-tag">${this.esc(r.accName)}</span><strong>${this.esc(r.label)}</strong></div>
-            <div class="meta">Jour ${r.day}${r.category ? ' · ' + this.esc(r.category) : ''}${r.paid ? ' · déjà payée' : ' · non payée'}</div>
-          </div>
-          <div class="num">${this.fmt(r.amount)}</div>
-        </div>
-      `).join('');
+
+      let html = '';
+      let lastGroup = '';
+      rows.forEach(r => {
+        if (r.group !== lastGroup) {
+          lastGroup = r.group;
+          html += `<div class="bh-verif-status-group">${this.esc(r.group)}</div>`;
+        }
+        const state = r.verified ? 'ok' : 'ko';
+        const badge = r.verified ? 'Vérifié' : 'Non vérifié';
+        const paidLbl = r.kind === 'expense'
+          ? (r.paid ? 'payée' : 'non payée')
+          : (r.paid ? 'encaissé' : 'non encaissé');
+        html += `
+          <div class="bh-verif-status-row ${state}">
+            <div>
+              <div><span class="bh-verif-acc-tag">${this.esc(r.accName)}</span><strong>${this.esc(r.label)}</strong></div>
+              <div class="meta">Jour ${r.day}${r.category ? ' · ' + this.esc(r.category) : ''} · ${paidLbl}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="bh-verif-status-badge">${badge}</span>
+              <span class="num">${this.fmt(r.amount)}</span>
+            </div>
+          </div>`;
+      });
+      listEl.innerHTML = html;
+    },
+    renderUnverifiedExpenses() {
+      // Compteur du panneau Relevé + rafraîchit la vue Vérification si ouverte
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
+      const rows = this.listBudgetStatusRows(mKey, accId || null);
+      const ko = rows.filter(r => !r.verified).length;
+      const elUn = document.getElementById('verif-stat-unverified');
+      if (elUn) elUn.textContent = String(ko);
+      if (this.verif.pane === 'status') this.renderVerifStatus();
+    },
+    async saveVerifBatch() {
+      const ops = this.verif.ops || [];
+      if (!ops.length) {
+        toast('Importe d’abord un relevé à enregistrer.');
+        return;
+      }
+      let saved = 0;
+      for (const op of ops) {
+        if (op.ignored) {
+          const ok = await this.upsertBankVerification(op, 'ignored', null);
+          if (ok) { saved++; op.savedStatus = 'ignored'; }
+          continue;
+        }
+        const m = op.match;
+        if (!m || Number(m.score) < 70) continue;
+        let status = 'matched';
+        let link = { kind: m.kind, id: m.expId || m.id, accId: m.accId, score: m.score };
+        if (m.kind === 'wallet' || m.kind === 'wallet-budget') {
+          status = 'wallet';
+          link = { kind: 'wallet', id: m.expId || m.id, accId: m.accId, score: m.score };
+        } else if (m.kind === 'refund') {
+          status = 'refund';
+          link = {
+            kind: 'refund', id: m.id, accId: m.accId, score: m.score,
+            meta: m.refundOf ? { refund_of: m.refundOf } : {}
+          };
+        } else if (m.kind === 'expense' || m.kind === 'income') {
+          status = 'matched';
+          link = { kind: m.kind, id: m.id, accId: m.accId, score: m.score };
+        } else {
+          continue;
+        }
+        const ok = await this.upsertBankVerification(op, status, link);
+        if (ok) { saved++; op.savedStatus = status; }
+      }
+      this.renderVerifTable();
+      this.renderVerifStatus();
+      toast(saved ? saved + ' ligne(s) enregistrée(s)' : 'Rien à enregistrer (aucune correspondance solide ni oubliée)');
     },
     parseAmountFR(raw) {
       if (raw == null) return NaN;
@@ -3690,11 +3882,18 @@
     },
     onVerifAccountChange() {
       this.verif.accId = document.getElementById('verif-account').value;
-      this.rematchVerif();
-      this.renderUnverifiedExpenses();
+      if (this.verif.pane === 'status') this.renderVerifStatus();
+      else {
+        this.rematchVerif();
+        this.renderUnverifiedExpenses();
+      }
     },
     onVerifMonthChange() {
       this.verif.mKey = document.getElementById('verif-month').value;
+      if (this.verif.pane === 'status') {
+        this.renderVerifStatus();
+        return;
+      }
       if (this.verif.ops.length && this.verif.fileName) this.rematchVerif();
       else {
         this.renderVerifTable();
@@ -3865,8 +4064,7 @@
         bankSel.value = saved;
         this.verif.bank = saved;
       }
-      this.renderVerifTable();
-      this.renderUnverifiedExpenses();
+      this.switchVerifPane(this.verif.pane || 'releve');
     },
 
     renderVerifTable() {

@@ -17,7 +17,7 @@
   - **Comptes :** Vue stratégique. Affiche le bilan, les répartitions ("qui doit quoi"), et les restes à vivre (théorique et en date).
   - **Saisies :** Vue de gestion CRUD pour lister, filtrer, créer, modifier ou supprimer les dépenses régulières et les revenus.
   - **Stats :** Graphiques générés en SVG natif (`BH.pieChart`), évolution sur 12 mois, capacité d'épargne et fonctions d'export (CSV/PDF).
-  - **Vérif (desktop ≥960px) :** Import CSV/PDF local (CA / CIC / Revolut), matching vs budget, actions Valider / Lier / Rembours. / Portefeuille / Oublier. Persistance dans `bank_verifications` ; panneau des dépenses non vérifiées du mois.
+  - **Vérif (desktop ≥960px) :** Sous-vues Relevé (CSV/PDF CA/CIC/Revolut, matching, Enregistrer) et Vérification (statut coloré des dépenses/revenus/remboursements). Persistance `bank_verifications`.
 
 ## 3. Modèle de Données (Supabase)
 Le modèle relationnel est structuré autour du partage de comptes :
