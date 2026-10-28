@@ -762,22 +762,95 @@
   border-bottom: 1px solid rgba(15, 46, 40, 0.08);
 }
 .jp-mol-panel-field:last-child { border-bottom: 0; padding-bottom: 0; }
-.jp-mol-panel-field > label {
+.jp-mol-panel-field > label,
+.jp-mol-field-head > label {
   font-size: 0.78rem; font-weight: 600; color: rgba(20, 32, 28, 0.72);
 }
+.jp-mol-field-head {
+  display: flex; align-items: center; gap: 0.35rem;
+  min-height: 1.35rem;
+}
+.jp-mol-field-head > label { flex: 1 1 auto; margin: 0; }
+.jp-mol-add-btn {
+  flex: 0 0 auto;
+  width: 1.55rem; height: 1.55rem; padding: 0;
+  border: 1px solid rgba(15, 46, 40, 0.16);
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--jp-accent, #0f6b5c);
+  font-size: 1.05rem; font-weight: 600; line-height: 1;
+  cursor: pointer;
+}
+.jp-mol-add-btn:hover,
+.jp-mol-add-btn:focus-visible {
+  border-color: var(--jp-accent, #0f6b5c);
+  outline: none;
+  background: color-mix(in srgb, var(--jp-accent, #0f6b5c) 8%, #fff);
+}
 .jp-mol-panel-vals {
-  display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.2rem;
+  display: flex; flex-direction: column; gap: 0.28rem; margin-top: 0.15rem;
 }
-.jp-mol-vis {
-  display: flex; align-items: flex-start; gap: 0.4rem;
-  font-size: 0.82rem; line-height: 1.35; cursor: pointer;
+.jp-mol-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(20, 32, 28, 0.45);
 }
-.jp-mol-vis input { margin-top: 0.15rem; accent-color: var(--jp-accent, #0f6b5c); flex: 0 0 auto; }
-.jp-mol-vis span { flex: 1 1 auto; }
-.jp-mol-vis em {
-  font-style: normal; font-size: 0.7rem; font-weight: 600;
-  color: rgba(15, 107, 92, 0.85); white-space: nowrap;
+.jp-mol-item {
+  display: flex; align-items: flex-start; gap: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid rgba(15, 46, 40, 0.1);
+  border-radius: 0.45rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(20, 32, 28, 0.78);
+  font-size: 0.84rem; line-height: 1.35;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+.jp-mol-item:hover,
+.jp-mol-item:focus-visible {
+  border-color: rgba(15, 107, 92, 0.35);
+  outline: none;
+}
+.jp-mol-item.is-on {
+  background: color-mix(in srgb, var(--jp-accent, #0f6b5c) 14%, #fff);
+  border-color: color-mix(in srgb, var(--jp-accent, #0f6b5c) 42%, transparent);
+  color: #0c3f36;
+  font-weight: 560;
+}
+.jp-mol-item.is-on:hover,
+.jp-mol-item.is-on:focus-visible {
+  background: color-mix(in srgb, var(--jp-accent, #0f6b5c) 20%, #fff);
+}
+.jp-mol-item.is-editing {
+  cursor: default;
+  background: #fff;
+  border-color: var(--jp-accent, #0f6b5c);
+}
+.jp-mol-item-label { flex: 1 1 auto; min-width: 0; }
+.jp-mol-item-rm {
+  flex: 0 0 auto;
+  width: 1.35rem; height: 1.35rem; margin: -0.1rem -0.1rem 0 0; padding: 0;
+  border: 0; border-radius: 0.3rem;
+  background: transparent;
+  color: rgba(20, 32, 28, 0.45);
+  font-size: 1rem; line-height: 1;
+  cursor: pointer;
+}
+.jp-mol-item-rm:hover,
+.jp-mol-item-rm:focus-visible {
+  color: #8a2f2f;
+  background: rgba(138, 47, 47, 0.08);
+  outline: none;
+}
+.jp-mol-add-row {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: flex-end;
+  margin-top: 0.3rem;
+}
+.jp-mol-add-row[hidden] { display: none !important; }
+.jp-mol-add-row .jp-ta { flex: 1 1 12rem; min-width: 10rem; }
+.jp-mol-edit-host { flex: 1 1 auto; min-width: 0; }
+.jp-mol-edit-host .jp-ta { width: 100%; }
 .jp-mol-panel-foot {
   display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.65rem;
   padding-top: 0.55rem; border-top: 1px solid rgba(15, 46, 40, 0.1);
