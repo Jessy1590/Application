@@ -218,11 +218,13 @@ Bouton **IA** dans `admin/referentiel.html` → vue `#entites` (`JpReferentielEn
 | `gemini-client.js` | `FN_ENTITES = 'jeupharma-ia-entites'` |
 | `js/referentiel-entites.js` | bouton IA + modale consigne / file de validation |
 | `ia.css` | `.jp-ia-entites-*` |
-| `edge/jeupharma-ia-entites/index.ts` | gate admin, chunk ≤200, normalize JSON |
+| `edge/jeupharma-ia-entites/index.ts` | gate admin, **1 appel** liste complète, normalize JSON compact |
 
 ## Edge Function
 - Mêmes secrets / modèle / gate admin (`portail.profiles.role === 'admin'`) que les autres Edges Jeu Pharma. `verify_jwt = true`.
-- Plafonds : instruction 4 000 car. ; **800** éléments max ; lots de **200** (catalogue complet renvoyé à chaque lot pour `merge_into_id`).
+- **Pas de lots** : un seul `generateContent` avec toute la liste `items[]`.
+- Plafonds : instruction 4 000 car. ; **10 000** éléments max (garde-fou ; tables actuelles ≪ 3 000). `maxOutputTokens` 65 536.
+- Réponse compacte : l’IA ne renvoie que `rename` / `merge` / `delete` ; les ids omis → `noop` côté serveur.
 - Déploiement : MCP `deploy_edge_function` (slug `jeupharma-ia-entites`, projet `kpjflntnotftpzffjbud`).
 
 ## Requête
@@ -244,7 +246,6 @@ Bouton **IA** dans `admin/referentiel.html` → vue `#entites` (`JpReferentielEn
   "table": "indications",
   "count": 2,
   "chunked": false,
-  "chunk_size": 200,
   "propositions": [
     {
       "id": "uuid-source",

@@ -31,27 +31,38 @@
   /**
    * @param {string} table
    * @param {{ q?: string, actif?: boolean|null, limit?: number }} [opts]
+   * Charge par pages de 1000 (plafond PostgREST) jusqu’à `limit` (défaut 500, max 10 000).
    */
   async function list(table, opts = {}) {
     assertTable(table);
-    let query = sb()
-      .from(table)
-      .select('id, valeur, valeur_norm, actif, created_at, updated_at')
-      .order('valeur', { ascending: true })
-      .limit(opts.limit || 500);
-    if (opts.actif === true) query = query.eq('actif', true);
-    else if (opts.actif === false) query = query.eq('actif', false);
-    if (opts.q && String(opts.q).trim()) {
-      // Recherche insensible casse + accents (valeur et valeur_norm).
-      const term = String(opts.q).trim().replace(/[,()*%"\\]/g, ' ').trim();
-      if (term) {
-        const qn = normaliser(term);
-        query = query.or('valeur.ilike.*' + term + '*,valeur_norm.ilike.*' + qn + '*');
+    const max = Math.min(Math.max(1, Number(opts.limit) || 500), 10000);
+    const PAGE = 1000;
+    const out = [];
+
+    for (let from = 0; from < max; from += PAGE) {
+      const to = Math.min(from + PAGE, max) - 1;
+      let query = sb()
+        .from(table)
+        .select('id, valeur, valeur_norm, actif, created_at, updated_at')
+        .order('valeur', { ascending: true })
+        .range(from, to);
+      if (opts.actif === true) query = query.eq('actif', true);
+      else if (opts.actif === false) query = query.eq('actif', false);
+      if (opts.q && String(opts.q).trim()) {
+        // Recherche insensible casse + accents (valeur et valeur_norm).
+        const term = String(opts.q).trim().replace(/[,()*%"\\]/g, ' ').trim();
+        if (term) {
+          const qn = normaliser(term);
+          query = query.or('valeur.ilike.*' + term + '*,valeur_norm.ilike.*' + qn + '*');
+        }
       }
+      const { data, error } = await query;
+      if (error) throw error;
+      const rows = data || [];
+      out.push.apply(out, rows);
+      if (rows.length < PAGE) break;
     }
-    const { data, error } = await query;
-    if (error) throw error;
-    return data || [];
+    return out;
   }
 
   async function getById(table, id) {

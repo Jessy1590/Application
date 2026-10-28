@@ -135,7 +135,7 @@
     try {
       const opts = {
         q: state.q || undefined,
-        limit: 800,
+        limit: (global.JpIaGemini && global.JpIaGemini.ENTITES_MAX_ITEMS) || 10000,
       };
       if (!state.showInactive) opts.actif = true;
       const rows = await global.JpEntites.list(state.table, opts);
@@ -466,7 +466,7 @@
       return;
     }
 
-    const maxItems = G.ENTITES_MAX_ITEMS || 800;
+    const maxItems = G.ENTITES_MAX_ITEMS || 10000;
     const maxInst = G.ENTITES_INSTRUCTION_MAX || 4000;
     const items = state.rows.slice(0, maxItems).map((r) => ({
       id: r.id,
@@ -476,6 +476,11 @@
     if (!items.length) {
       global.JpToast?.warn?.('Aucun élément valide');
       return;
+    }
+    if (state.rows.length > maxItems) {
+      global.JpToast?.warn?.(
+        'Liste tronquée à ' + maxItems + ' pour l’IA (filtrez pour cibler le reste).',
+      );
     }
 
     const backdrop = document.createElement('div');
@@ -493,8 +498,8 @@
       + '<div class="jp-field"><label for="entIaInst">Consigne</label>'
       + '<textarea id="entIaInst" rows="4" maxlength="' + maxInst + '" '
       + 'placeholder="Ex. fusionne les doublons, normalise les libellés, corrige les majuscules…"></textarea></div>'
-      + '<p class="jp-field-hint">Envoi de la liste filtrée visible (max ' + maxItems
-      + '). Au-delà de 200 éléments, l’Edge découpe en lots.</p>'
+      + '<p class="jp-field-hint">Envoi de toute la liste chargée / filtrée en un seul appel IA'
+      + ' (pas de lots).</p>'
       + '<div class="jp-ia-status" id="entIaStatus" role="status" aria-live="polite" hidden></div>'
       + '</div>'
       + '<div class="jp-ia-panel" data-panel="review" hidden>'
@@ -607,12 +612,9 @@
       backdrop.querySelector('[data-panel="prompt"]').hidden = true;
       backdrop.querySelector('[data-panel="review"]').hidden = false;
       const warns = (ia.avertissements || []).slice(0, 6);
-      metaExtraHtml = (ia.chunked
-        ? '<p class="jp-field-hint">Analyse en plusieurs lots (chunk Edge).</p>'
-        : '')
-        + (warns.length
-          ? '<ul class="jp-ia-warns">' + warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>'
-          : '');
+      metaExtraHtml = (warns.length
+        ? '<ul class="jp-ia-warns">' + warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>'
+        : '');
       renderQueue();
       if (!pending().length) {
         global.JpToast?.ok?.('L’IA n’a rien à proposer (tout keep/noop)');

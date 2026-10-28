@@ -9,7 +9,8 @@
   const PDF_MAX_BYTES = 10 * 1024 * 1024;
   const TEXT_MAX_CHARS = 80000;
   const RCP_MAX_CHARS = 100000;
-  const ENTITES_MAX_ITEMS = 800;
+  /** Aligné sur Edge jeupharma-ia-entites (liste complète, pas de lots). */
+  const ENTITES_MAX_ITEMS = 10000;
   const ENTITES_INSTRUCTION_MAX = 4000;
 
   /** Fichier -> base64 (sans préfixe data:). */
