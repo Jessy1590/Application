@@ -18,7 +18,7 @@
   - Export CSV et PDF.
   - Système de Backup local / Restauration (JSON complet).
   - Notifications locales pour alerter sur les échéances proches (à j-2).
-- **Interface Mobile-First (PWA) :** App visuellement proche d'une application native iOS/Android, avec barre de navigation flottante et "bottom sheets" (tiroirs) pour les modales.
+- **Interface responsive (PWA) :** Mobile inchangé (colonne 560px, tabbar bas, bottom sheets). Desktop ≥960px : sidebar de navigation, contenu large multi-colonnes (Aujourd’hui / Comptes / Saisies / Stats), modales centrées.
 
 ## Prochaines étapes de développement (TODO)
 *(Liste à mettre à jour lors de nos prochaines sessions de développement)*
