@@ -79,20 +79,28 @@
   .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
   .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
   .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); }
-  .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
   .bh-verif-table th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
-    color:var(--ink-faint); padding:10px 12px; border-bottom:1px solid var(--line-soft);
-    background:var(--paper); position:sticky; top:0; z-index:1;
+    color:var(--ink-faint); padding:10px 10px; border-bottom:1px solid var(--line-soft);
+    background:var(--paper); position:sticky; top:0; z-index:1; white-space:nowrap;
   }
-  .bh-verif-table td{ padding:10px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  .bh-verif-table td{ padding:9px 10px; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
   .bh-verif-table tr:last-child td{ border-bottom:none; }
   .bh-verif-table tr.ignored{ opacity:0.45; }
   .bh-verif-table tr.matched{ background:rgba(228,238,232,0.45); }
+  .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:78px; }
+  .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){
+    width:18%; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px;
+  }
+  .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:96px; }
+  .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:22%; }
+  .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:auto; min-width:340px; }
   .bh-verif-match{ font-size:12px; line-height:1.35; }
   .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); }
-  .bh-verif-actions{ display:flex; flex-wrap:wrap; gap:5px; }
-  .bh-verif-actions .bh-btn{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; }
+  .bh-verif-actions{ display:flex; flex-wrap:nowrap; gap:6px; align-items:center; }
+  .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
+  .bh-verif-th-help{ display:inline-flex; align-items:center; gap:6px; }
   .bh-verif-empty{ padding:28px 16px; text-align:center; color:var(--ink-soft); font-size:13px; }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
@@ -435,7 +443,8 @@
     .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1fr 1fr 1.4fr auto; gap:10px; align-items:end; }
     .bh-verif-drop{ min-height:88px; }
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 260px); }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ max-width:none; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:16%; max-width:200px; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:380px; }
 
     /* Stats : grille large */
     .bh-topbar .bh-brand{ display:none; }
@@ -655,11 +664,16 @@
         <table class="bh-verif-table">
           <thead>
             <tr>
-              <th style="width:88px;">Date</th>
-              <th>Mouvement banque</th>
-              <th style="width:110px; text-align:right;">Montant</th>
+              <th>Date</th>
+              <th>Mouvement</th>
+              <th style="text-align:right;">Montant</th>
               <th>Lien budget</th>
-              <th style="width:220px;">Actions</th>
+              <th>
+                <span class="bh-verif-th-help">
+                  Actions
+                  <button type="button" class="bh-info-btn" title="Aide des actions" onclick="BH.showVerifActionsHelp()" aria-label="Aide des actions">?</button>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody id="verif-tbody">
@@ -3624,14 +3638,14 @@
           matchHtml = `<div class="bh-verif-match"><strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)} · score ${op.match.score}%</div></div>`;
         }
         const actions = op.ignored
-          ? `<button type="button" class="bh-btn bh-btn-ghost" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
+          ? `<button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
           : `<div class="bh-verif-actions">
               ${op.match && (op.match.kind === 'expense' || op.match.kind === 'income') && !op.match.paid
-                ? `<button type="button" class="bh-btn bh-btn-primary" onclick="BH.applyVerifMatch('${op.id}')">Valider</button>` : ''}
-              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
-              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
-              <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifWallet('${op.id}')">👛</button>
-              <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
+                ? `<button type="button" class="bh-btn bh-btn-primary" title="Marquer la saisie budgétée comme payée / encaissée avec le montant du relevé" onclick="BH.applyVerifMatch('${op.id}')">Valider</button>` : ''}
+              <button type="button" class="bh-btn bh-btn-outline" title="Choisir manuellement la saisie budget qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Créer une nouvelle dépense ou un nouveau revenu prérempli" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛 Portefeuille</button>
+              <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
             </div>`;
         return `<tr class="${cls}">
           <td>${dateLbl}</td>
@@ -3641,6 +3655,19 @@
           <td>${actions}</td>
         </tr>`;
       }).join('');
+    },
+
+    showVerifActionsHelp() {
+      this.openInfo('Actions de vérification', `
+        <div style="font-size:13px; line-height:1.45; color:var(--ink);">
+          <p style="margin:0 0 12px;"><strong>Valider</strong> — Confirme le lien trouvé : marque la dépense / le revenu comme payé avec le montant du relevé.</p>
+          <p style="margin:0 0 12px;"><strong>Lier…</strong> — Si la suggestion est fausse, choisis toi-même la bonne saisie dans le budget.</p>
+          <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli).</p>
+          <p style="margin:0 0 12px;"><strong>👛 Portefeuille</strong> — Ajoute le mouvement dans une enveloppe (courses, etc.).</p>
+          <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne (frais, hors budget…). Tu peux la réafficher plus tard.</p>
+          <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste à traiter.</p>
+        </div>
+      `);
     },
 
     findVerifOp(opId) {
