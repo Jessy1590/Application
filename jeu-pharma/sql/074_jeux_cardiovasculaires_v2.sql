@@ -1,5 +1,6 @@
 -- =============================================================================
--- 074 : Jeux du parcours `cardiovasculaires_v2` (codes JP-V2*)
+-- 074 : Jeux du parcours `cardiovasculaires_v2` — OBSOLÈTE (ne plus exécuter)
+-- Parcours + jeux JP-V2* supprimés par `076_supprimer_cardiovasculaires_v2.sql`.
 --
 -- Recréation (pas de réutilisation des modeles_jeu V1) à partir des banques
 -- manuelles / classements déjà validés sur le parcours cardio DEUST :

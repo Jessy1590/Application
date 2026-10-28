@@ -1,5 +1,6 @@
 -- =============================================================================
--- 073 : Parcours « Cardiovasculaire v2 »
+-- 073 : Parcours « Cardiovasculaire v2 » — OBSOLÈTE (ne plus exécuter)
+-- Supprimé en base par `076_supprimer_cardiovasculaires_v2.sql`.
 --
 -- Nouveau parcours `cardiovasculaires_v2` reconstruit depuis le contenu de
 -- `cardiovasculaires_deust_2a` (V1), sans inventer de texte pédagogique.

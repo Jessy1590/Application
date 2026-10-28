@@ -49,17 +49,19 @@
     display: none; flex-direction:column; position:relative; max-width:560px; margin:0 auto;
     min-height:100vh; background:var(--paper); color:var(--ink);
     border-left:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
-    transition: max-width 0.2s ease;
   }
-
-  /* ===== DESKTOP (>= 900px) : simple colonne centrée, même barre du bas qu'en mobile ===== */
-  @media (min-width: 900px){
-    #budget-root{
-      max-width: 640px; border-left:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
-      min-height: 100vh;
-    }
-    .bh-view{ padding: 8px 24px 74px; }
+  .bh-main{
+    display:flex; flex-direction:column; flex:1; min-width:0; width:100%;
+    position:relative;
   }
+  .bh-nav-brand{ display:none; }
+  .bh-today-primary, .bh-today-secondary{ display:block; }
+  .bh-saisies-cols{ display:block; }
+  .bh-saisies-filters .bh-input{ margin-bottom:8px; }
+  .bh-saisies-filters .bh-input:last-child{ margin-bottom:0; }
+  .bh-stats-grid{ display:contents; }
+  .bh-sheet-actions{ display:flex; gap:8px; margin-top:16px; }
+  .bh-sheet-actions .bh-btn{ flex:1; }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
   .bh-manage-row:hover{ border-color: var(--sage); }
@@ -183,7 +185,6 @@
   
   /* FAB & TOAST */
   .bh-fab{ position:fixed; right:max(14px, calc((100vw - 560px)/2 + 14px)); bottom:78px; z-index:25; width:46px;height:46px;border-radius:50%; background:var(--sage-deep); color:#fff; border:none; box-shadow:0 8px 20px -4px rgba(40,69,58,0.5); cursor:pointer; display:flex; align-items:center; justify-content:center; }
-  @media (min-width: 900px){ .bh-fab{ right: max(14px, calc((100vw - 640px)/2 + 14px)); } }
   .bh-toast{ position:fixed; left:50%; bottom:110px; transform:translateX(-50%); background:var(--sage-deep); color:#fff; padding:10px 18px; border-radius:30px; font-size:13px; font-weight:600; z-index:100; opacity:0; pointer-events:none; transition:opacity 0.25s, transform 0.25s; }
   .bh-toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
 
@@ -197,8 +198,7 @@
   .bh-sheet input, .bh-sheet select{ width:100%; border:1px solid var(--line); border-radius:11px; padding:11px 12px; font-family:'Inter'; font-size:14.5px; background:#fff; color:var(--ink); margin-bottom:8px;}
   .bh-two-col{display:flex; gap:10px;} .bh-two-col > div{flex:1;}
   
-  /* TABBAR */
-  /* TABBAR — barre flottante compacte, identique mobile et PC */
+  /* TABBAR — barre flottante compacte (mobile) ; sidebar en desktop */
   .bh-tabbar{
     position:fixed; bottom:10px; left:50%; transform:translateX(-50%);
     width:calc(100% - 20px); max-width:340px; z-index:30;
@@ -213,7 +213,7 @@
     font-family:'Inter',sans-serif; font-size:8.5px; font-weight:600; border-radius:10px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .bh-tab svg{ width:16px; height:16px; }
+  .bh-tab svg{ width:16px; height:16px; flex-shrink:0; }
   .bh-tab.active{ color:var(--sage-deep); background:var(--sage-pale); }
   .bh-tab:hover:not(.active){ color:var(--sage-deep); }
 
@@ -328,6 +328,125 @@
   .tip-seg[data-tip]:hover::after, .tip-seg[data-tip]:focus::after,
   .tip-lbl[data-tip]:hover::after, .tip-lbl[data-tip]:focus::after{ opacity:1; }
   .tip-lbl{ position:relative; cursor:help; font-weight:600; }
+
+  /* ===== DESKTOP (>= 960px) : sidebar + contenu large multi-colonnes ===== */
+  @media (min-width: 960px){
+    body{
+      background:
+        radial-gradient(ellipse 80% 50% at 10% -10%, rgba(62,107,87,0.08), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 0%, rgba(183,145,47,0.06), transparent 50%),
+        var(--paper);
+    }
+    #budget-root{
+      flex-direction:row; align-items:stretch;
+      max-width:min(1280px, calc(100% - 32px));
+      margin:16px auto; min-height:calc(100vh - 32px);
+      border:1px solid var(--line-soft); border-radius:20px;
+      overflow:hidden; background:var(--paper);
+      box-shadow:0 12px 40px -20px rgba(21,37,32,0.18);
+    }
+    .bh-tabbar{
+      position:sticky; top:0; left:auto; bottom:auto; transform:none;
+      width:212px; max-width:none; height:auto; min-height:calc(100vh - 32px);
+      flex-direction:column; justify-content:flex-start; align-items:stretch; gap:4px;
+      border-radius:0; border:none; border-right:1px solid var(--line-soft);
+      padding:22px 14px; box-shadow:none; background:var(--card); flex-shrink:0; z-index:40;
+    }
+    .bh-nav-brand{
+      display:flex; align-items:center; gap:10px;
+      padding:4px 10px 18px; margin-bottom:6px;
+      border-bottom:1px solid var(--line-soft);
+    }
+    .bh-nav-brand .bh-title{ font-size:17px; }
+    .bh-tab{
+      flex:0 0 auto; flex-direction:row; justify-content:flex-start;
+      gap:10px; padding:11px 12px; font-size:13px; border-radius:12px; width:100%;
+    }
+    .bh-tab svg{ width:18px; height:18px; }
+    .bh-main{
+      flex:1; min-width:0; background:var(--paper);
+      max-height:calc(100vh - 32px); overflow-y:auto;
+    }
+    .bh-topbar{
+      padding:20px 28px 14px; position:sticky; top:0;
+      background:rgba(243,246,243,0.92); backdrop-filter:blur(8px);
+    }
+    .bh-view{ padding:12px 28px 36px; }
+    .bh-view.active{ min-height:calc(100vh - 120px); }
+
+    /* Aujourd'hui : 2 colonnes */
+    #view-today.active{
+      display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);
+      gap:8px 28px; align-items:start;
+    }
+    .bh-today-primary{ grid-column:1; }
+    .bh-today-secondary{ grid-column:2; position:sticky; top:78px; }
+    .bh-today-secondary .bh-section-label:first-child{ margin-top:2px; }
+    .bh-stat-grid{ grid-template-columns:1fr 1fr; gap:12px; }
+    .bh-stat{ padding:16px 18px; }
+    .bh-stat-value{ font-size:24px; }
+
+    /* Comptes : grille */
+    #bh-accounts-list{
+      display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px;
+    }
+    #bh-accounts-list .bh-acct-card{ margin-bottom:0; height:100%; }
+    #bh-accounts-list .bh-empty{ grid-column:1 / -1; }
+    .bh-month-nav{ max-width:420px; }
+
+    /* Saisies : filtres en ligne + 2 colonnes */
+    .bh-saisies-filters{
+      display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:10px; align-items:start;
+    }
+    .bh-saisies-filters .bh-input{ margin-bottom:0; }
+    .bh-saisies-cols{
+      display:grid; grid-template-columns:1fr 1fr; gap:8px 28px; align-items:start;
+    }
+    .bh-saisies-col .bh-section-label{ margin-top:8px; }
+
+    /* Stats : grille large */
+    .bh-topbar .bh-brand{ display:none; }
+    .bh-stats-hero{ margin-bottom:4px; }
+    .bh-stats-grid{
+      display:grid; grid-template-columns:1fr 1fr; gap:4px 20px; align-items:start;
+    }
+    #stat-history-block{
+      grid-column:1 / -1;
+      display:grid; grid-template-columns:1fr 1fr; gap:4px 20px; align-items:start;
+    }
+    .bh-stats-export{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px; }
+    .bh-stats-export .bh-card{ margin-bottom:0; }
+
+    /* FAB, barre groupe, modales */
+    .bh-fab{
+      right:max(28px, calc((100vw - min(1280px, calc(100% - 32px)))/2 + 28px));
+      bottom:28px;
+    }
+    .bh-group-bar{
+      left:auto; right:max(28px, calc((100vw - min(1280px, calc(100% - 32px)))/2 + 28px));
+      transform:none; bottom:28px;
+      width:min(440px, calc(100vw - 280px));
+    }
+    .bh-toast{ bottom:96px; }
+    .bh-sheet-overlay{ align-items:center; padding:24px; }
+    .bh-sheet{
+      max-width:560px; border-radius:18px;
+      max-height:min(86vh, 820px);
+      padding:18px 22px 22px;
+      animation:bhSheetIn 0.2s ease;
+    }
+    .bh-sheet-handle{ display:none; }
+    @keyframes bhSheetIn{
+      from{ transform:translateY(10px) scale(0.98); opacity:0.5; }
+      to{ transform:translateY(0) scale(1); opacity:1; }
+    }
+  }
+
+  @media (min-width: 1280px){
+    #budget-root{ max-width:1360px; }
+    #view-today.active{ grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr); }
+    #bh-accounts-list{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:18px; }
+  }
 </style>
 <!-- 1. Cacher la page pour la sécurité -->
 <style> body { display: none; } </style>
@@ -348,190 +467,11 @@
 <body>
 
 <div id="budget-root">
-  <div class="bh-topbar">
-    <div class="bh-topbar-row">
-      <div class="bh-brand">
-        <span class="bh-brand-mark"></span>
-        <div><div class="bh-title">Budget</div></div>
-      </div>
-      <button class="bh-icon-btn" onclick="BH.openSettings()" aria-label="Réglages">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      </button>
+  <nav class="bh-tabbar" aria-label="Navigation principale">
+    <div class="bh-nav-brand">
+      <span class="bh-brand-mark"></span>
+      <div class="bh-title">Budget</div>
     </div>
-    <div class="bh-sub" id="bh-header-sub">Chargement...</div>
-  </div>
-
-  <!-- VUE 1 : AUJOURD'HUI -->
-  <div class="bh-view active" id="view-today">
-    <div class="bh-stat-grid" style="margin-bottom:6px;">
-      <div class="bh-stat clay">
-        <div class="bh-stat-label">Reste à valider</div>
-        <div class="bh-stat-value num" id="bh-stat-remaining">—</div>
-      </div>
-      <div class="bh-stat sage">
-        <div class="bh-stat-label">Déjà réglé</div>
-        <div class="bh-stat-value num" id="bh-stat-paid">—</div>
-      </div>
-    </div>
-    <div id="bh-wallets-section"></div>
-    <div id="bh-due-section"></div>
-    <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
-    <div class="bh-section-label">Dépenses validées</div>
-    <div class="bh-card" id="bh-paid-list-wrap">
-      <div id="bh-paid-list"></div>
-    </div>
-    <div class="bh-section-label">Revenus encaissés</div>
-    <div class="bh-card" id="bh-paid-incomes-wrap">
-      <div id="bh-paid-incomes-list"></div>
-    </div>
-  </div>
-
-  <!-- VUE 2 : COMPTES -->
-  <div class="bh-view" id="view-comptes">
-    <div class="bh-month-nav" style="display:flex; justify-content:space-between; margin-bottom:16px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
-      <button onclick="BH.shiftMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&larr;</button>
-      <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; text-transform:capitalize;" id="bh-comptes-month-label">Mois</div>
-      <button onclick="BH.shiftMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&rarr;</button>
-    </div>
-    <div id="bh-accounts-list"></div>
-  </div>
-
-  <!-- VUE 3 : SAISIES (Dépenses & Revenus fusionnés) -->
-  <div class="bh-view" id="view-saisies">
-    <div class="bh-card" style="padding:10px 12px; margin-bottom:14px;">
-      <input type="text" id="bh-search" class="bh-input" style="margin-bottom:8px;" placeholder="Rechercher (description, montant...)" oninput="BH.renderSaisies()">
-      <select id="bh-filter-cat" class="bh-input" style="margin-bottom:8px;" onchange="BH.renderSaisies()">
-        <option value="">Toutes les catégories</option>
-      </select>
-      <select id="bh-filter-acc" class="bh-input" style="margin-bottom:8px;" onchange="BH.renderSaisies()">
-        <option value="">Tous les comptes</option>
-      </select>
-      <select id="bh-filter-status" class="bh-input" style="margin-bottom:0;" onchange="BH.renderSaisies()">
-        <option value="">Toutes les saisies</option>
-        <option value="expired">⚠️ Expirées seulement</option>
-        <option value="active">Actives seulement</option>
-        <option value="wallet">👛 Portefeuilles seulement</option>
-      </select>
-    </div>
-    <div class="bh-section-label">Dépenses</div>
-    <div id="bh-expenses-groups"></div>
-    <div class="bh-section-label">Revenus / Remboursements</div>
-    <div id="bh-incomes-groups"></div>
-  </div>
-
-  <!-- VUE 4 : STATISTIQUES -->
-  <div class="bh-view" id="view-stats">
-    <div class="bh-card" style="text-align:center; padding:24px 16px;">
-      <div style="font-size:12px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Capacité d'épargne (Mensuelle) <button class="bh-info-btn" onclick="BH.showEpargneInfo()" title="Détail du calcul">?</button></div>
-      <div class="num" id="stat-epargne" style="font-size:32px; color:var(--sage-deep); margin:8px 0;">—</div>
-      <div style="font-size:13px; color:var(--ink-faint);" id="stat-epargne-rate">Taux d'épargne : —</div>
-    </div>
-
-    <div class="bh-section-label">Répartition de mon salaire</div>
-    <div class="bh-card">
-      <div class="chart-title">Vers mes comptes partagés</div>
-      <div id="chart-salary-split"></div>
-    </div>
-
-    <div class="bh-section-label">Dépenses par catégorie</div>
-    <div class="bh-card">
-      <div class="chart-head">
-        <div class="chart-title">Répartition</div>
-        <div class="chart-filter-wrap">
-          <button type="button" class="chart-filter-btn" id="stats-filter-btn-pie" title="Filtres" onclick="BH.toggleStatsFilter('pie')" aria-expanded="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
-          </button>
-          <div class="chart-filter-panel" id="stats-filter-pie">
-            <label for="stat-pie-month">Mois</label>
-            <select id="stat-pie-month" class="bh-input" onchange="BH.setPieFilter('month', this.value)"></select>
-            <label for="stat-pie-mode">Mode</label>
-            <select id="stat-pie-mode" class="bh-input" onchange="BH.setPieFilter('mode', this.value)">
-              <option value="effective">Effectives</option>
-              <option value="theorique">Théoriques</option>
-            </select>
-            <label for="stat-pie-acc">Compte</label>
-            <select id="stat-pie-acc" class="bh-input" onchange="BH.setPieFilter('acc', this.value)"></select>
-          </div>
-        </div>
-      </div>
-      <div id="chart-categories"></div>
-    </div>
-    <div id="stat-history-block">
-      <div class="bh-card">
-        <div class="chart-head">
-          <div class="chart-title" style="font-size:12px;">Comparaison par catégorie</div>
-          <div class="chart-filter-wrap">
-            <button type="button" class="chart-filter-btn" id="stats-filter-btn-compare" title="Filtres" onclick="BH.toggleStatsFilter('compare')" aria-expanded="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
-            </button>
-            <div class="chart-filter-panel" id="stats-filter-compare">
-              <label for="stat-cat-acc-compare">Compte</label>
-              <select id="stat-cat-acc-compare" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
-              <label for="stat-cat-mode-compare">Mode</label>
-              <select id="stat-cat-mode-compare" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
-                <option value="effective">Effectives</option>
-                <option value="theorique">Théoriques</option>
-              </select>
-              <label for="stat-cat-range-compare">Période</label>
-              <select id="stat-cat-range-compare" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
-                <option value="1">vs m-1 (2 mois)</option>
-                <option value="2">jusqu'à m-2 (3 mois)</option>
-                <option value="5">jusqu'à m-5 (6 mois)</option>
-                <option value="11">jusqu'à m-11 (12 mois)</option>
-              </select>
-              <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-compare" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
-            </div>
-          </div>
-        </div>
-        <div id="stat-comparison"></div>
-      </div>
-
-      <div class="bh-section-label">Revenus, dépenses &amp; épargne</div>
-      <div class="bh-card">
-        <div class="chart-head">
-          <div class="chart-title">Bilan mensuel — comparaison</div>
-          <div class="chart-filter-wrap">
-            <button type="button" class="chart-filter-btn" id="stats-filter-btn-bilan" title="Filtres" onclick="BH.toggleStatsFilter('bilan')" aria-expanded="false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
-            </button>
-            <div class="chart-filter-panel" id="stats-filter-bilan">
-              <label for="stat-cat-acc-bilan">Compte</label>
-              <select id="stat-cat-acc-bilan" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
-              <label for="stat-cat-mode-bilan">Mode</label>
-              <select id="stat-cat-mode-bilan" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
-                <option value="effective">Effectives</option>
-                <option value="theorique">Théoriques</option>
-              </select>
-              <label for="stat-cat-range-bilan">Période</label>
-              <select id="stat-cat-range-bilan" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
-                <option value="1">vs m-1 (2 mois)</option>
-                <option value="2">jusqu'à m-2 (3 mois)</option>
-                <option value="5">jusqu'à m-5 (6 mois)</option>
-                <option value="11">jusqu'à m-11 (12 mois)</option>
-              </select>
-              <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-bilan" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
-            </div>
-          </div>
-        </div>
-        <div id="chart-savings-stack"></div>
-      </div>
-    </div>
-
-    <div class="bh-section-label">Export</div>
-    <div class="bh-card" style="display:flex; gap:8px; padding:12px;">
-      <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('month')">Export mois (CSV)</button>
-      <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('year')">Export année (CSV)</button>
-    </div>
-    <div class="bh-card" style="padding:12px;">
-      <button class="bh-btn bh-btn-ghost bh-btn-block" onclick="BH.exportPDF()">🖨️ Générer un rapport PDF (impression)</button>
-    </div>
-  </div>
-
-  <button class="bh-fab" id="bh-fab" onclick="BH.openAddSheet()" style="display:none;">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-  </button>
-
-  <div class="bh-tabbar">
     <button class="bh-tab active" data-tab="today" onclick="BH.switchTab('today')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M8 2v4M16 2v4M3 10h18"/><path d="M8 15l2 2 4-4"/></svg>
       Aujourd'hui
@@ -547,6 +487,217 @@
     <button class="bh-tab" data-tab="stats" onclick="BH.switchTab('stats')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
       Stats
+    </button>
+  </nav>
+
+  <div class="bh-main">
+    <div class="bh-topbar">
+      <div class="bh-topbar-row">
+        <div class="bh-brand">
+          <span class="bh-brand-mark"></span>
+          <div><div class="bh-title">Budget</div></div>
+        </div>
+        <button class="bh-icon-btn" onclick="BH.openSettings()" aria-label="Réglages">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+      <div class="bh-sub" id="bh-header-sub">Chargement...</div>
+    </div>
+
+    <!-- VUE 1 : AUJOURD'HUI -->
+    <div class="bh-view active" id="view-today">
+      <div class="bh-today-primary">
+        <div class="bh-stat-grid" style="margin-bottom:6px;">
+          <div class="bh-stat clay">
+            <div class="bh-stat-label">Reste à valider</div>
+            <div class="bh-stat-value num" id="bh-stat-remaining">—</div>
+          </div>
+          <div class="bh-stat sage">
+            <div class="bh-stat-label">Déjà réglé</div>
+            <div class="bh-stat-value num" id="bh-stat-paid">—</div>
+          </div>
+        </div>
+        <div id="bh-wallets-section"></div>
+        <div id="bh-due-section"></div>
+        <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
+      </div>
+      <div class="bh-today-secondary">
+        <div class="bh-section-label">Dépenses validées</div>
+        <div class="bh-card" id="bh-paid-list-wrap">
+          <div id="bh-paid-list"></div>
+        </div>
+        <div class="bh-section-label">Revenus encaissés</div>
+        <div class="bh-card" id="bh-paid-incomes-wrap">
+          <div id="bh-paid-incomes-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VUE 2 : COMPTES -->
+    <div class="bh-view" id="view-comptes">
+      <div class="bh-month-nav" style="display:flex; justify-content:space-between; margin-bottom:16px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
+        <button onclick="BH.shiftMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&larr;</button>
+        <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; text-transform:capitalize;" id="bh-comptes-month-label">Mois</div>
+        <button onclick="BH.shiftMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);">&rarr;</button>
+      </div>
+      <div id="bh-accounts-list"></div>
+    </div>
+
+    <!-- VUE 3 : SAISIES (Dépenses & Revenus fusionnés) -->
+    <div class="bh-view" id="view-saisies">
+      <div class="bh-card bh-saisies-filters" style="padding:10px 12px; margin-bottom:14px;">
+        <input type="text" id="bh-search" class="bh-input" placeholder="Rechercher (description, montant...)" oninput="BH.renderSaisies()">
+        <select id="bh-filter-cat" class="bh-input" onchange="BH.renderSaisies()">
+          <option value="">Toutes les catégories</option>
+        </select>
+        <select id="bh-filter-acc" class="bh-input" onchange="BH.renderSaisies()">
+          <option value="">Tous les comptes</option>
+        </select>
+        <select id="bh-filter-status" class="bh-input" onchange="BH.renderSaisies()">
+          <option value="">Toutes les saisies</option>
+          <option value="expired">⚠️ Expirées seulement</option>
+          <option value="active">Actives seulement</option>
+          <option value="wallet">👛 Portefeuilles seulement</option>
+        </select>
+      </div>
+      <div class="bh-saisies-cols">
+        <div class="bh-saisies-col">
+          <div class="bh-section-label">Dépenses</div>
+          <div id="bh-expenses-groups"></div>
+        </div>
+        <div class="bh-saisies-col">
+          <div class="bh-section-label">Revenus / Remboursements</div>
+          <div id="bh-incomes-groups"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VUE 4 : STATISTIQUES -->
+    <div class="bh-view" id="view-stats">
+      <div class="bh-stats-hero">
+        <div class="bh-card" style="text-align:center; padding:24px 16px;">
+          <div style="font-size:12px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Capacité d'épargne (Mensuelle) <button class="bh-info-btn" onclick="BH.showEpargneInfo()" title="Détail du calcul">?</button></div>
+          <div class="num" id="stat-epargne" style="font-size:32px; color:var(--sage-deep); margin:8px 0;">—</div>
+          <div style="font-size:13px; color:var(--ink-faint);" id="stat-epargne-rate">Taux d'épargne : —</div>
+        </div>
+      </div>
+
+      <div class="bh-stats-grid">
+        <div class="bh-stats-col">
+          <div class="bh-section-label">Répartition de mon salaire</div>
+          <div class="bh-card">
+            <div class="chart-title">Vers mes comptes partagés</div>
+            <div id="chart-salary-split"></div>
+          </div>
+        </div>
+
+        <div class="bh-stats-col">
+          <div class="bh-section-label">Dépenses par catégorie</div>
+          <div class="bh-card">
+            <div class="chart-head">
+              <div class="chart-title">Répartition</div>
+              <div class="chart-filter-wrap">
+                <button type="button" class="chart-filter-btn" id="stats-filter-btn-pie" title="Filtres" onclick="BH.toggleStatsFilter('pie')" aria-expanded="false">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+                </button>
+                <div class="chart-filter-panel" id="stats-filter-pie">
+                  <label for="stat-pie-month">Mois</label>
+                  <select id="stat-pie-month" class="bh-input" onchange="BH.setPieFilter('month', this.value)"></select>
+                  <label for="stat-pie-mode">Mode</label>
+                  <select id="stat-pie-mode" class="bh-input" onchange="BH.setPieFilter('mode', this.value)">
+                    <option value="effective">Effectives</option>
+                    <option value="theorique">Théoriques</option>
+                  </select>
+                  <label for="stat-pie-acc">Compte</label>
+                  <select id="stat-pie-acc" class="bh-input" onchange="BH.setPieFilter('acc', this.value)"></select>
+                </div>
+              </div>
+            </div>
+            <div id="chart-categories"></div>
+          </div>
+        </div>
+
+        <div id="stat-history-block">
+          <div class="bh-stats-col">
+            <div class="bh-section-label" style="margin-top:8px;">Comparaison par catégorie</div>
+            <div class="bh-card">
+              <div class="chart-head">
+                <div class="chart-title" style="font-size:12px;">Évolution</div>
+                <div class="chart-filter-wrap">
+                  <button type="button" class="chart-filter-btn" id="stats-filter-btn-compare" title="Filtres" onclick="BH.toggleStatsFilter('compare')" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+                  </button>
+                  <div class="chart-filter-panel" id="stats-filter-compare">
+                    <label for="stat-cat-acc-compare">Compte</label>
+                    <select id="stat-cat-acc-compare" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
+                    <label for="stat-cat-mode-compare">Mode</label>
+                    <select id="stat-cat-mode-compare" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+                      <option value="effective">Effectives</option>
+                      <option value="theorique">Théoriques</option>
+                    </select>
+                    <label for="stat-cat-range-compare">Période</label>
+                    <select id="stat-cat-range-compare" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
+                      <option value="1">vs m-1 (2 mois)</option>
+                      <option value="2">jusqu'à m-2 (3 mois)</option>
+                      <option value="5">jusqu'à m-5 (6 mois)</option>
+                      <option value="11">jusqu'à m-11 (12 mois)</option>
+                    </select>
+                    <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-compare" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
+                  </div>
+                </div>
+              </div>
+              <div id="stat-comparison"></div>
+            </div>
+          </div>
+
+          <div class="bh-stats-col">
+            <div class="bh-section-label" style="margin-top:8px;">Revenus, dépenses &amp; épargne</div>
+            <div class="bh-card">
+              <div class="chart-head">
+                <div class="chart-title">Bilan mensuel — comparaison</div>
+                <div class="chart-filter-wrap">
+                  <button type="button" class="chart-filter-btn" id="stats-filter-btn-bilan" title="Filtres" onclick="BH.toggleStatsFilter('bilan')" aria-expanded="false">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5z"/></svg>
+                  </button>
+                  <div class="chart-filter-panel" id="stats-filter-bilan">
+                    <label for="stat-cat-acc-bilan">Compte</label>
+                    <select id="stat-cat-acc-bilan" class="bh-input" onchange="BH.setStatsFilter('acc', this.value)"></select>
+                    <label for="stat-cat-mode-bilan">Mode</label>
+                    <select id="stat-cat-mode-bilan" class="bh-input" onchange="BH.setStatsFilter('mode', this.value)">
+                      <option value="effective">Effectives</option>
+                      <option value="theorique">Théoriques</option>
+                    </select>
+                    <label for="stat-cat-range-bilan">Période</label>
+                    <select id="stat-cat-range-bilan" class="bh-input" onchange="BH.setStatsFilter('range', this.value)">
+                      <option value="1">vs m-1 (2 mois)</option>
+                      <option value="2">jusqu'à m-2 (3 mois)</option>
+                      <option value="5">jusqu'à m-5 (6 mois)</option>
+                      <option value="11">jusqu'à m-11 (12 mois)</option>
+                    </select>
+                    <label class="filter-check"><input type="checkbox" id="stat-exclude-cur-bilan" onchange="BH.setStatsFilter('excludeCurrent', this.checked)"> Ne pas afficher le mois en cours</label>
+                  </div>
+                </div>
+              </div>
+              <div id="chart-savings-stack"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bh-stats-export">
+        <div class="bh-section-label" style="grid-column:1 / -1;">Export</div>
+        <div class="bh-card" style="display:flex; gap:8px; padding:12px;">
+          <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('month')">Export mois (CSV)</button>
+          <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('year')">Export année (CSV)</button>
+        </div>
+        <div class="bh-card" style="padding:12px;">
+          <button class="bh-btn bh-btn-ghost bh-btn-block" onclick="BH.exportPDF()">🖨️ Générer un rapport PDF (impression)</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="bh-fab" id="bh-fab" onclick="BH.openAddSheet()" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
 </div>

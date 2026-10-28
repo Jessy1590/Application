@@ -509,6 +509,7 @@ Création/modif fiche, Valider / Remettre à 0, Complétude live, scanner UI, en
 - [x] `037` drop legacy V1 jeux · `038` bloc recommandation · **`039` classement / appariement / `v2_update_modele_jeu`**
 - [x] **`040` multi-niveaux ★** · **`041` purge profil / hospitalier-complexe** (vue sans `*_niveaux` / hospitalier — remplace l’intention de `018`)
 - [~] `018_vue_sans_niveaux_entite` — **obsolète** (couvert par `041`)
+- [x] **`076` suppression `cardiovasculaires_v2`** (`sql/076_supprimer_cardiovasculaires_v2.sql`, MCP 2026-10-28) : parcours + modules/blocs/jeux JP-V2* + inscription ; `073`/`074` marqués obsolètes (ne plus relancer)
 
 ### Surfaces
 - Hub joueur : `index.html` — Parcours | Mon espace | Catalogue | Jeux
