@@ -42,7 +42,16 @@
     'Fusionner : sélectionnez 2+ lignes, choisissez celle à garder ; les autres sont réassignées puis désactivées.',
     'Supprimer : retire les liaisons matrice et désactive l’entité (soft-delete).',
     'Attention DCI : fusionner deux DCI peut entrer en conflit si chaque DCI a déjà une fiche active.',
+    'IA : consigne libre → propositions (renommer / fusionner / supprimer) à valider une à une ; rien n’est appliqué sans acceptation.',
   ];
+
+  const ACTION_LABELS = {
+    rename: 'Renommer',
+    merge: 'Fusionner',
+    delete: 'Supprimer',
+    keep: 'Garder',
+    noop: 'Rien',
+  };
 
   function ensureHost() {
     if (state.host) return state.host;
@@ -80,6 +89,7 @@
       + '<button type="button" class="jp-btn jp-btn-primary" id="entRename" disabled>Renommer</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entMerge" disabled>Fusionner</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entDelete" disabled>Supprimer</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost jp-btn-ia" id="entIA" title="Propositions IA (validation unitaire)">IA</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entClearSel" hidden>Effacer sélection</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entRefresh">Actualiser</button>'
       + '</div>'

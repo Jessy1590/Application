@@ -5,9 +5,12 @@
 (function (global) {
   const FN_BLOCS = 'jeupharma-ia-blocs';
   const FN_MATRICE = 'jeupharma-ia-matrice';
+  const FN_ENTITES = 'jeupharma-ia-entites';
   const PDF_MAX_BYTES = 10 * 1024 * 1024;
   const TEXT_MAX_CHARS = 80000;
   const RCP_MAX_CHARS = 100000;
+  const ENTITES_MAX_ITEMS = 800;
+  const ENTITES_INSTRUCTION_MAX = 4000;
 
   /** Fichier -> base64 (sans préfixe data:). */
   function fileToBase64(file) {
@@ -54,9 +57,12 @@
   global.JpIaGemini = {
     FN_BLOCS,
     FN_MATRICE,
+    FN_ENTITES,
     PDF_MAX_BYTES,
     TEXT_MAX_CHARS,
     RCP_MAX_CHARS,
+    ENTITES_MAX_ITEMS,
+    ENTITES_INSTRUCTION_MAX,
     fileToBase64,
     invoke,
   };
