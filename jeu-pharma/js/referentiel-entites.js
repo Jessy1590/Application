@@ -89,7 +89,6 @@
       + '<input type="number" id="entLotN" min="1" step="1" value="300" inputmode="numeric"'
       + ' aria-label="Nombre de premiers éléments à sélectionner">'
       + '<span>premiers</span>'
-      + '<button type="button" class="jp-btn jp-btn-ghost" id="entAddAll">Tout ajouter</button>'
       + '</span>'
       + '<span class="jp-muted" id="entSelInfo"></span>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entCreate">Créer</button>'
@@ -148,15 +147,6 @@
     const n = Math.min(lotSize(), state.rows.length);
     state.selected.clear();
     state.rows.slice(0, n).forEach((r) => state.selected.add(String(r.id)));
-    syncChecks();
-  }
-
-  function addAllDisplayed() {
-    if (!state.rows.length) {
-      global.JpToast?.warn?.('Aucun élément à sélectionner');
-      return;
-    }
-    state.rows.forEach((r) => state.selected.add(String(r.id)));
     syncChecks();
   }
 
@@ -555,6 +545,7 @@
       + '<div class="jp-modal-actions">'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entIaCancel">Fermer</button>'
       + '<button type="button" class="jp-btn jp-btn-ghost" id="entIaIgnoreAll" hidden>Tout ignorer</button>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="entIaAddAll" hidden>Tout ajouter</button>'
       + '<button type="button" class="jp-btn jp-btn-primary" id="entIaGo">Analyser</button>'
       + '</div></div>';
     document.body.appendChild(backdrop);
@@ -608,11 +599,13 @@
       if (!pend.length) {
         host.innerHTML = '<p class="jp-ia-ok">Aucune proposition restante. Fermez ou relancez avec une autre consigne.</p>';
         $('entIaIgnoreAll').hidden = true;
+        $('entIaAddAll').hidden = true;
         $('entIaGo').hidden = true;
         return;
       }
 
       $('entIaIgnoreAll').hidden = false;
+      $('entIaAddAll').hidden = false;
       $('entIaGo').hidden = true;
 
       host.innerHTML = pend.map((p, idx) => {
@@ -711,47 +704,103 @@
       }
     }
 
+    function settleProposition(prop) {
+      prop.status = 'accepted';
+      const gone = new Set([String(prop.id)]);
+      if (String(prop.action).toLowerCase() === 'merge') {
+        /* id source disparaît ; cible reste */
+      }
+      if (String(prop.action).toLowerCase() === 'delete') {
+        gone.add(String(prop.id));
+      }
+      queue.forEach((q) => {
+        if (q.status !== 'pending') return;
+        if (gone.has(String(q.id))) {
+          q.status = 'ignored';
+          return;
+        }
+        if (String(q.action).toLowerCase() === 'merge' && gone.has(String(q.merge_into_id))) {
+          q.status = 'ignored';
+        }
+      });
+      if (String(prop.action).toLowerCase() === 'rename' && prop.new_valeur) {
+        valeurSnapshot.set(String(prop.id), String(prop.new_valeur));
+      }
+    }
+
+    function logAccept(prop) {
+      void global.JpLogs?.action?.('ref_entites_ia_accept', {
+        table: state.table,
+        id: prop.id,
+        action: prop.action,
+      });
+    }
+
+    function setActionsDisabled(on) {
+      ['entIaAddAll', 'entIaIgnoreAll', 'entIaCancel'].forEach((id) => {
+        const btn = $(id);
+        if (btn) btn.disabled = on;
+      });
+      backdrop.querySelectorAll('[data-ia-act]').forEach((btn) => { btn.disabled = on; });
+    }
+
     async function acceptOne(prop) {
       if (busy || !prop || prop.status !== 'pending') return;
       busy = true;
       try {
         await applyProposition(prop);
-        prop.status = 'accepted';
-        // Invalider d’autres props sur le même id, ou merges vers un id fusionné/supprimé
-        const gone = new Set([String(prop.id)]);
-        if (String(prop.action).toLowerCase() === 'merge') {
-          /* id source disparaît ; cible reste */
-        }
-        if (String(prop.action).toLowerCase() === 'delete') {
-          gone.add(String(prop.id));
-        }
-        queue.forEach((q) => {
-          if (q.status !== 'pending') return;
-          if (gone.has(String(q.id))) {
-            q.status = 'ignored';
-            return;
-          }
-          if (String(q.action).toLowerCase() === 'merge' && gone.has(String(q.merge_into_id))) {
-            q.status = 'ignored';
-          }
-        });
-        if (String(prop.action).toLowerCase() === 'rename' && prop.new_valeur) {
-          valeurSnapshot.set(String(prop.id), String(prop.new_valeur));
-        }
+        settleProposition(prop);
         global.JpToast?.ok?.('Appliqué : ' + (ACTION_LABELS[prop.action] || prop.action));
-        void global.JpLogs?.action?.('ref_entites_ia_accept', {
-          table: state.table,
-          id: prop.id,
-          action: prop.action,
-        });
+        logAccept(prop);
         await loadRows();
-        // rafraîchir snapshot pour libellés restants
         state.rows.forEach((r) => valeurSnapshot.set(String(r.id), r.valeur || ''));
         renderQueue();
       } catch (e) {
         global.JpToast?.fromError?.(e);
       } finally {
         busy = false;
+      }
+    }
+
+    async function acceptAll() {
+      if (busy || !pending().length) return;
+      busy = true;
+      setActionsDisabled(true);
+      let applied = 0;
+      try {
+        while (pending().length) {
+          const prop = pending()[0];
+          try {
+            await applyProposition(prop);
+          } catch (e) {
+            global.JpToast?.fromError?.(e);
+            break;
+          }
+          settleProposition(prop);
+          applied += 1;
+          logAccept(prop);
+        }
+      } finally {
+        if (applied) {
+          global.JpToast?.ok?.(
+            applied + (applied > 1 ? ' propositions appliquées' : ' proposition appliquée'),
+          );
+        }
+        if (!closed) {
+          try {
+            if (applied) {
+              await loadRows();
+              state.rows.forEach((r) => valeurSnapshot.set(String(r.id), r.valeur || ''));
+            }
+          } catch (e) {
+            global.JpToast?.fromError?.(e);
+          }
+          renderQueue();
+          busy = false;
+          setActionsDisabled(false);
+        } else {
+          busy = false;
+        }
       }
     }
 
@@ -771,6 +820,9 @@
     $('entIaGo').addEventListener('click', () => void runAnalyze());
     $('entIaIgnoreAll').addEventListener('click', () => {
       if (!busy) ignoreAll();
+    });
+    $('entIaAddAll').addEventListener('click', () => {
+      if (!busy) void acceptAll();
     });
     $('entIaQueue').addEventListener('click', (e) => {
       const act = e.target.getAttribute('data-ia-act')
@@ -834,7 +886,6 @@
     host.querySelector('#entDelete').addEventListener('click', () => void doDelete());
     host.querySelector('#entIA')?.addEventListener('click', () => openIaWizard());
     host.querySelector('#entLot')?.addEventListener('click', selectFirstLot);
-    host.querySelector('#entAddAll')?.addEventListener('click', addAllDisplayed);
     host.querySelector('#entClearSel').addEventListener('click', clearSelection);
     host.querySelector('#entRefresh').addEventListener('click', () => void loadRows());
 
