@@ -73,7 +73,8 @@
   .bh-verif-drop:hover, .bh-verif-drop.drag{ border-color:var(--sage); background:var(--sage-pale); color:var(--sage-deep); }
   .bh-verif-drop strong{ display:block; color:var(--ink); font-size:14px; margin-bottom:4px; }
   .bh-verif-drop span{ font-size:12px; }
-  .bh-verif-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .bh-verif-stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
+  @media (min-width: 700px){ .bh-verif-stats{ grid-template-columns:repeat(4,1fr); } }
   .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
   .bh-verif-stat .lbl{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); }
   .bh-verif-stat .val{ font-size:18px; margin-top:2px; }
@@ -431,7 +432,7 @@
 
     /* Vérification : plein écran */
     #view-verif.active{ display:flex; flex-direction:column; gap:14px; }
-    .bh-verif-toolbar{ display:grid; grid-template-columns:1.2fr 1fr 1fr auto; gap:10px; align-items:end; }
+    .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1fr 1fr 1.4fr auto; gap:10px; align-items:end; }
     .bh-verif-drop{ min-height:88px; }
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 260px); }
     .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ max-width:none; }
@@ -614,17 +615,26 @@
           <select id="verif-account" class="bh-input" style="margin:0;" onchange="BH.onVerifAccountChange()"></select>
         </div>
         <div>
+          <div class="bh-field-label" style="margin-top:0;">Banque</div>
+          <select id="verif-bank" class="bh-input" style="margin:0;" onchange="BH.onVerifBankChange()">
+            <option value="auto">Auto-détecter</option>
+            <option value="ca">Crédit Agricole</option>
+            <option value="cic">CIC</option>
+            <option value="revolut">Revolut</option>
+          </select>
+        </div>
+        <div>
           <div class="bh-field-label" style="margin-top:0;">Mois du relevé</div>
           <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()">
         </div>
         <div>
-          <div class="bh-field-label" style="margin-top:0;">Fichier</div>
+          <div class="bh-field-label" style="margin-top:0;">Fichier CSV</div>
           <div class="bh-verif-drop" id="verif-drop" onclick="document.getElementById('verif-file').click()"
                ondragover="event.preventDefault(); this.classList.add('drag')"
                ondragleave="this.classList.remove('drag')"
                ondrop="BH.onVerifDrop(event)">
-            <strong id="verif-drop-title">Déposer un relevé PDF ou CSV</strong>
-            <span>Export banque → texte extrait localement (rien n’est envoyé sur un serveur tiers)</span>
+            <strong id="verif-drop-title">Déposer un CSV (CA · CIC · Revolut)</strong>
+            <span id="verif-drop-sub">Ou PDF. Traitement local — rien n’est envoyé ailleurs.</span>
           </div>
           <input type="file" id="verif-file" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain" style="display:none;" onchange="BH.onVerifFile(this.files[0])">
         </div>
@@ -635,6 +645,7 @@
       </div>
 
       <div class="bh-verif-stats" id="verif-stats">
+        <div class="bh-verif-stat"><div class="lbl">Banque</div><div class="val" style="font-size:14px;" id="verif-stat-bank">—</div></div>
         <div class="bh-verif-stat"><div class="lbl">Lignes</div><div class="val num" id="verif-stat-total">0</div></div>
         <div class="bh-verif-stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="verif-stat-matched">0</div></div>
         <div class="bh-verif-stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="verif-stat-pending">0</div></div>
@@ -1113,7 +1124,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], accId: '', mKey: '', fileName: '', linkOpId: null, walletOpId: null },
+    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', linkOpId: null, walletOpId: null },
 
     async init() {
       await this.fetchData();
@@ -3087,13 +3098,26 @@
       return Number(s);
     },
     parseDateFR(raw) {
-      const m = String(raw || '').trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+      const s = String(raw || '').trim();
+      // ISO / Revolut : 2026-09-02 10:02:51 ou 2026-09-02T10:02:51
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/);
+      if (iso) return iso[1] + '-' + iso[2] + '-' + iso[3];
+      const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
       if (!m) return null;
       let y = Number(m[3]);
       if (y < 100) y += 2000;
-      const d = new Date(y, Number(m[2]) - 1, Number(m[1]));
-      if (isNaN(d.getTime())) return null;
-      return d.toISOString().slice(0, 10);
+      const day = Number(m[1]), month = Number(m[2]);
+      if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+      // Éviter toISOString() (décale d’un jour selon le fuseau)
+      return y + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    },
+    bankLabel(code) {
+      return ({ ca: 'Crédit Agricole', cic: 'CIC', revolut: 'Revolut', auto: 'Auto' })[code] || code || '—';
+    },
+    onVerifBankChange() {
+      const sel = document.getElementById('verif-bank');
+      this.verif.bank = sel ? sel.value : 'auto';
+      localStorage.setItem('bh-verif-bank', this.verif.bank);
     },
     normalizeLabel(s) {
       return String(s || '').toLowerCase()
@@ -3107,6 +3131,43 @@
       let inter = 0;
       ta.forEach(w => { if (tb.has(w)) inter++; });
       return inter / Math.max(ta.size, tb.size);
+    },
+
+    async readCsvText(file) {
+      const buf = await file.arrayBuffer();
+      const asUtf8 = new TextDecoder('utf-8').decode(buf);
+      let as1252 = asUtf8;
+      try { as1252 = new TextDecoder('windows-1252').decode(buf); } catch (_) {}
+      const score = (t) => {
+        const h = (t.split(/\r?\n/)[0] || '');
+        let s = 0;
+        if (/Débit|Libellé|Crédit/.test(h)) s += 5;
+        if (/Date de valeur/i.test(h)) s += 2;
+        if (/DÃ©bit|LibellÃ©|CrÃ©dit/.test(h)) s -= 5;
+        if (/D.bit|Libell.|Cr.dit/.test(h) && !/Débit|Libellé|Crédit/.test(h)) s -= 2;
+        return s;
+      };
+      return score(as1252) >= score(asUtf8) ? as1252 : asUtf8;
+    },
+
+    cleanBankLabel(label) {
+      let s = String(label || '').replace(/\s+/g, ' ').trim();
+      // PAIEMENT CB 1010 GUICHAINVILLE 27 CARREFOUR CARTE 2489… → CARREFOUR
+      let m = s.match(/^PAIEMENT CB\s+\d{3,4}\s+(.+?)\s+CARTE\s+\d+/i);
+      if (m) {
+        let mid = m[1].trim();
+        // "VILLE 27 MARCHAND" ou "PAYS MARCHAND"
+        mid = mid.replace(/^[A-ZÀ-Ü][A-ZÀ-Ü\s\-']+?\s+\d{2}\s+/i, '');
+        mid = mid.replace(/^(LUXEMBOURG|AMSTERDAM|BRUXELLES|LONDON|DUBLIN|BERLIN|MADRID|ROME)\s+/i, '');
+        mid = mid.replace(/^(GUICHAINVILLE|BERNAY|PARIS|LYON|LILLE|NANTES|TOULOUSE|ROUEN|EVREUX)\s+/i, '');
+        if (mid.length >= 3) return mid.slice(0, 80);
+      }
+      m = s.match(/^PRLV SEPA\s+(.+?)(?:\s+PRELEVEMENT|\s+\d{6,}|$)/i);
+      if (m) return m[1].replace(/\s+/g, ' ').trim().slice(0, 80);
+      m = s.match(/^VIR INST(?:ANTANE)?\s+(?:WERO\s+)?(.+?)(?:\s+ENVOYE|\s+NOTPROVID|\s+\d{10,}|$)/i);
+      if (m) return ('Virement ' + m[1]).replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (/^ECH PRET\b/i.test(s)) return s.slice(0, 60);
+      return s.slice(0, 180);
     },
 
     parseBankCsv(text) {
@@ -3125,15 +3186,46 @@
         return out;
       };
       const rows = lines.map(split);
-      const header = rows[0].map(h => h.toLowerCase());
-      const looksHeader = header.some(h => /date|libell|label|montant|debit|credit|amount/.test(h));
+      const headerRaw = rows[0];
+      const header = headerRaw.map(h => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      // Crédit Agricole / banques FR : Date;Date de valeur;Débit;Crédit;Libellé;Solde
+      const looksHeader = header.some(h =>
+        /^(date|libelle|label|montant|debit|credit|amount|solde)/.test(h) ||
+        /date de valeur|libell|d.?bit|cr.?dit/.test(h)
+      );
       const data = looksHeader ? rows.slice(1) : rows;
-      const idx = {
-        date: header.findIndex(h => /date/.test(h)),
-        label: header.findIndex(h => /libell|label|desc|motif|communication/.test(h)),
-        amount: header.findIndex(h => /montant|amount|sum/.test(h)),
-        debit: header.findIndex(h => /d[eé]bit|sortie/.test(h)),
-        credit: header.findIndex(h => /cr[eé]dit|entr[eé]e/.test(h))
+      const findCol = (...preds) => {
+        for (const pred of preds) {
+          const i = header.findIndex(pred);
+          if (i >= 0) return i;
+        }
+        return -1;
+      };
+      let idx = {
+        // Date d'opération (pas date de valeur)
+        date: findCol(h => h === 'date', h => /^date$/.test(h), h => h.startsWith('date') && !/valeur/.test(h), h => /date/.test(h)),
+        label: findCol(h => /libell|label|desc|motif|communication/.test(h)),
+        amount: findCol(h => /^(montant|amount|sum)$/.test(h) || (/montant|amount/.test(h) && !/solde/.test(h))),
+        debit: findCol(h => /^debit$/.test(h), h => /d.?bit|sortie/.test(h)),
+        credit: findCol(h => /^credit$/.test(h), h => /cr.?dit|entree/.test(h))
+      };
+      // Fallback positionnel format CA (6 colonnes)
+      const isCaLayout = header.length >= 5 && header[0] === 'date' &&
+        (header[1] || '').includes('date') &&
+        (idx.debit < 0 || idx.credit < 0 || idx.label < 0);
+      if (isCaLayout) {
+        idx = {
+          date: 0,
+          debit: idx.debit >= 0 ? idx.debit : 2,
+          credit: idx.credit >= 0 ? idx.credit : 3,
+          label: idx.label >= 0 ? idx.label : 4,
+          amount: -1
+        };
+      }
+      const cellAmount = (raw) => {
+        if (raw == null || String(raw).trim() === '') return null;
+        const n = this.parseAmountFR(raw);
+        return Number.isFinite(n) && n !== 0 ? n : null;
       };
       const ops = [];
       data.forEach((cols, i) => {
@@ -3141,22 +3233,31 @@
         let date = looksHeader && idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : this.parseDateFR(cols[0]);
         let label = looksHeader && idx.label >= 0 ? cols[idx.label] : (cols[1] || cols[0] || '');
         let amount = NaN;
-        if (looksHeader && idx.amount >= 0) amount = this.parseAmountFR(cols[idx.amount]);
-        else if (looksHeader && (idx.debit >= 0 || idx.credit >= 0)) {
-          const d = idx.debit >= 0 ? this.parseAmountFR(cols[idx.debit]) : 0;
-          const c = idx.credit >= 0 ? this.parseAmountFR(cols[idx.credit]) : 0;
-          amount = (Number.isFinite(c) && c ? Math.abs(c) : 0) - (Number.isFinite(d) && d ? Math.abs(d) : 0);
-          if (!amount && Number.isFinite(d) && d) amount = -Math.abs(d);
-          if (!amount && Number.isFinite(c) && c) amount = Math.abs(c);
+        if (looksHeader && idx.amount >= 0) {
+          const n = cellAmount(cols[idx.amount]);
+          if (n != null) amount = n;
+        } else if (looksHeader && (idx.debit >= 0 || idx.credit >= 0)) {
+          // Format CA : Débit (souvent déjà négatif) / Crédit (positif) dans colonnes séparées
+          const d = idx.debit >= 0 ? cellAmount(cols[idx.debit]) : null;
+          const c = idx.credit >= 0 ? cellAmount(cols[idx.credit]) : null;
+          if (d != null && c == null) amount = -Math.abs(d);
+          else if (c != null && d == null) amount = Math.abs(c);
+          else if (d != null && c != null) amount = Math.abs(c) - Math.abs(d);
         } else {
-          for (let j = cols.length - 1; j >= 0; j--) {
-            const n = this.parseAmountFR(cols[j]);
-            if (Number.isFinite(n) && Math.abs(n) > 0) { amount = n; break; }
+          for (let j = 1; j < cols.length; j++) {
+            const n = cellAmount(cols[j]);
+            if (n != null) { amount = n; break; }
           }
         }
         if (!date || !Number.isFinite(amount) || amount === 0) return;
-        // Convention app : dépenses positives sortantes → on stocke le signe banque (crédit +, débit -)
-        ops.push({ id: 'csv-' + i, date, label: String(label || 'Mouvement').slice(0, 180), amount });
+        const clean = this.cleanBankLabel(label);
+        ops.push({
+          id: 'csv-' + i,
+          date,
+          label: clean,
+          labelRaw: String(label || '').slice(0, 180),
+          amount
+        });
       });
       return ops;
     },
@@ -3214,7 +3315,17 @@
         let ops = [];
         const name = (file.name || '').toLowerCase();
         if (name.endsWith('.csv') || name.endsWith('.txt') || file.type.includes('csv') || file.type === 'text/plain') {
-          ops = this.parseBankCsv(await file.text());
+          ops = this.parseBankCsv(await this.readCsvText(file));
+          // Aligner le mois du filtre sur le mois dominant du fichier
+          if (ops.length) {
+            const months = {};
+            ops.forEach(o => { months[o.date.slice(0, 7)] = (months[o.date.slice(0, 7)] || 0) + 1; });
+            const top = Object.entries(months).sort((a, b) => b[1] - a[1])[0];
+            if (top) {
+              const monthInp = document.getElementById('verif-month');
+              if (monthInp) { monthInp.value = top[0]; this.verif.mKey = top[0]; }
+            }
+          }
         } else {
           const text = await this.extractPdfText(file);
           ops = this.parseBankPdfText(text);
@@ -3443,7 +3554,7 @@
             </div>`;
         return `<tr class="${cls}">
           <td>${dateLbl}</td>
-          <td>${this.esc(op.label)}</td>
+          <td title="${this.esc(op.labelRaw || op.label)}">${this.esc(op.label)}</td>
           <td class="num" style="text-align:right;color:${amtColor};">${this.fmt(op.amount)}</td>
           <td>${matchHtml}</td>
           <td>${actions}</td>
