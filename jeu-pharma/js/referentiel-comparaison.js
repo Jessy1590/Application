@@ -1152,7 +1152,13 @@
     });
   }
 
+  function closeSiblingSurfaces() {
+    try { global.JpReferentielEntites?.close?.(); } catch (_) { /* ignore */ }
+    try { global.JpReferentielGroupe?.close?.(); } catch (_) { /* ignore */ }
+  }
+
   async function open() {
+    closeSiblingSurfaces();
     const host = ensureHost();
     if (state.mainEl) state.mainEl.hidden = true;
     host.hidden = false;

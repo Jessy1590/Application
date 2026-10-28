@@ -1139,6 +1139,20 @@
       }
       void global.JpReferentielComparaison.open();
     });
+    $('btnEntites')?.addEventListener('click', () => {
+      if (!global.JpReferentielEntites) {
+        global.JpToast.warn('Module Vérifier les éléments indisponible');
+        return;
+      }
+      void global.JpReferentielEntites.open();
+    });
+    $('btnGroupe')?.addEventListener('click', () => {
+      if (!global.JpReferentielGroupe) {
+        global.JpToast.warn('Module Gestion par groupe indisponible');
+        return;
+      }
+      void global.JpReferentielGroupe.open();
+    });
     $('btnIa')?.addEventListener('click', () => {
       if (!global.JpReferentielIA) {
         global.JpToast.warn('Module IA référentiel indisponible');
@@ -1194,6 +1208,8 @@
       'Renommer une valeur (clic sur le libellé) la change pour toutes les fiches liées.',
       'Ce qui est visible par les apprenants se règle dans Modif parcours.',
       'Comparaison : tableau des molécules d’un parcours / chapitre / leçon, fusion et valeurs ★.',
+      'Vérifier les éléments : renommer / fusionner / supprimer une table d’entités.',
+      'Gestion par groupe : aligner indications, CI, classes… sur plusieurs DCI cochées.',
     ]));
     fillStaticSelects();
     buildFields();
@@ -1208,6 +1224,8 @@
         if (row) await openEditor(row); else global.JpToast.warn('Fiche introuvable');
       }
       global.JpReferentielComparaison?.bootFromHash?.();
+      global.JpReferentielEntites?.bootFromHash?.();
+      global.JpReferentielGroupe?.bootFromHash?.();
     } catch (e) {
       global.JpToast.fromError(e);
       void global.JpLogs?.error?.('referentiel_list', { message: e?.message });

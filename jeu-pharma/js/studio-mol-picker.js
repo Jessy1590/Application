@@ -30,11 +30,11 @@
       + '" target="_blank" rel="noopener noreferrer" aria-label="Modifier">' + PENCIL + '</a>';
   }
 
-  /** Libellés des fiches déjà en leçon (pas de liste catalogue complète par défaut). */
+  /** Libellés des fiches déjà en leçon (vue liste légère — pas v_medicaments_complet). */
   async function describeMatrices(ids) {
     if (!ids.length) return [];
     const { data, error } = await sb()
-      .from('v_medicaments_complet')
+      .from('v_medicaments_liste')
       .select('id, dci, noms_commerciaux')
       .in('id', ids);
     if (error) throw error;

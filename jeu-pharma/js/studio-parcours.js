@@ -1502,7 +1502,8 @@
     state.variantScratch = {};
     state.variantTab = 'base';
     if (!state.inspectorTab) state.inspectorTab = 'lecon';
-    await preloadMolLabels();
+    // Warm cache en arrière-plan — ne pas bloquer le canvas sur la vue médicaments.
+    void preloadMolLabels();
     renderCanvas(m);
     await renderInspector(m);
     updateStatus();
@@ -1580,7 +1581,7 @@
       refresh: async () => {
         state.blocs = await loadBlocs(m.id, { force: true });
         rememberBlocsCache(m.id, state.blocs);
-        await preloadMolLabels();
+        void preloadMolLabels();
         paintBlocks();
         updateStatus();
       },
@@ -1589,28 +1590,65 @@
 
   /* ——— Molécules : libellés (cache) ——— */
 
+  /** Ids matrice d’un bloc (base + ajouts ★), sans doublon. */
+  function collectBlocMatriceIds(b) {
+    const ids = [];
+    const seen = new Set();
+    const add = (arr) => {
+      (arr || []).forEach((id) => {
+        if (!id || seen.has(String(id))) return;
+        seen.add(String(id));
+        ids.push(id);
+      });
+    };
+    const p = effPayload(b);
+    add(matriceIdsOf(p));
+    const vars = (p && p.variantes) || {};
+    Object.keys(vars).forEach((k) => {
+      const v = vars[k];
+      if (v && Array.isArray(v.matrice_ids)) add(v.matrice_ids);
+    });
+    return ids;
+  }
+
+  /**
+   * Libellés DCI / noms — vue liste légère (pas v_medicaments_complet :
+   * ~15 agrégats JSONB inutiles pour des chips).
+   */
   async function describeMatrices(ids) {
-    const missing = ids.filter((id) => !state.molLabels[id]);
+    const missing = [...new Set((ids || []).filter(Boolean))].filter((id) => !state.molLabels[id]);
     if (!missing.length) return;
     const { data, error } = await sb()
-      .from('v_medicaments_complet')
+      .from('v_medicaments_liste')
       .select('id, dci, noms_commerciaux')
       .in('id', missing);
     if (error) throw error;
     (data || []).forEach((r) => {
-      state.molLabels[r.id] = { label: r.dci || r.id.slice(0, 8), sub: global.JpTypeahead.nomsToText(r.noms_commerciaux) };
+      state.molLabels[r.id] = {
+        label: r.dci || r.id.slice(0, 8),
+        sub: global.JpTypeahead.nomsToText(r.noms_commerciaux),
+      };
     });
     missing.forEach((id) => {
       if (!state.molLabels[id]) state.molLabels[id] = { label: id.slice(0, 8), sub: '' };
     });
   }
 
+  async function ensureMolLabels(ids) {
+    try { await describeMatrices(ids); } catch (_) { /* libellés de repli */ }
+  }
+
   async function preloadMolLabels() {
     const ids = [];
+    const seen = new Set();
     state.blocs.filter((b) => b.type_bloc === 'molecule').forEach((b) => {
-      matriceIdsOf(effPayload(b)).forEach((id) => { if (ids.indexOf(id) === -1) ids.push(id); });
+      collectBlocMatriceIds(b).forEach((id) => {
+        if (seen.has(String(id))) return;
+        seen.add(String(id));
+        ids.push(id);
+      });
     });
-    try { await describeMatrices(ids); } catch (_) { /* libellés de repli */ }
+    await ensureMolLabels(ids);
   }
 
   function molItem(id) {
@@ -2294,21 +2332,28 @@
     btn.textContent = n >= 2 ? 'Éditer le groupe (' + n + ')' : 'Éditer le groupe';
   }
 
-  function mountMolChips(card, b) {
+  async function mountMolChips(card, b) {
     const id = b.id;
     const host = card.querySelector('[data-mol-multi]');
     if (!host) return;
     const tab = state.variantTab || 'base';
     const layer = molLayerOf(effPayload(b), tab);
-    const initial = layer.matrice_ids.map(molItem);
+    const matIds = (layer.matrice_ids || []).filter(Boolean);
+    // Charger seulement les libellés manquants de ce bloc/onglet (pas toute la leçon).
+    await ensureMolLabels(matIds);
+    if (!host.isConnected) return;
+    if (state.selectedBlocId !== id) return;
+    if (String(state.variantTab || 'base') !== String(tab)) return;
+    const hostNow = card.querySelector('[data-mol-multi]');
+    if (!hostNow) return;
     state.molChips[id]?.destroy?.();
     destroyMolEdit(id);
-    state.molChips[id] = global.JpTypeahead.chips(host, {
+    state.molChips[id] = global.JpTypeahead.chips(hostNow, {
       search: global.JpTypeahead.matriceSource({ limit: 15 }),
       minChars: 1,
       placeholder: tab === 'base' ? 'Ajouter une molécule…' : 'Ajouter une molécule (★' + tab + ')…',
       ariaLabel: 'Ajouter une molécule',
-      initial,
+      initial: matIds.map(molItem),
       chipSelectable: true,
       chipEditHref: referentielEditHref,
       onChipClick: (it) => {
@@ -2378,7 +2423,7 @@
         });
       });
     });
-    mountMolChips(card, b);
+    void mountMolChips(card, b);
     bindMolBlocActions(card, b);
     card.querySelectorAll('[data-mol-prog]').forEach((btn) => {
       btn.addEventListener('click', () => void openBlocValeurs(btn.getAttribute('data-mol-prog')));
@@ -2428,7 +2473,7 @@
       });
     });
     if (b.type_bloc === 'molecule') {
-      mountMolChips(card, b);
+      void mountMolChips(card, b);
       bindMolBlocActions(card, b);
     }
     card.querySelectorAll('input[data-field], select[data-field]').forEach((inp) => {

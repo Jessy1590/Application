@@ -1301,3 +1301,195 @@
   border-color: var(--jp-accent, #0f6b5c);
   background: rgba(15, 107, 92, 0.08);
 }
+
+/* ——— Vérifier les éléments / Gestion par groupe ——— */
+.jp-ref-entites-table {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3d6b62;
+  min-width: min(16rem, 100%);
+}
+.jp-ref-entites-table select {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.45rem;
+  background: #fff;
+}
+.jp-ref-entites-search {
+  flex: 1 1 14rem;
+  min-width: min(12rem, 100%);
+  max-width: 22rem;
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-radius: 0.45rem;
+  background: #fff;
+}
+.jp-ref-entites-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.jp-ref-entites-table-list {
+  width: 100%;
+  min-width: 0;
+}
+.jp-ref-entites-table-list .jp-ref-entites-checkcol {
+  width: 2.25rem;
+  text-align: center;
+}
+.jp-ref-entites-table-list tr.is-inactive td {
+  opacity: 0.62;
+}
+.jp-ref-entites-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.35rem;
+  background: rgba(15, 107, 92, 0.12);
+  color: var(--jp-accent, #0f6b5c);
+}
+.jp-ref-entites-badge.is-off {
+  background: rgba(80, 80, 80, 0.12);
+  color: #566;
+}
+.jp-ref-entites-row-actions {
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+.jp-ref-entites-warn {
+  margin: 0.5rem 0 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.45rem;
+  background: rgba(180, 110, 20, 0.12);
+  border: 1px solid rgba(180, 110, 20, 0.35);
+  font-size: 0.85rem;
+  color: #5a3a10;
+}
+
+.jp-ref-groupe-inner {
+  grid-template-rows: auto 1fr;
+}
+.jp-ref-groupe-layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  gap: 0.85rem;
+  min-height: 0;
+  align-items: stretch;
+}
+@media (max-width: 900px) {
+  .jp-ref-groupe-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.jp-ref-groupe-listpane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 0;
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+  padding: 0.65rem 0.75rem;
+}
+.jp-ref-groupe-list-toolbar {
+  display: grid;
+  gap: 0.45rem;
+}
+.jp-ref-groupe-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.jp-ref-groupe-list {
+  overflow: auto;
+  max-height: calc(100vh - 14rem);
+  min-height: 12rem;
+}
+.jp-ref-groupe-ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.jp-ref-groupe-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.4rem 0.25rem;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.08);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.jp-ref-groupe-row:hover {
+  background: rgba(15, 107, 92, 0.04);
+}
+.jp-ref-groupe-row-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.jp-ref-groupe-row-text .jp-muted {
+  font-size: 0.78rem;
+}
+.jp-ref-groupe-ops {
+  border: 1px solid var(--jp-line, rgba(15, 107, 92, 0.18));
+  border-radius: var(--jp-radius, 0.75rem);
+  background: var(--jp-bg-elevated, #fff);
+  padding: 0.75rem 0.9rem 1.1rem;
+  min-width: 0;
+  overflow: auto;
+  max-height: calc(100vh - 10rem);
+}
+.jp-ref-groupe-ops-body {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.65rem;
+}
+.jp-ref-groupe-section-title {
+  margin: 0.4rem 0 0;
+  font-family: var(--jp-font-display, "Source Serif 4", Georgia, serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.jp-ref-groupe-hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+.jp-ref-groupe-field {
+  display: grid;
+  gap: 0.35rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(15, 107, 92, 0.08);
+}
+.jp-ref-groupe-field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3d6b62;
+}
+.jp-ref-groupe-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+.jp-ref-groupe-ta {
+  flex: 1 1 14rem;
+  min-width: min(12rem, 100%);
+}
+.jp-ref-groupe-btns {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.jp-ref-groupe-replace-row {
+  margin-top: 0.15rem;
+}

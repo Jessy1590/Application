@@ -212,7 +212,7 @@
     const map = {};
     if (!uniq.length) return map;
     const { data, error } = await sb()
-      .from('v_medicaments_complet')
+      .from('v_medicaments_liste')
       .select('id, dci, noms_commerciaux')
       .in('id', uniq);
     if (error) throw error;
