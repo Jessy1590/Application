@@ -581,7 +581,14 @@
           const extra = await global.JpV2Resolver.fichesResolues(more, opts || {});
           fichesMap = Object.assign({}, fichesMap, extra || {});
         }
-      } catch (_) { /* slots en « — » */ }
+      } catch (e) {
+        const msg = e && e.message ? String(e.message) : '';
+        global.JpToast?.error?.(
+          /timeout|canceling statement/i.test(msg)
+            ? 'Chargement des molécules trop long — réessayez.'
+            : (msg || 'Impossible de charger les fiches molécule')
+        );
+      }
     }
     for (const slot of slots) {
       const id = slot.getAttribute('data-mol');
