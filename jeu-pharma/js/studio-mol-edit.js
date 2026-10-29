@@ -917,7 +917,7 @@
         grpCtrls = {};
         const body = '<div class="jp-mol-asso-legend" role="list" data-grp-legend></div>'
           + '<p class="jp-mol-panel-hint">Une couleur par molécule. × retire d’une molécule. « Tout le groupe » complète les manquantes. '
-          + 'Double-clic sur une valeur = l’afficher en leçon pour toutes les molécules du groupe qui l’ont déjà. Ajouter le met sur toutes.</p>'
+          + 'Double-clic sur une valeur = basculer « en leçon » pour toutes les molécules du groupe qui l’ont déjà. Ajouter le met sur toutes.</p>'
           + '<div class="jp-mol-panel-fields" data-grp-fields></div>';
         const el = openShell('Groupe (' + members.length + ')', body, '');
         if (!el || !still()) return;
@@ -965,20 +965,21 @@
               const nOn = grpOnCount(ch, g, connsMap);
               const nCarriers = (g.carriers || []).length;
               const val = document.createElement('div');
-              val.className = 'jp-grp-val' + (nOn > 0 ? ' is-on' : '');
+              val.className = 'jp-grp-val';
               val.style.cssText = global.JpConstants.assoStyle(
                 global.JpConstants.assoTones(g.indexes, toneComps)
               );
-              val.textContent = g.label;
+              val.innerHTML = '<span class="jp-mol-item-label">' + esc(g.label || '—') + '</span>'
+                + (nOn > 0 ? '<span class="jp-mol-heritage-flag">en leçon</span>' : '');
               val.tabIndex = 0;
               val.setAttribute('role', 'button');
               const who = g.carriers.map((c) => c.dci).filter(Boolean).join(' · ');
               val.title = (who || 'Molécules')
-                + ' — double-clic : afficher en leçon pour celles qui ont cet élément'
+                + ' — double-clic : basculer en leçon pour celles qui ont cet élément'
                 + (nOn ? ' (' + nOn + '/' + nCarriers + ' en leçon)' : '');
               val.addEventListener('dblclick', (ev) => {
                 ev.preventDefault();
-                void showInLessonForCarriers(ch, g, connsMap);
+                void toggleLessonForCarriers(ch, g, connsMap);
               });
               rowEl.appendChild(val);
 
@@ -1081,13 +1082,15 @@
         }
       }
 
-      /** Double-clic : afficher en leçon pour toutes les molécules du groupe qui ont déjà l’élément. */
-      async function showInLessonForCarriers(ch, g, connByMid) {
+      /**
+       * Double-clic : bascule « en leçon » pour toutes les molécules du groupe qui ont déjà l’élément.
+       * Si déjà en leçon partout (parmi les porteurs) → retire ; sinon → ajoute aux manquantes.
+       */
+      async function toggleLessonForCarriers(ch, g, connByMid) {
         if (busy || !ch || !g) return;
         busy = true;
-        let added = 0;
         try {
-          const ops = [];
+          const hits = [];
           for (const c of (g.carriers || [])) {
             if (!still()) return;
             const eids = (c.ids || []).map(String);
@@ -1100,15 +1103,25 @@
               r && r.champ_code === ch.code && eids.indexOf(String(r.entite_id)) >= 0
             ));
             if (!hit?.connaissance_id) continue;
-            if (visibleSet(c.mid).has(String(hit.connaissance_id))) continue;
-            ops.push({ matriceId: c.mid, connaissanceId: hit.connaissance_id, on: true });
-            added += 1;
+            hits.push({ mid: c.mid, cid: String(hit.connaissance_id) });
           }
-          if (!still()) return;
+          if (!still() || !hits.length) return;
+          const allOn = hits.every((h) => visibleSet(h.mid).has(h.cid));
+          const turnOn = !allOn;
+          const ops = [];
+          hits.forEach((h) => {
+            const isOn = visibleSet(h.mid).has(h.cid);
+            if (turnOn && !isOn) ops.push({ matriceId: h.mid, connaissanceId: h.cid, on: true });
+            else if (!turnOn && isOn) ops.push({ matriceId: h.mid, connaissanceId: h.cid, on: false });
+          });
           if (ops.length) setVisibleMany(ops);
           if (still()) {
-            if (added) global.JpToast?.ok?.('Affiché sur ' + added + ' molécule' + (added > 1 ? 's' : ''));
-            else global.JpToast?.ok?.('Déjà affiché en leçon');
+            const n = ops.length;
+            if (n) {
+              global.JpToast?.ok?.(turnOn
+                ? ('Affiché sur ' + n + ' molécule' + (n > 1 ? 's' : ''))
+                : ('Retiré de la leçon sur ' + n + ' molécule' + (n > 1 ? 's' : '')));
+            }
             await paint();
           }
         } catch (e) {
