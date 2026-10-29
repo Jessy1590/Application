@@ -159,6 +159,9 @@
       // lecon (explicite ou legacy sans target_kind)
       let h = 'lecon.html?module=' + encodeURIComponent(modId);
       if (parc) h += '&parcours=' + encodeURIComponent(parc);
+      // Mémorise la leçon d’origine pour « Leçon qui redirige ici » sur la cible
+      const fromId = module && module.id ? String(module.id) : '';
+      if (fromId && fromId !== modId) h += '&from=' + encodeURIComponent(fromId);
       return recoAppendPreview(h);
     }
     if (parcRef && kind !== 'url') {
@@ -449,6 +452,35 @@
       + '<ul class="jp-crit-list">' + rows.join('') + '</ul>' + ou + '</section>';
   }
 
+  function fromStorageKey(moduleId) {
+    return 'jp_lecon_from_' + moduleId;
+  }
+
+  /** `?from=` (lien recommandation) + session — pour « Leçon qui redirige ici ». */
+  function readPersistFromId(moduleId) {
+    const qs = new URLSearchParams(location.search);
+    let fromId = (qs.get('from') || '').trim();
+    if (fromId && fromId !== moduleId) {
+      try { sessionStorage.setItem(fromStorageKey(moduleId), fromId); } catch (_) { /* privé */ }
+      return fromId;
+    }
+    try { fromId = (sessionStorage.getItem(fromStorageKey(moduleId)) || '').trim(); } catch (_) { fromId = ''; }
+    return fromId && fromId !== moduleId ? fromId : '';
+  }
+
+  /** Fallback : leçons dont un bloc recommandation pointe vers celle-ci. */
+  async function fetchLienSources(moduleId) {
+    try {
+      const { data, error } = await global.JpApp.sbJeu().rpc('v2_lecons_qui_lienent_vers', {
+        p_cible: moduleId,
+      });
+      if (error) throw error;
+      return Array.isArray(data) ? data : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   /**
    * Recharge progression + détail de la leçon courante (après jeu / lecture).
    * Sans cela, le cache `_nav` / `detail` reste figé et « Leçon suivante » reste verrouillée
@@ -460,16 +492,28 @@
     try {
       const prog = await global.JpV2Resolver.progression(module.parcours_id);
       const mods = prog.modules || [];
-      const { idx, next, direction, label } = PU().resolveNext(mods, module.id);
+      let fromId = readPersistFromId(module.id);
       const cur = mods.find((m) => m.id === module.id) || null;
       if (cur && cur.detail) ctx.detail = cur.detail;
-      // Garder le custom suivant sur le module local (rechargements)
       if (cur) {
         ['module_suivant_id', 'module_suivant_precedent', 'module_suivant_origine', 'module_suivant_libelle']
           .forEach((k) => {
             if (Object.prototype.hasOwnProperty.call(cur, k)) module[k] = cur[k];
           });
       }
+      // Mode origine sans ?from= : une seule leçon qui lie ici (ex. Médicaments plaquettes → AAP)
+      if (cur && cur.module_suivant_origine && !fromId) {
+        const sources = await fetchLienSources(module.id);
+        if (sources.length === 1) fromId = sources[0].id;
+        else if (sources.length > 1) {
+          const inProg = sources.filter((s) => mods.some((m) => m.id === s.id));
+          if (inProg.length === 1) fromId = inProg[0].id;
+        }
+        if (fromId) {
+          try { sessionStorage.setItem(fromStorageKey(module.id), fromId); } catch (_) { /* privé */ }
+        }
+      }
+      const { idx, next, direction, label } = PU().resolveNext(mods, module.id, { fromId });
       ctx._nav = { idx, next, direction: direction || 'next', label: label || null };
     } catch (_) { /* conserve le cache */ }
   }
@@ -508,22 +552,25 @@
     const back = 'espace.html?parcours=' + encodeURIComponent(module.parcours_id || '');
 
     let nav = '';
+    const isOrigine = !!(module && module.module_suivant_origine);
     if (!next) {
-      const emptyHint = goPrev
-        ? 'Pas de leçon précédente.'
-        : (idx >= 0 ? 'Dernière leçon du parcours.' : '');
+      const emptyHint = isOrigine
+        ? 'Aucune leçon d’origine trouvée — ouvrez cette leçon via un bouton du cours (ex. Médicaments plaquettes).'
+        : (goPrev
+          ? 'Pas de leçon précédente.'
+          : (idx >= 0 ? 'Dernière leçon du parcours.' : ''));
       nav = '<a class="jp-btn jp-btn-ghost jp-btn-touch" href="' + back + '">Retour au parcours</a>'
-        + (emptyHint ? '<p class="jp-lecon-nav-hint">' + emptyHint + '</p>' : '');
+        + (emptyHint ? '<p class="jp-lecon-nav-hint">' + esc(emptyHint) + '</p>' : '');
     } else if (next.statut === 'verrouille' && !preview) {
       const msg = PU().messageSuivante(next.bloque_par, module.id, detail, module.titre)
         || (goPrev ? 'Leçon précédente verrouillée.' : 'Leçon suivante verrouillée.');
       nav = '<button type="button" class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next is-disabled" disabled aria-disabled="true" aria-describedby="leconNextHint">'
-        + nextLabel + '</button>'
+        + esc(nextLabel) + '</button>'
         + '<p class="jp-lecon-nav-hint is-lock" id="leconNextHint" role="status">🔒 ' + esc(msg) + '</p>'
         + '<a class="jp-lecon-back" href="' + back + '">Retour au parcours</a>';
     } else {
       nav = '<a class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next" href="lecon.html?module='
-        + encodeURIComponent(next.id) + '">' + nextLabel + '</a>'
+        + encodeURIComponent(next.id) + '">' + esc(nextLabel) + '</a>'
         + '<a class="jp-lecon-back" href="' + back + '">Retour au parcours</a>';
     }
     host.innerHTML = (preview ? '' : criteriaHtml(detail, module.id, module.parcours_id))

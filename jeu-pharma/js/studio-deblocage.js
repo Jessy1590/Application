@@ -397,7 +397,7 @@
     const suivantOrigineItem = {
       id: SUIVANT_ORIGINE,
       label: 'Leçon qui redirige ici',
-      sub: 'Celle dont le bouton pointe vers cette leçon',
+      sub: 'Retour vers la leçon du bouton (ex. Médicaments plaquettes → AAP)',
     };
 
     let tab = 'base';
@@ -599,7 +599,7 @@
     function paintSuivantHint() {
       if (!hintSuivant) return;
       if (suivantOrigine) {
-        hintSuivant.textContent = 'Le bouton renvoie à la leçon dont le « suivante » pointe vers celle-ci.';
+        hintSuivant.textContent = 'Retour vers la leçon qui a un bouton vers celle-ci (lien recommandation), ou via ?from=.';
         return;
       }
       if (suivantPrecedent) {

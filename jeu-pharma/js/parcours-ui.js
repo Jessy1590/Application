@@ -169,9 +169,11 @@
 
   /**
    * Cible du bouton nav : origine > précédent > `module_suivant_id` > feuille suivante officielle.
+   * @param {object} [opts]
+   * @param {string|null} [opts.fromId] leçon d’arrivée (`?from=` / session) pour mode origine
    * @returns {{ idx: number, next: object|null, direction: 'next'|'prev', label: string|null }}
    */
-  function resolveNext(modules, currentId) {
+  function resolveNext(modules, currentId, opts) {
     const list = modules || [];
     const leaves = orderedLeaves(list);
     const idx = leaves.findIndex((m) => m.id === currentId);
@@ -180,9 +182,14 @@
     const customLabel = cur.module_suivant_libelle
       ? String(cur.module_suivant_libelle).trim() || null
       : null;
+    const fromId = opts && opts.fromId ? String(opts.fromId) : '';
 
     if (cur.module_suivant_origine) {
-      const src = findRedirectSource(list, currentId);
+      let src = null;
+      if (fromId && fromId !== currentId) {
+        src = list.find((x) => x.id === fromId) || null;
+      }
+      if (!src) src = findRedirectSource(list, currentId);
       return {
         idx,
         next: src,
