@@ -212,6 +212,8 @@
 
   function render() {
     const host = $('list');
+    const keepList = host ? host.scrollTop : 0;
+    const keepWin = window.scrollY;
     const rows = updateListChrome();
     const cols = CHAMPS.filter((c) => prefs.columns.includes(c.code));
 
@@ -238,6 +240,8 @@
         ? '<p style="text-align:center;margin:0.75rem 0"><button type="button" class="jp-btn jp-btn-ghost" id="btnMore">+ '
           + Math.min(PAGE_STEP, rows.length - shown) + '</button></p>'
         : '');
+    host.scrollTop = keepList;
+    window.scrollTo(0, keepWin);
   }
 
   function onFilterChange(resetShown) {
@@ -320,8 +324,15 @@
   async function fetchEntities(table, q) {
     const rows = await ENT().list(table, { q, actif: true, limit: 40 });
     const nq = norm(q);
+    const proche = ENT().estProche;
     return rows.map((r) => ({ id: r.id, valeur: r.valeur, n: norm(r.valeur) }))
-      .sort((a, b) => (a.n.startsWith(nq) ? 0 : 1) - (b.n.startsWith(nq) ? 0 : 1) || a.valeur.localeCompare(b.valeur, 'fr'))
+      .sort((a, b) => {
+        const pa = proche && proche(q, a.valeur) ? 0 : 1;
+        const pb = proche && proche(q, b.valeur) ? 0 : 1;
+        if (pa !== pb) return pa - pb;
+        return (a.n.startsWith(nq) ? 0 : 1) - (b.n.startsWith(nq) ? 0 : 1)
+          || a.valeur.localeCompare(b.valeur, 'fr');
+      })
       .slice(0, AC_MAX);
   }
 
@@ -520,13 +531,14 @@
     }
     const exact = norm(q);
     const hasExact = items.some((it) => it.n === exact);
+    const hasProche = !!(ENT().estProche && items.some((it) => ENT().estProche(q, it.valeur)));
     const list = $('sug_' + code);
     if (!items.length && hasExact) { hideSug(code); return; }
     acActive = code;
     acHighlight = -1;
     list.innerHTML = items.map((it, i) => '<li role="option" class="jp-ac-item" data-ac-idx="' + i + '" data-ac-id="' + esc(it.id)
       + '" data-ac-valeur="' + esc(it.valeur) + '">' + esc(it.valeur) + '</li>').join('')
-      + (hasExact ? '' : '<li role="option" class="jp-ac-item jp-ac-create" data-ac-idx="' + items.length
+      + (hasExact || hasProche ? '' : '<li role="option" class="jp-ac-item jp-ac-create" data-ac-idx="' + items.length
         + '" data-ac-create="1" data-ac-valeur="' + esc(q) + '">Créer « ' + esc(q) + ' »</li>');
     list.hidden = false;
   }
@@ -539,10 +551,16 @@
     let entVal = valeur || '';
     if (create || (!entId && entVal)) {
       try {
-        const ent = await ENT().findOrCreate(c.table, entVal);
-        if (!ent?.id) throw new Error('Création impossible');
-        entId = ent.id;
-        entVal = ent.valeur || entVal;
+        const proche = await ENT().findProcheActif?.(c.table, entVal);
+        if (proche?.id) {
+          entId = proche.id;
+          entVal = proche.valeur || entVal;
+        } else {
+          const ent = await ENT().findOrCreate(c.table, entVal);
+          if (!ent?.id) throw new Error('Création impossible');
+          entId = ent.id;
+          entVal = ent.valeur || entVal;
+        }
       } catch (e) {
         global.JpToast.fromError(e);
         return;
@@ -585,7 +603,11 @@
       global.JpToast.ok('Renommé');
       return row?.valeur || v;
     } catch (e) {
-      global.JpToast.fromError(e);
+      if (e && (e.code === 'proche' || /trop proche/i.test(String(e.message || '')))) {
+        global.JpToast.warn(e.message || 'Libellé trop proche d’un élément existant');
+      } else {
+        global.JpToast.fromError(e);
+      }
       return null;
     }
   }
@@ -813,10 +835,18 @@
       || Array.isArray(row.interactions) || Array.isArray(row.surveillances)));
   }
 
-  async function openEditor(rowOrStub) {
+  async function openEditor(rowOrStub, opts) {
+    const o = opts || {};
+    const preserveScroll = !!o.preserveScroll;
+    const bodyEl = document.querySelector('.jp-med-editor-body');
+    const keepBody = preserveScroll ? (bodyEl?.scrollTop || 0) : 0;
+    const keepWin = preserveScroll ? window.scrollY : 0;
+    const keepList = preserveScroll ? ($('list')?.scrollTop || 0) : 0;
     $('editorModal').hidden = false;
-    $('editor').scrollTop = 0;
-    document.querySelector('.jp-med-editor-body')?.scrollTo(0, 0);
+    if (!preserveScroll) {
+      $('editor').scrollTop = 0;
+      bodyEl?.scrollTo(0, 0);
+    }
     clearBdm();
     if (!rowOrStub) {
       resetForm();
@@ -885,7 +915,13 @@
     }
     highlightRow(row.id);
     dirty = false;
-    (document.querySelector('#fields input') || $('bdmQ')).focus();
+    if (preserveScroll) {
+      if (bodyEl) bodyEl.scrollTop = keepBody;
+      if ($('list')) $('list').scrollTop = keepList;
+      window.scrollTo(0, keepWin);
+    } else {
+      (document.querySelector('#fields input') || $('bdmQ')).focus();
+    }
   }
 
   function closeEditor(force) {
@@ -939,7 +975,7 @@
       dirty = false;
       upsertLocal(saved, prevId);
       if (validee) { closeEditor(true); return; }
-      if (saved?.id) await openEditor(saved);
+      if (saved?.id) await openEditor(saved, { preserveScroll: String(saved.id) === String(prevId) });
       else closeEditor(true);
     } catch (e) {
       global.JpToast.fromError(e);

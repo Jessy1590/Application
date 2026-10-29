@@ -292,12 +292,21 @@
             global.JpToast?.warn?.('Existe déjà : « ' + existing.valeur + ' »');
             return false;
           }
+          const proche = await global.JpEntites.findProcheActif?.(state.table, val);
+          if (proche) {
+            global.JpToast?.warn?.('Libellé trop proche de « ' + (proche.valeur || '') + ' »');
+            return false;
+          }
           await global.JpEntites.create(state.table, { valeur: val });
           global.JpToast?.ok?.('Élément créé');
           void global.JpLogs?.action?.('ref_entites_create', { table: state.table, valeur: val });
           await loadRows();
         } catch (e) {
-          global.JpToast?.fromError?.(e);
+          if (e && (e.code === 'proche' || /trop proche/i.test(String(e.message || '')))) {
+            global.JpToast?.warn?.(e.message || 'Libellé trop proche d’un élément existant');
+          } else {
+            global.JpToast?.fromError?.(e);
+          }
           return false;
         }
         return undefined;
@@ -335,6 +344,11 @@
           return false;
         }
         try {
+          const proche = await global.JpEntites.findProcheActif?.(state.table, nouvelle, { excludeId: it.id });
+          if (proche) {
+            global.JpToast?.warn?.('Libellé trop proche de « ' + (proche.valeur || '') + ' »');
+            return false;
+          }
           await rpc('v2_modifier_entites', {
             p_table_name: state.table,
             p_id_keep: it.id,

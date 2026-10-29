@@ -1953,6 +1953,8 @@
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-groupe="' + b.id + '" hidden>Éditer le groupe</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-prog="' + b.id + '">Valeurs affichées…'
         + (nVals ? ' (' + nVals + ')' : '') + '</button>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-add-prev="' + b.id
+        + '">Ajouter les valeurs déjà affichées</button>'
         + '</div>'
         + '<div class="jp-mol-panel" data-mol-panel="' + b.id + '" hidden></div>';
     }
@@ -2773,6 +2775,9 @@
         ensureMolEdit(card, b)?.openGroupe?.(ids);
       });
     });
+    card.querySelectorAll('[data-mol-add-prev="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => void ajouterValeursDejaAffichees(b.id, btn));
+    });
   }
 
   /** Onglet ★ molécule : remonte le corps du bloc sans paintBlocks() full. */
@@ -2970,11 +2975,43 @@
     btn.hidden = !show;
   }
 
+  /** Préserve le scroll fenêtre + panneaux studio pendant un re-render. */
+  function withStudioScroll(fn) {
+    const winY = window.scrollY;
+    const canvas = document.querySelector('.jp-studio-canvas');
+    const tree = document.querySelector('.jp-studio-tree');
+    const insp = document.querySelector('.jp-studio-inspector');
+    const fields = document.querySelector('.jp-mol-panel-fields');
+    const saved = {
+      winY,
+      canvas: canvas ? canvas.scrollTop : 0,
+      tree: tree ? tree.scrollTop : 0,
+      insp: insp ? insp.scrollTop : 0,
+      fields: fields ? fields.scrollTop : 0,
+    };
+    const out = fn();
+    const restore = () => {
+      window.scrollTo(0, saved.winY);
+      const c2 = document.querySelector('.jp-studio-canvas');
+      if (c2) c2.scrollTop = saved.canvas;
+      const t2 = document.querySelector('.jp-studio-tree');
+      if (t2) t2.scrollTop = saved.tree;
+      const i2 = document.querySelector('.jp-studio-inspector');
+      if (i2) i2.scrollTop = saved.insp;
+      const f2 = document.querySelector('.jp-mol-panel-fields');
+      if (f2) f2.scrollTop = saved.fields;
+    };
+    if (out && typeof out.then === 'function') return out.then((v) => { restore(); return v; }, (e) => { restore(); throw e; });
+    requestAnimationFrame(restore);
+    return out;
+  }
+
   function paintBlocks() {
     if (state.molRail) {
       renderMolRail();
       return;
     }
+    return withStudioScroll(() => {
     clearEditors();
     syncViewModeToggle();
     const list = document.getElementById('blocksList');
@@ -3086,6 +3123,7 @@
       return;
     }
     updateStatus();
+    });
   }
 
   /* ——— Bloc photo ——— */
@@ -3321,6 +3359,103 @@
   }
 
   /* ——— Actions blocs ——— */
+
+  /**
+   * Coche dans le payload du bloc courant les connaissances déjà affichées
+   * (base + variantes ★) dans les blocs molécule des leçons précédentes
+   * (ordre arbre), pour les matrice_ids de ce bloc uniquement.
+   */
+  async function ajouterValeursDejaAffichees(blocId, btn) {
+    const m = selectedModule();
+    const b = state.blocs.find((x) => x.id === blocId);
+    if (!m || !b || b.type_bloc !== 'molecule') return;
+    if (btn) btn.disabled = true;
+    try {
+      syncMolChipsToState(blocId);
+      const tab = state.variantTab || 'base';
+      const cur = effPayload(b);
+      const layer = molLayerOf(cur, tab);
+      const baseLayer = molLayerOf(cur, 'base');
+      const myMats = new Set(
+        (tab === 'base'
+          ? layer.matrice_ids
+          : unionIds(baseLayer.matrice_ids, layer.matrice_ids)
+        ).map(String)
+      );
+      if (!myMats.size) {
+        global.JpToast?.warn?.('Ajoutez d’abord des molécules à ce bloc');
+        return;
+      }
+
+      const lessonIds = lessonIdsInTreeOrder();
+      const myIdx = lessonIds.indexOf(m.id);
+      const prevIds = myIdx > 0 ? lessonIds.slice(0, myIdx) : [];
+      if (!prevIds.length) {
+        global.JpToast?.ok?.('Aucune leçon précédente dans ce parcours');
+        return;
+      }
+
+      const unionByMat = {};
+      for (let i = 0; i < prevIds.length; i++) {
+        const mid = prevIds[i];
+        let blocs;
+        if (mid === state.selectedModuleId) blocs = state.blocs;
+        else {
+          try { blocs = await loadBlocs(mid); } catch (_) { continue; }
+        }
+        (blocs || []).forEach((pb) => {
+          if (!pb || pb.type_bloc !== 'molecule') return;
+          const pay = effPayload(pb);
+          const layers = [molLayerOf(pay, 'base')];
+          Object.keys(pay.variantes || {}).forEach((k) => {
+            layers.push(molLayerOf(pay, k));
+          });
+          layers.forEach((lay) => {
+            Object.keys(lay.valeurs || {}).forEach((matId) => {
+              if (!myMats.has(String(matId))) return;
+              const set = unionByMat[matId] || (unionByMat[matId] = new Set());
+              (lay.valeurs[matId] || []).forEach((cid) => {
+                if (cid) set.add(String(cid));
+              });
+            });
+          });
+        });
+      }
+
+      let added = 0;
+      Object.keys(unionByMat).forEach((matId) => {
+        const curSet = new Set((layer.valeurs[matId] || []).map(String));
+        const before = curSet.size;
+        unionByMat[matId].forEach((cid) => curSet.add(cid));
+        added += curSet.size - before;
+        if (curSet.size) layer.valeurs[matId] = Array.from(curSet);
+      });
+
+      if (!added) {
+        global.JpToast?.ok?.('Rien à ajouter — déjà à jour');
+        return;
+      }
+
+      writeMolPayload(blocId, setMolLayerOnPayload(cur, tab, layer));
+      scheduleSave(blocId);
+
+      const card = document.querySelector('[data-bloc="' + blocId + '"]');
+      const nVals = Object.values(layer.valeurs || {}).reduce((n, a) => n + (a || []).length, 0);
+      const progBtn = card?.querySelector('[data-mol-prog="' + blocId + '"]');
+      if (progBtn) {
+        progBtn.textContent = 'Valeurs affichées…' + (nVals ? ' (' + nVals + ')' : '');
+      }
+      paintVariantCountBadge(blocId);
+      updateStatus();
+      global.JpToast?.ok?.(
+        added === 1 ? '1 valeur ajoutée' : (added + ' valeurs ajoutées')
+      );
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
 
   /** Valeurs affichées pour le bloc molécule (onglet Base / ★ courant). */
   async function openBlocValeurs(blocId) {

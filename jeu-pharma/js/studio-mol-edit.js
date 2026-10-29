@@ -207,14 +207,23 @@
     }
 
     function setVisible(matriceId, connaissanceId, on) {
+      setVisibleMany([{ matriceId, connaissanceId, on }]);
+    }
+
+    /** Applique plusieurs coches leçon en un seul writeLayer / saveDraft. */
+    function setVisibleMany(ops) {
+      if (!ops || !ops.length) return;
       const layer = ctx.getLayer();
-      const mid = String(matriceId);
-      const cid = String(connaissanceId);
-      const cur = new Set((layer.valeurs[mid] || []).map(String));
-      if (on) cur.add(cid);
-      else cur.delete(cid);
-      if (cur.size) layer.valeurs[mid] = Array.from(cur);
-      else delete layer.valeurs[mid];
+      ops.forEach((op) => {
+        if (!op || !op.matriceId || !op.connaissanceId) return;
+        const mid = String(op.matriceId);
+        const cid = String(op.connaissanceId);
+        const cur = new Set((layer.valeurs[mid] || []).map(String));
+        if (op.on) cur.add(cid);
+        else cur.delete(cid);
+        if (cur.size) layer.valeurs[mid] = Array.from(cur);
+        else delete layer.valeurs[mid];
+      });
       ctx.writeLayer(layer);
       void ctx.saveDraft();
     }
@@ -241,7 +250,7 @@
         ariaLabel: o.ariaLabel || 'Entité',
         initial: initial || null,
         clearOnPick: !!o.clearOnPick,
-        onCreate: onCreateEntite(table),
+        onCreate: o.onCreate || onCreateEntite(table),
         onPick: o.onPick,
         onChange: o.onChange,
       });
@@ -337,6 +346,7 @@
 
       function paint() {
         clearClickTimer();
+        const keepScroll = panelEl()?.querySelector('[data-mol-fields]')?.scrollTop || 0;
         // Ne garder que les typeaheads d’ajout / édition en cours → on les détruit tous au repaint.
         destroyCtrls(ctrls);
 
@@ -359,6 +369,7 @@
 
         const fieldsBox = panelEl().querySelector('[data-mol-fields]');
         if (!fieldsBox) return;
+        fieldsBox.scrollTop = keepScroll;
         const champs = champsActifs();
         const vis = visibleSet(matriceId);
         const heritageEntries = [];
@@ -596,6 +607,21 @@
         const combo = mountEntiteCombo(host, ch.table, { id: entiteId, label: initialLabel }, {
           placeholder: 'Modifier…',
           ariaLabel: 'Modifier ' + ch.libelle,
+          // « Créer » en édition = renommer l’entité (guard proche dans JpEntites.update).
+          onCreate: async (label) => {
+            try {
+              const row = await ENT().update(ch.table, entiteId, { valeur: label });
+              if (!row?.id) return null;
+              return { id: row.id, label: row.valeur || label };
+            } catch (e) {
+              if (e && (e.code === 'proche' || /trop proche/i.test(String(e.message || '')))) {
+                global.JpToast?.warn?.(e.message || 'Libellé trop proche d’un élément existant');
+              } else {
+                global.JpToast?.fromError?.(e);
+              }
+              return null;
+            }
+          },
           onPick: (it) => {
             void replaceItem(ch, entiteId, it);
           },
@@ -657,7 +683,21 @@
       async function replaceItem(ch, oldId, it) {
         if (!it?.id) return;
         if (String(it.id) === String(oldId)) {
-          paint();
+          // Renommage in-place : recharger la fiche pour le nouveau libellé.
+          try {
+            row = await MED().getById(matriceId);
+            connRows = await listConnaissances(matriceId);
+            ctx.addMatriceToBloc?.({
+              id: row.id,
+              label: row.dci || it.label,
+              sub: MED().formatNoms?.(row) || '',
+            });
+            paint();
+            global.JpToast?.ok?.('Élément renommé');
+          } catch (e) {
+            global.JpToast?.fromError?.(e);
+            paint();
+          }
           return;
         }
         const oldCid = cidFor(connRows, ch.code, oldId);
@@ -859,10 +899,25 @@
         return seq === panelSeq && mode === 'groupe';
       }
 
-      function render(members) {
+      function grpOnCount(ch, g, connByMid) {
+        let on = 0;
+        (g.carriers || []).forEach((c) => {
+          const conns = connByMid[String(c.mid)] || [];
+          const vis = visibleSet(c.mid);
+          const eids = (c.ids || []).map(String);
+          const hit = conns.find((r) => (
+            r && r.champ_code === ch.code && eids.indexOf(String(r.entite_id)) >= 0
+          ));
+          if (hit?.connaissance_id && vis.has(String(hit.connaissance_id))) on += 1;
+        });
+        return on;
+      }
+
+      function render(members, scrollTop, connByMid) {
         grpCtrls = {};
         const body = '<div class="jp-mol-asso-legend" role="list" data-grp-legend></div>'
-          + '<p class="jp-mol-panel-hint">Une couleur par molécule. Le bouton coloré retire l’élément de la molécule de cette couleur. Ajouter le met sur toutes.</p>'
+          + '<p class="jp-mol-panel-hint">Une couleur par molécule. × retire d’une molécule. « Tout le groupe » complète les manquantes. '
+          + 'Double-clic sur une valeur = l’afficher en leçon pour toutes les molécules du groupe qui l’ont déjà. Ajouter le met sur toutes.</p>'
           + '<div class="jp-mol-panel-fields" data-grp-fields></div>';
         const el = openShell('Groupe (' + members.length + ')', body, '');
         if (!el || !still()) return;
@@ -870,6 +925,7 @@
         const legend = el.querySelector('[data-grp-legend]');
         const fieldsBox = el.querySelector('[data-grp-fields]');
         if (!legend || !fieldsBox) return;
+        const connsMap = connByMid || {};
 
         members.forEach((m) => {
           const pill = document.createElement('span');
@@ -906,13 +962,24 @@
             groups.forEach((g) => {
               const rowEl = document.createElement('div');
               rowEl.className = 'jp-grp-row';
+              const nOn = grpOnCount(ch, g, connsMap);
+              const nCarriers = (g.carriers || []).length;
               const val = document.createElement('div');
-              val.className = 'jp-grp-val';
+              val.className = 'jp-grp-val' + (nOn > 0 ? ' is-on' : '');
               val.style.cssText = global.JpConstants.assoStyle(
                 global.JpConstants.assoTones(g.indexes, toneComps)
               );
               val.textContent = g.label;
-              val.title = g.carriers.map((c) => c.dci).filter(Boolean).join(' · ');
+              val.tabIndex = 0;
+              val.setAttribute('role', 'button');
+              const who = g.carriers.map((c) => c.dci).filter(Boolean).join(' · ');
+              val.title = (who || 'Molécules')
+                + ' — double-clic : afficher en leçon pour celles qui ont cet élément'
+                + (nOn ? ' (' + nOn + '/' + nCarriers + ' en leçon)' : '');
+              val.addEventListener('dblclick', (ev) => {
+                ev.preventDefault();
+                void showInLessonForCarriers(ch, g, connsMap);
+              });
               rowEl.appendChild(val);
 
               const rms = document.createElement('div');
@@ -938,6 +1005,15 @@
                 });
                 rms.appendChild(btn);
               });
+              if (g.carriers.length < members.length) {
+                const allBtn = document.createElement('button');
+                allBtn.type = 'button';
+                allBtn.className = 'jp-btn jp-btn-ghost jp-grp-all';
+                allBtn.textContent = 'Tout le groupe';
+                allBtn.title = 'Mettre « ' + (g.label || 'cet élément') + ' » sur toutes les molécules du groupe';
+                allBtn.addEventListener('click', () => void extendToGroup(ch, g, members));
+                rms.appendChild(allBtn);
+              }
               rowEl.appendChild(rms);
               vals.appendChild(rowEl);
             });
@@ -959,12 +1035,21 @@
           fieldsBox.appendChild(sec);
           grpCtrls[ch.code] = mountEntiteCombo(taHost, ch.table, null);
         });
+
+        if (scrollTop != null) fieldsBox.scrollTop = scrollTop;
+      }
+
+      function fieldsScrollTop() {
+        return panelEl()?.querySelector('[data-grp-fields]')?.scrollTop || 0;
       }
 
       async function paint() {
+        const keepScroll = fieldsScrollTop();
         let rows;
+        let connLists;
         try {
           rows = await Promise.all(ids.map((id) => MED().getById(id)));
+          connLists = await Promise.all(ids.map((id) => listConnaissances(id).catch(() => [])));
         } catch (e) {
           if (!still()) return;
           global.JpToast?.fromError?.(e);
@@ -976,9 +1061,11 @@
           return;
         }
         if (!still()) return;
+        const connByMid = {};
         const members = ids.map((id, index) => {
           const row = rows[index];
           if (!row) return null;
+          connByMid[String(id)] = Array.isArray(connLists[index]) ? connLists[index] : [];
           return { id: id, index: index, dci: row.dci || '—', row: row };
         }).filter(Boolean);
         if (members.length < 2) {
@@ -987,10 +1074,102 @@
           return;
         }
         try {
-          render(members);
+          render(members, keepScroll, connByMid);
         } catch (e) {
           if (!still()) return;
           global.JpToast?.fromError?.(e);
+        }
+      }
+
+      /** Double-clic : afficher en leçon pour toutes les molécules du groupe qui ont déjà l’élément. */
+      async function showInLessonForCarriers(ch, g, connByMid) {
+        if (busy || !ch || !g) return;
+        busy = true;
+        let added = 0;
+        try {
+          const ops = [];
+          for (const c of (g.carriers || [])) {
+            if (!still()) return;
+            const eids = (c.ids || []).map(String);
+            if (!eids.length) continue;
+            let conns = (connByMid && connByMid[String(c.mid)]) || null;
+            if (!conns) {
+              try { conns = await listConnaissances(c.mid); } catch (_) { conns = []; }
+            }
+            const hit = (conns || []).find((r) => (
+              r && r.champ_code === ch.code && eids.indexOf(String(r.entite_id)) >= 0
+            ));
+            if (!hit?.connaissance_id) continue;
+            if (visibleSet(c.mid).has(String(hit.connaissance_id))) continue;
+            ops.push({ matriceId: c.mid, connaissanceId: hit.connaissance_id, on: true });
+            added += 1;
+          }
+          if (!still()) return;
+          if (ops.length) setVisibleMany(ops);
+          if (still()) {
+            if (added) global.JpToast?.ok?.('Affiché sur ' + added + ' molécule' + (added > 1 ? 's' : ''));
+            else global.JpToast?.ok?.('Déjà affiché en leçon');
+            await paint();
+          }
+        } catch (e) {
+          if (still()) global.JpToast?.fromError?.(e);
+        } finally {
+          busy = false;
+        }
+      }
+
+      async function extendToGroup(ch, g, members) {
+        if (busy || !ch || !g) return;
+        let entId = '';
+        for (let i = 0; i < (g.carriers || []).length; i++) {
+          const idsC = g.carriers[i].ids || [];
+          if (idsC.length) { entId = idsC[0]; break; }
+        }
+        if (!entId && g.label) {
+          try {
+            const ent = await ENT().findOrCreate(ch.table, g.label);
+            entId = ent?.id || '';
+          } catch (e) {
+            global.JpToast?.fromError?.(e);
+            return;
+          }
+        }
+        if (!entId) {
+          global.JpToast?.warn?.('Élément introuvable');
+          return;
+        }
+        busy = true;
+        let started = false;
+        try {
+          started = true;
+          const present = new Set((g.carriers || []).map((c) => String(c.mid)));
+          for (const m of members) {
+            if (!still()) return;
+            if (present.has(String(m.id))) continue;
+            const row = m.row || await MED().getById(m.id);
+            if (!row) continue;
+            const cur = multiOf(row, ch.code).map((x) => x.id);
+            if (cur.some((id) => String(id) === String(entId))) continue;
+            await writeMultiIds(m.id, ch, cur.concat([entId]));
+          }
+          if (!still()) return;
+          for (const m of members) {
+            const conns = await listConnaissances(m.id);
+            const hit = (conns || []).find((r) => (
+              r && r.champ_code === ch.code && String(r.entite_id) === String(entId)
+            ));
+            if (hit?.connaissance_id) setVisible(m.id, hit.connaissance_id, true);
+          }
+          if (still()) global.JpToast?.ok?.('Élément étendu au groupe');
+        } catch (e) {
+          if (still()) global.JpToast?.fromError?.(e);
+        } finally {
+          try {
+            if (started && still()) await paint();
+          } catch (e2) {
+            if (still()) global.JpToast?.fromError?.(e2);
+          }
+          busy = false;
         }
       }
 

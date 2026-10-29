@@ -15,6 +15,63 @@
       .replace(/[\u0300-\u036f]/g, '');
   }
 
+  /** Compacte espaces / apostrophes pour comparer des libellés proches. */
+  function compactNorm(valeur) {
+    return normaliser(valeur)
+      .replace(/[''`´]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /** Distance d’édition (Levenshtein) avec sortie anticipée si > max. */
+  function editDistanceAtMost(a, b, max) {
+    const s = String(a || '');
+    const t = String(b || '');
+    if (s === t) return 0;
+    const m = s.length;
+    const n = t.length;
+    if (Math.abs(m - n) > max) return max + 1;
+    if (!m) return n;
+    if (!n) return m;
+    let prev = new Array(n + 1);
+    let cur = new Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
+    for (let i = 1; i <= m; i++) {
+      cur[0] = i;
+      let rowMin = cur[0];
+      for (let j = 1; j <= n; j++) {
+        const cost = s.charAt(i - 1) === t.charAt(j - 1) ? 0 : 1;
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        if (cur[j] < rowMin) rowMin = cur[j];
+      }
+      if (rowMin > max) return max + 1;
+      const tmp = prev;
+      prev = cur;
+      cur = tmp;
+    }
+    return prev[n];
+  }
+
+  /**
+   * True si deux libellés sont « proches » (quasi-doublons).
+   * Même valeur_norm, l’un contient l’autre (court ≥ 4), ou très petite
+   * distance d’édition (1–2) — pas « HTA » vs « insuffisance cardiaque ».
+   */
+  function estProche(a, b) {
+    const na = compactNorm(a);
+    const nb = compactNorm(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    const sh = na.length <= nb.length ? na : nb;
+    const lo = na.length <= nb.length ? nb : na;
+    if (sh.length >= 4 && lo.indexOf(sh) !== -1) return true;
+    const maxLen = Math.max(na.length, nb.length);
+    if (maxLen < 4) return false;
+    const maxDist = maxLen <= 14 ? 1 : 2;
+    if (Math.abs(na.length - nb.length) > maxDist) return false;
+    return editDistanceAtMost(na, nb, maxDist) <= maxDist;
+  }
+
   function isUniqueViolation(err) {
     if (!err) return false;
     const code = err.code || err.code?.toString?.();
@@ -148,10 +205,34 @@
   }
 
   /**
+   * Première entité active « proche » du libellé (hors `excludeId`).
+   * S’appuie sur list(ilike / valeur_norm) puis filtre client `estProche`.
+   */
+  async function findProcheActif(table, valeur, opts) {
+    assertTable(table);
+    const raw = String(valeur || '').trim();
+    if (!raw) return null;
+    const excludeId = opts && opts.excludeId != null ? String(opts.excludeId) : '';
+    const exact = await findActiveByValeur(table, raw);
+    if (exact && (!excludeId || String(exact.id) !== excludeId)) return exact;
+    const rows = await list(table, { q: raw, actif: true, limit: 40 });
+    let best = null;
+    for (let i = 0; i < (rows || []).length; i++) {
+      const r = rows[i];
+      if (!r || (excludeId && String(r.id) === excludeId)) continue;
+      if (!estProche(raw, r.valeur)) continue;
+      if (compactNorm(r.valeur) === compactNorm(raw)) return r;
+      if (!best) best = r;
+    }
+    return best;
+  }
+
+  /**
    * Trouve une entité active (norm / synonyme canonique) ou la crée.
    * Règle vocabulaire unique : HTA ≡ Hypertension ≡ Hypertension artérielle → même UUID.
    * Si `existingId` est fourni (id stable déjà connu), le retourne sans lookup/create
    * sauf si `valeur` force un rename (appelant doit alors passer par update).
+   * Ne crée pas de quasi-doublon : un proche actif est réutilisé.
    */
   async function findOrCreate(table, valeur, existingId) {
     assertTable(table);
@@ -172,6 +253,8 @@
       const byRaw = await findActiveByValeur(table, raw);
       if (byRaw) return byRaw;
     }
+    const proche = await findProcheActif(table, v);
+    if (proche) return proche;
     try {
       return await create(table, { valeur: v });
     } catch (err) {
@@ -189,6 +272,13 @@
       actif: payload.actif !== false,
     };
     if (!row.valeur) throw new Error('Valeur obligatoire');
+    const proche = await findProcheActif(table, row.valeur);
+    if (proche) {
+      const err = new Error('Libellé trop proche de « ' + (proche.valeur || '') + ' »');
+      err.code = 'proche';
+      err.proche = proche;
+      throw err;
+    }
     const { data, error } = await sb().from(table).insert(row).select('*').single();
     if (error) throw error;
     return data;
@@ -199,6 +289,20 @@
     const row = {};
     if (patch.valeur != null) row.valeur = String(patch.valeur).trim();
     if (patch.actif != null) row.actif = !!patch.actif;
+    if (row.valeur) {
+      const cur = await getById(table, id);
+      if (cur && compactNorm(cur.valeur) === compactNorm(row.valeur)) {
+        // Même enregistrement, accents / espaces seulement → OK (éventuel no-op DB).
+      } else {
+        const proche = await findProcheActif(table, row.valeur, { excludeId: id });
+        if (proche) {
+          const err = new Error('Libellé trop proche de « ' + (proche.valeur || '') + ' »');
+          err.code = 'proche';
+          err.proche = proche;
+          throw err;
+        }
+      }
+    }
     const { data, error } = await sb().from(table).update(row).eq('id', id).select('*').single();
     if (error) throw error;
     return data;
@@ -211,6 +315,9 @@
 
   global.JpEntites = {
     normaliser,
+    compactNorm,
+    estProche,
+    findProcheActif,
     normCandidates,
     resolveAliasCanonique,
     findActiveByValeur,

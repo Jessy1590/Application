@@ -456,22 +456,38 @@
 
   /**
    * Entité à valeur (secteurs, classes, indications…) : id + valeur + valeur_norm.
-   * `allowCreate: true` → propose « Créer « … » » seulement si aucun résultat ne correspond.
+   * `allowCreate: true` → propose « Créer » seulement si aucun résultat ni proche.
    */
   function entiteSource(table, o) {
     const limit = (o && o.limit) || 12;
     const allowCreate = !!(o && o.allowCreate);
+    const E = function () { return global.JpEntites; };
     return async function (q) {
       const raw = String(q == null ? '' : q).trim();
       const t = safeTerm(q);
       let query = sb().from(table).select('id, valeur, valeur_norm').eq('actif', true);
       if (t) query = query.or('valeur.ilike.%' + t + '%,valeur_norm.ilike.%' + norm(t) + '%');
-      const { data, error } = await query.order('valeur').limit(limit);
+      const { data, error } = await query.order('valeur').limit(Math.max(limit, 24));
       if (error) throw error;
-      const items = (data || []).map(function (r) {
+      const estProche = E() && typeof E().estProche === 'function' ? E().estProche : null;
+      let rows = data || [];
+      if (raw && estProche) {
+        rows = rows.slice().sort(function (a, b) {
+          const pa = estProche(raw, a.valeur) ? 0 : 1;
+          const pb = estProche(raw, b.valeur) ? 0 : 1;
+          if (pa !== pb) return pa - pb;
+          const na = norm(a.valeur || '');
+          const nb = norm(b.valeur || '');
+          const nq = norm(raw);
+          return (na.indexOf(nq) === 0 ? 0 : 1) - (nb.indexOf(nq) === 0 ? 0 : 1)
+            || String(a.valeur || '').localeCompare(String(b.valeur || ''), 'fr');
+        });
+      }
+      const items = rows.slice(0, limit).map(function (r) {
         return { id: r.id, label: r.valeur || '', data: { valeur_norm: r.valeur_norm || '' } };
       });
-      if (allowCreate && raw && !items.length) {
+      const hasProche = !!(raw && estProche && rows.some(function (r) { return estProche(raw, r.valeur); }));
+      if (allowCreate && raw && !items.length && !hasProche) {
         items.push({
           id: '__create__:' + raw,
           label: raw,
