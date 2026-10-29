@@ -1156,6 +1156,11 @@
         try {
           started = true;
           const present = new Set((g.carriers || []).map((c) => String(c.mid)));
+          const eidByMid = {};
+          (g.carriers || []).forEach((c) => {
+            const own = (c.ids || []).map(String).filter(Boolean);
+            if (own.length) eidByMid[String(c.mid)] = own;
+          });
           for (const m of members) {
             if (!still()) return;
             if (present.has(String(m.id))) continue;
@@ -1164,16 +1169,33 @@
             const cur = multiOf(row, ch.code).map((x) => x.id);
             if (cur.some((id) => String(id) === String(entId))) continue;
             await writeMultiIds(m.id, ch, cur.concat([entId]));
+            eidByMid[String(m.id)] = [String(entId)];
           }
           if (!still()) return;
+          // Afficher en leçon sur tout le groupe : y compris les porteurs
+          // déjà présents mais non cochés (et ids d’entité éventuellement distincts).
+          const ops = [];
           for (const m of members) {
-            const conns = await listConnaissances(m.id);
+            if (!still()) return;
+            const eids = eidByMid[String(m.id)] || [String(entId)];
+            let conns;
+            try { conns = await listConnaissances(m.id); } catch (_) { conns = []; }
             const hit = (conns || []).find((r) => (
-              r && r.champ_code === ch.code && String(r.entite_id) === String(entId)
+              r && r.champ_code === ch.code && eids.indexOf(String(r.entite_id)) >= 0
             ));
-            if (hit?.connaissance_id) setVisible(m.id, hit.connaissance_id, true);
+            if (hit?.connaissance_id) {
+              ops.push({ matriceId: m.id, connaissanceId: String(hit.connaissance_id), on: true });
+            }
           }
-          if (still()) global.JpToast?.ok?.('Élément étendu au groupe');
+          if (ops.length) setVisibleMany(ops);
+          if (still()) {
+            global.JpToast?.ok?.(
+              ops.length
+                ? ('Élément étendu au groupe · affiché sur ' + ops.length
+                  + ' molécule' + (ops.length > 1 ? 's' : ''))
+                : 'Élément étendu au groupe'
+            );
+          }
         } catch (e) {
           if (still()) global.JpToast?.fromError?.(e);
         } finally {
