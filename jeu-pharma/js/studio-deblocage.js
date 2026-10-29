@@ -388,18 +388,26 @@
     });
 
     const SUIVANT_PRECEDENT = '__precedent__';
+    const SUIVANT_ORIGINE = '__origine__';
     const suivantPrecedentItem = {
       id: SUIVANT_PRECEDENT,
       label: 'Leçon précédente',
       sub: 'Ordre officiel du parcours',
     };
+    const suivantOrigineItem = {
+      id: SUIVANT_ORIGINE,
+      label: 'Leçon qui redirige ici',
+      sub: 'Celle dont le bouton pointe vers cette leçon',
+    };
 
     let tab = 'base';
     let basePrereqIds = normalizeIds(m);
     let suivantPrecedent = !!m.module_suivant_precedent;
-    let suivantId = suivantPrecedent ? null : (m.module_suivant_id || null);
+    let suivantOrigine = !!m.module_suivant_origine;
+    let suivantId = (suivantPrecedent || suivantOrigine) ? null : (m.module_suivant_id || null);
+    let suivantLibelle = m.module_suivant_libelle ? String(m.module_suivant_libelle) : '';
     const cands = prereqCandidates(m, o.modules);
-    const suivantCands = [suivantPrecedentItem].concat(
+    const suivantCands = [suivantPrecedentItem, suivantOrigineItem].concat(
       o.modules
         .filter((x) => x.id !== m.id && !x.est_groupe)
         .map((x) => ({
@@ -426,6 +434,10 @@
       + (kind === 'lecon'
         ? '<div class="jp-field jp-field-tight"><label>Leçon suivante (bouton)</label><div data-suivant></div>'
           + '<small class="jp-field-hint" data-suivant-hint></small></div>'
+          + '<div class="jp-field jp-field-tight"><label for="jpSuivantLibelle">Nom affiché sur le bouton (facultatif)</label>'
+          + '<input id="jpSuivantLibelle" type="text" maxlength="120" data-suivant-libelle value="'
+          + esc(suivantLibelle) + '" placeholder="Ex. Retour · Nom de la leçon d’origine">'
+          + '<small class="jp-field-hint">Sinon : titre de la cible, ou « Leçon suivante / précédente ».</small></div>'
         : '')
       + '<div class="jp-field jp-field-tight"><span class="jp-field-label">'
       + (m.est_groupe ? 'Pour valider ce chapitre' : 'Pour valider cette leçon') + '</span><div data-crit></div></div>'
@@ -436,10 +448,15 @@
         'Base = critères communs à tous les niveaux ★ sans personnalisation.',
         '★N = override optionnel (prérequis, lecture, jeux, ET/OU) pour les joueurs inscrits en ★N.',
         'Plusieurs prérequis = la leçon s’ouvre seulement quand TOUTES sont validées.',
-        '« Leçon suivante » peut viser une leçon précise, ou « Leçon précédente » (ordre officiel).',
+        '« Leçon suivante » : leçon précise, précédente (ordre), ou celle qui redirige ici.',
+        'Vous pouvez donner un nom personnalisé au bouton.',
         'Sans override ★N, le joueur hérite de la base. Un prérequis hors plage ★ est ignoré.',
       ]));
     }
+
+    host.querySelector('[data-suivant-libelle]')?.addEventListener('input', (e) => {
+      suivantLibelle = e.target.value || '';
+    });
 
     const hintEl = host.querySelector('[data-niv-hint]');
     const actionsEl = host.querySelector('[data-niv-actions]');
@@ -581,6 +598,10 @@
 
     function paintSuivantHint() {
       if (!hintSuivant) return;
+      if (suivantOrigine) {
+        hintSuivant.textContent = 'Le bouton renvoie à la leçon dont le « suivante » pointe vers celle-ci.';
+        return;
+      }
       if (suivantPrecedent) {
         hintSuivant.textContent = 'Le bouton renvoie à la leçon précédente dans l’ordre du parcours.';
         return;
@@ -598,7 +619,9 @@
     function mountSuivant() {
       if (!suivantHost) return;
       let initial = null;
-      if (suivantPrecedent) {
+      if (suivantOrigine) {
+        initial = suivantOrigineItem;
+      } else if (suivantPrecedent) {
         initial = suivantPrecedentItem;
       } else if (suivantId) {
         const current = o.modules.find((x) => x.id === suivantId);
@@ -609,15 +632,21 @@
       suivantHost.innerHTML = '';
       suivantCombo = global.JpTypeahead.combo(suivantHost, {
         search: global.JpTypeahead.localSource(suivantCands, { limit: 12 }),
-        placeholder: 'Ordre officiel — chercher « précédente » ou une leçon…',
+        placeholder: 'Ordre officiel — « précédente », « redirige », ou une leçon…',
         ariaLabel: 'Leçon suivante personnalisée',
         initial,
         onChange: (it) => {
-          if (it && it.id === SUIVANT_PRECEDENT) {
+          if (it && it.id === SUIVANT_ORIGINE) {
+            suivantOrigine = true;
+            suivantPrecedent = false;
+            suivantId = null;
+          } else if (it && it.id === SUIVANT_PRECEDENT) {
             suivantPrecedent = true;
+            suivantOrigine = false;
             suivantId = null;
           } else {
             suivantPrecedent = false;
+            suivantOrigine = false;
             suivantId = it ? it.id : null;
           }
           paintSuivantHint();
@@ -712,14 +741,21 @@
         };
         if (kind === 'lecon') {
           payload.module_suivant_precedent = suivantPrecedent;
-          payload.module_suivant_id = suivantPrecedent ? null : suivantId;
+          payload.module_suivant_origine = suivantOrigine;
+          payload.module_suivant_id = (suivantPrecedent || suivantOrigine) ? null : suivantId;
+          payload.module_suivant_libelle = String(
+            host.querySelector('[data-suivant-libelle]')?.value || suivantLibelle || ''
+          ).trim() || null;
+          suivantLibelle = payload.module_suivant_libelle || '';
         }
         await rpc('v2_upsert_module', { p_payload: payload });
         m.prerequis_module_ids = basePrereqIds.slice();
         m.prerequis_module_id = basePrereqIds[0] || null;
         if (kind === 'lecon') {
           m.module_suivant_precedent = suivantPrecedent;
-          m.module_suivant_id = suivantPrecedent ? null : suivantId;
+          m.module_suivant_origine = suivantOrigine;
+          m.module_suivant_id = (suivantPrecedent || suivantOrigine) ? null : suivantId;
+          m.module_suivant_libelle = payload.module_suivant_libelle;
         }
         m.criteres_json = criteres_json;
         global.JpToast?.ok?.('Déblocage enregistré');

@@ -460,19 +460,17 @@
     try {
       const prog = await global.JpV2Resolver.progression(module.parcours_id);
       const mods = prog.modules || [];
-      const { idx, next, direction } = PU().resolveNext(mods, module.id);
+      const { idx, next, direction, label } = PU().resolveNext(mods, module.id);
       const cur = mods.find((m) => m.id === module.id) || null;
       if (cur && cur.detail) ctx.detail = cur.detail;
       // Garder le custom suivant sur le module local (rechargements)
       if (cur) {
-        if (Object.prototype.hasOwnProperty.call(cur, 'module_suivant_id')) {
-          module.module_suivant_id = cur.module_suivant_id;
-        }
-        if (Object.prototype.hasOwnProperty.call(cur, 'module_suivant_precedent')) {
-          module.module_suivant_precedent = !!cur.module_suivant_precedent;
-        }
+        ['module_suivant_id', 'module_suivant_precedent', 'module_suivant_origine', 'module_suivant_libelle']
+          .forEach((k) => {
+            if (Object.prototype.hasOwnProperty.call(cur, k)) module[k] = cur[k];
+          });
       }
-      ctx._nav = { idx, next, direction: direction || 'next' };
+      ctx._nav = { idx, next, direction: direction || 'next', label: label || null };
     } catch (_) { /* conserve le cache */ }
   }
 
@@ -503,7 +501,10 @@
     ctx.detail = detail;
     const idx = ctx._nav ? ctx._nav.idx : -1;
     const goPrev = ctx._nav && ctx._nav.direction === 'prev';
-    const nextLabel = goPrev ? '← Leçon précédente' : 'Leçon suivante →';
+    const customName = ctx._nav && ctx._nav.label ? String(ctx._nav.label).trim() : '';
+    const nextLabel = customName
+      ? (goPrev ? '← ' + customName : customName + ' →')
+      : (goPrev ? '← Leçon précédente' : 'Leçon suivante →');
     const back = 'espace.html?parcours=' + encodeURIComponent(module.parcours_id || '');
 
     let nav = '';

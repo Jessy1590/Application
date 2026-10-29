@@ -140,35 +140,82 @@
   }
 
   /**
-   * Cible du bouton nav : précédent (flag) > `module_suivant_id` > feuille suivante officielle.
-   * @returns {{ idx: number, next: object|null, direction: 'next'|'prev' }}
+   * Leçon dont le bouton « suivante » mène à `currentId` (cible custom, précédent, ou ordre officiel).
+   */
+  function findRedirectSource(modules, currentId) {
+    const list = modules || [];
+    const leaves = orderedLeaves(list);
+    const curIdx = leaves.findIndex((m) => m.id === currentId);
+    // 1) Cible custom explicite
+    const byCustom = list.find((m) => m.module_suivant_id === currentId
+      && !m.module_suivant_precedent && !m.module_suivant_origine);
+    if (byCustom) return byCustom;
+    // 2) Mode « précédente » : la leçon dont la précédente officielle est current
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (!m.module_suivant_precedent) continue;
+      const mi = leaves.findIndex((x) => x.id === m.id);
+      if (mi > 0 && leaves[mi - 1].id === currentId) return m;
+    }
+    // 3) Ordre officiel : la feuille juste avant, sans override de suivant
+    if (curIdx > 0) {
+      const prev = leaves[curIdx - 1];
+      if (prev && !prev.module_suivant_id && !prev.module_suivant_precedent && !prev.module_suivant_origine) {
+        return prev;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Cible du bouton nav : origine > précédent > `module_suivant_id` > feuille suivante officielle.
+   * @returns {{ idx: number, next: object|null, direction: 'next'|'prev', label: string|null }}
    */
   function resolveNext(modules, currentId) {
     const list = modules || [];
     const leaves = orderedLeaves(list);
     const idx = leaves.findIndex((m) => m.id === currentId);
     const cur = idx >= 0 ? leaves[idx] : list.find((m) => m.id === currentId) || null;
-    if (!cur) return { idx: -1, next: null, direction: 'next' };
-    if (cur.module_suivant_precedent) {
+    if (!cur) return { idx: -1, next: null, direction: 'next', label: null };
+    const customLabel = cur.module_suivant_libelle
+      ? String(cur.module_suivant_libelle).trim() || null
+      : null;
+
+    if (cur.module_suivant_origine) {
+      const src = findRedirectSource(list, currentId);
       return {
         idx,
-        next: idx > 0 ? leaves[idx - 1] : null,
+        next: src,
         direction: 'prev',
+        label: customLabel || (src ? src.titre : null),
+      };
+    }
+    if (cur.module_suivant_precedent) {
+      const prev = idx > 0 ? leaves[idx - 1] : null;
+      return {
+        idx,
+        next: prev,
+        direction: 'prev',
+        label: customLabel || (prev ? prev.titre : null),
       };
     }
     if (cur.module_suivant_id) {
       const next = list.find((x) => x.id === cur.module_suivant_id) || null;
       const nextIdx = next ? leaves.findIndex((x) => x.id === next.id) : -1;
+      const goPrev = nextIdx >= 0 && idx >= 0 && nextIdx < idx;
       return {
         idx,
         next,
-        direction: nextIdx >= 0 && idx >= 0 && nextIdx < idx ? 'prev' : 'next',
+        direction: goPrev ? 'prev' : 'next',
+        label: customLabel || (next ? next.titre : null),
       };
     }
+    const next = idx >= 0 ? (leaves[idx + 1] || null) : null;
     return {
       idx,
-      next: idx >= 0 ? (leaves[idx + 1] || null) : null,
+      next,
       direction: 'next',
+      label: customLabel || null,
     };
   }
 
@@ -184,6 +231,7 @@
     messageBloque,
     messageSuivante,
     orderedLeaves,
+    findRedirectSource,
     resolveNext,
   };
 })(window);
