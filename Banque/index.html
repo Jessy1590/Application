@@ -3746,10 +3746,11 @@
       const score = (t) => {
         const h = (t.split(/\r?\n/)[0] || '');
         let s = 0;
-        if (/Débit|Libellé|Crédit/.test(h)) s += 5;
+        if (/Débit|Libellé|Crédit|État|Début|début/.test(h)) s += 5;
         if (/Date de valeur/i.test(h)) s += 2;
-        if (/DÃ©bit|LibellÃ©|CrÃ©dit/.test(h)) s -= 5;
+        if (/DÃ©bit|LibellÃ©|CrÃ©dit|Ã‰tat|dÃ©but|DÃ©but/.test(h)) s -= 5;
         if (/D.bit|Libell.|Cr.dit/.test(h) && !/Débit|Libellé|Crédit/.test(h)) s -= 2;
+        if (/\uFFFD/.test(h)) s -= 3;
         return s;
       };
       return score(as1252) >= score(asUtf8) ? as1252 : asUtf8;
@@ -3806,12 +3807,19 @@
       const n = this.parseAmountFR(raw);
       return Number.isFinite(n) && n !== 0 ? n : null;
     },
-    detectBankFormat(header, preferred) {
-      if (preferred && preferred !== 'auto') return preferred;
+    looksLikeRevolutCsv(header) {
       const h = header.join('|');
-      // Revolut : Type, Product, Started Date, Completed Date, Description, Amount…
-      if (/started date|completed date/.test(h) && /description/.test(h) && /amount/.test(h)) return 'revolut';
-      if (header.includes('type') && header.includes('description') && header.includes('amount') && header.includes('state')) return 'revolut';
+      // EN : Started Date, Completed Date, Amount, State
+      // FR : Date de début, Date de fin, Montant, État
+      if (/started date|completed date|date de debut|date de fin/.test(h) && /description/.test(h) && /amount|montant/.test(h)) return true;
+      return header.includes('type') && header.includes('description')
+        && (header.includes('amount') || header.includes('montant'))
+        && (header.includes('state') || header.includes('etat'));
+    },
+    detectBankFormat(header, preferred) {
+      const revolut = this.looksLikeRevolutCsv(header);
+      if (revolut) return 'revolut';
+      if (preferred && preferred !== 'auto') return preferred;
       // CIC : Date d'opération + Montant (une colonne) ; pas de Débit/Crédit séparés
       const hasOpDate = header.some(x => /date d.?operation|date operation/.test(x));
       const hasMontant = header.some(x => /^montant$/.test(x));
@@ -3895,22 +3903,29 @@
     },
 
     parseCsvRevolut(header, data) {
-      // Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+      // EN : Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+      // FR : Type,Produit,Date de début,Date de fin,Description,Montant,Frais,Devise,État,Solde
       const idx = {
-        completed: this.findCsvCol(header, h => /completed date/.test(h)),
-        started: this.findCsvCol(header, h => /started date/.test(h)),
+        completed: this.findCsvCol(header, h => /completed date|date de fin/.test(h)),
+        started: this.findCsvCol(header, h => /started date|date de debut/.test(h)),
         date: this.findCsvCol(header, h => h === 'date'),
         label: this.findCsvCol(header, h => /description|libell|label/.test(h)),
-        amount: this.findCsvCol(header, h => h === 'amount' || /^montant$/.test(h)),
-        fee: this.findCsvCol(header, h => h === 'fee' || /frais/.test(h)),
-        state: this.findCsvCol(header, h => h === 'state' || /etat|statut/.test(h)),
+        amount: this.findCsvCol(header, h => h === 'amount' || h === 'montant'),
+        fee: this.findCsvCol(header, h => h === 'fee' || h === 'frais'),
+        state: this.findCsvCol(header, h => h === 'state' || h === 'etat' || h === 'statut'),
+        currency: this.findCsvCol(header, h => h === 'currency' || h === 'devise'),
         type: this.findCsvCol(header, h => h === 'type')
       };
+      const normState = (raw) => String(raw || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase().trim();
       const ops = [];
       data.forEach((cols, i) => {
         if (!cols.length || cols.every(c => !c)) return;
-        const state = idx.state >= 0 ? String(cols[idx.state] || '').toUpperCase() : 'COMPLETED';
-        if (state && !/COMPLETED|COMPLETE|REUSSI|SUCCESS/.test(state)) return;
+        const state = idx.state >= 0 ? normState(cols[idx.state]) : 'COMPLETED';
+        if (state && !/COMPLETED|COMPLETE|REUSSI|SUCCESS|TERMINE/.test(state)) return;
+        const cur = idx.currency >= 0 ? String(cols[idx.currency] || '').trim().toUpperCase() : '';
+        if (cur && cur !== 'EUR') return;
         const dateRaw = (idx.completed >= 0 && cols[idx.completed]) || (idx.started >= 0 && cols[idx.started]) || (idx.date >= 0 && cols[idx.date]) || '';
         const date = this.parseDateFR(dateRaw);
         const label = idx.label >= 0 ? cols[idx.label] : '';
@@ -3957,26 +3972,157 @@
       return ops;
     },
 
-    async extractPdfText(file) {
+    revolutMonthIndex(token) {
+      const t = String(token || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\./g, '');
+      const aliases = {
+        janvier: 0, jan: 0, january: 0,
+        fevrier: 1, fev: 1, feb: 1, february: 1,
+        mars: 2, mar: 2, march: 2,
+        avril: 3, avr: 3, apr: 3, april: 3,
+        mai: 4, may: 4,
+        juin: 5, jun: 5, june: 5,
+        juillet: 6, juil: 6, jul: 6, july: 6,
+        aout: 7, aou: 7, aug: 7, august: 7,
+        septembre: 8, sept: 8, sep: 8, september: 8,
+        octobre: 9, oct: 9, october: 9,
+        novembre: 10, nov: 10, november: 10,
+        decembre: 11, dec: 11, december: 11
+      };
+      return Object.prototype.hasOwnProperty.call(aliases, t) ? aliases[t] : -1;
+    },
+    parseRevolutDisplayDate(raw) {
+      const s = String(raw || '').replace(/\s+/g, ' ').trim();
+      if (!s) return null;
+      if (/^\d{4}-\d{2}-\d{2}/.test(s) || /^\d{1,2}[\/.\-]\d{1,2}[\/.\-]/.test(s)) {
+        return this.parseDateFR(s);
+      }
+      let m = s.match(/^(\d{1,2})\s+([A-Za-zÀ-ÿ.]+)\s+(\d{4})$/);
+      if (m) {
+        const month = this.revolutMonthIndex(m[2]);
+        const day = Number(m[1]);
+        const year = Number(m[3]);
+        if (month >= 0 && day >= 1 && day <= 31) {
+          return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        }
+      }
+      m = s.match(/^([A-Za-zÀ-ÿ.]+)\s+(\d{1,2}),?\s+(\d{4})$/);
+      if (m) {
+        const month = this.revolutMonthIndex(m[1]);
+        const day = Number(m[2]);
+        const year = Number(m[3]);
+        if (month >= 0 && day >= 1 && day <= 31) {
+          return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        }
+      }
+      return null;
+    },
+    firstPdfAmount(raw) {
+      const m = String(raw || '').match(/[-+−]?\s*\d{1,3}(?:[\s\u00a0\u202f.]\d{3})*[.,]\d{2}/);
+      if (!m) return null;
+      const n = this.parseAmountFR(m[0]);
+      return Number.isFinite(n) ? Math.abs(n) : null;
+    },
+    clusterPdfRows(items) {
+      const sorted = items.slice().sort((a, b) => (a.page - b.page) || (b.y - a.y) || (a.x - b.x));
+      const rows = [];
+      sorted.forEach(it => {
+        const last = rows[rows.length - 1];
+        if (last && last.page === it.page && Math.abs(last.y - it.y) <= 2) last.items.push(it);
+        else rows.push({ page: it.page, y: it.y, items: [it] });
+      });
+      rows.forEach(r => r.items.sort((a, b) => a.x - b.x));
+      return rows;
+    },
+    parseRevolutPdfItems(items) {
+      const rows = this.clusterPdfRows(items);
+      let currency = '';
+      let cols = null;
+      const ops = [];
+      const norm = (s) => this.normalizeLabel(s);
+      rows.forEach(row => {
+        const joined = norm(row.items.map(it => it.str).join(' '));
+        const cur = joined.match(/\ben (eur|gbp|usd|chf)\b/);
+        if (cur) currency = cur[1].toUpperCase();
+        if (row.items.some(it => norm(it.str) === 'date de debut') || /\ben attente\b/.test(joined)) {
+          cols = null;
+          return;
+        }
+        const dateH = row.items.find(it => norm(it.str) === 'date');
+        const outH = row.items.find(it => /^(argent sortant|money out)$/.test(norm(it.str)));
+        const inH = row.items.find(it => /^(argent entrant|money in)$/.test(norm(it.str)));
+        const descH = row.items.find(it => norm(it.str) === 'description');
+        const balH = row.items.find(it => /^(solde|balance)$/.test(norm(it.str)));
+        if (dateH && outH) {
+          cols = {
+            date: dateH.x,
+            desc: descH ? descH.x : dateH.x + 80,
+            out: outH.x,
+            inn: inH ? inH.x : outH.x + 80,
+            bal: balH ? balH.x : (inH ? inH.x + 110 : outH.x + 180)
+          };
+          return;
+        }
+        if (!cols || (currency && currency !== 'EUR')) return;
+        const bounds = [
+          ['date', cols.date],
+          ['desc', cols.desc],
+          ['out', cols.out],
+          ['in', cols.inn],
+          ['bal', cols.bal]
+        ].sort((a, b) => a[1] - b[1]);
+        const band = (x) => {
+          for (let i = 0; i < bounds.length; i++) {
+            const midRight = i < bounds.length - 1 ? (bounds[i][1] + bounds[i + 1][1]) / 2 : Infinity;
+            if (x < midRight) return bounds[i][0];
+          }
+          return bounds[bounds.length - 1][0];
+        };
+        const buckets = { date: [], desc: [], out: [], in: [], bal: [] };
+        row.items.forEach(it => buckets[band(it.x)].push(it.str));
+        const date = this.parseRevolutDisplayDate(buckets.date.join(' ').trim());
+        if (!date) return;
+        const label = buckets.desc.join(' ').replace(/\s+/g, ' ').trim();
+        const outAmt = this.firstPdfAmount(buckets.out.join(' '));
+        const inAmt = this.firstPdfAmount(buckets.in.join(' '));
+        if (outAmt == null && inAmt == null) return;
+        const amount = (inAmt || 0) - (outAmt || 0);
+        if (!amount) return;
+        ops.push({
+          id: 'pdf-' + row.page + '-' + ops.length,
+          date,
+          label: this.cleanBankLabel(label) || 'Mouvement',
+          labelRaw: label.slice(0, 180),
+          amount
+        });
+      });
+      return ops;
+    },
+
+    async extractPdfItems(file) {
       if (!window.pdfjsLib) throw new Error('PDF.js non chargé');
       const buf = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-      let text = '';
+      const items = [];
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
         const content = await page.getTextContent();
-        let lastY = null;
-        const parts = [];
         content.items.forEach(item => {
-          const y = item.transform ? item.transform[5] : null;
-          if (lastY != null && y != null && Math.abs(lastY - y) > 4) parts.push('\n');
-          else if (parts.length) parts.push(' ');
-          parts.push(item.str);
-          lastY = y;
+          const str = item.str || '';
+          if (!str.trim()) return;
+          items.push({
+            str,
+            x: item.transform ? item.transform[4] : 0,
+            y: item.transform ? item.transform[5] : 0,
+            page: p
+          });
         });
-        text += parts.join('') + '\n';
       }
-      return text;
+      return items;
+    },
+    pdfItemsToText(items) {
+      return this.clusterPdfRows(items).map(r => r.items.map(it => it.str).join(' ')).join('\n');
     },
 
     async onVerifFile(file) {
@@ -4002,11 +4148,18 @@
             }
           }
         } else {
-          const text = await this.extractPdfText(file);
-          ops = this.parseBankPdfText(text);
-          if (!ops.length) {
-            // fallback : parfois le PDF est une seule ligne longue
-            ops = this.parseBankPdfText(text.replace(/(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/g, '\n$1'));
+          const items = await this.extractPdfItems(file);
+          const revolutOps = this.parseRevolutPdfItems(items);
+          if (revolutOps.length) {
+            ops = revolutOps;
+            this.verif.bankDetected = 'revolut';
+          } else {
+            const text = this.pdfItemsToText(items);
+            ops = this.parseBankPdfText(text);
+            if (!ops.length) {
+              ops = this.parseBankPdfText(text.replace(/(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4})/g, '\n$1'));
+            }
+            this.verif.bankDetected = '';
           }
         }
         if (!ops.length) {
