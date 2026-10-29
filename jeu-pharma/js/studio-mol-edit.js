@@ -840,100 +840,249 @@
       })());
     }
 
-    /**
-     * Groupe : même langage visuel (éléments colorés = présents sur les fiches sélectionnées
-     * n’est pas dispo sans chargement lourd) — on garde Ajouter/Retirer, avec typeahead discret.
-     */
+    /** Groupe : contenu actuel, une couleur par molécule, retrait ciblé, ajout à toutes. */
     function openGroupe(matriceIds) {
       const ids = (matriceIds || []).filter(Boolean);
       if (ids.length < 2) {
         global.JpToast?.warn?.('Cochez au moins 2 molécules');
         return;
       }
+      const seq = ++panelSeq;
       mode = 'groupe';
       activeMatriceId = null;
       const multiChamps = champsActifs().filter((c) => c.card === 'N');
-      let body = '<p class="jp-mol-panel-hint">' + ids.length
-        + ' fiches — saisir une entité puis Ajouter / Retirer sur toutes. '
-        + 'Sur une fiche seule : clic = affichage leçon.</p>';
-      multiChamps.forEach((ch) => {
-        body += '<div class="jp-mol-panel-field" data-grp-champ="' + esc(ch.code) + '">'
-          + '<div class="jp-mol-field-head"><label>' + esc(ch.libelle) + '</label></div>'
-          + '<div class="jp-mol-group-ops">'
-          + '<div data-grp-ta="' + esc(ch.code) + '"></div>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-grp-add="' + esc(ch.code) + '">Ajouter</button>'
-          + '<button type="button" class="jp-btn jp-btn-ghost" data-grp-rm="' + esc(ch.code) + '">Retirer</button>'
-          + '</div></div>';
-      });
-      openShell('Groupe (' + ids.length + ')', body, '');
-      const grpCtrls = {};
-      multiChamps.forEach((ch) => {
-        const host = panelEl().querySelector('[data-grp-ta="' + ch.code + '"]');
-        if (!host) return;
-        grpCtrls[ch.code] = mountEntiteCombo(host, ch.table, null);
-      });
+      const toneComps = ids.map(() => ({}));
+      let busy = false;
+      let grpCtrls = {};
 
-      async function applyGroup(code, remove) {
-        const ch = multiChamps.find((c) => c.code === code);
-        const ctrl = grpCtrls[code];
-        if (!ch || !ctrl) return;
-        let it = ctrl.getItem?.();
-        const typed = String(ctrl.input?.value || '').trim();
-        if (!it && typed) {
-          try { it = await onCreateEntite(ch.table)(typed); } catch (e) {
-            global.JpToast?.fromError?.(e);
-            return;
+      function still() {
+        return seq === panelSeq && mode === 'groupe';
+      }
+
+      function render(members) {
+        grpCtrls = {};
+        const body = '<div class="jp-mol-asso-legend" role="list" data-grp-legend></div>'
+          + '<p class="jp-mol-panel-hint">Une couleur par molécule. Le bouton coloré retire l’élément de la molécule de cette couleur. Ajouter le met sur toutes.</p>'
+          + '<div class="jp-mol-panel-fields" data-grp-fields></div>';
+        const el = openShell('Groupe (' + members.length + ')', body, '');
+        if (!el || !still()) return;
+
+        const legend = el.querySelector('[data-grp-legend]');
+        const fieldsBox = el.querySelector('[data-grp-fields]');
+        if (!legend || !fieldsBox) return;
+
+        members.forEach((m) => {
+          const pill = document.createElement('span');
+          pill.className = 'jp-mol-asso-pill';
+          pill.setAttribute('role', 'listitem');
+          pill.style.cssText = global.JpConstants.assoStyle([
+            global.JpConstants.assoTone({}, m.index),
+          ]);
+          pill.textContent = m.dci || '—';
+          legend.appendChild(pill);
+        });
+
+        multiChamps.forEach((ch) => {
+          const sec = document.createElement('div');
+          sec.className = 'jp-mol-panel-field';
+          sec.setAttribute('data-grp-champ', ch.code);
+
+          const head = document.createElement('div');
+          head.className = 'jp-mol-field-head';
+          const lab = document.createElement('label');
+          lab.textContent = ch.libelle;
+          head.appendChild(lab);
+          sec.appendChild(head);
+
+          const vals = document.createElement('div');
+          vals.className = 'jp-mol-panel-vals';
+          const groups = groupMultiEntries(members, ch);
+          if (!groups.length) {
+            const empty = document.createElement('p');
+            empty.className = 'jp-mol-empty';
+            empty.textContent = 'Aucun élément';
+            vals.appendChild(empty);
+          } else {
+            groups.forEach((g) => {
+              const rowEl = document.createElement('div');
+              rowEl.className = 'jp-grp-row';
+              const val = document.createElement('div');
+              val.className = 'jp-grp-val';
+              val.style.cssText = global.JpConstants.assoStyle(
+                global.JpConstants.assoTones(g.indexes, toneComps)
+              );
+              val.textContent = g.label;
+              val.title = g.carriers.map((c) => c.dci).filter(Boolean).join(' · ');
+              rowEl.appendChild(val);
+
+              const rms = document.createElement('div');
+              rms.className = 'jp-grp-rms';
+              g.carriers.forEach((c) => {
+                if (!c.ids.length) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'jp-grp-rm';
+                btn.textContent = '×';
+                const tone = global.JpConstants.assoTone({}, c.index);
+                btn.style.background = tone.bg;
+                btn.style.color = tone.fg;
+                btn.style.border = '1px solid ' + tone.border;
+                const aria = 'Retirer « ' + (g.label || 'cet élément') + ' » de ' + (c.dci || 'cette molécule');
+                btn.title = aria;
+                btn.setAttribute('aria-label', aria);
+                const eids = c.ids.slice();
+                const mid = c.mid;
+                const dci = c.dci;
+                btn.addEventListener('click', () => {
+                  void removeFromOne(ch, mid, eids, g.label, dci);
+                });
+                rms.appendChild(btn);
+              });
+              rowEl.appendChild(rms);
+              vals.appendChild(rowEl);
+            });
           }
-        }
-        if (!it?.id) {
-          global.JpToast?.warn?.('Choisissez une entité');
+          sec.appendChild(vals);
+
+          const ops = document.createElement('div');
+          ops.className = 'jp-mol-group-ops';
+          const taHost = document.createElement('div');
+          taHost.setAttribute('data-grp-ta', ch.code);
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'jp-btn jp-btn-ghost';
+          addBtn.textContent = 'Ajouter';
+          addBtn.addEventListener('click', () => void addToAll(ch.code));
+          ops.appendChild(taHost);
+          ops.appendChild(addBtn);
+          sec.appendChild(ops);
+          fieldsBox.appendChild(sec);
+          grpCtrls[ch.code] = mountEntiteCombo(taHost, ch.table, null);
+        });
+      }
+
+      async function paint() {
+        let rows;
+        try {
+          rows = await Promise.all(ids.map((id) => MED().getById(id)));
+        } catch (e) {
+          if (!still()) return;
+          global.JpToast?.fromError?.(e);
+          const el = panelEl();
+          const hint = el?.querySelector('.jp-mol-panel-hint');
+          if (hint && !el.querySelector('[data-grp-fields]')) {
+            hint.textContent = 'Impossible de charger les fiches.';
+          }
           return;
         }
-        if (remove) {
-          const ok = global.confirm(
-            'Retirer « ' + (it.label || 'cet élément') + ' » des ' + ids.length + ' fiches ?'
-          );
-          if (!ok) return;
+        if (!still()) return;
+        const members = ids.map((id, index) => {
+          const row = rows[index];
+          if (!row) return null;
+          return { id: id, index: index, dci: row.dci || '—', row: row };
+        }).filter(Boolean);
+        if (members.length < 2) {
+          global.JpToast?.warn?.('Impossible de charger le groupe');
+          if (still()) close();
+          return;
         }
         try {
-          for (const mid of ids) {
-            const row = await MED().getById(mid);
-            if (!row) continue;
-            let cur = multiOf(row, ch.code).map((x) => x.id);
-            if (remove) cur = cur.filter((id) => String(id) !== String(it.id));
-            else if (!cur.some((id) => String(id) === String(it.id))) cur = cur.concat([it.id]);
-            await MED().replaceLiaisons(mid, ch, cur);
-            if (ch.fk && (ch.code === 'classe_therapeutique' || ch.code === 'classe_pharmacologique')) {
-              await sb().from('matrice_medicaments')
-                .update({ [ch.fk]: cur[0] || null, fiche_validee: false }).eq('id', mid);
-            }
-          }
-          if (!remove) {
-            for (const mid of ids) {
-              const rows = await listConnaissances(mid);
-              const hit = rows.find((r) => r.champ_code === code && String(r.entite_id) === String(it.id));
-              if (hit?.connaissance_id) setVisible(mid, hit.connaissance_id, true);
-            }
-          } else {
-            for (const mid of ids) {
-              const rows = await listConnaissances(mid);
-              const hit = rows.find((r) => r.champ_code === code && String(r.entite_id) === String(it.id));
-              if (hit?.connaissance_id) setVisible(mid, hit.connaissance_id, false);
-            }
-          }
-          global.JpToast?.ok?.(remove ? 'Entité retirée du groupe' : 'Entité ajoutée au groupe');
-          ctrl.clear?.(true);
+          render(members);
         } catch (e) {
+          if (!still()) return;
           global.JpToast?.fromError?.(e);
         }
       }
 
-      panelEl().querySelectorAll('[data-grp-add]').forEach((btn) => {
-        btn.addEventListener('click', () => void applyGroup(btn.getAttribute('data-grp-add'), false));
-      });
-      panelEl().querySelectorAll('[data-grp-rm]').forEach((btn) => {
-        btn.addEventListener('click', () => void applyGroup(btn.getAttribute('data-grp-rm'), true));
-      });
+      async function addToAll(code) {
+        if (busy) return;
+        const ch = multiChamps.find((c) => c.code === code);
+        const ctrl = grpCtrls[code];
+        if (!ch || !ctrl) return;
+        busy = true;
+        let started = false;
+        try {
+          let it = ctrl.getItem?.();
+          const typed = String(ctrl.input?.value || '').trim();
+          if (!it && typed) it = await onCreateEntite(ch.table)(typed);
+          if (!still()) return;
+          if (!it?.id) {
+            global.JpToast?.warn?.('Choisissez une entité');
+            return;
+          }
+          started = true;
+          for (const mid of ids) {
+            if (!still()) return;
+            const row = await MED().getById(mid);
+            if (!row) continue;
+            const cur = multiOf(row, ch.code).map((x) => x.id);
+            if (cur.some((id) => String(id) === String(it.id))) continue;
+            await writeMultiIds(mid, ch, cur.concat([it.id]));
+          }
+          if (!still()) return;
+          for (const mid of ids) {
+            const conns = await listConnaissances(mid);
+            const hit = (conns || []).find((r) => (
+              r && r.champ_code === code && String(r.entite_id) === String(it.id)
+            ));
+            if (hit?.connaissance_id) setVisible(mid, hit.connaissance_id, true);
+          }
+          if (still()) global.JpToast?.ok?.('Entité ajoutée au groupe');
+        } catch (e) {
+          if (still()) global.JpToast?.fromError?.(e);
+        } finally {
+          try {
+            if (started && still()) await paint();
+          } catch (e2) {
+            if (still()) global.JpToast?.fromError?.(e2);
+          }
+          busy = false;
+        }
+      }
+
+      async function removeFromOne(ch, mid, entityIds, label, dci) {
+        if (busy) return;
+        if (!entityIds || !entityIds.length) return;
+        const who = dci || 'cette molécule';
+        const msg = 'Retirer « ' + (label || 'cet élément') + ' » de ' + who + ' ?';
+        if (!global.confirm(msg)) return;
+        busy = true;
+        let started = false;
+        try {
+          started = true;
+          const row = await MED().getById(mid);
+          if (!row) throw new Error('Fiche introuvable');
+          if (!still()) return;
+          const drop = new Set(entityIds.map(String));
+          const next = multiOf(row, ch.code).map((x) => x.id).filter((id) => !drop.has(String(id)));
+          const cids = [];
+          try {
+            const conns = await listConnaissances(mid);
+            entityIds.forEach((eid) => {
+              const hit = (conns || []).find((r) => (
+                r && r.champ_code === ch.code && String(r.entite_id) === String(eid)
+              ));
+              if (hit?.connaissance_id) cids.push(hit.connaissance_id);
+            });
+          } catch (_) { /* ignore */ }
+          if (!still()) return;
+          await writeMultiIds(mid, ch, next);
+          cids.forEach((cid) => setVisible(mid, cid, false));
+          if (still()) global.JpToast?.ok?.('Retiré de ' + who);
+        } catch (e) {
+          if (still()) global.JpToast?.fromError?.(e);
+        } finally {
+          try {
+            if (started && still()) await paint();
+          } catch (e2) {
+            if (still()) global.JpToast?.fromError?.(e2);
+          }
+          busy = false;
+        }
+      }
+
+      openShell('Groupe (' + ids.length + ')', '<p class="jp-mol-panel-hint">Chargement…</p>', '');
+      void paint();
     }
 
     return {
