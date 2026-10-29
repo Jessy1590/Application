@@ -1970,3 +1970,141 @@
 @media (max-width: 720px) {
   .jp-reorg { grid-template-columns: 1fr; }
 }
+
+/* Page Bloc molécule — enchaînement dans Modif parcours */
+#btnMolRail { margin: 0.75rem 0; }
+
+.jp-studio-app.is-mol-rail .jp-studio-body { grid-template-columns: 1fr; }
+.jp-studio-app.is-mol-rail .jp-studio-tree,
+.jp-studio-app.is-mol-rail .jp-studio-inspector { display: none; }
+
+.jp-mol-rail { display: flex; flex-direction: column; gap: 0.85rem; min-height: 100%; }
+.jp-mol-rail-loading { padding: 1rem 0; }
+
+.jp-mol-rail-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin: -0.85rem -0.85rem 0;
+  padding: 0.85rem 0.85rem 0.7rem;
+  background: rgba(244, 250, 248, 0.96);
+  border-bottom: 1px solid rgba(15, 107, 92, 0.1);
+}
+.jp-mol-rail-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.jp-mol-rail-top > .jp-btn { flex: none; }
+.jp-mol-rail-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.15rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-mol-rail-chain li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+.jp-mol-rail-chain li:not(:last-child)::after {
+  content: "›";
+  margin-left: 0.35rem;
+  color: rgba(20, 32, 28, 0.35);
+}
+.jp-mol-rail-kind {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f6b5c;
+}
+.jp-mol-rail-crumb { color: #3d524c; word-break: break-word; }
+.jp-mol-rail-crumb.is-current { font-weight: 700; color: #0f2e28; }
+.jp-mol-rail-pos {
+  flex: none;
+  padding-top: 0.35rem;
+  font-variant-numeric: tabular-nums;
+  color: #4a5c56;
+  white-space: nowrap;
+}
+.jp-mol-rail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.jp-mol-rail-actions .jp-studio-autosave-hint { margin: 0; flex: 1 1 16rem; }
+
+.jp-mol-rail-stage {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 3rem;
+  gap: 0.75rem;
+  align-items: start;
+}
+.jp-mol-rail-editor { min-width: 0; display: flex; justify-content: center; }
+.jp-mol-rail-editor .jp-block-card { width: min(48rem, 100%); margin: 0; }
+.jp-mol-rail-arrow {
+  position: sticky;
+  top: 6.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 107, 92, 0.22);
+  background: #fff;
+  color: #0f6b5c;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.jp-mol-rail-arrow:hover:not(:disabled) { background: rgba(15, 107, 92, 0.08); }
+.jp-mol-rail-arrow:disabled { opacity: 0.35; cursor: default; }
+.jp-mol-rail-arrow:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(15, 107, 92, 0.35);
+}
+
+.jp-mol-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 10250;
+  background: rgba(15, 32, 28, 0.45);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 1.25rem;
+}
+.jp-mol-preview[hidden] { display: none !important; }
+.jp-mol-preview-panel {
+  background: #f4faf8;
+  width: min(64rem, 100%);
+  max-height: min(88vh, 920px);
+  overflow: auto;
+  border-radius: 1rem;
+  padding: 1rem 1.15rem 1.4rem;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.18);
+}
+.jp-mol-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.jp-mol-preview-frame {
+  width: 100%;
+  height: min(72vh, 780px);
+  border: 0;
+  background: #fff;
+  border-radius: 0.7rem;
+}

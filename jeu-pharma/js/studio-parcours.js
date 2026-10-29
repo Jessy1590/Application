@@ -9,6 +9,8 @@
  *    sync pubs molécule, passe chaque leçon en `publie = true / statut = 'publie'`.
  *  - Bloc molécule = source unique (matrice_ids + valeurs + variantes ★ additives).
  *    Les publications_connaissances sont dérivées au sync / publication.
+ *  - Onglet Programme → « Bloc molécule » : page qui enchaîne tous les blocs molécule
+ *    du parcours (même brouillon auto, même « Publier tout le parcours »).
  */
 (function (global) {
   function sb() { return global.JpApp.sbJeu(); }
@@ -59,7 +61,15 @@
     blocsCache: {}, // moduleId -> blocs[]
     progCountCache: {}, // moduleId -> { connaissances, molecules }
     lastSavedHash: {}, // blocId -> JSON.stringify(payload_json) dernier RPC OK
+    /** Page « Bloc molécule » : { items: [{moduleId, blocId}], index, viewMode } ou null. */
+    molRail: null,
+    bootMolRail: false,
   };
+
+  let molRailGen = 0;
+  let molRailClosing = false;
+  let molRailBusy = false;
+  let molRailOpening = false;
 
   async function rpc(name, args) {
     const { data, error } = await sb().rpc(name, args);
@@ -373,6 +383,7 @@
   }
 
   function selectBloc(id, opts) {
+    if (state.molRail) return;
     const o = opts || {};
     const prevId = state.selectedBlocId;
     const sameMode = state.viewMode === 'contenu' && !o.toContenu;
@@ -1159,7 +1170,10 @@
         e.returnValue = '';
       }
     });
+    window.addEventListener('keydown', onMolRailKey);
+    window.addEventListener('popstate', onMolRailPop);
 
+    state.bootMolRail = qs.get('vue') === 'molecules';
     if (initial) await selectParcours(initial.id);
     else root.querySelector('#treePane').innerHTML = '<p class="jp-muted">Aucun parcours</p>';
   }
@@ -1227,6 +1241,13 @@
   }
 
   async function selectParcours(id) {
+    molRailGen += 1;
+    if (state.molRail) {
+      state.viewMode = state.molRail.viewMode || 'structure';
+      state.molRail = null;
+      document.getElementById('studioApp')?.classList.remove('is-mol-rail');
+      history.replaceState(null, '', '?parcours=' + encodeURIComponent(id));
+    }
     state.parcoursId = id;
     state.recoTargetCache = null;
     invalidateBlocsCache();
@@ -1245,6 +1266,10 @@
     state.selectedModuleId = wanted || childrenOf(null)[0]?.id || state.modules[0]?.id || null;
     renderTree();
     await selectModule(state.selectedModuleId);
+    if (state.bootMolRail) {
+      state.bootMolRail = false;
+      await openMolRail();
+    }
   }
 
   /** Patch `is-active` sans réécrire l’arbre (navigation leçon). */
@@ -2587,6 +2612,10 @@
   }
 
   function paintBlocks() {
+    if (state.molRail) {
+      renderMolRail();
+      return;
+    }
     clearEditors();
     syncViewModeToggle();
     const list = document.getElementById('blocksList');
@@ -3070,6 +3099,30 @@
       delete state.lastSavedHash[id];
       rememberBlocsCache(state.selectedModuleId, state.blocs);
       if (state.selectedBlocId === id) state.selectedBlocId = null;
+      if (state.molRail) {
+        const removedAt = state.molRail.items.findIndex((it) => it.blocId === id);
+        if (removedAt >= 0) {
+          state.molRail.items.splice(removedAt, 1);
+          if (state.molRail.index > removedAt) state.molRail.index -= 1;
+          if (state.molRail.index >= state.molRail.items.length) {
+            state.molRail.index = Math.max(0, state.molRail.items.length - 1);
+          }
+        }
+        if (!state.molRail.items.length) {
+          state.viewMode = state.molRail.viewMode || 'structure';
+          state.inspectorTab = 'programme';
+          state.molRail = null;
+          document.getElementById('studioApp')?.classList.remove('is-mol-rail');
+          clearMolRailUrl();
+          const lesson = selectedModule();
+          if (lesson && !lesson.est_groupe) {
+            renderCanvas(lesson);
+            void renderInspector(lesson);
+          }
+          updateStatus();
+          return;
+        }
+      }
       paintBlocks();
       const m = selectedModule();
       if (m && !m.est_groupe) void renderInspector(m);
@@ -3172,6 +3225,8 @@
         + stats.connaissances + ' valeur(s) publiée(s)</p>'
         + '<p class="jp-muted jp-field-hint">Lecture seule — source = blocs molécule '
         + '(Base + ajouts ★). Éditez les molécules et « Valeurs affichées » dans le bloc.</p>'
+        + '<button type="button" class="jp-btn jp-btn-primary" id="btnMolRail"'
+        + ' title="Enchaîner les blocs molécule du parcours">Bloc molécule</button>'
         + (synth.length
           ? '<ul class="jp-prog-synth">' + synth.map((s) =>
             '<li><strong>' + esc(s.label) + '</strong> · ' + s.n + ' valeur(s)</li>'
@@ -3183,10 +3238,12 @@
       body.querySelector('#helpProg').appendChild(
         global.JpModal.helpButton('Programme', [
           'Le programme de la leçon est dérivé des blocs molécule (Base + variantes ★ additives).',
+          '« Bloc molécule » enchaîne tous les blocs molécule du parcours, dans l’ordre des leçons.',
           'Choisissez les molécules et les valeurs dans chaque bloc, puis publiez la leçon.',
           'Le catalogue « acquis » n’affiche que les leçons validées ; jeux / leçon courante = dès déblocage.',
         ])
       );
+      body.querySelector('#btnMolRail')?.addEventListener('click', () => void openMolRail());
       body.querySelector('#btnSyncPubs')?.addEventListener('click', async () => {
         try {
           await flushAll();
@@ -3507,6 +3564,463 @@
         await refreshJeuxLies(m);
       },
     });
+  }
+
+  /* ——— Page Bloc molécule (parcours entier, un bloc à la fois) ——— */
+
+  function lessonIdsInTreeOrder() {
+    const ids = [];
+    const walk = (parentId) => {
+      childrenOf(parentId).forEach((m) => {
+        if (m.est_groupe) walk(m.id);
+        else ids.push(m.id);
+      });
+    };
+    walk(null);
+    return ids;
+  }
+
+  async function collectMolRailItems() {
+    const lessonIds = lessonIdsInTreeOrder();
+    const lists = await Promise.all(lessonIds.map((id) => loadBlocs(id)));
+    const items = [];
+    lessonIds.forEach((moduleId, i) => {
+      const rows = (lists[i] || []).slice()
+        .sort((a, b) => (Number(a.ordre) || 0) - (Number(b.ordre) || 0));
+      rows.forEach((b) => {
+        if (b.type_bloc === 'molecule') items.push({ moduleId, blocId: b.id });
+      });
+    });
+    return items;
+  }
+
+  function releaseRailEditors() {
+    syncMolChipsToState();
+    Object.keys(state.molEdit).forEach((id) => destroyMolEdit(id));
+    Object.values(state.molChips).forEach((c) => c?.destroy?.());
+    Object.values(state.editors).forEach((ed) => ed?.destroy?.());
+    state.editors = {};
+    state.molChips = {};
+    state.recoCombos = {};
+  }
+
+  function moduleAncestors(moduleId) {
+    const mods = [];
+    let m = state.modules.find((x) => x.id === moduleId) || null;
+    const seen = new Set();
+    while (m && !seen.has(m.id)) {
+      seen.add(m.id);
+      mods.unshift(m);
+      m = m.parent_id ? (state.modules.find((x) => x.id === m.parent_id) || null) : null;
+    }
+    return mods;
+  }
+
+  function sectionBeforeBloc(blocId) {
+    const rows = state.blocs.slice()
+      .sort((a, b) => (Number(a.ordre) || 0) - (Number(b.ordre) || 0));
+    const i = rows.findIndex((b) => b.id === blocId);
+    for (let k = i - 1; k >= 0; k -= 1) {
+      if (rows[k].type_bloc === 'section') return rows[k];
+    }
+    return null;
+  }
+
+  function molRailChainHtml(moduleId, bloc) {
+    const parts = [{ kind: 'Parcours', label: state.parcours?.libelle || 'Parcours' }];
+    moduleAncestors(moduleId).forEach((mod) => {
+      parts.push({
+        kind: mod.est_groupe ? 'Chapitre' : 'Leçon',
+        label: mod.titre || (mod.est_groupe ? 'Chapitre' : 'Leçon'),
+      });
+    });
+    const sec = sectionBeforeBloc(bloc.id);
+    if (sec) parts.push({ kind: 'Section', label: effTitre(sec) || 'Section' });
+    parts.push({ kind: 'Bloc', label: effTitre(bloc) || 'Sans titre', current: true });
+    return '<ol class="jp-mol-rail-chain">' + parts.map((p) =>
+      '<li>'
+      + '<span class="jp-mol-rail-kind">' + esc(p.kind) + '</span>'
+      + '<span class="jp-mol-rail-crumb' + (p.current ? ' is-current' : '') + '"'
+      + (p.current ? ' aria-current="page"' : '') + '>'
+      + esc(p.label) + '</span></li>'
+    ).join('') + '</ol>';
+  }
+
+  function studioQuery(rail) {
+    const q = new URLSearchParams();
+    if (state.parcoursId) q.set('parcours', state.parcoursId);
+    if (rail && state.molRail) {
+      const it = state.molRail.items[state.molRail.index];
+      q.set('vue', 'molecules');
+      if (it) {
+        q.set('module', it.moduleId);
+        q.set('bloc', it.blocId);
+      }
+    } else if (state.selectedModuleId) {
+      q.set('module', state.selectedModuleId);
+    }
+    return '?' + q.toString();
+  }
+
+  function syncMolRailUrl(push) {
+    const url = studioQuery(true);
+    if (push) history.pushState({ jpMolRail: 1 }, '', url);
+    else history.replaceState({ jpMolRail: 1 }, '', url);
+  }
+
+  function clearMolRailUrl() {
+    history.replaceState(null, '', studioQuery(false));
+  }
+
+  function molRailPosLabel(rail) {
+    return (rail.index + 1) + ' / ' + rail.items.length;
+  }
+
+  function renderMolRail() {
+    releaseRailEditors();
+    const pane = document.getElementById('canvasPane');
+    const rail = state.molRail;
+    if (!pane || !rail) return;
+    const it = rail.items[rail.index];
+    const b = it && state.blocs.find((x) => x.id === it.blocId);
+    if (!it || !b) {
+      pane.innerHTML = '<p class="jp-muted">Ce bloc molécule n’est plus dans la leçon.</p>'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnMolRailBack">← Retour</button>';
+      pane.querySelector('#btnMolRailBack')?.addEventListener('click', () => void closeMolRail());
+      return;
+    }
+    state.viewMode = 'contenu';
+    state.selectedBlocId = b.id;
+    const tag = hasPending(b)
+      ? '<span class="jp-bloc-tag" title="Pas encore publié">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>'
+      : '';
+    const atStart = rail.index <= 0;
+    const atEnd = rail.index >= rail.items.length - 1;
+    pane.innerHTML = '<div class="jp-mol-rail">'
+      + '<div class="jp-mol-rail-head">'
+      + '<div class="jp-mol-rail-top">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnMolRailBack">← Retour</button>'
+      + molRailChainHtml(it.moduleId, b)
+      + '<span class="jp-mol-rail-pos" id="molRailPos">' + molRailPosLabel(rail) + '</span>'
+      + '</div>'
+      + '<div class="jp-mol-rail-actions">'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreviewBloc">Aperçu du bloc</button>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="btnPreviewLecon">Aperçu de la leçon</button>'
+      + '<p class="jp-studio-autosave-hint">Brouillon auto · publication via « Publier tout le parcours ».</p>'
+      + '</div></div>'
+      + '<div class="jp-mol-rail-stage">'
+      + '<button type="button" class="jp-mol-rail-arrow" id="btnMolPrev" aria-label="Bloc molécule précédent"'
+      + (atStart ? ' disabled' : '') + '>←</button>'
+      + '<div class="jp-mol-rail-editor">'
+      + '<article class="jp-block-card jp-block-contenu" data-bloc="' + esc(b.id) + '">'
+      + '<header>'
+      + '<span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
+      + '<input class="jp-block-title" data-field="titre" data-id="' + esc(b.id) + '" value="' + esc(effTitre(b)) + '"'
+      + ' placeholder="Titre du bloc (facultatif)" aria-label="Titre">'
+      + tag
+      + plageBadge(b.niveau_min, b.niveau_max)
+      + '<button type="button" class="jp-block-del" data-del="' + esc(b.id) + '" title="Supprimer" aria-label="Supprimer">×</button>'
+      + '</header>'
+      + '<div class="jp-block-body">' + blockBodyHtml(b) + '</div>'
+      + '</article></div>'
+      + '<button type="button" class="jp-mol-rail-arrow" id="btnMolNext" aria-label="Bloc molécule suivant"'
+      + (atEnd ? ' disabled' : '') + '>→</button>'
+      + '</div></div>'
+      + '<div class="jp-mol-preview" id="molPreview" hidden>'
+      + '<div class="jp-mol-preview-panel" role="dialog" aria-modal="true" aria-labelledby="molPreviewTitle">'
+      + '<div class="jp-mol-preview-bar">'
+      + '<strong id="molPreviewTitle">Aperçu</strong>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" id="molPreviewClose">Fermer</button>'
+      + '</div>'
+      + '<div id="molPreviewBody"></div>'
+      + '</div></div>';
+    const card = pane.querySelector('.jp-block-card');
+    if (card) bindContenuEditors(card, b);
+    pane.querySelector('[data-del]')?.addEventListener('click', () => confirmDeleteBloc(b.id));
+    pane.querySelector('#btnMolRailBack')?.addEventListener('click', () => void closeMolRail());
+    pane.querySelector('#btnMolPrev')?.addEventListener('click', () => void goMolRail(-1));
+    pane.querySelector('#btnMolNext')?.addEventListener('click', () => void goMolRail(1));
+    pane.querySelector('#btnPreviewBloc')?.addEventListener('click', () => void openMolPreview('bloc'));
+    pane.querySelector('#btnPreviewLecon')?.addEventListener('click', () => void openMolPreview('lecon'));
+    pane.querySelector('#molPreviewClose')?.addEventListener('click', () => closeMolPreview());
+    pane.querySelector('#molPreview')?.addEventListener('click', (ev) => {
+      if (ev.target && ev.target.id === 'molPreview') closeMolPreview();
+    });
+    const titleInput = card?.querySelector('[data-field="titre"]');
+    titleInput?.addEventListener('input', () => {
+      const crumb = pane.querySelector('.jp-mol-rail-crumb.is-current');
+      if (crumb) crumb.textContent = (titleInput.value || '').trim() || 'Sans titre';
+    });
+    updateStatus();
+  }
+
+  async function showMolRailCurrent() {
+    const rail = state.molRail;
+    if (!rail || !rail.items.length) return;
+    if (rail.index < 0) rail.index = 0;
+    if (rail.index >= rail.items.length) rail.index = rail.items.length - 1;
+    const it = rail.items[rail.index];
+    if (state.selectedModuleId !== it.moduleId) {
+      if (state.selectedModuleId) rememberBlocsCache(state.selectedModuleId, state.blocs);
+      state.selectedModuleId = it.moduleId;
+      state.blocs = await loadBlocs(it.moduleId);
+    }
+    if (!state.molRail) return;
+    let b = state.blocs.find((x) => x.id === it.blocId);
+    if (!b) {
+      state.blocs = await loadBlocs(it.moduleId, { force: true });
+      b = state.blocs.find((x) => x.id === it.blocId);
+    }
+    if (!state.molRail) return;
+    if (!b) {
+      rail.items.splice(rail.index, 1);
+      if (!rail.items.length) {
+        global.JpToast?.warn?.('Aucun bloc molécule');
+        await closeMolRail({ skipHistory: true });
+        return;
+      }
+      if (rail.index >= rail.items.length) rail.index = rail.items.length - 1;
+      await showMolRailCurrent();
+      return;
+    }
+    state.selectedBlocId = b.id;
+    patchTreeActive(it.moduleId);
+    renderMolRail();
+    syncMolRailUrl(false);
+  }
+
+  /** Bloc courant, sinon premier de la leçon, sinon le plus proche dans l’arbre. */
+  function molRailStartIndex(items) {
+    let index = items.findIndex((it) =>
+      it.blocId === state.selectedBlocId && it.moduleId === state.selectedModuleId);
+    if (index >= 0) return index;
+    index = items.findIndex((it) => it.blocId === state.selectedBlocId);
+    if (index >= 0) return index;
+    index = items.findIndex((it) => it.moduleId === state.selectedModuleId);
+    if (index >= 0) return index;
+    const order = lessonIdsInTreeOrder();
+    const pos = order.indexOf(state.selectedModuleId);
+    if (pos >= 0) {
+      const after = items.findIndex((it) => order.indexOf(it.moduleId) > pos);
+      if (after >= 0) return after;
+      for (let i = items.length - 1; i >= 0; i -= 1) {
+        if (order.indexOf(items[i].moduleId) < pos) return i;
+      }
+    }
+    return 0;
+  }
+
+  async function openMolRail() {
+    if (!state.parcoursId || state.molRail || molRailOpening) return;
+    molRailOpening = true;
+    const gen = ++molRailGen;
+    const parcoursId = state.parcoursId;
+    const app = document.getElementById('studioApp');
+    const pane = document.getElementById('canvasPane');
+    let wiped = false;
+    try {
+      await flushAll();
+      if (gen !== molRailGen || state.parcoursId !== parcoursId) return;
+      if (state.selectedModuleId) rememberBlocsCache(state.selectedModuleId, state.blocs);
+      app?.classList.add('is-mol-rail');
+      wiped = true;
+      if (pane) pane.innerHTML = '<p class="jp-muted jp-mol-rail-loading">Chargement des blocs molécule…</p>';
+      const items = await collectMolRailItems();
+      if (gen !== molRailGen || state.parcoursId !== parcoursId) {
+        if (!state.molRail) app?.classList.remove('is-mol-rail');
+        return;
+      }
+      if (!items.length) {
+        app?.classList.remove('is-mol-rail');
+        global.JpToast?.warn?.('Aucun bloc molécule dans ce parcours');
+        const m = selectedModule();
+        if (m && !m.est_groupe) renderCanvas(m);
+        return;
+      }
+      const index = molRailStartIndex(items);
+      const sameBloc = items[index].blocId === state.selectedBlocId;
+      if (!sameBloc) state.variantTab = 'base';
+      state.molRail = {
+        items,
+        index,
+        viewMode: state.viewMode === 'contenu' ? 'contenu' : 'structure',
+      };
+      const already = new URLSearchParams(location.search).get('vue') === 'molecules';
+      if (!already) history.pushState({ jpMolRail: 1 }, '', location.pathname + location.search);
+      await showMolRailCurrent();
+    } catch (e) {
+      state.molRail = null;
+      app?.classList.remove('is-mol-rail');
+      global.JpToast?.fromError?.(e);
+      if (wiped) {
+        const m = selectedModule();
+        if (m && !m.est_groupe) renderCanvas(m);
+      }
+    } finally {
+      molRailOpening = false;
+    }
+  }
+
+  async function closeMolRail(opts) {
+    if (molRailClosing || !state.molRail) return;
+    molRailClosing = true;
+    const skipHistory = !!(opts && opts.skipHistory);
+    const moduleId = state.selectedModuleId;
+    const viewMode = state.molRail.viewMode || 'structure';
+    try {
+      await flushAll();
+      state.viewMode = viewMode;
+      state.inspectorTab = 'programme';
+      state.molRail = null;
+      document.getElementById('studioApp')?.classList.remove('is-mol-rail');
+      if (!skipHistory) clearMolRailUrl();
+      await selectModule(moduleId);
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    } finally {
+      molRailClosing = false;
+    }
+  }
+
+  async function goMolRail(delta) {
+    const rail = state.molRail;
+    if (!rail || molRailBusy || molRailClosing) return;
+    const next = rail.index + delta;
+    if (next < 0 || next >= rail.items.length) return;
+    molRailBusy = true;
+    const prev = rail.index;
+    try {
+      const cur = rail.items[rail.index];
+      if (cur) await flushMolChips(cur.blocId);
+      await flushAll();
+      if (!state.molRail) return;
+      state.molRail.index = next;
+      state.variantTab = 'base';
+      state.variantInherit = false;
+      await showMolRailCurrent();
+    } catch (e) {
+      if (state.molRail) state.molRail.index = prev;
+      global.JpToast?.fromError?.(e);
+    } finally {
+      molRailBusy = false;
+    }
+  }
+
+  function closeMolPreview() {
+    const overlay = document.getElementById('molPreview');
+    if (overlay) overlay.hidden = true;
+    const host = document.getElementById('molPreviewBody');
+    if (host) host.innerHTML = '';
+  }
+
+  /** Payload joueur (brouillon appliqué, variante ★ résolue) pour l’aperçu du bloc. */
+  function blocsPreviewReady(blocs, niveau) {
+    const n = Number(niveau);
+    const hasNiveau = n >= 1 && n <= 5;
+    return (blocs || []).map((b) => {
+      const drafted = global.JpLeconPlayer.withDraft(b);
+      let pay = Object.assign({}, drafted.payload_json || {});
+      if (b.type_bloc === 'molecule') {
+        const resolved = resolveMolPayload(pay, hasNiveau ? n : null);
+        pay.matrice_ids = resolved.matrice_ids;
+        pay.matrice_id = resolved.matrice_ids[0] || '';
+        pay.valeurs = resolved.valeurs;
+      } else if (hasNiveau && pay.variantes && pay.variantes[String(n)]) {
+        pay = Object.assign({}, pay, pay.variantes[String(n)]);
+      }
+      delete pay.variantes;
+      delete pay._brouillon;
+      return Object.assign({}, drafted, { payload_json: pay });
+    });
+  }
+
+  async function openMolPreview(kind) {
+    const overlay = document.getElementById('molPreview');
+    const host = document.getElementById('molPreviewBody');
+    const title = document.getElementById('molPreviewTitle');
+    if (!overlay || !host) return;
+    try {
+      await flushAll();
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      return;
+    }
+    const m = selectedModule();
+    const b = state.blocs.find((x) => x.id === state.selectedBlocId);
+    if (!m || !b) return;
+    const tab = state.variantTab || 'base';
+    const niveau = tab === 'base' ? null : Number(tab);
+    const couche = tab === 'base' ? 'base' : ('★' + tab);
+    if (title) {
+      title.textContent = (kind === 'lecon' ? 'Aperçu de la leçon' : 'Aperçu du bloc') + ' · ' + couche;
+    }
+    overlay.hidden = false;
+    if (kind === 'lecon') {
+      let src = '../lecon.html?module=' + encodeURIComponent(m.id) + '&preview=1';
+      if (niveau) src += '&niveau=' + encodeURIComponent(String(niveau));
+      host.innerHTML = '<iframe class="jp-mol-preview-frame" title="Aperçu de la leçon" src="' + esc(src) + '"></iframe>';
+      return;
+    }
+    if (!global.JpLeconPlayer?.renderContent) {
+      host.innerHTML = '<p class="jp-muted">Aperçu indisponible.</p>';
+      return;
+    }
+    host.innerHTML = '<p class="jp-muted">Chargement…</p>';
+    try {
+      await global.JpLeconPlayer.renderContent(host, {
+        module: m,
+        blocs: blocsPreviewReady([b], niveau),
+        preview: false,
+        niveau,
+      });
+      if (!host.querySelector('.jp-lecon-block, .jp-lecon-section')) {
+        host.innerHTML = '';
+        const p = document.createElement('p');
+        p.className = 'jp-muted';
+        p.textContent = 'Aucune molécule à afficher pour ' + couche + '.';
+        host.appendChild(p);
+      }
+    } catch (e) {
+      host.innerHTML = '<p class="jp-muted">Aperçu impossible.</p>';
+      global.JpToast?.fromError?.(e);
+    }
+  }
+
+  function onMolRailKey(ev) {
+    if (!state.molRail) return;
+    const overlay = document.getElementById('molPreview');
+    const previewOpen = !!(overlay && !overlay.hidden);
+    if (ev.key === 'Escape' && previewOpen) {
+      closeMolPreview();
+      ev.preventDefault();
+      return;
+    }
+    if (previewOpen) return;
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    if (ev.altKey || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+    const t = ev.target;
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"], .jp-modal, .jp-modal-backdrop')) return;
+    if (document.querySelector('.jp-modal-backdrop')) return;
+    ev.preventDefault();
+    void goMolRail(ev.key === 'ArrowLeft' ? -1 : 1);
+  }
+
+  function onMolRailPop() {
+    if (molRailClosing) return;
+    const onRail = new URLSearchParams(location.search).get('vue') === 'molecules';
+    if (onRail && !state.molRail && !molRailOpening) {
+      const qs = new URLSearchParams(location.search);
+      if (qs.get('module')) state.selectedModuleId = qs.get('module');
+      if (qs.get('bloc')) state.selectedBlocId = qs.get('bloc');
+      void openMolRail();
+      return;
+    }
+    if (!onRail && state.molRail) {
+      const qs = new URLSearchParams(location.search);
+      const moduleId = qs.get('module');
+      if (moduleId && state.modules.some((m) => m.id === moduleId)) state.selectedModuleId = moduleId;
+      void closeMolRail({ skipHistory: true });
+    }
   }
 
   global.JpStudioParcours = { boot };
