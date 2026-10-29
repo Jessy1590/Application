@@ -33,12 +33,16 @@
   /** Critères plats (sans `niveaux` / prérequis). */
   function platOf(crit) {
     const c = crit && typeof crit === 'object' ? crit : {};
+    const lecs = Array.isArray(c.lecons_lecture_ids)
+      ? c.lecons_lecture_ids.filter(Boolean)
+      : [];
     return {
       lecture: c.lecture,
       jeux: Array.isArray(c.jeux) ? c.jeux.map((j) => ({
         modele_id: j.modele_id,
         score_min_pct: j.score_min_pct,
       })) : [],
+      lecons_lecture_ids: lecs,
       logique: c.logique === 'ou' ? 'ou' : 'et',
       progression_min_pct: c.progression_min_pct,
     };
@@ -53,16 +57,19 @@
 
   /**
    * @param {HTMLElement} host
-   * @param {{ criteres: object, jeux: Array, kind: 'lecon'|'chapitre'|'parcours', onChange?: Function }} o
+   * @param {{ criteres: object, jeux: Array, kind: 'lecon'|'chapitre'|'parcours', modules?: Array, selfId?: string, onChange?: Function }} o
    * @returns {{ get: () => object, summary: () => string, count: () => number, set: (c: object) => void }}
    */
   function criteresEditor(host, o) {
     const kind = o.kind;
     const jeuxById = {};
     (o.jeux || []).forEach((j) => { jeuxById[j.id] = j; });
+    const modsById = {};
+    (o.modules || []).forEach((m) => { modsById[m.id] = m; });
     const st = {
       lecture: null,
       jeux: [],
+      leconsLectureIds: [],
       logique: 'et',
       progMin: null,
     };
@@ -74,6 +81,7 @@
         modele_id: j.modele_id,
         min10: (Number(j.score_min_pct) || 0) / 10,
       }));
+      st.leconsLectureIds = (c.lecons_lecture_ids || []).filter((id) => id && id !== o.selfId);
       st.logique = c.logique === 'ou' ? 'ou' : 'et';
       st.progMin = kind === 'parcours'
         ? (c.progression_min_pct != null ? Number(c.progression_min_pct) : 100)
@@ -81,7 +89,7 @@
     }
     loadFrom(o.criteres || {});
 
-    const count = () => (st.lecture ? 1 : 0) + st.jeux.length;
+    const count = () => (st.lecture ? 1 : 0) + st.jeux.length + st.leconsLectureIds.length;
 
     function get() {
       const out = {};
@@ -90,6 +98,9 @@
         modele_id: j.modele_id,
         score_min_pct: Math.round(clamp(Number(j.min10) || 0, 0, 10) * 10),
       }));
+      if (kind === 'lecon' || kind === 'chapitre') {
+        out.lecons_lecture_ids = st.leconsLectureIds.slice();
+      }
       out.logique = st.logique;
       if (kind === 'parcours') out.progression_min_pct = Math.round(clamp(Number(st.progMin) || 0, 0, 100));
       return out;
@@ -100,9 +111,15 @@
       return j ? j.titre : 'Jeu archivé';
     }
 
+    function leconLabel(id) {
+      const m = modsById[id];
+      return m ? m.titre : 'Leçon retirée';
+    }
+
     function summary() {
       const parts = [];
       if (kind === 'lecon' && st.lecture) parts.push('lire la leçon jusqu’en bas');
+      st.leconsLectureIds.forEach((id) => parts.push('lire « ' + leconLabel(id) + ' »'));
       st.jeux.forEach((j) => parts.push('« ' + jeuLabel(j.modele_id) + ' » ≥ ' + fmt10(clamp(Number(j.min10) || 0, 0, 10)) + '/10'));
       const joiner = st.logique === 'ou' ? ' OU ' : ' ET ';
       if (kind === 'parcours') {
@@ -122,6 +139,18 @@
       if (o.onChange) o.onChange();
     }
 
+    function leconCands() {
+      return (o.modules || [])
+        .filter((m) => !m.est_groupe && m.id !== o.selfId && !st.leconsLectureIds.includes(m.id))
+        .map((m) => ({
+          id: m.id,
+          label: m.titre,
+          sub: m.parent_id && modsById[m.parent_id]
+            ? modsById[m.parent_id].titre
+            : 'Leçon',
+        }));
+    }
+
     function paint() {
       const free = (o.jeux || []).filter((j) => !st.jeux.some((x) => x.modele_id === j.id))
         .map((j) => ({ id: j.id, label: j.titre, sub: j.code_unique + ' · ' + j.type_jeu }));
@@ -135,6 +164,12 @@
       if (kind === 'lecon') {
         html += '<label class="jp-st-check"><input type="checkbox" data-lecture' + (st.lecture ? ' checked' : '') + '>'
           + '<span>Lecture complète de la leçon requise</span></label>';
+      }
+      if (kind === 'lecon' || kind === 'chapitre') {
+        html += '<div class="jp-field jp-field-tight" style="margin-top:0.6rem">'
+          + '<label>Autres leçons à lire (toutes)</label>'
+          + '<div data-lecons-lecture></div>'
+          + '<small class="jp-field-hint">Le joueur doit avoir lu ces leçons jusqu’en bas pour valider.</small></div>';
       }
       html += '<div class="jp-crit-jeux">' + (st.jeux.length
         ? st.jeux.map((j, i) => {
@@ -190,6 +225,27 @@
           emit();
         });
       });
+
+      const lecsHost = host.querySelector('[data-lecons-lecture]');
+      if (lecsHost && global.JpTypeahead?.chips) {
+        const initial = st.leconsLectureIds.map((id) => ({
+          id,
+          label: leconLabel(id),
+          sub: 'Leçon',
+        }));
+        global.JpTypeahead.chips(lecsHost, {
+          search: global.JpTypeahead.localSource(leconCands(), { limit: 12 }),
+          placeholder: 'Ajouter une leçon à lire…',
+          ariaLabel: 'Autres leçons à lire',
+          initial,
+          onChange: (items) => {
+            st.leconsLectureIds = (items || []).map((it) => it.id).filter((id) => id !== o.selfId);
+            paint();
+            emit();
+          },
+        });
+      }
+
       const addHost = host.querySelector('[data-add]');
       if (free.length || !(o.jeux || []).length) {
         global.JpTypeahead.combo(addHost, {
@@ -331,19 +387,29 @@
       }
     });
 
+    const SUIVANT_PRECEDENT = '__precedent__';
+    const suivantPrecedentItem = {
+      id: SUIVANT_PRECEDENT,
+      label: 'Leçon précédente',
+      sub: 'Ordre officiel du parcours',
+    };
+
     let tab = 'base';
     let basePrereqIds = normalizeIds(m);
-    let suivantId = m.module_suivant_id || null;
+    let suivantPrecedent = !!m.module_suivant_precedent;
+    let suivantId = suivantPrecedent ? null : (m.module_suivant_id || null);
     const cands = prereqCandidates(m, o.modules);
-    const suivantCands = o.modules
-      .filter((x) => x.id !== m.id && !x.est_groupe)
-      .map((x) => ({
-        id: x.id,
-        label: x.titre,
-        sub: x.parent_id
-          ? ((o.modules.find((p) => p.id === x.parent_id) || {}).titre || 'Leçon')
-          : 'Leçon',
-      }));
+    const suivantCands = [suivantPrecedentItem].concat(
+      o.modules
+        .filter((x) => x.id !== m.id && !x.est_groupe)
+        .map((x) => ({
+          id: x.id,
+          label: x.titre,
+          sub: x.parent_id
+            ? ((o.modules.find((p) => p.id === x.parent_id) || {}).titre || 'Leçon')
+            : 'Leçon',
+        }))
+    );
 
     const head = o.noHead
       ? ''
@@ -370,7 +436,7 @@
         'Base = critères communs à tous les niveaux ★ sans personnalisation.',
         '★N = override optionnel (prérequis, lecture, jeux, ET/OU) pour les joueurs inscrits en ★N.',
         'Plusieurs prérequis = la leçon s’ouvre seulement quand TOUTES sont validées.',
-        '« Leçon suivante » peut pointer ailleurs que l’ordre officiel du parcours.',
+        '« Leçon suivante » peut viser une leçon précise, ou « Leçon précédente » (ordre officiel).',
         'Sans override ★N, le joueur hérite de la base. Un prérequis hors plage ★ est ignoré.',
       ]));
     }
@@ -515,6 +581,10 @@
 
     function paintSuivantHint() {
       if (!hintSuivant) return;
+      if (suivantPrecedent) {
+        hintSuivant.textContent = 'Le bouton renvoie à la leçon précédente dans l’ordre du parcours.';
+        return;
+      }
       if (!suivantId) {
         hintSuivant.textContent = 'Par défaut : leçon suivante dans l’ordre du parcours.';
         return;
@@ -527,18 +597,29 @@
 
     function mountSuivant() {
       if (!suivantHost) return;
-      const current = suivantId ? o.modules.find((x) => x.id === suivantId) : null;
-      const initial = current
-        ? { id: current.id, label: current.titre, sub: 'Leçon' }
-        : null;
+      let initial = null;
+      if (suivantPrecedent) {
+        initial = suivantPrecedentItem;
+      } else if (suivantId) {
+        const current = o.modules.find((x) => x.id === suivantId);
+        initial = current
+          ? { id: current.id, label: current.titre, sub: 'Leçon' }
+          : null;
+      }
       suivantHost.innerHTML = '';
       suivantCombo = global.JpTypeahead.combo(suivantHost, {
         search: global.JpTypeahead.localSource(suivantCands, { limit: 12 }),
-        placeholder: 'Ordre officiel — chercher pour forcer…',
+        placeholder: 'Ordre officiel — chercher « précédente » ou une leçon…',
         ariaLabel: 'Leçon suivante personnalisée',
         initial,
         onChange: (it) => {
-          suivantId = it ? it.id : null;
+          if (it && it.id === SUIVANT_PRECEDENT) {
+            suivantPrecedent = true;
+            suivantId = null;
+          } else {
+            suivantPrecedent = false;
+            suivantId = it ? it.id : null;
+          }
           paintSuivantHint();
         },
       });
@@ -557,6 +638,8 @@
         criteres: currentCrit(),
         jeux,
         kind,
+        modules: o.modules,
+        selfId: m.id,
         onChange: () => {
           if (suppress) return;
           commitTab();
@@ -590,6 +673,7 @@
       const out = {
         lecture: kind === 'lecon' ? baseCrit.lecture !== false : undefined,
         jeux: baseCrit.jeux || [],
+        lecons_lecture_ids: baseCrit.lecons_lecture_ids || [],
         logique: baseCrit.logique === 'ou' ? 'ou' : 'et',
       };
       if (kind !== 'lecon') delete out.lecture;
@@ -600,6 +684,7 @@
         const entry = {
           lecture: kind === 'lecon' ? ov.crit.lecture !== false : undefined,
           jeux: ov.crit.jeux || [],
+          lecons_lecture_ids: ov.crit.lecons_lecture_ids || [],
           logique: ov.crit.logique === 'ou' ? 'ou' : 'et',
         };
         if (kind !== 'lecon') delete entry.lecture;
@@ -625,11 +710,17 @@
           prerequis_module_ids: basePrereqIds,
           criteres_json,
         };
-        if (kind === 'lecon') payload.module_suivant_id = suivantId;
+        if (kind === 'lecon') {
+          payload.module_suivant_precedent = suivantPrecedent;
+          payload.module_suivant_id = suivantPrecedent ? null : suivantId;
+        }
         await rpc('v2_upsert_module', { p_payload: payload });
         m.prerequis_module_ids = basePrereqIds.slice();
         m.prerequis_module_id = basePrereqIds[0] || null;
-        if (kind === 'lecon') m.module_suivant_id = suivantId;
+        if (kind === 'lecon') {
+          m.module_suivant_precedent = suivantPrecedent;
+          m.module_suivant_id = suivantPrecedent ? null : suivantId;
+        }
         m.criteres_json = criteres_json;
         global.JpToast?.ok?.('Déblocage enregistré');
         if (o.onSaved) await o.onSaved();

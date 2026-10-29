@@ -90,7 +90,7 @@
   async function loadModules(parcoursId) {
     const { data, error } = await sb()
       .from('modules_cours')
-      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, prerequis_module_ids, module_suivant_id, criteres_json, icone, couleur_accent, couverture_url, statut, niveau_min, niveau_max')
+      .select('id, parcours_id, parent_id, code, titre, resume, objectifs, ordre, publie, est_groupe, prerequis_module_id, prerequis_module_ids, module_suivant_id, module_suivant_precedent, criteres_json, icone, couleur_accent, couverture_url, statut, niveau_min, niveau_max')
       .eq('parcours_id', parcoursId)
       .order('ordre');
     if (error) throw error;

@@ -75,6 +75,9 @@
     } else if (detail.lecture_requise && !detail.lu) {
       parts.push('lire la leçon « ' + (titre || '') + ' » jusqu’en bas');
     }
+    (detail.lecons_lecture || []).filter((L) => !(L.ok || L.lu)).forEach((L) => {
+      parts.push('lire la leçon « ' + (L.titre || '') + ' » jusqu’en bas');
+    });
     (detail.jeux || []).filter((j) => !j.ok).forEach((j) => { parts.push(jeuPart(j)); });
     return { parts, joiner: detail.logique === 'ou' && !detail.est_groupe ? 'ou' : 'et' };
   }
@@ -137,19 +140,36 @@
   }
 
   /**
-   * Leçon suivante : `module_suivant_id` si défini, sinon feuille suivante dans l’ordre officiel.
-   * @returns {{ idx: number, next: object|null }}
+   * Cible du bouton nav : précédent (flag) > `module_suivant_id` > feuille suivante officielle.
+   * @returns {{ idx: number, next: object|null, direction: 'next'|'prev' }}
    */
   function resolveNext(modules, currentId) {
     const list = modules || [];
     const leaves = orderedLeaves(list);
     const idx = leaves.findIndex((m) => m.id === currentId);
     const cur = idx >= 0 ? leaves[idx] : list.find((m) => m.id === currentId) || null;
-    if (!cur) return { idx: -1, next: null };
-    if (cur.module_suivant_id) {
-      return { idx, next: list.find((x) => x.id === cur.module_suivant_id) || null };
+    if (!cur) return { idx: -1, next: null, direction: 'next' };
+    if (cur.module_suivant_precedent) {
+      return {
+        idx,
+        next: idx > 0 ? leaves[idx - 1] : null,
+        direction: 'prev',
+      };
     }
-    return { idx, next: idx >= 0 ? (leaves[idx + 1] || null) : null };
+    if (cur.module_suivant_id) {
+      const next = list.find((x) => x.id === cur.module_suivant_id) || null;
+      const nextIdx = next ? leaves.findIndex((x) => x.id === next.id) : -1;
+      return {
+        idx,
+        next,
+        direction: nextIdx >= 0 && idx >= 0 && nextIdx < idx ? 'prev' : 'next',
+      };
+    }
+    return {
+      idx,
+      next: idx >= 0 ? (leaves[idx + 1] || null) : null,
+      direction: 'next',
+    };
   }
 
   global.JpParcoursUi = {

@@ -411,6 +411,18 @@
           + ' % — faites défiler jusqu’en bas</span></li>');
       }
     }
+    (detail.lecons_lecture || []).forEach((L) => {
+      const href = 'lecon.html?module=' + encodeURIComponent(L.module_id);
+      if (L.ok || L.lu) {
+        rows.push('<li class="is-ok"><span class="jp-crit-mark">✓</span><span>Leçon « '
+          + esc(L.titre) + ' » lue</span></li>');
+      } else {
+        const p = PU().clampPct(L.lecture_pct);
+        rows.push('<li><span class="jp-crit-mark">○</span><span>Lire « ' + esc(L.titre) + ' » jusqu’en bas'
+          + (p ? ' <small>(' + p + ' %)</small>' : '')
+          + ' <a class="jp-crit-play" href="' + esc(href) + '">Ouvrir</a></span></li>');
+      }
+    });
     (detail.jeux || []).forEach((j) => {
       const isFiche = j.type_jeu === 'fiche_aleatoire';
       const min = isFiche
@@ -448,14 +460,19 @@
     try {
       const prog = await global.JpV2Resolver.progression(module.parcours_id);
       const mods = prog.modules || [];
-      const { idx, next } = PU().resolveNext(mods, module.id);
+      const { idx, next, direction } = PU().resolveNext(mods, module.id);
       const cur = mods.find((m) => m.id === module.id) || null;
       if (cur && cur.detail) ctx.detail = cur.detail;
       // Garder le custom suivant sur le module local (rechargements)
-      if (cur && Object.prototype.hasOwnProperty.call(cur, 'module_suivant_id')) {
-        module.module_suivant_id = cur.module_suivant_id;
+      if (cur) {
+        if (Object.prototype.hasOwnProperty.call(cur, 'module_suivant_id')) {
+          module.module_suivant_id = cur.module_suivant_id;
+        }
+        if (Object.prototype.hasOwnProperty.call(cur, 'module_suivant_precedent')) {
+          module.module_suivant_precedent = !!cur.module_suivant_precedent;
+        }
       }
-      ctx._nav = { idx, next };
+      ctx._nav = { idx, next, direction: direction || 'next' };
     } catch (_) { /* conserve le cache */ }
   }
 
@@ -485,20 +502,27 @@
 
     ctx.detail = detail;
     const idx = ctx._nav ? ctx._nav.idx : -1;
+    const goPrev = ctx._nav && ctx._nav.direction === 'prev';
+    const nextLabel = goPrev ? '← Leçon précédente' : 'Leçon suivante →';
     const back = 'espace.html?parcours=' + encodeURIComponent(module.parcours_id || '');
 
     let nav = '';
     if (!next) {
+      const emptyHint = goPrev
+        ? 'Pas de leçon précédente.'
+        : (idx >= 0 ? 'Dernière leçon du parcours.' : '');
       nav = '<a class="jp-btn jp-btn-ghost jp-btn-touch" href="' + back + '">Retour au parcours</a>'
-        + (idx >= 0 ? '<p class="jp-lecon-nav-hint">Dernière leçon du parcours.</p>' : '');
+        + (emptyHint ? '<p class="jp-lecon-nav-hint">' + emptyHint + '</p>' : '');
     } else if (next.statut === 'verrouille' && !preview) {
       const msg = PU().messageSuivante(next.bloque_par, module.id, detail, module.titre)
-        || 'Leçon suivante verrouillée.';
-      nav = '<button type="button" class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next is-disabled" disabled aria-disabled="true" aria-describedby="leconNextHint">Leçon suivante →</button>'
+        || (goPrev ? 'Leçon précédente verrouillée.' : 'Leçon suivante verrouillée.');
+      nav = '<button type="button" class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next is-disabled" disabled aria-disabled="true" aria-describedby="leconNextHint">'
+        + nextLabel + '</button>'
         + '<p class="jp-lecon-nav-hint is-lock" id="leconNextHint" role="status">🔒 ' + esc(msg) + '</p>'
         + '<a class="jp-lecon-back" href="' + back + '">Retour au parcours</a>';
     } else {
-      nav = '<a class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next" href="lecon.html?module=' + encodeURIComponent(next.id) + '">Leçon suivante →</a>'
+      nav = '<a class="jp-btn jp-btn-primary jp-btn-touch jp-lecon-next" href="lecon.html?module='
+        + encodeURIComponent(next.id) + '">' + nextLabel + '</a>'
         + '<a class="jp-lecon-back" href="' + back + '">Retour au parcours</a>';
     }
     host.innerHTML = (preview ? '' : criteriaHtml(detail, module.id, module.parcours_id))
