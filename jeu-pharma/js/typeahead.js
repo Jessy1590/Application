@@ -319,6 +319,7 @@
           + edit
           + '<button type="button" class="jp-ta-chip-x" data-id="' + esc(id) + '" aria-label="Retirer">×</button></span>';
       }).join('');
+      if (typeof opts.onPaint === 'function') opts.onPaint(chipsEl);
     }
 
     function fireChecked() {
@@ -380,7 +381,7 @@
         changed();
         return;
       }
-      if (e.target.closest('.jp-ta-chip-edit') || e.target.closest('.jp-ta-chip-check')) return;
+      if (e.target.closest('.jp-ta-chip-edit') || e.target.closest('.jp-ta-chip-check') || e.target.closest('[data-chip-eye]')) return;
       const openBtn = e.target.closest('[data-chip-open]');
       if (openBtn && opts.onChipClick) {
         e.preventDefault();

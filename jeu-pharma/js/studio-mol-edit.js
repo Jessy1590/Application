@@ -37,6 +37,87 @@
     return multiOf(row, ch.code);
   }
 
+  /**
+   * Valeurs déjà sur les fiches du groupe.
+   * Même id d’entité, ou même libellé (assoNorm) → une ligne.
+   * Chaque molécule garde ses propres ids pour un retrait ciblé.
+   */
+  function groupMultiEntries(members, ch) {
+    const occ = [];
+    (members || []).forEach((m) => {
+      multiOf(m.row, ch.code).forEach((it) => {
+        const id = it && it.id ? String(it.id) : '';
+        const label = String((it && it.label) || '').trim();
+        if (!id && !label) return;
+        occ.push({
+          id: id,
+          label: label,
+          index: m.index,
+          mid: m.id,
+          dci: m.dci || '—',
+        });
+      });
+    });
+    const parent = occ.map((_, i) => i);
+    function find(i) {
+      while (parent[i] !== i) {
+        parent[i] = parent[parent[i]];
+        i = parent[i];
+      }
+      return i;
+    }
+    function unite(a, b) {
+      let ra = find(a);
+      let rb = find(b);
+      if (ra === rb) return;
+      if (ra < rb) parent[rb] = ra;
+      else parent[ra] = rb;
+    }
+    const byId = new Map();
+    const byNorm = new Map();
+    occ.forEach((o, i) => {
+      if (o.id) {
+        if (byId.has(o.id)) unite(i, byId.get(o.id));
+        else byId.set(o.id, i);
+      }
+      const norm = global.JpConstants.assoNorm(o.label);
+      if (norm) {
+        if (byNorm.has(norm)) unite(i, byNorm.get(norm));
+        else byNorm.set(norm, i);
+      }
+    });
+    const order = [];
+    const buckets = new Map();
+    occ.forEach((o, i) => {
+      const root = find(i);
+      if (!buckets.has(root)) {
+        buckets.set(root, []);
+        order.push(root);
+      }
+      buckets.get(root).push(o);
+    });
+    return order.map((root) => {
+      const list = buckets.get(root);
+      let label = '';
+      const byIndex = new Map();
+      list.forEach((o) => {
+        if (o.label.length > label.length) label = o.label;
+        let slot = byIndex.get(o.index);
+        if (!slot) {
+          slot = { index: o.index, mid: o.mid, dci: o.dci, ids: [] };
+          byIndex.set(o.index, slot);
+        }
+        if (o.id && slot.ids.indexOf(o.id) < 0) slot.ids.push(o.id);
+      });
+      const carriers = Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
+      return {
+        label: label || '—',
+        indexes: carriers.map((c) => c.index),
+        carriers: carriers,
+      };
+    });
+  }
+
   function onCreateEntite(table) {
     return async function (label) {
       const ent = await ENT().findOrCreate(table, label);
@@ -69,6 +150,7 @@
     let mode = null; // fiche | create | asso | groupe
     let activeMatriceId = null;
     let clickTimer = null;
+    let panelSeq = 0;
 
     function panelEl() {
       return ctx.host;
@@ -82,6 +164,7 @@
     }
 
     function close() {
+      panelSeq += 1;
       clearClickTimer();
       destroyCtrls(ctrls);
       mode = null;
@@ -207,6 +290,7 @@
     }
 
     async function openFiche(matriceId) {
+      panelSeq += 1;
       mode = 'fiche';
       activeMatriceId = matriceId;
       const el = openShell('Fiche molécule', '<p class="jp-mol-panel-hint">Chargement…</p>', '');
@@ -215,14 +299,27 @@
       let row;
       let comps = [];
       let connRows = [];
+      let compSources = [];
 
       try {
         row = await MED().getById(matriceId);
         if (!row) throw new Error('Fiche introuvable');
-        if (String(row.dci || '').includes(' + ')) {
-          comps = await MED().listComposants(matriceId);
-        }
+        const listed = await MED().listComposants(matriceId);
+        if (listed.length >= 2) comps = listed;
         connRows = await listConnaissances(matriceId);
+        if (comps.length >= 2) {
+          compSources = (await Promise.all(comps.map(async (c, i) => {
+            try {
+              const [rowC, conns] = await Promise.all([
+                MED().getById(c.id),
+                listConnaissances(c.id),
+              ]);
+              return rowC ? { comp: c, row: rowC, conns, index: i } : null;
+            } catch (_) {
+              return null;
+            }
+          }))).filter(Boolean);
+        }
       } catch (e) {
         global.JpToast?.fromError?.(e);
         close();
@@ -244,11 +341,18 @@
         destroyCtrls(ctrls);
 
         let body = '<p class="jp-mol-panel-hint">'
-          + 'Clic = affichage leçon · Double-clic = modifier · × = retirer de la fiche'
+          + (comps.length >= 2
+            ? 'Valeurs colorées : amenées par les molécules séparées (en leçon si elles y sont affichées). Le reste se règle ici.'
+            : 'Clic = affichage leçon · Double-clic = modifier · × = retirer de la fiche')
           + '</p>';
-        if (comps.length) {
-          body += '<p class="jp-mol-panel-hint">Association · composants : '
-            + esc(comps.map((c) => c.dci || '—').join(' · ')) + '</p>';
+        if (comps.length >= 2) {
+          body += '<div class="jp-mol-asso-legend" role="list">';
+          comps.forEach((c, i) => {
+            const css = global.JpConstants.assoStyle(global.JpConstants.assoTones([i], comps));
+            body += '<span class="jp-mol-asso-pill" role="listitem" style="' + esc(css) + '">'
+              + esc(c.dci || 'Composant') + '</span>';
+          });
+          body += '</div>';
         }
         body += '<div class="jp-mol-panel-fields" data-mol-fields></div>';
         openShell(titleOf(), body, footHtml());
@@ -257,6 +361,27 @@
         if (!fieldsBox) return;
         const champs = champsActifs();
         const vis = visibleSet(matriceId);
+        const heritageEntries = [];
+        compSources.forEach((src) => {
+          champs.forEach((ch) => {
+            if (ch.code === 'dci' || ch.code === 'nom_commercial') return;
+            itemsOfChamp(src.row, ch).forEach((it) => {
+              const cid = cidFor(src.conns, ch.code, it.id);
+              const on = !!(cid && visibleSet(src.comp.id).has(String(cid)));
+              heritageEntries.push({
+                champ: ch.code,
+                id: it.id,
+                label: it.label,
+                index: src.index,
+                on,
+              });
+            });
+          });
+        });
+        const heritage = global.JpConstants.groupHeritage(heritageEntries);
+        const brought = (code, label) => (heritage[code] || []).some((it) => (
+          global.JpConstants.assoNorm(it.label) === global.JpConstants.assoNorm(label)
+        ));
 
         champs.forEach((ch) => {
           const items = itemsOfChamp(row, ch);
@@ -279,10 +404,26 @@
             + '<div class="jp-mol-add-row" data-mol-add-row="' + esc(ch.code) + '" hidden></div>';
 
           const valsBox = sec.querySelector('[data-mol-vals]');
-          if (!items.length) {
+          const inherited = (comps.length >= 2 && ch.code !== 'dci' && ch.code !== 'nom_commercial')
+            ? (heritage[ch.code] || [])
+            : [];
+          const ownItems = items.filter((it) => !brought(ch.code, it.label));
+          if (!inherited.length && !ownItems.length) {
             valsBox.innerHTML = '<p class="jp-mol-empty">Aucun élément</p>';
           } else {
-            items.forEach((it) => {
+            inherited.forEach((it) => {
+              const tones = global.JpConstants.assoTones(it.indexes, comps);
+              const names = (it.indexes || []).map((i) => comps[i] && comps[i].dci).filter(Boolean);
+              const item = document.createElement('div');
+              item.className = 'jp-mol-item jp-mol-heritage' + (it.on ? ' is-on' : '');
+              item.style.cssText = global.JpConstants.assoStyle(tones);
+              item.title = (names.join(' · ') || 'Molécule séparée')
+                + (it.on ? ' — affiché en leçon' : ' — présent sur la fiche, non affiché en leçon');
+              item.innerHTML = '<span class="jp-mol-item-label">' + esc(it.label || '—') + '</span>'
+                + (it.on ? '<span class="jp-mol-heritage-flag">en leçon</span>' : '');
+              valsBox.appendChild(item);
+            });
+            ownItems.forEach((it) => {
               const cid = cidFor(connRows, ch.code, it.id);
               const on = cid && vis.has(String(cid));
               const item = document.createElement('div');
@@ -311,7 +452,7 @@
       }
 
       function bindFieldInteractions(fieldsBox) {
-        fieldsBox.querySelectorAll('.jp-mol-item').forEach((itemEl) => {
+        fieldsBox.querySelectorAll('.jp-mol-item:not(.jp-mol-heritage)').forEach((itemEl) => {
           itemEl.addEventListener('click', (ev) => {
             if (ev.target.closest('[data-mol-rm]')) return;
             if (ev.detail > 1) return;
@@ -595,6 +736,7 @@
     }
 
     function openCreate() {
+      panelSeq += 1;
       mode = 'create';
       const body = '<p class="jp-mol-panel-hint">Saisir une DCI. Si elle existe, la fiche s’ouvre ; sinon une nouvelle matrice est créée.</p>'
         + '<div class="jp-mol-panel-field"><label>DCI</label><div data-mol-dci></div></div>';
@@ -643,6 +785,7 @@
     }
 
     function openAsso() {
+      panelSeq += 1;
       mode = 'asso';
       const body = '<p class="jp-mol-panel-hint">Choisir au moins 2 molécules mono. La DCI combinée « A + B » est réutilisée si elle existe.</p>'
         + '<div class="jp-mol-panel-field"><label>Composants (ordre = libellé)</label>'
@@ -688,6 +831,7 @@
             id: row.id,
             label: row.dci || dciLabel,
             sub: MED().formatNoms?.(row) || '',
+            kind: 'asso',
           });
           await openFiche(row.id);
         } catch (e) {

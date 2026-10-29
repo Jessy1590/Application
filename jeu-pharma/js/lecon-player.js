@@ -208,73 +208,82 @@
     return (typeJeu === 'ordonnance' ? 'ordonnances/jouer.html' : 'jeux/jouer.html') + q;
   }
 
-  /** Palette stable composants d’association (ordre 0…n). */
-  const ASSO_PALETTE = [
-    { bg: '#dbeafe', fg: '#1e3a8a', border: '#3b82f6' },
-    { bg: '#fce7f3', fg: '#9d174d', border: '#ec4899' },
-    { bg: '#dcfce7', fg: '#14532d', border: '#22c55e' },
-    { bg: '#ffedd5', fg: '#9a3412', border: '#f97316' },
-    { bg: '#e0e7ff', fg: '#3730a3', border: '#6366f1' },
-  ];
-  const ASSO_BLEND = { bg: '#ede9fe', fg: '#5b21b6', border: '#8b5cf6' };
-
-  function assoTone(comp, index) {
-    if (comp && comp.couleur && /^#[0-9a-f]{3,8}$/i.test(String(comp.couleur).trim())) {
-      const hex = String(comp.couleur).trim();
-      return { bg: hex + '22', fg: hex, border: hex };
-    }
-    return ASSO_PALETTE[index % ASSO_PALETTE.length];
+  function toneAttr(tones) {
+    const css = global.JpConstants?.assoStyle?.(tones) || '';
+    return css ? ' style="' + esc(css) + '"' : '';
   }
 
-  function chipStyle(tone) {
-    if (!tone) return '';
-    return ' style="background:' + esc(tone.bg) + ';color:' + esc(tone.fg)
-      + ';border:1px solid ' + esc(tone.border) + '"';
+  function compsOfFiche(fiche) {
+    const comps = Array.isArray(fiche && fiche.composants) ? fiche.composants : [];
+    return comps.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0)
+      || String(a.dci || '').localeCompare(String(b.dci || ''), 'fr'));
   }
 
-  function ficheHtml(fiche) {
-    const champs = fiche.champs || {};
-    const comps = Array.isArray(fiche.composants)
-      ? fiche.composants.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
-      : [];
-    const isAsso = comps.length >= 2;
-
-    // entite_id → index composant (pour colorer les chips publiés)
-    const entiteToComp = new Map();
-    if (isAsso) {
+  /** Valeurs affichées des molécules séparées, plus les spécificités propres à l’association. */
+  function heritageEntries(fiche, fichesById) {
+    const comps = compsOfFiche(fiche);
+    const entries = [];
+    const map = fichesById || {};
+    if (comps.length >= 2) {
       comps.forEach((c, i) => {
-        const ids = Array.isArray(c.entite_ids) ? c.entite_ids : [];
-        ids.forEach((raw) => {
-          const id = typeof raw === 'string' ? raw : (raw && raw.toString ? raw.toString() : '');
-          if (id) entiteToComp.set(id, i);
+        const src = map[c.id] || map[String(c.id)] || null;
+        const champs = (src && src.champs) || {};
+        Object.keys(champs).forEach((code) => {
+          if (code === 'dci' || code === 'nom_commercial') return;
+          (champs[code] || []).forEach((it) => {
+            if (!it || !it.valeur) return;
+            entries.push({
+              champ: code,
+              id: it.entite_id || it.id || it.valeur,
+              label: it.valeur,
+              index: i,
+            });
+          });
+        });
+      });
+    }
+    const own = (fiche && fiche.champs) || {};
+    Object.keys(own).forEach((code) => {
+      if (code === 'dci' || code === 'nom_commercial') return;
+      (own[code] || []).forEach((it) => {
+        if (!it || !it.valeur) return;
+        entries.push({
+          champ: code,
+          id: it.entite_id || it.id || it.valeur,
+          label: it.valeur,
+          own: true,
+        });
+      });
+    });
+    return { comps, grouped: global.JpConstants.groupHeritage(entries) };
+  }
+
+  function ficheHtml(fiche, fichesById) {
+    const { comps, grouped } = heritageEntries(fiche, fichesById);
+    const isAsso = comps.length >= 2;
+    let hasOwn = false;
+    if (isAsso) {
+      Object.keys(grouped).forEach((code) => {
+        (grouped[code] || []).forEach((it) => {
+          if (it.own && !(it.indexes || []).length) hasOwn = true;
         });
       });
     }
 
-    function toneForItem(item) {
-      if (!isAsso) return null;
-      const eid = item && (item.entite_id || item.id);
-      if (eid != null && entiteToComp.has(String(eid))) {
-        return assoTone(comps[entiteToComp.get(String(eid))], entiteToComp.get(String(eid)));
-      }
-      // Spécifique association (non hérité d’un mono connu)
-      return ASSO_BLEND;
-    }
-
     let body = '<div class="jp-mol-head' + (isAsso ? ' jp-mol-head--asso' : '') + '">';
-    if (isAsso) {
-      body += '<p class="jp-mol-asso-label">Association</p>';
-    }
+    if (isAsso) body += '<p class="jp-mol-asso-label">Association</p>';
     body += '<strong class="jp-mol-dci">' + esc(fiche.dci || '') + '</strong>';
     if (isAsso) {
       body += '<div class="jp-mol-asso-legend" role="list" aria-label="Composition">';
       comps.forEach((c, i) => {
-        const t = assoTone(c, i);
-        body += '<span class="jp-mol-asso-pill" role="listitem"' + chipStyle(t) + '>'
+        const tones = global.JpConstants.assoTones([i], comps);
+        body += '<span class="jp-mol-asso-pill" role="listitem"' + toneAttr(tones) + '>'
           + esc(c.dci || 'Composant') + '</span>';
       });
-      body += '<span class="jp-mol-asso-pill jp-mol-asso-pill--blend" role="listitem"'
-        + chipStyle(ASSO_BLEND) + '>Spécifique association</span>';
+      if (hasOwn) {
+        body += '<span class="jp-mol-asso-pill jp-mol-asso-pill--blend" role="listitem"'
+          + toneAttr([global.JpConstants.ASSO_BLEND]) + '>Spécifique association</span>';
+      }
       body += '</div>';
     }
     const noms = (fiche.noms_commerciaux || []).map((n) => n.valeur).filter(Boolean);
@@ -283,35 +292,49 @@
         + noms.map((n) => '<span class="jp-chip">' + esc(n) + '</span>').join('') + '</div>';
     }
     body += '</div>';
-    const codes = Object.keys(champs)
-      .filter((c) => c !== 'nom_commercial' && c !== 'dci')
-      .sort((a, b) => champRank(a) - champRank(b));
+    const codes = Object.keys(grouped).sort((a, b) => champRank(a) - champRank(b));
     let dl = '';
     codes.forEach((code) => {
-      const items = (champs[code] || []).filter((x) => x && x.valeur);
+      const items = grouped[code] || [];
       if (!items.length) return;
       dl += '<div class="jp-mol-row' + (isAsso ? ' jp-mol-row--asso' : '') + '"><dt>'
         + esc(champLibelle(code)) + '</dt><dd>'
         + items.map((it) => {
-          const t = toneForItem(it);
-          return '<span class="jp-chip' + (t ? ' jp-chip--asso' : '') + '"' + chipStyle(t) + '>'
-            + esc(it.valeur) + '</span>';
+          let tones = null;
+          if (isAsso && (it.indexes || []).length) tones = global.JpConstants.assoTones(it.indexes, comps);
+          else if (isAsso && it.own) tones = [global.JpConstants.ASSO_BLEND];
+          const names = (it.indexes || []).map((i) => comps[i] && comps[i].dci).filter(Boolean);
+          const title = names.length ? ' title="' + esc(names.join(' · ')) + '"' : '';
+          return '<span class="jp-chip' + (tones ? ' jp-chip--asso' : '') + '"' + toneAttr(tones) + title + '>'
+            + esc(it.label) + '</span>';
         }).join('') + '</dd></div>';
     });
     if (dl) body += '<dl class="jp-mol-fields">' + dl + '</dl>';
     return body;
   }
 
+  /** Diapositives visibles, et ids masqués (toujours chargés pour l’héritage). */
+  function moleculeSlidePlan(p) {
+    const all = matriceIds(p);
+    const masque = new Set((Array.isArray(p.masque_ids) ? p.masque_ids : []).map(String));
+    return {
+      shown: all.filter((id) => !masque.has(String(id))),
+      hidden: all.filter((id) => masque.has(String(id))),
+    };
+  }
+
   /* ——— Carrousel de molécules ——— */
 
-  function carouselHtml(ids) {
+  function carouselHtml(ids, hiddenIds) {
+    const extra = (hiddenIds || []).filter(Boolean).map((id) => String(id)).join(',');
+    const extraAttr = extra ? ' data-mol-extra="' + esc(extra) + '"' : '';
     const n = ids.length;
     const slides = ids.map((id, i) => '<div class="jp-carousel-slide" role="group" aria-roledescription="diapositive" aria-label="'
       + (i + 1) + ' sur ' + n + '" data-mol="' + esc(id) + '"><div class="jp-mol-slot">…</div></div>').join('');
     if (n === 1) {
-      return '<div class="jp-carousel is-single"><div class="jp-carousel-viewport"><div class="jp-carousel-track">' + slides + '</div></div></div>';
+      return '<div class="jp-carousel is-single"' + extraAttr + '><div class="jp-carousel-viewport"><div class="jp-carousel-track">' + slides + '</div></div></div>';
     }
-    return '<div class="jp-carousel" tabindex="0" role="region" aria-roledescription="carrousel" aria-label="Molécules">'
+    return '<div class="jp-carousel" tabindex="0" role="region" aria-roledescription="carrousel" aria-label="Molécules"' + extraAttr + '>'
       + '<div class="jp-carousel-bar"><span class="jp-carousel-count" aria-live="polite">1 / ' + n + '</span></div>'
       + '<button type="button" class="jp-carousel-arrow is-prev" aria-label="Molécule précédente">‹</button>'
       + '<div class="jp-carousel-viewport"><div class="jp-carousel-track">' + slides + '</div></div>'
@@ -530,6 +553,46 @@
     return { schedule };
   }
 
+  async function fillMoleculeSlots(root, carousels, opts) {
+    const slots = Array.from(root.querySelectorAll('.jp-carousel-slide[data-mol]'));
+    const ids = slots.map((s) => s.getAttribute('data-mol')).filter(Boolean);
+    root.querySelectorAll('.jp-carousel[data-mol-extra]').forEach((car) => {
+      String(car.getAttribute('data-mol-extra') || '').split(',').forEach((id) => {
+        if (id) ids.push(id);
+      });
+    });
+    let fichesMap = {};
+    if (ids.length && global.JpV2Resolver?.fichesResolues) {
+      try {
+        fichesMap = await global.JpV2Resolver.fichesResolues(ids, opts || {});
+        const have = new Set(Object.keys(fichesMap || {}).map(String));
+        const more = [];
+        Object.keys(fichesMap || {}).forEach((k) => {
+          const comps = (fichesMap[k] && fichesMap[k].composants) || [];
+          comps.forEach((c) => {
+            const id = c && c.id ? String(c.id) : '';
+            if (id && !have.has(id)) {
+              have.add(id);
+              more.push(c.id);
+            }
+          });
+        });
+        if (more.length) {
+          const extra = await global.JpV2Resolver.fichesResolues(more, opts || {});
+          fichesMap = Object.assign({}, fichesMap, extra || {});
+        }
+      } catch (_) { /* slots en « — » */ }
+    }
+    for (const slot of slots) {
+      const id = slot.getAttribute('data-mol');
+      const holder = slot.querySelector('.jp-mol-slot');
+      if (!holder) continue;
+      const fiche = fichesMap[id];
+      holder.innerHTML = fiche ? ficheHtml(fiche, fichesMap) : '—';
+    }
+    (carousels || []).forEach((c) => c.fit());
+  }
+
   /* ——— Rendu principal ——— */
 
   async function boot(root, moduleId, preview, previewNiveau) {
@@ -592,9 +655,9 @@
         inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(p.corps_html || '') + '</div>'
           + recoLinksHtml(p, module);
       } else if (b.type_bloc === 'molecule') {
-        const ids = matriceIds(p);
-        if (!ids.length) continue;
-        inner = carouselHtml(ids);
+        const plan = moleculeSlidePlan(p);
+        if (!plan.shown.length) continue;
+        inner = carouselHtml(plan.shown, plan.hidden);
       } else if (b.type_bloc === 'jeu') {
         const code = p.code_unique || '';
         const href = jeuHref(code, p.type_jeu, module.id, module.parcours_id);
@@ -755,25 +818,11 @@
     const ficheNiveau = (preview && data.niveau_parcours >= 1 && data.niveau_parcours <= 5)
       ? data.niveau_parcours
       : null;
-    const slots = Array.from(root.querySelectorAll('.jp-carousel-slide[data-mol]'));
-    const molIds = slots.map((s) => s.getAttribute('data-mol')).filter(Boolean);
-    let fichesMap = {};
-    if (molIds.length) {
-      try {
-        fichesMap = await global.JpV2Resolver.fichesResolues(molIds, {
-          parcoursId: module.parcours_id,
-          moduleIds: [module.id],
-          niveau: ficheNiveau,
-        });
-      } catch (_) { /* slots en « — » ci-dessous */ }
-    }
-    for (const slot of slots) {
-      const id = slot.getAttribute('data-mol');
-      const holder = slot.querySelector('.jp-mol-slot');
-      const fiche = fichesMap[id];
-      holder.innerHTML = fiche ? ficheHtml(fiche) : '—';
-      carousels.forEach((c) => c.fit());
-    }
+    await fillMoleculeSlots(root, carousels, {
+      parcoursId: module.parcours_id,
+      moduleIds: [module.id],
+      niveau: ficheNiveau,
+    });
   }
 
   /**
@@ -812,9 +861,9 @@
       inner = '<div class="jp-rich jp-reco-body">' + sanitizeHtml(pay.corps_html || '') + '</div>'
         + recoLinksHtml(pay, module);
     } else if (b.type_bloc === 'molecule') {
-      const ids = matriceIds(pay);
-      if (!ids.length) return '';
-      inner = carouselHtml(ids);
+      const plan = moleculeSlidePlan(pay);
+      if (!plan.shown.length) return '';
+      inner = carouselHtml(plan.shown, plan.hidden);
     } else if (b.type_bloc === 'jeu') {
       const code = pay.code_unique || '';
       inner = '<p class="jp-muted">Jeu'
@@ -865,26 +914,11 @@
     if (global.JpBlocPhoto) global.JpBlocPhoto.hydrate(host);
 
     const carousels = Array.from(host.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
-    const slots = Array.from(host.querySelectorAll('.jp-carousel-slide[data-mol]'));
-    const molIds = slots.map((s) => s.getAttribute('data-mol')).filter(Boolean);
-    let fichesMap = {};
-    if (molIds.length && global.JpV2Resolver?.fichesResolues) {
-      try {
-        fichesMap = await global.JpV2Resolver.fichesResolues(molIds, {
-          parcoursId: module.parcours_id,
-          moduleIds: module.id ? [module.id] : [],
-          niveau: niveau >= 1 && niveau <= 5 ? niveau : null,
-        });
-      } catch (_) { /* slots « — » */ }
-    }
-    for (const slot of slots) {
-      const id = slot.getAttribute('data-mol');
-      const holder = slot.querySelector('.jp-mol-slot');
-      if (!holder) continue;
-      const fiche = fichesMap[id];
-      holder.innerHTML = fiche ? ficheHtml(fiche) : '—';
-      carousels.forEach((c) => c.fit());
-    }
+    await fillMoleculeSlots(host, carousels, {
+      parcoursId: module.parcours_id,
+      moduleIds: module.id ? [module.id] : [],
+      niveau: niveau >= 1 && niveau <= 5 ? niveau : null,
+    });
   }
 
   global.JpLeconPlayer = {

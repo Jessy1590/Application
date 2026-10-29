@@ -921,6 +921,10 @@
     return out;
   }
 
+  function masqueIdsOf(raw) {
+    return Array.isArray(raw) ? raw.filter(Boolean) : [];
+  }
+
   /** Couche Base ou ajouts ★N du payload molécule (sans résolution). */
   function molLayerOf(payload, tab) {
     const p = payload || {};
@@ -928,13 +932,27 @@
       return {
         matrice_ids: matriceIdsOf(p),
         valeurs: cloneValeursMap(p.valeurs),
+        masque_ids: masqueIdsOf(p.masque_ids),
       };
     }
     const v = (p.variantes || {})[String(tab)] || {};
     return {
       matrice_ids: Array.isArray(v.matrice_ids) ? v.matrice_ids.filter(Boolean) : [],
       valeurs: cloneValeursMap(v.valeurs),
+      masque_ids: masqueIdsOf(v.masque_ids),
     };
+  }
+
+  function unionIds(a, b) {
+    const ids = [];
+    const seen = new Set();
+    [...(a || []), ...(b || [])].forEach((id) => {
+      if (id && !seen.has(String(id))) {
+        seen.add(String(id));
+        ids.push(id);
+      }
+    });
+    return ids;
   }
 
   /** Résolution additive : Base ∪ variante ★N (pas cumul 1…N). */
@@ -943,15 +961,13 @@
     const n = Number(niveau);
     if (!n || n < 1) return base;
     const add = molLayerOf(payload, String(n));
-    const ids = [];
-    const seen = new Set();
-    [...base.matrice_ids, ...add.matrice_ids].forEach((id) => {
-      if (id && !seen.has(String(id))) {
-        seen.add(String(id));
-        ids.push(id);
-      }
-    });
-    return { matrice_ids: ids, valeurs: mergeValeursMaps(base.valeurs, add.valeurs) };
+    const ids = unionIds(base.matrice_ids, add.matrice_ids);
+    const keep = new Set(ids.map(String));
+    return {
+      matrice_ids: ids,
+      valeurs: mergeValeursMaps(base.valeurs, add.valeurs),
+      masque_ids: unionIds(base.masque_ids, add.masque_ids).filter((id) => keep.has(String(id))),
+    };
   }
 
   function setMolLayerOnPayload(payload, tab, layer) {
@@ -959,16 +975,24 @@
     delete base._brouillon;
     const matIds = (layer.matrice_ids || []).filter(Boolean);
     const vals = cloneValeursMap(layer.valeurs);
+    const keep = new Set(matIds.map(String));
+    const masque = (layer.masque_ids || []).map(String).filter((id) => keep.has(id));
     if (!tab || tab === 'base') {
       base.matrice_ids = matIds;
       base.matrice_id = matIds[0] || '';
       base.valeurs = vals;
+      if (masque.length) base.masque_ids = masque;
+      else delete base.masque_ids;
       return base;
     }
     const variantes = Object.assign({}, base.variantes || {});
-    const empty = !matIds.length && !Object.keys(vals).length;
+    const empty = !matIds.length && !Object.keys(vals).length && !masque.length;
     if (empty) delete variantes[String(tab)];
-    else variantes[String(tab)] = { matrice_ids: matIds, valeurs: vals };
+    else {
+      const next = { matrice_ids: matIds, valeurs: vals };
+      if (masque.length) next.masque_ids = masque;
+      variantes[String(tab)] = next;
+    }
     if (Object.keys(variantes).length) base.variantes = variantes;
     else delete base.variantes;
     return base;
@@ -1026,6 +1050,7 @@
       const cur = effPayload(b);
       const layer = molLayerOf(cur, tab);
       layer.matrice_ids = matIds;
+      layer.masque_ids = (chips.getMasqueIds?.() || []).filter((id) => matIds.map(String).includes(String(id)));
       // Retirer les valeurs des molécules absentes de cette couche
       const keep = new Set(matIds.map(String));
       Object.keys(layer.valeurs).forEach((k) => {
@@ -1910,8 +1935,16 @@
         + '<div class="jp-field jp-field-tight"><label>'
         + (tab === 'base' ? 'Molécules (base)' : 'Ajouts molécules ★' + tab)
         + '</label>'
-        + '<div class="jp-mol-multi" data-mol-multi="' + b.id + '"></div>'
-        + '<small class="jp-field-hint">Tapez une DCI ou un nom commercial. Cochez pour un mini-groupe ; cliquez le nom pour éditer.'
+        + '<div class="jp-mol-lines" data-mol-lines="' + b.id + '">'
+        + '<div class="jp-mol-line"><span class="jp-mol-line-lab">Molécules</span>'
+        + '<div data-mol-monos="' + b.id + '"></div></div>'
+        + '<div class="jp-mol-line"><span class="jp-mol-line-lab">Associations</span>'
+        + '<div data-mol-assos="' + b.id + '"></div></div>'
+        + '<div class="jp-mol-proposals" data-mol-proposals="' + b.id + '" hidden></div>'
+        + '</div>'
+        + '<small class="jp-field-hint">Molécules séparées en haut, associations en dessous. '
+        + 'Deux molécules en haut proposent leur association. '
+        + 'Si un composant manque, il est demandé — affiché ou non dans la leçon.'
         + (tab === 'base' ? '' : ' Uniquement les ajouts de cet onglet — la base est héritée.')
         + '</small></div>'
         + '<div class="jp-mol-bloc-actions">'
@@ -2357,43 +2390,369 @@
     btn.textContent = n >= 2 ? 'Éditer le groupe (' + n + ')' : 'Éditer le groupe';
   }
 
+  async function composantLinks(ids) {
+    const list = [...new Set((ids || []).filter(Boolean).map(String))];
+    if (!list.length) return {};
+    const { data, error } = await sb()
+      .from('matrice_composants')
+      .select('matrice_id, composant_matrice_id, ordre')
+      .in('matrice_id', list);
+    if (error) throw error;
+    const out = {};
+    (data || []).forEach((r) => {
+      const k = String(r.matrice_id);
+      if (!out[k]) out[k] = [];
+      out[k].push({ id: r.composant_matrice_id, ordre: r.ordre || 0 });
+    });
+    Object.keys(out).forEach((k) => out[k].sort((a, c) => a.ordre - c.ordre));
+    return out;
+  }
+
+  async function proposedAssociations(monoIds, exclude) {
+    const monos = [...new Set((monoIds || []).filter(Boolean).map(String))];
+    if (monos.length < 2) return [];
+    const skip = new Set((exclude || []).map(String));
+    monos.forEach((mid) => skip.add(mid));
+    const { data, error } = await sb()
+      .from('matrice_composants')
+      .select('matrice_id')
+      .in('composant_matrice_id', monos);
+    if (error) throw error;
+    const candidates = [...new Set((data || []).map((r) => String(r.matrice_id)))]
+      .filter((mid) => !skip.has(mid));
+    if (!candidates.length) return [];
+    const links = await composantLinks(candidates);
+    const { data: mats, error: mErr } = await sb()
+      .from('matrice_medicaments')
+      .select('id, statut')
+      .in('id', candidates);
+    if (mErr) throw mErr;
+    const alive = new Set((mats || []).filter((m) => m.statut !== 'archive').map((m) => String(m.id)));
+    const monoSet = new Set(monos);
+    const hits = candidates.filter((mid) => {
+      if (!alive.has(mid)) return false;
+      const rows = links[mid] || [];
+      return rows.length >= 2 && rows.every((r) => monoSet.has(String(r.id)));
+    });
+    await ensureMolLabels(hits);
+    return hits.map((mid) => molItem(mid));
+  }
+
+  function askMissingComps(assoLabel, missing) {
+    return new Promise((resolve) => {
+      if (!missing.length) {
+        resolve(null);
+        return;
+      }
+      if (!global.JpModal) {
+        const flags = {};
+        missing.forEach((c) => { flags[String(c.id)] = true; });
+        resolve(flags);
+        return;
+      }
+      const body = document.createElement('div');
+      const intro = document.createElement('p');
+      intro.textContent = 'Cette association contient des molécules absentes de la ligne du haut.';
+      body.appendChild(intro);
+      missing.forEach((c) => {
+        const row = document.createElement('label');
+        row.className = 'jp-mol-missing-row';
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = true;
+        box.setAttribute('data-show', String(c.id));
+        const span = document.createElement('span');
+        span.textContent = (c.dci || 'Molécule') + ' — afficher dans la leçon';
+        row.appendChild(box);
+        row.appendChild(span);
+        body.appendChild(row);
+      });
+      let done = false;
+      function finish(val) {
+        if (done) return;
+        done = true;
+        resolve(val);
+      }
+      global.JpModal.open({
+        title: assoLabel ? ('Ajouter les composants — ' + assoLabel) : 'Composants manquants',
+        body,
+        confirmLabel: 'Ajouter',
+        cancelLabel: 'Ne pas ajouter',
+        onConfirm: () => {
+          const flags = {};
+          missing.forEach((c) => {
+            const box = body.querySelector('[data-show="' + String(c.id) + '"]');
+            flags[String(c.id)] = !!(box && box.checked);
+          });
+          finish(flags);
+        },
+        onCancel: () => finish(null),
+      });
+    });
+  }
+
   async function mountMolChips(card, b) {
     const id = b.id;
-    const host = card.querySelector('[data-mol-multi]');
-    if (!host) return;
+    const monoHost = card.querySelector('[data-mol-monos="' + id + '"]');
+    const assoHost = card.querySelector('[data-mol-assos="' + id + '"]');
+    if (!monoHost || !assoHost) return;
     const tab = state.variantTab || 'base';
     const layer = molLayerOf(effPayload(b), tab);
     const matIds = (layer.matrice_ids || []).filter(Boolean);
-    // Charger seulement les libellés manquants de ce bloc/onglet (pas toute la leçon).
     await ensureMolLabels(matIds);
-    if (!host.isConnected) return;
+    if (!monoHost.isConnected) return;
     if (state.selectedBlocId !== id) return;
     if (String(state.variantTab || 'base') !== String(tab)) return;
-    const hostNow = card.querySelector('[data-mol-multi]');
-    if (!hostNow) return;
+    const monoNow = card.querySelector('[data-mol-monos="' + id + '"]');
+    const assoNow = card.querySelector('[data-mol-assos="' + id + '"]');
+    if (!monoNow || !assoNow) return;
+
+    let links = {};
+    try {
+      links = await composantLinks(matIds);
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+    }
+    if (!monoNow.isConnected || state.selectedBlocId !== id) return;
+
+    const monoInit = [];
+    const assoInit = [];
+    matIds.forEach((mid) => {
+      const item = molItem(mid);
+      if ((links[String(mid)] || []).length >= 2) assoInit.push(item);
+      else monoInit.push(item);
+    });
+
     state.molChips[id]?.destroy?.();
     destroyMolEdit(id);
-    state.molChips[id] = global.JpTypeahead.chips(hostNow, {
+
+    const masque = new Set((layer.masque_ids || []).map(String));
+    let prompting = false;
+    let propSeq = 0;
+    let mono;
+    let asso;
+
+    function hasId(ctrl, mid) {
+      return (ctrl?.getIds?.() || []).some((x) => String(x) === String(mid));
+    }
+
+    function decorate(chipsEl) {
+      if (!chipsEl) return;
+      chipsEl.querySelectorAll('[data-chip-id]').forEach((chip) => {
+        chip.querySelector('[data-chip-eye]')?.remove();
+        const cid = String(chip.getAttribute('data-chip-id') || '');
+        const hidden = masque.has(cid);
+        chip.classList.toggle('is-masque', hidden);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'jp-ta-chip-eye';
+        btn.setAttribute('data-chip-eye', cid);
+        btn.textContent = hidden ? 'masquée' : 'en leçon';
+        btn.title = hidden
+          ? 'Masquée dans la leçon — cliquer pour l’afficher'
+          : 'Affichée dans la leçon — cliquer pour la masquer';
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (masque.has(cid)) masque.delete(cid);
+          else masque.add(cid);
+          decorate(chipsEl);
+          commit();
+        });
+        const x = chip.querySelector('.jp-ta-chip-x');
+        chip.insertBefore(btn, x);
+      });
+    }
+
+    function commit() {
+      syncMolChipsToState(id);
+      scheduleSave(id);
+      updateMolGroupeBtn(card, b, mono?.getCheckedIds?.() || []);
+      void refreshProposals();
+    }
+
+    async function refreshProposals() {
+      const seq = ++propSeq;
+      const box = card.querySelector('[data-mol-proposals="' + id + '"]');
+      if (!box || !mono || !asso) return;
+      let hits = [];
+      let missing = [];
+      try {
+        hits = await proposedAssociations(mono.getIds(), asso.getIds());
+        const assoIds = asso.getIds();
+        if (assoIds.length) {
+          const links = await composantLinks(assoIds);
+          const seen = new Set();
+          assoIds.forEach((aid) => {
+            (links[String(aid)] || []).forEach((row) => {
+              const cid = String(row.id);
+              if (hasId(mono, cid) || seen.has(cid)) return;
+              seen.add(cid);
+              missing.push({ id: row.id, assoId: aid });
+            });
+          });
+          await ensureMolLabels(missing.map((m) => m.id));
+          missing = missing.map((m) => ({
+            id: m.id,
+            dci: molItem(m.id).label,
+            assoId: m.assoId,
+            assoLabel: (state.molLabels[m.assoId] && state.molLabels[m.assoId].label) || molItem(m.assoId).label,
+          }));
+        }
+      } catch (_) {
+        return;
+      }
+      if (seq !== propSeq || !box.isConnected) return;
+      if (!hits.length && !missing.length) {
+        box.hidden = true;
+        box.innerHTML = '';
+        return;
+      }
+      let html = '';
+      if (hits.length) {
+        html += '<span class="jp-mol-prop-lab">Association proposée</span>'
+          + hits.map((it) => '<button type="button" class="jp-mol-proposal" data-prop="' + esc(it.id) + '">'
+            + esc(it.label) + '</button>').join('');
+      }
+      if (missing.length) {
+        html += '<span class="jp-mol-prop-lab">Composant absent</span>'
+          + missing.map((m) => '<button type="button" class="jp-mol-proposal" data-miss="' + esc(m.id) + '">'
+            + esc(m.dci) + '</button>').join('');
+      }
+      box.hidden = false;
+      box.innerHTML = html;
+      box.querySelectorAll('[data-prop]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const it = hits.find((h) => String(h.id) === String(btn.getAttribute('data-prop')));
+          if (it && !hasId(asso, it.id)) asso.add(it);
+        });
+      });
+      box.querySelectorAll('[data-miss]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const m = missing.find((x) => String(x.id) === String(btn.getAttribute('data-miss')));
+          if (!m) return;
+          void ensureMissing({ id: m.assoId, label: m.assoLabel });
+        });
+      });
+    }
+
+    async function ensureMissing(item) {
+      if (prompting || !item?.id || !global.JpMedicaments?.listComposants) return;
+      prompting = true;
+      try {
+        const comps = await global.JpMedicaments.listComposants(item.id);
+        const missing = (comps || []).filter((c) => c && c.id && !hasId(mono, c.id));
+        if (!missing.length) return;
+        const flags = await askMissingComps(item.label, missing);
+        if (!flags) return;
+        missing.forEach((c) => {
+          const cid = String(c.id);
+          if (flags[cid] === false) masque.add(cid);
+          else masque.delete(cid);
+          state.molLabels[c.id] = { label: c.dci || 'Molécule', sub: '' };
+          if (!hasId(mono, cid)) mono.add({ id: c.id, label: c.dci || 'Molécule', sub: '' });
+        });
+        decorate(monoNow.querySelector('.jp-ta-chips'));
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      } finally {
+        prompting = false;
+      }
+    }
+
+    const knownAsso = new Set(assoInit.map((it) => String(it.id)));
+
+    mono = global.JpTypeahead.chips(monoNow, {
       search: global.JpTypeahead.matriceSource({ limit: 15 }),
       minChars: 1,
       placeholder: tab === 'base' ? 'Ajouter une molécule…' : 'Ajouter une molécule (★' + tab + ')…',
-      ariaLabel: 'Ajouter une molécule',
-      initial: matIds.map(molItem),
+      ariaLabel: 'Molécules séparées',
+      initial: monoInit,
       chipSelectable: true,
       chipEditHref: referentielEditHref,
-      onChipClick: (it) => {
-        const edit = ensureMolEdit(card, b);
-        edit?.openFiche?.(it.id);
-      },
+      onPaint: (chipsEl) => decorate(chipsEl),
+      onChipClick: (it) => ensureMolEdit(card, b)?.openFiche?.(it.id),
       onCheckedChange: (ids) => updateMolGroupeBtn(card, b, ids),
+      resolvePick: async (it) => {
+        if (!it?.id) return null;
+        const map = await composantLinks([it.id]);
+        if ((map[String(it.id)] || []).length >= 2) {
+          if (!hasId(asso, it.id)) asso.add(it);
+          return null;
+        }
+        return it;
+      },
       onChange: (items) => {
         items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
-        syncMolChipsToState(id);
-        scheduleSave(id);
-        updateMolGroupeBtn(card, b, state.molChips[id]?.getCheckedIds?.() || []);
+        [...masque].forEach((mid) => {
+          if (!items.some((it) => String(it.id) === String(mid))) masque.delete(String(mid));
+        });
+        commit();
       },
     });
+
+    asso = global.JpTypeahead.chips(assoNow, {
+      search: global.JpTypeahead.matriceSource({ limit: 15 }),
+      minChars: 1,
+      placeholder: 'Ajouter une association…',
+      ariaLabel: 'Associations',
+      initial: assoInit,
+      chipEditHref: referentielEditHref,
+      onChipClick: (it) => ensureMolEdit(card, b)?.openFiche?.(it.id),
+      resolvePick: async (it) => {
+        if (!it?.id) return null;
+        const map = await composantLinks([it.id]);
+        if ((map[String(it.id)] || []).length < 2) {
+          global.JpToast?.warn?.('Ce n’est pas une association — ajoutée avec les molécules');
+          if (!hasId(mono, it.id)) mono.add(it);
+          return null;
+        }
+        return it;
+      },
+      onChange: (items) => {
+        items.forEach((it) => { state.molLabels[it.id] = { label: it.label, sub: it.sub || '' }; });
+        const added = items.filter((it) => !knownAsso.has(String(it.id)));
+        knownAsso.clear();
+        items.forEach((it) => knownAsso.add(String(it.id)));
+        commit();
+        added.forEach((it) => { void ensureMissing(it); });
+      },
+    });
+
+    state.molChips[id] = {
+      destroy: () => {
+        propSeq += 1;
+        mono.destroy();
+        asso.destroy();
+      },
+      getIds: () => {
+        const ids = [];
+        const seen = new Set();
+        [...mono.getIds(), ...asso.getIds()].forEach((mid) => {
+          if (mid && !seen.has(String(mid))) {
+            seen.add(String(mid));
+            ids.push(mid);
+          }
+        });
+        return ids;
+      },
+      getCheckedIds: () => mono.getCheckedIds(),
+      getMasqueIds: () => {
+        const present = new Set(mono.getIds().map(String));
+        return [...masque].filter((mid) => present.has(String(mid)));
+      },
+      add: (item) => {
+        if (!item?.id) return;
+        state.molLabels[item.id] = { label: item.label, sub: item.sub || '' };
+        if (item.kind === 'asso') {
+          if (!hasId(asso, item.id)) asso.add(item);
+          return;
+        }
+        if (!hasId(mono, item.id)) mono.add(item);
+      },
+    };
     updateMolGroupeBtn(card, b, []);
+    void refreshProposals();
   }
 
   function bindMolBlocActions(card, b) {
@@ -2808,6 +3167,7 @@
       const tab = state.variantTab || 'base';
       const layer = molLayerOf(cur, tab);
       layer.matrice_ids = (state.molChips[blocId].getIds?.() || []).filter(Boolean);
+      layer.masque_ids = state.molChips[blocId].getMasqueIds?.() || layer.masque_ids || [];
       return setMolLayerOnPayload(cur, tab, layer);
     }
     if (type === 'conseil') {
@@ -3925,6 +4285,8 @@
         pay.matrice_ids = resolved.matrice_ids;
         pay.matrice_id = resolved.matrice_ids[0] || '';
         pay.valeurs = resolved.valeurs;
+        if ((resolved.masque_ids || []).length) pay.masque_ids = resolved.masque_ids;
+        else delete pay.masque_ids;
       } else if (hasNiveau && pay.variantes && pay.variantes[String(n)]) {
         pay = Object.assign({}, pay, pay.variantes[String(n)]);
       }

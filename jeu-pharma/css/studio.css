@@ -2108,3 +2108,79 @@
   background: #fff;
   border-radius: 0.7rem;
 }
+
+.jp-mol-lines { display: flex; flex-direction: column; gap: 0.55rem; }
+.jp-mol-line-lab {
+  display: block;
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(20, 32, 28, 0.55);
+}
+.jp-mol-proposals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+.jp-mol-prop-lab {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #5b21b6;
+}
+.jp-mol-proposal {
+  border: 1px dashed #8b5cf6;
+  background: #f5f3ff;
+  color: #5b21b6;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.jp-mol-proposal:hover,
+.jp-mol-proposal:focus-visible { background: #ede9fe; outline: none; }
+.jp-ta-chip.is-masque { opacity: 0.72; }
+.jp-ta-chip-eye {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0 0.15rem;
+}
+.jp-mol-missing-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0.45rem 0;
+  font-size: 0.92rem;
+}
+.jp-mol-heritage { cursor: default; }
+.jp-mol-heritage-flag {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.jp-mol-asso-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0.35rem;
+}
+.jp-mol-asso-pill {
+  display: inline-block;
+  padding: 0.18rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}

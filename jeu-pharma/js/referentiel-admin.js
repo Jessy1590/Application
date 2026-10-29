@@ -415,12 +415,17 @@
   }
 
   /* ——— Éditeur : champs ——— */
+  function heritageSlot(code) {
+    return '<div class="jp-heritage" id="heritage_' + esc(code) + '" hidden></div>';
+  }
+
   function fieldCard(c) {
     const span = c.card === 'N' || c.code === 'detail_pharmacologie' ? ' jp-field-span-2' : '';
     const sug = 'sug_' + c.code;
     if (c.card === 1) {
       return '<div class="jp-med-field-card' + span + '" data-champ="' + esc(c.code) + '">'
         + '<label for="val_' + esc(c.code) + '">' + esc(c.libelle) + '</label>'
+        + heritageSlot(c.code)
         + '<div class="jp-entity-singular-row"><div class="jp-ac-wrap">'
         + '<input type="text" id="val_' + esc(c.code) + '" autocomplete="off" data-entity-id="" data-ac-code="' + esc(c.code)
         + '" aria-autocomplete="list" aria-controls="' + sug + '" placeholder="Rechercher ou créer…">'
@@ -431,6 +436,7 @@
     }
     return '<div class="jp-med-field-card' + span + '" data-champ="' + esc(c.code) + '">'
       + '<label for="val_' + esc(c.code) + '">' + esc(c.libelle) + '</label>'
+      + heritageSlot(c.code)
       + '<div class="jp-entity-picker"><div class="jp-entity-chips" id="chips_' + esc(c.code) + '" role="list"></div>'
       + '<div class="jp-ac-wrap"><input type="search" id="val_' + esc(c.code) + '" autocomplete="off" data-ac-code="' + esc(c.code)
       + '" aria-autocomplete="list" aria-controls="' + sug + '" placeholder="Rechercher ou créer… (Entrée)">'
@@ -698,6 +704,64 @@
     });
   }
 
+  function champItems(row, ch) {
+    if (!row || !ch) return [];
+    if (ch.card === 1) {
+      const id = row[ch.fk];
+      const label = row[ch.code] || '';
+      return id && label ? [{ id, label }] : [];
+    }
+    const arr = ch.code === 'nom_commercial'
+      ? (Array.isArray(row.noms_commerciaux) ? row.noms_commerciaux : [])
+      : (Array.isArray(row[ch.code]) ? row[ch.code] : []);
+    return arr.filter((x) => x && x.id).map((x) => ({ id: x.id, label: MED().labelFrom(x) }));
+  }
+
+  function renderHeritage(comps, rows) {
+    const sources = (comps || []).map((c, i) => ({ comp: c, row: rows && rows[i], index: i }))
+      .filter((s) => s.row);
+    const entries = [];
+    if (sources.length >= 2) {
+      sources.forEach((src) => {
+        CHAMPS.forEach((ch) => {
+          if (ch.code === 'dci' || ch.code === 'nom_commercial') return;
+          champItems(src.row, ch).forEach((it) => {
+            entries.push({
+              champ: ch.code,
+              id: it.id,
+              label: it.label,
+              index: src.index,
+            });
+          });
+        });
+      });
+    }
+    const grouped = global.JpConstants.groupHeritage(entries);
+    CHAMPS.forEach((ch) => {
+      const host = $('heritage_' + ch.code);
+      if (!host) return;
+      const items = (sources.length >= 2 && ch.code !== 'dci' && ch.code !== 'nom_commercial')
+        ? (grouped[ch.code] || [])
+        : [];
+      if (!items.length) {
+        host.hidden = true;
+        host.innerHTML = '';
+        return;
+      }
+      host.hidden = false;
+      host.innerHTML = '<p class="jp-heritage-lab">Amené par les molécules séparées</p>'
+        + '<div class="jp-heritage-chips">'
+        + items.map((it) => {
+          const tones = global.JpConstants.assoTones(it.indexes, comps);
+          const css = global.JpConstants.assoStyle(tones);
+          const names = (it.indexes || []).map((i) => comps[i] && comps[i].dci).filter(Boolean).join(' · ');
+          return '<span class="jp-entity-chip jp-heritage-chip" style="' + esc(css) + '" title="'
+            + esc(names) + '">' + esc(it.label) + '</span>';
+        }).join('')
+        + '</div>';
+    });
+  }
+
   function renderComposants(items) {
     const box = $('composantsBox');
     const list = $('composantsList');
@@ -706,12 +770,24 @@
     if (!arr.length) {
       box.hidden = true;
       list.innerHTML = '';
+      const note = box.querySelector('.jp-heritage-note');
+      if (note) note.textContent = '';
       return;
     }
-    list.innerHTML = arr.map((c) => {
-      const label = esc(c.dci || '—');
-      return '<li>' + label + '</li>';
+    list.className = 'jp-heritage-comps';
+    list.innerHTML = arr.map((c, i) => {
+      const css = global.JpConstants.assoStyle(global.JpConstants.assoTones([i], arr));
+      return '<li><span class="jp-heritage-swatch" style="' + esc(css) + '">' + esc(c.dci || '—') + '</span></li>';
     }).join('');
+    let note = box.querySelector('.jp-heritage-note');
+    if (!note) {
+      note = document.createElement('p');
+      note.className = 'jp-heritage-note';
+      box.appendChild(note);
+    }
+    note.textContent = arr.length >= 2
+      ? 'Chaque molécule a une couleur. Une valeur partagée reprend toutes ces couleurs. Le reste de la fiche association se saisit à part.'
+      : '';
     box.hidden = false;
   }
 
@@ -722,6 +798,7 @@
     $('fStatutEd').value = 'brouillon';
     $('edValBadge').innerHTML = '';
     renderComposants([]);
+    renderHeritage([], []);
     for (const c of CHAMPS) {
       const input = $('val_' + c.code);
       if (!input) continue;
@@ -793,12 +870,17 @@
       }
     }
     renderComposants([]);
-    if (row.id && String(row.dci || '').includes(' + ')) {
+    renderHeritage([], []);
+    if (row.id) {
       try {
         const comps = await MED().listComposants(row.id);
         renderComposants(comps);
+        if (comps.length >= 2) {
+          const rows = await Promise.all(comps.map((c) => MED().getById(c.id).catch(() => null)));
+          renderHeritage(comps, rows);
+        }
       } catch (e) {
-        /* lecture optionnelle Phase 1 */
+        /* lecture optionnelle */
       }
     }
     highlightRow(row.id);

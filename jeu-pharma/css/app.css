@@ -1390,6 +1390,38 @@ body:has(.jp-bottom-nav) > a[title="Retour au portail"] {
   color: var(--jp-text);
 }
 
+.jp-heritage { margin: 0.35rem 0 0.45rem; }
+.jp-heritage-lab {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5b21b6;
+}
+.jp-heritage-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.jp-heritage-chip { cursor: default; }
+.jp-heritage-comps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.jp-heritage-swatch {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.jp-heritage-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.8rem;
+  color: var(--jp-text-muted, #5c6b66);
+}
+
 .jp-entity-singular-row {
   display: flex;
   align-items: stretch;

@@ -53,6 +53,81 @@
     { code: 'evaluation', libelle: 'Évaluation' },
   ];
 
+  /** Même palette que le carrousel de leçon (composant 0…n). */
+  const ASSO_PALETTE = [
+    { bg: '#dbeafe', fg: '#1e3a8a', border: '#3b82f6' },
+    { bg: '#fce7f3', fg: '#9d174d', border: '#ec4899' },
+    { bg: '#dcfce7', fg: '#14532d', border: '#22c55e' },
+    { bg: '#ffedd5', fg: '#9a3412', border: '#f97316' },
+    { bg: '#e0e7ff', fg: '#3730a3', border: '#6366f1' },
+  ];
+  const ASSO_BLEND = { bg: '#ede9fe', fg: '#5b21b6', border: '#8b5cf6' };
+
+  function assoNorm(s) {
+    return String(s || '').trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function assoTone(comp, index) {
+    const i = Number(index) || 0;
+    if (comp && comp.couleur && /^#[0-9a-f]{3,8}$/i.test(String(comp.couleur).trim())) {
+      const hex = String(comp.couleur).trim();
+      return { bg: hex + '22', fg: hex, border: hex };
+    }
+    return ASSO_PALETTE[i % ASSO_PALETTE.length];
+  }
+
+  function assoTones(indexes, comps) {
+    return (indexes || []).map((i) => assoTone(comps && comps[i], i));
+  }
+
+  /** CSS inline. Plusieurs tons = bandes de toutes les couleurs. */
+  function assoStyle(tones) {
+    const list = (tones || []).filter((t) => t && t.bg && t.fg && t.border);
+    if (!list.length) return '';
+    if (list.length === 1) {
+      const t = list[0];
+      return 'background:' + t.bg + ';color:' + t.fg + ';border:1px solid ' + t.border;
+    }
+    const n = list.length;
+    const stops = list.map((t, i) => {
+      const a = ((i / n) * 100).toFixed(2);
+      const b = (((i + 1) / n) * 100).toFixed(2);
+      return t.bg + ' ' + a + '%,' + t.bg + ' ' + b + '%';
+    }).join(',');
+    return 'background:linear-gradient(90deg,' + stops + ');color:#1e293b;border:1px solid ' + list[0].border;
+  }
+
+  /**
+   * Regroupe les valeurs amenées par les molécules séparées.
+   * Même libellé → une seule entrée, `indexes` = toutes les sources.
+   * @param {Array<{champ:string,id?:string,label:string,index?:number,own?:boolean,on?:boolean}>} entries
+   */
+  function groupHeritage(entries) {
+    const byChamp = new Map();
+    (entries || []).forEach((e) => {
+      if (!e || !e.champ || e.champ === 'dci' || e.champ === 'nom_commercial') return;
+      const label = String(e.label || '').trim();
+      if (!label) return;
+      const key = assoNorm(label) || String(e.id || '');
+      if (!key) return;
+      if (!byChamp.has(e.champ)) byChamp.set(e.champ, new Map());
+      const map = byChamp.get(e.champ);
+      let row = map.get(key);
+      if (!row) {
+        row = { id: e.id, label, indexes: [], own: false, on: false };
+        map.set(key, row);
+      }
+      if (e.index != null && row.indexes.indexOf(e.index) < 0) row.indexes.push(e.index);
+      if (e.own) row.own = true;
+      if (e.on) row.on = true;
+      if (label.length > String(row.label || '').length) row.label = label;
+    });
+    const out = {};
+    byChamp.forEach((map, code) => { out[code] = Array.from(map.values()); });
+    return out;
+  }
+
   global.JpConstants = {
     CHAMP_CODES,
     champsActifs,
@@ -60,5 +135,12 @@
     ENTITY_TABLES,
     STATUTS_FICHE,
     QUIZ_MODES,
+    ASSO_PALETTE,
+    ASSO_BLEND,
+    assoNorm,
+    assoTone,
+    assoTones,
+    assoStyle,
+    groupHeritage,
   };
 })(window);
