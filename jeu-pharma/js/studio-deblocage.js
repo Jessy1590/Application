@@ -243,17 +243,25 @@
       });
       return out;
     }
+    function idsOf(src) {
+      if (!src) return [];
+      if (Array.isArray(src.prerequis_module_ids) && src.prerequis_module_ids.length) {
+        return src.prerequis_module_ids.filter(Boolean);
+      }
+      if (src.prerequis_module_id) return [src.prerequis_module_id];
+      return [];
+    }
     function depsOf(id) {
       const m = byId[id];
       const out = [];
       let a = m;
       while (a) {
-        if (a.prerequis_module_id) out.push(a.prerequis_module_id);
+        idsOf(a).forEach((x) => out.push(x));
         const nivs = a.criteres_json && a.criteres_json.niveaux;
         if (nivs && typeof nivs === 'object') {
           NIVEAUX.forEach((k) => {
             const ov = nivs[k];
-            if (ov && ov.prerequis_module_id) out.push(ov.prerequis_module_id);
+            if (ov) idsOf(ov).forEach((x) => out.push(x));
           });
         }
         a = byId[a.parent_id];
@@ -299,24 +307,43 @@
     try { jeux = await loadJeux(o.parcoursId); } catch (_) { /* éditeur sans jeux */ }
     if (!host.isConnected) return;
 
+    function normalizeIds(src) {
+      if (!src) return [];
+      if (Array.isArray(src.prerequis_module_ids) && src.prerequis_module_ids.length) {
+        return src.prerequis_module_ids.filter(Boolean);
+      }
+      if (src.prerequis_module_id) return [src.prerequis_module_id];
+      return [];
+    }
+
     const raw = m.criteres_json && typeof m.criteres_json === 'object' ? m.criteres_json : {};
     const baseCrit = platOf(raw);
     const overrides = {};
     NIVEAUX.forEach((n) => {
       if (hasNiveauOverride(raw, n)) {
         const ov = raw.niveaux[n];
+        const hasIds = Object.prototype.hasOwnProperty.call(ov, 'prerequis_module_ids')
+          || Object.prototype.hasOwnProperty.call(ov, 'prerequis_module_id');
         overrides[n] = {
           crit: platOf(ov),
-          prereqId: Object.prototype.hasOwnProperty.call(ov, 'prerequis_module_id')
-            ? (ov.prerequis_module_id || null)
-            : undefined,
+          prereqIds: hasIds ? normalizeIds(ov) : undefined,
         };
       }
     });
 
     let tab = 'base';
-    let basePrereqId = m.prerequis_module_id || null;
+    let basePrereqIds = normalizeIds(m);
+    let suivantId = m.module_suivant_id || null;
     const cands = prereqCandidates(m, o.modules);
+    const suivantCands = o.modules
+      .filter((x) => x.id !== m.id && !x.est_groupe)
+      .map((x) => ({
+        id: x.id,
+        label: x.titre,
+        sub: x.parent_id
+          ? ((o.modules.find((p) => p.id === x.parent_id) || {}).titre || 'Leçon')
+          : 'Leçon',
+      }));
 
     const head = o.noHead
       ? ''
@@ -328,8 +355,12 @@
       + '<p class="jp-muted jp-field-hint" data-niv-hint></p>'
       + '</div>'
       + '<div data-niv-actions></div>'
-      + '<div class="jp-field jp-field-tight"><label>S’ouvre après validation de</label><div data-prereq></div>'
+      + '<div class="jp-field jp-field-tight"><label>S’ouvre après validation de (toutes)</label><div data-prereq></div>'
       + '<small class="jp-field-hint" data-prereq-hint></small></div>'
+      + (kind === 'lecon'
+        ? '<div class="jp-field jp-field-tight"><label>Leçon suivante (bouton)</label><div data-suivant></div>'
+          + '<small class="jp-field-hint" data-suivant-hint></small></div>'
+        : '')
       + '<div class="jp-field jp-field-tight"><span class="jp-field-label">'
       + (m.est_groupe ? 'Pour valider ce chapitre' : 'Pour valider cette leçon') + '</span><div data-crit></div></div>'
       + '<button type="button" class="jp-btn jp-btn-primary" data-save>Enregistrer le déblocage</button>';
@@ -338,8 +369,9 @@
       host.querySelector('[data-help]')?.appendChild(global.JpModal.helpButton('Déblocage', [
         'Base = critères communs à tous les niveaux ★ sans personnalisation.',
         '★N = override optionnel (prérequis, lecture, jeux, ET/OU) pour les joueurs inscrits en ★N.',
+        'Plusieurs prérequis = la leçon s’ouvre seulement quand TOUTES sont validées.',
+        '« Leçon suivante » peut pointer ailleurs que l’ordre officiel du parcours.',
         'Sans override ★N, le joueur hérite de la base. Un prérequis hors plage ★ est ignoré.',
-        'Le joueur voit exactement ce qu’il lui reste à faire pour débloquer la suite.',
       ]));
     }
 
@@ -347,25 +379,24 @@
     const actionsEl = host.querySelector('[data-niv-actions]');
     const prereqHost = host.querySelector('[data-prereq]');
     const hintPrereq = host.querySelector('[data-prereq-hint]');
-    let prereqCombo = null;
+    const suivantHost = host.querySelector('[data-suivant]');
+    const hintSuivant = host.querySelector('[data-suivant-hint]');
+    let prereqChips = null;
+    let suivantCombo = null;
     let ed = null;
     let suppress = false;
 
-    function currentPrereqId() {
-      if (tab === 'base') return basePrereqId;
+    function currentPrereqIds() {
+      if (tab === 'base') return basePrereqIds.slice();
       const ov = overrides[tab];
-      if (ov && ov.prereqId !== undefined) return ov.prereqId;
-      return basePrereqId;
+      if (ov && ov.prereqIds !== undefined) return (ov.prereqIds || []).slice();
+      return basePrereqIds.slice();
     }
 
     function currentCrit() {
       if (tab === 'base') return baseCrit;
       const ov = overrides[tab];
       return ov ? ov.crit : baseCrit;
-    }
-
-    function isCustom() {
-      return tab !== 'base' && !!overrides[tab];
     }
 
     function paintTabs() {
@@ -418,7 +449,7 @@
         actionsEl.querySelector('[data-custom-niv]').addEventListener('click', () => {
           overrides[tab] = {
             crit: JSON.parse(JSON.stringify(baseCrit)),
-            prereqId: undefined,
+            prereqIds: undefined,
           };
           paintAll();
         });
@@ -426,42 +457,92 @@
     }
 
     function paintPrereqHint() {
-      const pid = currentPrereqId();
-      const p = pid ? o.modules.find((x) => x.id === pid) : null;
-      const inherit = tab !== 'base' && (!overrides[tab] || overrides[tab].prereqId === undefined);
-      let t = !pid ? 'Aucun : ouvert dès le début.' : '';
-      if (p && !p.publie) t = 'Ce prérequis n’est pas publié : il est ignoré pour les joueurs.';
+      const ids = currentPrereqIds();
+      const inherit = tab !== 'base' && (!overrides[tab] || overrides[tab].prereqIds === undefined);
+      let t = !ids.length
+        ? 'Aucun : ouvert dès le début.'
+        : (ids.length === 1
+          ? '1 prérequis à valider.'
+          : ids.length + ' prérequis — tous doivent être validés (ET).');
+      const unpublished = ids
+        .map((id) => o.modules.find((x) => x.id === id))
+        .filter((p) => p && !p.publie);
+      if (unpublished.length) {
+        t = 'Prérequis non publié(s) ignoré(s) pour les joueurs : '
+          + unpublished.map((p) => p.titre).join(', ') + '.';
+      }
       if (inherit && tab !== 'base') t = (t ? t + ' ' : '') + '(hérité de la base)';
       hintPrereq.textContent = t;
     }
 
+    function itemsFromIds(ids) {
+      return (ids || []).map((id) => {
+        const cur = o.modules.find((x) => x.id === id);
+        return cur
+          ? { id: cur.id, label: cur.titre, sub: cur.est_groupe ? 'Chapitre' : 'Leçon' }
+          : { id, label: 'Élément retiré', sub: '' };
+      });
+    }
+
     function mountPrereq() {
-      const pid = currentPrereqId();
-      const current = pid ? o.modules.find((x) => x.id === pid) : null;
-      const initial = current
-        ? { id: current.id, label: current.titre, sub: current.est_groupe ? 'Chapitre' : 'Leçon' }
-        : null;
+      const ids = currentPrereqIds();
+      const initial = itemsFromIds(ids);
       const disabled = tab !== 'base' && !overrides[tab];
       prereqHost.innerHTML = '';
+      prereqChips = null;
       if (disabled) {
         prereqHost.innerHTML = '<p class="jp-muted jp-crit-none" style="margin:0">'
-          + (initial ? esc(initial.label) : 'Aucun (ouvert d’emblée)') + '</p>';
+          + (initial.length
+            ? initial.map((it) => esc(it.label)).join(' · ')
+            : 'Aucun (ouvert d’emblée)') + '</p>';
         paintPrereqHint();
         return;
       }
-      prereqCombo = global.JpTypeahead.combo(prereqHost, {
+      prereqChips = global.JpTypeahead.chips(prereqHost, {
         search: global.JpTypeahead.localSource(cands, { limit: 12 }),
-        placeholder: 'Aucun (ouvert d’emblée) — chercher…',
-        ariaLabel: 'Prérequis',
+        placeholder: 'Ajouter une leçon / un chapitre…',
+        ariaLabel: 'Prérequis (plusieurs possibles)',
         initial,
-        onChange: (it) => {
-          const id = it ? it.id : null;
-          if (tab === 'base') basePrereqId = id;
-          else if (overrides[tab]) overrides[tab].prereqId = id;
+        onChange: (items) => {
+          const next = (items || []).map((it) => it.id);
+          if (tab === 'base') basePrereqIds = next;
+          else if (overrides[tab]) overrides[tab].prereqIds = next;
           paintPrereqHint();
         },
       });
       paintPrereqHint();
+    }
+
+    function paintSuivantHint() {
+      if (!hintSuivant) return;
+      if (!suivantId) {
+        hintSuivant.textContent = 'Par défaut : leçon suivante dans l’ordre du parcours.';
+        return;
+      }
+      const s = o.modules.find((x) => x.id === suivantId);
+      hintSuivant.textContent = s
+        ? 'Lien personnalisé vers « ' + s.titre + ' ».'
+        : 'Cible introuvable — choisissez une autre leçon.';
+    }
+
+    function mountSuivant() {
+      if (!suivantHost) return;
+      const current = suivantId ? o.modules.find((x) => x.id === suivantId) : null;
+      const initial = current
+        ? { id: current.id, label: current.titre, sub: 'Leçon' }
+        : null;
+      suivantHost.innerHTML = '';
+      suivantCombo = global.JpTypeahead.combo(suivantHost, {
+        search: global.JpTypeahead.localSource(suivantCands, { limit: 12 }),
+        placeholder: 'Ordre officiel — chercher pour forcer…',
+        ariaLabel: 'Leçon suivante personnalisée',
+        initial,
+        onChange: (it) => {
+          suivantId = it ? it.id : null;
+          paintSuivantHint();
+        },
+      });
+      paintSuivantHint();
     }
 
     function mountCrit() {
@@ -499,6 +580,7 @@
       paintHint();
       paintActions();
       mountPrereq();
+      mountSuivant();
       mountCrit();
       suppress = false;
     }
@@ -521,8 +603,9 @@
           logique: ov.crit.logique === 'ou' ? 'ou' : 'et',
         };
         if (kind !== 'lecon') delete entry.lecture;
-        if (ov.prereqId !== undefined) {
-          entry.prerequis_module_id = ov.prereqId;
+        if (ov.prereqIds !== undefined) {
+          entry.prerequis_module_ids = ov.prereqIds || [];
+          entry.prerequis_module_id = (ov.prereqIds && ov.prereqIds[0]) || null;
         }
         niveaux[n] = entry;
       });
@@ -537,14 +620,16 @@
       btn.disabled = true;
       try {
         const criteres_json = buildPayload();
-        await rpc('v2_upsert_module', {
-          p_payload: {
-            id: m.id,
-            prerequis_module_id: basePrereqId,
-            criteres_json,
-          },
-        });
-        m.prerequis_module_id = basePrereqId;
+        const payload = {
+          id: m.id,
+          prerequis_module_ids: basePrereqIds,
+          criteres_json,
+        };
+        if (kind === 'lecon') payload.module_suivant_id = suivantId;
+        await rpc('v2_upsert_module', { p_payload: payload });
+        m.prerequis_module_ids = basePrereqIds.slice();
+        m.prerequis_module_id = basePrereqIds[0] || null;
+        if (kind === 'lecon') m.module_suivant_id = suivantId;
         m.criteres_json = criteres_json;
         global.JpToast?.ok?.('Déblocage enregistré');
         if (o.onSaved) await o.onSaved();

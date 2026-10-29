@@ -447,14 +447,15 @@
     if (!module?.parcours_id || !global.JpV2Resolver?.progression) return;
     try {
       const prog = await global.JpV2Resolver.progression(module.parcours_id);
-      const leaves = PU().orderedLeaves(prog.modules || []);
-      const idx = leaves.findIndex((m) => m.id === module.id);
-      const cur = idx >= 0 ? leaves[idx] : null;
+      const mods = prog.modules || [];
+      const { idx, next } = PU().resolveNext(mods, module.id);
+      const cur = mods.find((m) => m.id === module.id) || null;
       if (cur && cur.detail) ctx.detail = cur.detail;
-      ctx._nav = {
-        idx,
-        next: idx >= 0 ? leaves[idx + 1] : null,
-      };
+      // Garder le custom suivant sur le module local (rechargements)
+      if (cur && Object.prototype.hasOwnProperty.call(cur, 'module_suivant_id')) {
+        module.module_suivant_id = cur.module_suivant_id;
+      }
+      ctx._nav = { idx, next };
     } catch (_) { /* conserve le cache */ }
   }
 

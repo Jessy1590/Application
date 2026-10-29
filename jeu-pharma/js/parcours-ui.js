@@ -136,6 +136,22 @@
     return out;
   }
 
+  /**
+   * Leçon suivante : `module_suivant_id` si défini, sinon feuille suivante dans l’ordre officiel.
+   * @returns {{ idx: number, next: object|null }}
+   */
+  function resolveNext(modules, currentId) {
+    const list = modules || [];
+    const leaves = orderedLeaves(list);
+    const idx = leaves.findIndex((m) => m.id === currentId);
+    const cur = idx >= 0 ? leaves[idx] : list.find((m) => m.id === currentId) || null;
+    if (!cur) return { idx: -1, next: null };
+    if (cur.module_suivant_id) {
+      return { idx, next: list.find((x) => x.id === cur.module_suivant_id) || null };
+    }
+    return { idx, next: idx >= 0 ? (leaves[idx + 1] || null) : null };
+  }
+
   global.JpParcoursUi = {
     fmtDate,
     majLabel,
@@ -148,5 +164,6 @@
     messageBloque,
     messageSuivante,
     orderedLeaves,
+    resolveNext,
   };
 })(window);
