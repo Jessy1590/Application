@@ -492,6 +492,7 @@
       display:grid; grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);
       gap:12px 32px; align-items:start;
     }
+    .bh-today-month-nav{ grid-column:1 / -1; max-width:420px; }
     .bh-today-primary{ grid-column:1; }
     .bh-today-secondary{ grid-column:2; position:sticky; top:78px; }
     .bh-today-secondary .bh-section-label:first-child{ margin-top:2px; }
@@ -644,6 +645,11 @@
 
     <!-- VUE 1 : AUJOURD'HUI -->
     <div class="bh-view active" id="view-today">
+      <div class="bh-month-nav bh-today-month-nav" style="display:flex; justify-content:space-between; margin-bottom:12px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
+        <button type="button" onclick="BH.shiftTodayMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);" aria-label="Mois précédent">&larr;</button>
+        <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; gap:8px; text-transform:capitalize;" id="bh-today-month-label">Mois</div>
+        <button type="button" onclick="BH.shiftTodayMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);" aria-label="Mois suivant">&rarr;</button>
+      </div>
       <div class="bh-today-primary">
         <div class="bh-stat-grid" style="margin-bottom:6px;">
           <div class="bh-stat clay">
@@ -951,7 +957,7 @@
           <button class="bh-btn bh-btn-outline" style="flex:1;" onclick="BH.exportCSV('year')">Export année (CSV)</button>
         </div>
         <div class="bh-card" style="padding:12px;">
-          <button class="bh-btn bh-btn-ghost bh-btn-block" onclick="BH.exportPDF()">🖨️ Générer un rapport PDF (impression)</button>
+          <button class="bh-btn bh-btn-ghost bh-btn-block" onclick="BH.openExportPDF()">🖨️ Générer un rapport PDF (impression)</button>
         </div>
       </div>
     </div>
@@ -1157,6 +1163,43 @@
   </div>
 </div>
 
+<!-- STATS : période du rapport PDF -->
+<div class="bh-sheet-overlay" id="bh-pdf-overlay" onclick="if(event.target===this) BH.closeExportPDF()">
+  <div class="bh-sheet" style="max-width:440px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Période du rapport</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;">
+      Choisis le mois à imprimer, ou plusieurs mois pour un historique.
+    </p>
+    <label style="display:flex; align-items:center; gap:10px; margin-bottom:12px; cursor:pointer; font-size:14px;">
+      <input type="radio" name="pdf-period" value="current" checked onchange="BH.syncPdfPeriodUi()" style="width:auto; margin:0;">
+      <span>Mois actuel</span>
+    </label>
+    <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; cursor:pointer; font-size:14px;">
+      <input type="radio" name="pdf-period" value="single" onchange="BH.syncPdfPeriodUi()" style="width:auto; margin:2px 0 0;">
+      <span style="flex:1;">
+        <span>Autre mois</span>
+        <input type="month" id="pdf-month" class="bh-input" style="margin:8px 0 0;" onfocus="document.querySelector('input[name=pdf-period][value=single]').checked=true; BH.syncPdfPeriodUi()">
+      </span>
+    </label>
+    <label style="display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; cursor:pointer; font-size:14px;">
+      <input type="radio" name="pdf-period" value="multi" onchange="BH.syncPdfPeriodUi()" style="width:auto; margin:2px 0 0;">
+      <span style="flex:1;">
+        <span>Plusieurs mois (historique)</span>
+        <div style="display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:center; margin-top:8px;">
+          <input type="month" id="pdf-from" class="bh-input" style="margin:0;" onfocus="document.querySelector('input[name=pdf-period][value=multi]').checked=true; BH.syncPdfPeriodUi()">
+          <span style="color:var(--ink-faint); font-size:12px;">→</span>
+          <input type="month" id="pdf-to" class="bh-input" style="margin:0;" onfocus="document.querySelector('input[name=pdf-period][value=multi]').checked=true; BH.syncPdfPeriodUi()">
+        </div>
+      </span>
+    </label>
+    <div class="bh-sheet-actions" style="margin-top:16px;">
+      <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.closeExportPDF()">Annuler</button>
+      <button type="button" class="bh-btn bh-btn-primary" onclick="BH.confirmExportPDF()">Générer</button>
+    </div>
+  </div>
+</div>
+
 <!-- VÉRIF : choix du mois si relevé multi-mois -->
 <div class="bh-sheet-overlay" id="bh-verif-month-overlay" onclick="if(event.target===this) BH.cancelVerifMonthPick()">
   <div class="bh-sheet" style="max-width:420px;">
@@ -1334,6 +1377,7 @@
     state: { accounts:[], members:[], expenses:[], incomes:[], months:{}, profile:{} },
     activeTab: 'today',
     comptesMonth: new Date(),
+    todayMonth: new Date(),
     sheetMode: 'expense',
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
@@ -1707,6 +1751,18 @@
       this.comptesMonth = new Date(this.comptesMonth.getFullYear(), this.comptesMonth.getMonth() + delta, 1);
       this.render();
     },
+    todayViewKey() {
+      return this.monthKey(this.todayMonth || new Date());
+    },
+    shiftTodayMonth(delta) {
+      const next = new Date(this.todayMonth.getFullYear(), this.todayMonth.getMonth() + delta, 1);
+      const cur = new Date();
+      const curMonthStart = new Date(cur.getFullYear(), cur.getMonth(), 1);
+      if (next.getTime() > curMonthStart.getTime()) return; // pas de mois futur
+      this.todayMonth = next;
+      this.groupSelect = {};
+      this.renderToday();
+    },
 
     render() {
       document.getElementById('bh-header-sub').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
@@ -1723,17 +1779,35 @@
 
     // --- AUJOURD'HUI ---
     renderToday() {
+      const viewDate = this.todayMonth || new Date();
       const now = new Date();
-      const dim = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-      const mKey = this.monthKey(now);
+      const dim = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+      const mKey = this.monthKey(viewDate);
+      const curKey = this.monthKey(now);
+      const isCurrentMonth = mKey === curKey;
+      const refDay = isCurrentMonth ? now.getDate() : dim + 1; // mois passé : tout non validé = « en retard »
+
+      const monthLbl = document.getElementById('bh-today-month-label');
+      if (monthLbl) {
+        const name = viewDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        monthLbl.innerHTML = name
+          + (isCurrentMonth
+            ? ''
+            : ' <span style="font-size:11px;font-weight:600;color:var(--ink-faint);text-transform:none;">(passé)</span>');
+      }
+      const nextBtn = document.querySelector('#view-today .bh-today-month-nav button:last-child');
+      if (nextBtn) {
+        nextBtn.disabled = isCurrentMonth;
+        nextBtn.style.opacity = isCurrentMonth ? '0.35' : '1';
+      }
 
       let totalDue = 0, totalPaid = 0;
       let paidExpHtml = '', paidIncHtml = '';
       const late = [], today = [], soonExp = [], soonInc = [];
 
       const todayExpenses = [
-        ...(this.state.expenses || []),
-        ...this.listOutboundApportDues()
+        ...(this.state.expenses || []).filter(e => this.isActiveInMonth(e, mKey)),
+        ...this.listOutboundApportDues({ mKey })
       ];
       todayExpenses.forEach(exp => {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
@@ -1752,14 +1826,15 @@
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
-                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler la validation" onclick="BH.unmarkPaid('${exp.id}', '${acc.id}')">Annuler</button>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler la validation" onclick="BH.unmarkPaid('${exp.id}', '${acc.id}', '${mKey}')">Annuler</button>
               </div>
             </div>`;
         } else {
           totalDue += Number(exp.amount);
-          const diff = Math.min(Number(exp.day) || 1, dim) - now.getDate();
+          const diff = Math.min(Number(exp.day) || 1, dim) - refDay;
           const item = { kind: 'expense', exp, acc, diff };
-          if (diff < 0) late.push(item);
+          if (!isCurrentMonth) late.push(item);
+          else if (diff < 0) late.push(item);
           else if (diff === 0) today.push(item);
           else soonExp.push(item);
         }
@@ -1779,13 +1854,14 @@
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
-                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler l'encaissement" onclick="BH.unmarkIncome('${inc.id}', '${acc.id}')">Annuler</button>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler l'encaissement" onclick="BH.unmarkIncome('${inc.id}', '${acc.id}', '${mKey}')">Annuler</button>
               </div>
             </div>`;
         } else {
-          const diff = Math.min(Number(inc.day) || 1, dim) - now.getDate();
+          const diff = Math.min(Number(inc.day) || 1, dim) - refDay;
           const item = { kind: 'income', inc, acc, diff };
-          if (diff < 0) late.push(item);
+          if (!isCurrentMonth) late.push(item);
+          else if (diff < 0) late.push(item);
           else if (diff === 0) today.push(item);
           else soonInc.push(item);
         }
@@ -1799,8 +1875,10 @@
       const dueItemHtml = (item) => {
         if (item.kind === 'income') {
           const { inc, acc, diff } = item;
-          const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
-          const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
+          const cls = !isCurrentMonth ? 'bh-pill-late' : (diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon'));
+          const lbl = !isCurrentMonth
+            ? 'Non encaissé'
+            : (diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`));
           return `
             <div class="bh-due">
               <div class="bh-due-top">
@@ -1816,14 +1894,16 @@
                 <div class="bh-due-amount num" style="color:var(--sage-deep);">+${this.fmt(inc.amount)}</div>
               </div>
               <div class="bh-due-actions">
-                <button class="bh-btn bh-btn-primary" onclick="BH.markIncome('${inc.id}', ${inc.amount}, '${acc.id}')">Encaisser ${this.fmt(inc.amount)}</button>
+                <button class="bh-btn bh-btn-primary" onclick="BH.markIncome('${inc.id}', ${inc.amount}, '${acc.id}', '${mKey}')">Encaisser ${this.fmt(inc.amount)}</button>
                 <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${inc.id}', '${acc.id}', 'income')">Montant différent</button>
               </div>
             </div>`;
         }
         const { exp, acc, diff } = item;
-        const cls = diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon');
-        const lbl = diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`);
+        const cls = !isCurrentMonth ? 'bh-pill-late' : (diff < 0 ? 'bh-pill-late' : (diff === 0 ? 'bh-pill-today' : 'bh-pill-soon'));
+        const lbl = !isCurrentMonth
+          ? 'Non validé'
+          : (diff < 0 ? `En retard de ${-diff} j` : (diff === 0 ? "Aujourd'hui" : `Dans ${diff} j`));
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
         const selected = !!(this.groupSelect && this.groupSelect[exp.id]);
         return `
@@ -1844,7 +1924,7 @@
               <div class="bh-due-amount num">${this.fmt(exp.amount)}</div>
             </div>
             <div class="bh-due-actions">
-              <button class="bh-btn bh-btn-primary" onclick="BH.markPaid('${exp.id}', ${exp.amount}, '${acc.id}')">Valider ${this.fmt(exp.amount)}</button>
+              <button class="bh-btn bh-btn-primary" onclick="BH.markPaid('${exp.id}', ${exp.amount}, '${acc.id}', '${mKey}')">Valider ${this.fmt(exp.amount)}</button>
               <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${exp.id}', '${acc.id}')">Montant différent</button>
             </div>
           </div>`;
@@ -1856,13 +1936,16 @@
           + items.map(dueItemHtml).join('');
       };
 
-      let dueHtml = section('En retard', late)
-        + section("Aujourd'hui", today)
-        + section('Dépenses à venir', soonExp)
-        + section('Revenus à venir', soonInc);
+      let dueHtml = isCurrentMonth
+        ? (section('En retard', late)
+          + section("Aujourd'hui", today)
+          + section('Dépenses à venir', soonExp)
+          + section('Revenus à venir', soonInc))
+        : (section('Non validées', late.filter(i => i.kind === 'expense'))
+          + section('Non encaissés', late.filter(i => i.kind === 'income')));
 
       // Portefeuilles (budgets enveloppe avec dépenses internes multiples)
-      const wallets = this.state.expenses.filter(e => e.is_wallet).map(exp => {
+      const wallets = this.state.expenses.filter(e => e.is_wallet && this.isActiveInMonth(e, mKey)).map(exp => {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if (!acc) return null;
         const txs = this.getWalletTx(acc.id, exp.id, mKey);
@@ -1876,12 +1959,12 @@
       }).filter(Boolean);
 
       document.getElementById('bh-wallets-section').innerHTML = wallets.length
-        ? `<div class="bh-section-label">Portefeuilles</div>` + wallets.map(w => this.walletCardHtml(w)).join('')
+        ? `<div class="bh-section-label">Portefeuilles</div>` + wallets.map(w => this.walletCardHtml(w, mKey)).join('')
         : '';
 
       document.getElementById('bh-stat-remaining').textContent = this.fmt(totalDue);
       document.getElementById('bh-stat-paid').textContent = this.fmt(totalPaid);
-      document.getElementById('bh-due-section').innerHTML = dueHtml || '<div class="bh-empty">Tout est à jour !</div>';
+      document.getElementById('bh-due-section').innerHTML = dueHtml || '<div class="bh-empty">' + (isCurrentMonth ? 'Tout est à jour !' : 'Rien à afficher pour ce mois.') + '</div>';
       document.getElementById('bh-paid-list').innerHTML = paidExpHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien validé</div>';
       const paidIncEl = document.getElementById('bh-paid-incomes-list');
       if (paidIncEl) paidIncEl.innerHTML = paidIncHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
@@ -1913,15 +1996,20 @@
       return '';
     },
 
-    walletCardHtml({ exp, acc, txs, spent }) {
+    walletCardHtml({ exp, acc, txs, spent }, mKeyOpt) {
+      const mKey = mKeyOpt || this.todayViewKey();
       const remaining = Number(exp.amount) - spent;
       const pct = Math.max(0, Math.min(100, (spent / Number(exp.amount)) * 100 || 0));
       const expanded = !!(this.walletExpanded && this.walletExpanded[exp.id]);
       const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
       const sortedTxs = txs.slice().sort((a,b)=>Number(b.day)-Number(a.day));
-      const todayISO = this._todayISO();
-      const monthStart = todayISO.slice(0, 8) + '01';
-      const monthEnd = this.monthKey(new Date()) + '-' + String(new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()).padStart(2,'0');
+      const [y, m] = mKey.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const monthStart = mKey + '-01';
+      const monthEnd = mKey + '-' + String(lastDay).padStart(2, '0');
+      const defaultDate = mKey === this.monthKey(new Date())
+        ? this._todayISO()
+        : monthStart;
       const otherAccOpts = this.state.accounts
         .filter(a => a.id !== acc.id)
         .map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`)
@@ -1945,17 +2033,17 @@
                 <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· ${this.walletTxDateLabel(t)}</span> ${this.walletTxKindPill(t)}</span>
                 <span style="display:flex; align-items:center; gap:8px;">
                   <span class="num" style="color:${Number(t.amount) < 0 ? 'var(--sage-deep)' : 'inherit'};">${Number(t.amount) < 0 ? '+' + this.fmt(Math.abs(Number(t.amount))) : this.fmt(t.amount)}</span>
-                  <button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}')" title="Supprimer">✕</button>
+                  <button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}','${mKey}')" title="Supprimer">✕</button>
                 </span>
               </div>`).join('') : '<div style="font-size:12px; color:var(--ink-faint); padding:6px 0;">Aucune dépense saisie ce mois-ci.</div>'}
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;" onclick="event.stopPropagation()">
               <div style="display:flex; gap:6px;">
                 <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc / remboursement / apport">
                 <input type="number" id="wtx-amount-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:70px;" placeholder="+/- €" step="0.01">
-                <button class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}')">+</button>
+                <button class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}','${mKey}')">+</button>
               </div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                <input type="date" id="wtx-date-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:140px;" value="${todayISO}" min="${monthStart}" max="${monthEnd}">
+                <input type="date" id="wtx-date-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:140px;" value="${defaultDate}" min="${monthStart}" max="${monthEnd}">
                 <select id="wtx-from-${exp.id}" class="bh-input" style="margin:0; flex:1.2; min-width:140px;">
                   <option value="">Compte source : aucun</option>
                   ${otherAccOpts}
@@ -2061,7 +2149,7 @@
       const real = (this.state.expenses || []).find(e => e.id === expId);
       if (real) return real;
       if (this.isApportExpenseId(expId)) {
-        return this.listOutboundApportDues().find(a => a.id === expId) || null;
+        return this.listOutboundApportDues({ mKey: this.todayViewKey() }).find(a => a.id === expId) || null;
       }
       return null;
     },
@@ -2650,10 +2738,11 @@
       return total;
     },
 
-    async addWalletTx(expId, accId) {
+    async addWalletTx(expId, accId, mKeyOpt) {
       const desc = (document.getElementById(`wtx-desc-${expId}`)?.value || '').trim();
       const rawAmount = document.getElementById(`wtx-amount-${expId}`)?.value;
-      const dateStr = document.getElementById(`wtx-date-${expId}`)?.value || this._todayISO();
+      const mKey = mKeyOpt || this.todayViewKey();
+      const dateStr = document.getElementById(`wtx-date-${expId}`)?.value || (mKey === this.monthKey(new Date()) ? this._todayISO() : mKey + '-01');
       const fromAccId = (document.getElementById(`wtx-from-${expId}`)?.value || '').trim();
       let amount = Number(rawAmount);
       if (!desc || rawAmount === '' || rawAmount == null || !Number.isFinite(amount) || amount === 0) {
@@ -2668,9 +2757,8 @@
       }
       const d = new Date(dateStr + 'T00:00:00');
       if (isNaN(d.getTime())) { toast('Date invalide.'); return; }
-      const mKey = this.monthKey(new Date());
       const curKey = this.monthKey(d);
-      if (curKey !== mKey) { toast('La date doit être dans le mois en cours.'); return; }
+      if (curKey !== mKey) { toast('La date doit être dans le mois affiché.'); return; }
       const day = d.getDate();
       const bucket = this.state.walletTx?.[accId + '_' + mKey] || {};
       const list = (bucket[expId] || []).slice();
@@ -2694,8 +2782,8 @@
       }, 'ajout dépense portefeuille');
     },
 
-    async deleteWalletTx(expId, accId, txId) {
-      const mKey = this.monthKey(new Date());
+    async deleteWalletTx(expId, accId, txId, mKeyOpt) {
+      const mKey = mKeyOpt || this.todayViewKey();
       const bucket = this.state.walletTx?.[accId + '_' + mKey] || {};
       const list = (bucket[expId] || []).filter(t => t.id !== txId);
       const newBucket = { ...bucket, [expId]: list };
@@ -2868,7 +2956,7 @@
     },
 
     async markPaid(expId, amount, accId, mKeyOpt) {
-      const mKey = mKeyOpt || this.monthKey(new Date());
+      const mKey = mKeyOpt || this.todayViewKey();
       let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
       recs[expId] = { amount, on: new Date().toISOString() };
 
@@ -2879,8 +2967,8 @@
       }, 'validation du paiement');
     },
 
-    async unmarkPaid(expId, accId) {
-      const mKey = this.monthKey(new Date());
+    async unmarkPaid(expId, accId, mKeyOpt) {
+      const mKey = mKeyOpt || this.todayViewKey();
       let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
       if (!recs[expId]) return;
       delete recs[expId];
@@ -2893,7 +2981,7 @@
     },
 
     async markIncome(incId, amount, accId, mKeyOpt) {
-      const mKey = mKeyOpt || this.monthKey(new Date());
+      const mKey = mKeyOpt || this.todayViewKey();
       let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
       recs[incId] = { amount, on: new Date().toISOString() };
 
@@ -2904,8 +2992,8 @@
       }, 'encaissement du revenu');
     },
 
-    async unmarkIncome(incId, accId) {
-      const mKey = this.monthKey(new Date());
+    async unmarkIncome(incId, accId, mKeyOpt) {
+      const mKey = mKeyOpt || this.todayViewKey();
       let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
       if (!recs[incId]) return;
       delete recs[incId];
@@ -3017,7 +3105,7 @@
             }
           }
         }
-        const mKey = this.monthKey(new Date());
+        const mKey = this.todayViewKey();
         if (kind === 'income') {
           let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
           recs[expId] = { amount: newAmount, on: new Date().toISOString() };
@@ -3190,7 +3278,7 @@
         return;
       }
       const dist = this.distributeGroupAmounts(items, globalAmount);
-      const mKey = this.monthKey(new Date());
+      const mKey = this.todayViewKey();
       const on = new Date().toISOString();
 
       await withRetry(async () => {
@@ -5758,21 +5846,123 @@
        toast('Export CSV téléchargé');
     },
 
-    exportPDF() {
+    monthsBetween(fromKey, toKey) {
+       let a = fromKey, b = toKey;
+       if (a > b) { const t = a; a = b; b = t; }
+       const out = [];
+       let [y, m] = a.split('-').map(Number);
+       const [y2, m2] = b.split('-').map(Number);
+       while (y < y2 || (y === y2 && m <= m2)) {
+          const d = new Date(y, m - 1, 1);
+          out.push({ key: this.monthKey(d), date: d });
+          m += 1;
+          if (m > 12) { m = 1; y += 1; }
+       }
+       return out;
+    },
+    openExportPDF() {
+       const cur = this.monthKey(new Date());
+       const fromEl = document.getElementById('pdf-from');
+       const toEl = document.getElementById('pdf-to');
+       const singleEl = document.getElementById('pdf-month');
+       if (singleEl && !singleEl.value) singleEl.value = cur;
+       if (toEl && !toEl.value) toEl.value = cur;
+       if (fromEl && !fromEl.value) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - 5);
+          fromEl.value = this.monthKey(d);
+       }
+       const curRadio = document.querySelector('input[name="pdf-period"][value="current"]');
+       if (curRadio) curRadio.checked = true;
+       this.syncPdfPeriodUi();
+       document.getElementById('bh-pdf-overlay')?.classList.add('open');
+    },
+    closeExportPDF() {
+       document.getElementById('bh-pdf-overlay')?.classList.remove('open');
+    },
+    syncPdfPeriodUi() {
+       const mode = document.querySelector('input[name="pdf-period"]:checked')?.value || 'current';
+       const single = document.getElementById('pdf-month');
+       const from = document.getElementById('pdf-from');
+       const to = document.getElementById('pdf-to');
+       if (single) single.disabled = mode !== 'single';
+       if (from) from.disabled = mode !== 'multi';
+       if (to) to.disabled = mode !== 'multi';
+    },
+    confirmExportPDF() {
+       const mode = document.querySelector('input[name="pdf-period"]:checked')?.value || 'current';
+       const cur = this.monthKey(new Date());
+       if (mode === 'current') {
+          this.closeExportPDF();
+          this.exportPDF({ mode: 'single', mKey: cur });
+          return;
+       }
+       if (mode === 'single') {
+          const mKey = document.getElementById('pdf-month')?.value;
+          if (!mKey) { toast('Choisis un mois.'); return; }
+          this.closeExportPDF();
+          this.exportPDF({ mode: 'single', mKey });
+          return;
+       }
+       let fromKey = document.getElementById('pdf-from')?.value;
+       let toKey = document.getElementById('pdf-to')?.value;
+       if (!fromKey || !toKey) { toast('Indique le début et la fin de la période.'); return; }
+       if (fromKey > toKey) { const t = fromKey; fromKey = toKey; toKey = t; }
+       const months = this.monthsBetween(fromKey, toKey);
+       if (months.length > 24) { toast('Limite : 24 mois maximum.'); return; }
+       this.closeExportPDF();
+       this.exportPDF({ mode: 'multi', fromKey, toKey, months });
+    },
+    exportPDF(opts = {}) {
        const now = new Date();
-       const mKey = this.monthKey(now);
-       const monthTitle = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+       const mode = opts.mode || 'single';
+       const isMulti = mode === 'multi';
+       const months = isMulti
+          ? (opts.months || this.monthsBetween(opts.fromKey, opts.toKey))
+          : null;
+       const mKey = isMulti
+          ? (months[months.length - 1]?.key || this.monthKey(now))
+          : (opts.mKey || this.monthKey(now));
+       const [my, mm] = mKey.split('-').map(Number);
+       const monthTitle = isMulti
+          ? (this.formatMonthKey(opts.fromKey || months[0].key) + ' → ' + this.formatMonthKey(opts.toKey || months[months.length - 1].key))
+          : new Date(my, mm - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
        const sage = '#3E6B57', sageDeep = '#28453A', clay = '#AE4B3C', gold = '#B7912F';
        const ink = '#152520', inkSoft = '#5A6B62', line = '#DBE3DD', paper = '#F3F6F3';
 
-       const theoCats = this.categoryTotalsForMonth(mKey, { mode: 'theorique' });
-       const effCats = this.categoryTotalsForMonth(mKey, { mode: 'effective' });
+       // Agrégats : un mois, ou somme sur la période
+       const rangeKeys = isMulti ? months.map(m => m.key) : [mKey];
+       const mergeCats = (modeStat) => {
+          const acc = {};
+          rangeKeys.forEach(k => {
+             const cats = this.categoryTotalsForMonth(k, { mode: modeStat });
+             Object.entries(cats).forEach(([c, v]) => { acc[c] = (acc[c] || 0) + (Number(v) || 0); });
+          });
+          return acc;
+       };
+       const theoCats = mergeCats('theorique');
+       const effCats = mergeCats('effective');
        const allCats = [...new Set([...Object.keys(theoCats), ...Object.keys(effCats)])]
           .sort((a, b) => (theoCats[b] || 0) - (theoCats[a] || 0));
        const theoTotal = this.sumCategoryTotals(theoCats);
        const effTotal = this.sumCategoryTotals(effCats);
-       const bilan = this.monthIncomeExpenseBreakdown(mKey, { mode: 'effective' });
-       const bilanTheo = this.monthIncomeExpenseBreakdown(mKey, { mode: 'theorique' });
+       const bilan = rangeKeys.reduce((agg, k) => {
+          const b = this.monthIncomeExpenseBreakdown(k, { mode: 'effective' });
+          agg.revenus += b.revenus;
+          agg.revenusDirects += b.revenusDirects;
+          agg.apports += b.apports;
+          agg.depenses += b.depenses;
+          agg.epargne += b.epargne;
+          agg.capacite += b.capacite;
+          return agg;
+       }, { revenus: 0, revenusDirects: 0, apports: 0, depenses: 0, epargne: 0, capacite: 0 });
+       const bilanTheo = rangeKeys.reduce((agg, k) => {
+          const b = this.monthIncomeExpenseBreakdown(k, { mode: 'theorique' });
+          agg.depenses += b.depenses;
+          agg.epargne += b.epargne;
+          agg.capacite += b.capacite;
+          return agg;
+       }, { depenses: 0, epargne: 0, capacite: 0 });
 
        // Barres comparatives catégorie (théorique vs effectif)
        const maxCat = Math.max(...allCats.map(c => Math.max(theoCats[c] || 0, effCats[c] || 0)), 1);
@@ -5792,7 +5982,7 @@
             <div class="bar-track"><div class="bar-theo" style="width:${tPct}%"></div></div>
             <div class="bar-track"><div class="bar-eff" style="width:${ePct}%"></div></div>
           </div>`;
-       }).join('') : '<p class="muted">Aucune catégorie ce mois.</p>';
+       }).join('') : '<p class="muted">Aucune catégorie sur la période.</p>';
 
        // Camemberts (SVG autonomes pour l'impression)
        const pieTheo = this.pieChart(
@@ -5804,7 +5994,7 @@
           { size: 140, centerSub: 'Dépensé' }
        );
 
-       // Graphiques par compte
+       // Graphiques par compte (dernier mois de la période, ou mois choisi)
        const accountsHtml = this.getOrderedAccounts().map(acc => {
           const theo = this.categoryTotalsForMonth(mKey, { accFilter: acc.id, mode: 'theorique' });
           const eff = this.categoryTotalsForMonth(mKey, { accFilter: acc.id, mode: 'effective' });
@@ -5831,7 +6021,7 @@
              </tr>`;
           }).join('');
           return `<section class="card account-card">
-            <h3>${this.esc(acc.name)}</h3>
+            <h3>${this.esc(acc.name)}${isMulti ? ` <span class="muted" style="font-weight:500;font-size:11px;">· ${this.esc(this.formatMonthKey(mKey))}</span>` : ''}</h3>
             <div class="kpi-row">
               <div class="kpi"><span>Théorique</span><strong>${this.fmt(tTot)}</strong></div>
               <div class="kpi accent"><span>Effectif</span><strong>${this.fmt(eTot)}</strong></div>
@@ -5844,13 +6034,15 @@
           </section>`;
        }).join('');
 
-       // Évolution 6 mois (effectif)
-       const months = this.monthKeysBack(5).slice().reverse();
-       const maxRev = Math.max(...months.map(m => {
+       // Évolution (période choisie, ou 6 mois autour du mois unique)
+       const evolMonths = isMulti
+          ? months
+          : this.monthKeysBack(5).slice().reverse();
+       const maxRev = Math.max(...evolMonths.map(m => {
           const b = this.monthIncomeExpenseBreakdown(m.key, { mode: 'effective' });
           return Math.max(b.revenus, b.depenses + b.epargne);
        }), 1);
-       const evolHtml = months.map(m => {
+       const evolHtml = evolMonths.map(m => {
           const b = this.monthIncomeExpenseBreakdown(m.key, { mode: 'effective' });
           const lbl = m.date.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
           const base = Math.max(b.revenus, b.depenses + b.epargne, 0.01);
@@ -5868,6 +6060,28 @@
             <div class="evol-amt">${this.fmt(b.revenus)}</div>
           </div>`;
        }).join('');
+
+       const historyTableHtml = isMulti
+          ? `<h2>Historique mensuel</h2>
+             <div class="card" style="padding:8px 10px;">
+               <table>
+                 <thead><tr>
+                   <th>Mois</th><th style="text-align:right">Revenus</th><th style="text-align:right">Dépenses</th>
+                   <th style="text-align:right">Épargné</th><th style="text-align:right">Capacité</th>
+                 </tr></thead>
+                 <tbody>${months.map(m => {
+                    const b = this.monthIncomeExpenseBreakdown(m.key, { mode: 'effective' });
+                    return `<tr>
+                      <td>${this.esc(this.formatMonthKey(m.key))}</td>
+                      <td class="num">${this.fmt(b.revenus)}</td>
+                      <td class="num">${this.fmt(b.depenses)}</td>
+                      <td class="num">${this.fmt(b.epargne)}</td>
+                      <td class="num">${this.fmt(b.capacite)}</td>
+                    </tr>`;
+                 }).join('')}</tbody>
+               </table>
+             </div>`
+          : '';
 
        // Apports salaire
        const mainAccId = this.state.profile?.main_account_id;
@@ -5979,16 +6193,18 @@
          </style>
        </head><body>
          <h1>Rapport Budget</h1>
-         <div class="sub">${this.esc(monthTitle)} · généré le ${now.toLocaleDateString('fr-FR')} · comparaison dépenses théoriques vs effectives</div>
+         <div class="sub">${this.esc(monthTitle)} · généré le ${now.toLocaleDateString('fr-FR')} · ${isMulti ? 'historique multi-mois' : 'comparaison dépenses théoriques vs effectives'}</div>
 
          <div class="hero">
-           <div class="box theo"><span>Dépenses théoriques</span><strong>${this.fmt(theoTotal)}</strong></div>
-           <div class="box eff"><span>Dépenses effectives</span><strong>${this.fmt(effTotal)}</strong></div>
-           <div class="box"><span>Revenus (effectif)</span><strong>${this.fmt(bilan.revenus)}</strong></div>
-           <div class="box"><span>Capacité restante</span><strong style="color:${sageDeep}">${this.fmt(bilan.capacite)}</strong></div>
+           <div class="box theo"><span>Dépenses théoriques${isMulti ? ' (Σ)' : ''}</span><strong>${this.fmt(theoTotal)}</strong></div>
+           <div class="box eff"><span>Dépenses effectives${isMulti ? ' (Σ)' : ''}</span><strong>${this.fmt(effTotal)}</strong></div>
+           <div class="box"><span>Revenus (effectif${isMulti ? ' Σ' : ''})</span><strong>${this.fmt(bilan.revenus)}</strong></div>
+           <div class="box"><span>Capacité${isMulti ? ' (Σ)' : ' restante'}</span><strong style="color:${sageDeep}">${this.fmt(bilan.capacite)}</strong></div>
          </div>
 
-         <h2>Théorique vs effectif — par catégorie</h2>
+         ${historyTableHtml}
+
+         <h2>Théorique vs effectif — par catégorie${isMulti ? ' (période)' : ''}</h2>
          <div class="legend">
            <span><i style="background:${inkSoft};opacity:.5"></i>Théorique (budget)</span>
            <span><i style="background:${sage}"></i>Effectif (validé / portefeuilles)</span>
@@ -6001,7 +6217,7 @@
            <div class="card"><h3>Dépenses effectives</h3>${pieEff}</div>
          </div>
 
-         <h2>Bilan du mois</h2>
+         <h2>${isMulti ? 'Bilan cumulé' : 'Bilan du mois'}</h2>
          <div class="card">
            <div class="kpi-row">
              <div class="kpi"><span>Revenus directs</span><strong>${this.fmt(bilan.revenusDirects)}</strong></div>
@@ -6009,10 +6225,10 @@
              <div class="kpi"><span>Déjà épargné</span><strong style="color:${gold}">${this.fmt(bilan.epargne)}</strong></div>
              <div class="kpi accent"><span>Capacité</span><strong>${this.fmt(bilan.capacite)}</strong></div>
            </div>
-           <p class="muted" style="margin:0;font-size:11px;">Référence théorique du mois — dépenses ${this.fmt(bilanTheo.depenses)} · épargne ${this.fmt(bilanTheo.epargne)} · capacité ${this.fmt(bilanTheo.capacite)}</p>
+           <p class="muted" style="margin:0;font-size:11px;">Référence théorique${isMulti ? ' cumulée' : ' du mois'} — dépenses ${this.fmt(bilanTheo.depenses)} · épargne ${this.fmt(bilanTheo.epargne)} · capacité ${this.fmt(bilanTheo.capacite)}</p>
          </div>
 
-         <h2>Évolution (6 mois effectifs)</h2>
+         <h2>Évolution (${isMulti ? evolMonths.length + ' mois' : '6 mois'} effectifs)</h2>
          <div class="legend">
            <span><i style="background:${clay}"></i>Dépenses</span>
            <span><i style="background:${gold}"></i>Épargné</span>
@@ -6023,18 +6239,18 @@
          <h2>Répartition du salaire (apports)</h2>
          <div class="card">${salaryPie}</div>
 
-         <h2>Par compte</h2>
-         ${accountsHtml || '<p class="muted">Aucun compte avec des dépenses ce mois.</p>'}
+         <h2>Par compte${isMulti ? ' (dernier mois de la période)' : ''}</h2>
+         ${accountsHtml || '<p class="muted">Aucun compte avec des dépenses.</p>'}
 
-         <h2>Détail des saisies</h2>
+         ${isMulti ? '' : `<h2>Détail des saisies</h2>
          <div class="card" style="padding:8px 10px;">
            <table>
              <thead><tr><th>Description</th><th>Catégorie</th><th>Compte</th><th style="text-align:right">Théo.</th><th style="text-align:right">Eff.</th><th style="text-align:right">%</th></tr></thead>
              <tbody>${detailRows || '<tr><td colspan="6" class="muted">Aucune dépense</td></tr>'}</tbody>
            </table>
-         </div>
+         </div>`}
 
-         <div class="footer">Budget Partagé · Rapport non contractuel · ${this.esc(mKey)}</div>
+         <div class="footer">Budget Partagé · Rapport non contractuel · ${this.esc(isMulti ? (opts.fromKey + ' → ' + opts.toKey) : mKey)}</div>
        </body></html>`);
        win.document.close();
        setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 500);
