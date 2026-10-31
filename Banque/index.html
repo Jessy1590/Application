@@ -726,7 +726,12 @@
         </div>
         <div>
           <div class="bh-field-label" style="margin-top:0;">Mois</div>
-          <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()" oninput="BH.onVerifMonthChange()">
+          <input type="hidden" id="verif-month" value="">
+          <div class="bh-month-nav bh-verif-month-nav" style="display:flex; justify-content:space-between; background:var(--line-soft); border-radius:12px; padding:6px;">
+            <button type="button" onclick="BH.shiftVerifMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--card);" aria-label="Mois précédent">&larr;</button>
+            <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; gap:8px; text-transform:capitalize; font-size:14px;" id="bh-verif-month-label">Mois</div>
+            <button type="button" id="bh-verif-month-next" onclick="BH.shiftVerifMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--card);" aria-label="Mois suivant">&rarr;</button>
+          </div>
         </div>
       </div>
 
@@ -4429,9 +4434,8 @@
     },
     applyVerifMonthSelection(mKey) {
       if (!mKey) return;
-      const monthInp = document.getElementById('verif-month');
-      if (monthInp) monthInp.value = mKey;
-      this.verif.mKey = mKey;
+      this.syncVerifMonthUi(mKey);
+      this._verifMonthHandled = mKey;
       this.closeVerifMonthPick();
       this.finishVerifImport(mKey);
     },
@@ -4440,9 +4444,7 @@
       if (!ops.length) return;
       const ignoredLocal = this.loadVerifIgnored();
       const mSel = mKey || document.getElementById('verif-month')?.value || this.verif.mKey || this.monthKey(new Date());
-      const monthInp = document.getElementById('verif-month');
-      if (monthInp && monthInp.value !== mSel) monthInp.value = mSel;
-      this.verif.mKey = mSel;
+      this.syncVerifMonthUi(mSel);
       this._verifMonthHandled = mSel;
       const filtered = ops.filter(o => (o.date || '').slice(0, 7) === mSel);
       // Si le mois choisi n’a aucune ligne, on garde ce mois (liste vide) — pas de repli « tout le fichier »
@@ -4542,17 +4544,44 @@
         this.renderUnverifiedExpenses();
       }
     },
-    onVerifMonthChange() {
+    syncVerifMonthUi(mKey) {
+      const key = mKey || this.verif.mKey || this.monthKey(new Date());
+      this.verif.mKey = key;
       const monthInp = document.getElementById('verif-month');
-      const mKey = (monthInp?.value || '').trim();
+      if (monthInp) monthInp.value = key;
+      const label = document.getElementById('bh-verif-month-label');
+      if (label) {
+        const isCurrent = key === this.monthKey(new Date());
+        label.innerHTML = this.esc(this.formatMonthKey(key))
+          + (isCurrent
+            ? ''
+            : ' <span style="font-size:11px;font-weight:600;color:var(--ink-faint);text-transform:none;">(passé)</span>');
+      }
+      const nextBtn = document.getElementById('bh-verif-month-next');
+      if (nextBtn) {
+        const atCurrent = key >= this.monthKey(new Date());
+        nextBtn.disabled = atCurrent;
+        nextBtn.style.opacity = atCurrent ? '0.35' : '1';
+      }
+    },
+    shiftVerifMonth(delta) {
+      const curKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      const [y, m] = curKey.split('-').map(Number);
+      const next = new Date(y, m - 1 + delta, 1);
+      const nextKey = this.monthKey(next);
+      if (nextKey > this.monthKey(new Date())) return;
+      this.onVerifMonthChange(nextKey);
+    },
+    onVerifMonthChange(forcedKey) {
+      const monthInp = document.getElementById('verif-month');
+      const mKey = (forcedKey || monthInp?.value || this.verif.mKey || '').trim();
       if (!mKey) return;
-      // Évite les doubles appels oninput+onchange pour la même valeur
-      if (this.verif.mKey === mKey && this._verifMonthHandled === mKey) {
+      if (this.verif.mKey === mKey && this._verifMonthHandled === mKey && !forcedKey) {
         if (this.verif.pane === 'status') this.renderVerifStatus();
         return;
       }
       this._verifMonthHandled = mKey;
-      this.verif.mKey = mKey;
+      this.syncVerifMonthUi(mKey);
 
       // Toujours rafraîchir le statut budget pour le mois choisi
       this.renderUnverifiedExpenses();
@@ -4761,11 +4790,9 @@
       const pick = ordered.some(a => a.id === prevAcc) ? prevAcc : (this.state.profile?.main_account_id || ordered[0]?.id || '');
       if (pick) accSel.value = pick;
       this.verif.accId = accSel.value;
-      // Préserver le mois choisi (état) plutôt que de le perdre au re-render
-      if (this.verif.mKey) monthInp.value = this.verif.mKey;
-      else if (!monthInp.value) monthInp.value = this.monthKey(new Date());
-      this.verif.mKey = monthInp.value || this.monthKey(new Date());
-      this._verifMonthHandled = this.verif.mKey;
+      const mKey = this.verif.mKey || monthInp.value || this.monthKey(new Date());
+      this.syncVerifMonthUi(mKey);
+      this._verifMonthHandled = mKey;
       if (bankSel) {
         const saved = localStorage.getItem('bh-verif-bank') || this.verif.bank || 'auto';
         bankSel.value = saved;
