@@ -145,8 +145,9 @@
   .bh-verif-alt .alt-head{ display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
   .bh-verif-alt .alt-score{ font-weight:700; font-variant-numeric:tabular-nums; color:var(--sage-deep); white-space:nowrap; }
   .bh-verif-alt .alt-meta{ font-size:10.5px; color:var(--ink-faint); margin-top:2px; }
-  .bh-verif-actions{ display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
-  .bh-verif-actions .bh-btn{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
+  .bh-verif-actions{ display:flex; flex-wrap:nowrap; gap:5px; align-items:center; }
+  .bh-verif-actions .bh-btn,
+  .bh-verif-actions .bh-btn-ghost{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
   .bh-btn-done{
     background:var(--sage-pale) !important; color:var(--sage-deep) !important;
     border:1px solid var(--sage) !important; font-weight:600;
@@ -209,7 +210,8 @@
     display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
     background:var(--line-soft); color:var(--ink-soft); margin-right:4px; vertical-align:middle;
   }
-  .bh-verif-gaps-body{ max-height:min(62vh, 520px); overflow:auto; margin:0 -4px; padding:0 4px; }
+  .bh-verif-gaps-body{ max-height:min(68vh, 640px); overflow:auto; margin:0 -4px; padding:0 4px; }
+  #bh-verif-gaps-overlay .bh-sheet{ max-width:860px; }
   .bh-verif-gaps-section{ margin-bottom:16px; }
   .bh-verif-gaps-section h4{
     font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
@@ -220,14 +222,18 @@
     padding:2px 8px; border-radius:999px; font-size:11px;
   }
   .bh-verif-gaps-row{
-    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
     padding:10px 12px; border:1px solid var(--line-soft); border-radius:12px;
     background:var(--card); margin-bottom:8px; font-size:13px;
   }
   .bh-verif-gaps-row.app{ border-left:3px solid var(--amber); }
   .bh-verif-gaps-row.bank{ border-left:3px solid var(--clay); }
+  .bh-verif-gaps-main{ min-width:0; flex:1; }
+  .bh-verif-gaps-main strong{ word-break:break-word; }
   .bh-verif-gaps-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
-  .bh-verif-gaps-row .bh-verif-actions{ margin-top:0; flex-shrink:0; justify-content:flex-end; }
+  .bh-verif-gaps-row .num{ flex-shrink:0; }
+  .bh-verif-gap-actions{ display:flex; flex-wrap:nowrap; gap:5px; flex-shrink:0; align-items:center; }
+  .bh-verif-gap-actions .bh-btn{ flex:0 0 auto; padding:6px 8px; font-size:12px; white-space:nowrap; }
   .bh-verif-gaps-empty{ padding:14px 8px; text-align:center; color:var(--ink-soft); font-size:12.5px; }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
@@ -359,6 +365,7 @@
   /* SHEET (MODALS) */
   .bh-sheet-overlay{ position:fixed; inset:0; background:rgba(21,37,32,0.42); z-index:50; display:none; align-items:flex-end; justify-content:center; }
   .bh-sheet-overlay.open{display:flex;}
+  .bh-sheet-overlay.front{ z-index:80; }
   .bh-sheet{ background:var(--paper); width:100%; max-width:560px; border-radius:20px 20px 0 0; padding:10px 20px calc(24px + env(safe-area-inset-bottom)); max-height:88vh; overflow-y:auto; animation:bhSheetUp 0.22s ease; }
   @keyframes bhSheetUp{from{transform:translateY(24px); opacity:0.4;} to{transform:translateY(0); opacity:1;}}
   .bh-sheet-handle{width:36px;height:4px;background:var(--line); border-radius:4px; margin:8px auto 14px;}
@@ -580,18 +587,21 @@
     .bh-verif-drop{ min-height:88px; }
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 320px); }
     .bh-verif-status-wrap{ max-height:calc(100vh - 280px); }
-    .bh-verif-table{ table-layout:auto; }
+    .bh-verif-table{ table-layout:auto; width:max-content; min-width:100%; }
     .bh-verif-table td{ vertical-align:top; }
     .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:1%; }
     .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:14%; max-width:200px; }
     .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:1%; }
     .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:1%; }
     .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){
-      width:46%; min-width:420px; overflow:visible; white-space:normal;
+      width:auto; min-width:320px; overflow:visible; white-space:normal;
     }
-    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:auto; }
-    .bh-verif-actions{ flex-wrap:wrap; gap:6px; }
-    .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; }
+    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){
+      width:1%; white-space:nowrap; overflow:visible;
+    }
+    .bh-verif-actions{ flex-wrap:nowrap; gap:5px; }
+    .bh-verif-actions .bh-btn,
+    .bh-verif-actions .bh-btn-ghost{ flex:0 0 auto; padding:6px 8px; font-size:12px; }
 
     /* Stats : grille large */
     .bh-topbar .bh-brand{ display:none; }
@@ -633,7 +643,7 @@
     #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); }
     .bh-view{ padding:16px 40px 48px; }
     .bh-topbar{ padding:22px 40px 14px; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:520px; width:50%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:380px; }
   }
 
 </style>
@@ -3315,10 +3325,10 @@
       catSel.value = p.category || '';
       document.getElementById('exc-cat-new').value = '';
       document.getElementById('exc-cat-new').style.display = 'none';
-      document.getElementById('bh-exceptional-overlay').classList.add('open');
+      this.presentOverlay('bh-exceptional-overlay');
     },
     closeExceptionalSheet() {
-      document.getElementById('bh-exceptional-overlay').classList.remove('open');
+      document.getElementById('bh-exceptional-overlay').classList.remove('open', 'front');
       if (this.verif) this.verif.pendingExceptionalOpId = null;
     },
     onExceptionalCatSelect() {
@@ -3503,11 +3513,11 @@
         permBtn.style.display = showPerm ? '' : 'none';
       }
       this.setDiffAmountMode('temp');
-      document.getElementById('bh-diffamount-overlay').classList.add('open');
+      this.presentOverlay('bh-diffamount-overlay');
     },
 
     closeDifferentAmount() {
-      document.getElementById('bh-diffamount-overlay').classList.remove('open');
+      document.getElementById('bh-diffamount-overlay').classList.remove('open', 'front');
       const permBtn = document.getElementById('da-mode-perm');
       if (permBtn) permBtn.style.display = '';
       const titleEl = document.querySelector('#bh-diffamount-overlay .bh-sheet-title');
@@ -4508,6 +4518,14 @@
 
       return { mKey, accId, appGaps, bankGaps };
     },
+    presentOverlay(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      document.body.appendChild(el);
+      el.classList.add('open', 'front');
+      const field = el.querySelector('input, select, textarea');
+      if (field) requestAnimationFrame(() => { try { field.focus({ preventScroll: true }); } catch (e) {} });
+    },
     openVerifGapsSheet(gapsOpt) {
       this.verif.gapLinkApp = null;
       const gaps = gapsOpt || this.collectVerifGaps();
@@ -4584,17 +4602,15 @@
           const id = this.esc(g.id);
           const acc = this.esc(g.accId || '');
           return `<div class="bh-verif-gaps-row app">
-            <div style="min-width:0;">
+            <div class="bh-verif-gaps-main">
               <div><span class="bh-verif-acc-tag">${this.esc(g.accName || '')}</span><strong>${this.esc(g.label)}</strong></div>
               <div class="meta">${kindFr[g.kind] || g.kind}${g.paid ? ' · saisi' : ' · non saisi'} · jour ${g.day || '—'}${g.category ? ' · ' + this.esc(g.category) : ''}</div>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-              <span class="num">${this.fmt(g.amount)}</span>
-              <div class="bh-verif-actions">
-                <button type="button" class="bh-btn bh-btn-ghost" title="Ne plus proposer cet écart" onclick="event.stopPropagation(); BH.ignoreVerifAppGap('${kid}','${id}')">Oublier</button>
-                <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une ligne du relevé" onclick="event.stopPropagation(); BH.startVerifGapLinkApp('${kid}','${id}','${acc}')">Lier</button>
-                <button type="button" class="bh-btn bh-btn-primary" title="Valider ou saisir" onclick="event.stopPropagation(); BH.saisieVerifAppGap('${kid}','${id}','${acc}',${Number(g.amount) || 0})">Saisie</button>
-              </div>
+            <span class="num">${this.fmt(g.amount)}</span>
+            <div class="bh-verif-gap-actions">
+              <button type="button" class="bh-btn bh-btn-ghost" title="Ne plus proposer cet écart" onclick="event.stopPropagation(); BH.ignoreVerifAppGap('${kid}','${id}')">Oublier</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une ligne du relevé" onclick="event.stopPropagation(); BH.startVerifGapLinkApp('${kid}','${id}','${acc}')">Lier</button>
+              <button type="button" class="bh-btn bh-btn-primary" title="Valider ou saisir" onclick="event.stopPropagation(); BH.saisieVerifAppGap('${kid}','${id}','${acc}',${Number(g.amount) || 0})">Saisie</button>
             </div>
           </div>`;
         }).join('')
@@ -4606,17 +4622,15 @@
           const amtColor = g.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
           const weak = g.weakMatch ? ` · score faible ${g.score}%` : '';
           return `<div class="bh-verif-gaps-row bank">
-            <div style="min-width:0;">
+            <div class="bh-verif-gaps-main">
               <div><strong>${this.esc(g.label)}</strong></div>
               <div class="meta">${dateLbl}${weak}${g.matchLabel ? ' · ' + this.esc(g.matchLabel) : ''}</div>
             </div>
-            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-              <span class="num" style="color:${amtColor};">${this.fmt(g.amount)}</span>
-              <div class="bh-verif-actions">
-                <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne banque" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublier</button>
-                <button type="button" class="bh-btn bh-btn-outline" title="Lier à une saisie existante" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
-                <button type="button" class="bh-btn bh-btn-primary" title="Créer la saisie manquante" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Saisie</button>
-              </div>
+            <span class="num" style="color:${amtColor};">${this.fmt(g.amount)}</span>
+            <div class="bh-verif-gap-actions">
+              <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne banque" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublier</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Lier à une saisie existante" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
+              <button type="button" class="bh-btn bh-btn-primary" title="Créer la saisie manquante" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Saisie</button>
             </div>
           </div>`;
         }).join('')
@@ -6197,7 +6211,7 @@
       if (search) search.value = '';
       this.syncVerifLinkKindUi();
       this.refreshVerifLinkList();
-      document.getElementById('bh-verif-link-overlay').classList.add('open');
+      this.presentOverlay('bh-verif-link-overlay');
     },
     setVerifLinkKind(kind) {
       this.verif.linkKindFilter = kind || '';
@@ -6309,7 +6323,7 @@
             : 'Aucune saisie non liée pour ce mois.'}</div>`;
     },
     closeVerifLink() {
-      document.getElementById('bh-verif-link-overlay').classList.remove('open');
+      document.getElementById('bh-verif-link-overlay').classList.remove('open', 'front');
       this.verif.linkOpId = null;
     },
     async confirmVerifLink(kind, id, expId, accIdParam) {
@@ -6393,7 +6407,7 @@
       document.getElementById('verif-refund-until-wrap').style.display = 'none';
       if (untilMonth) untilMonth.value = this.verif.mKey || this.monthKey(new Date());
       this.refreshVerifRefundExpenses();
-      document.getElementById('bh-verif-refund-overlay').classList.add('open');
+      this.presentOverlay('bh-verif-refund-overlay');
     },
     refreshVerifRefundExpenses() {
       const accId = document.getElementById('verif-refund-account')?.value;
@@ -6410,7 +6424,7 @@
         : '<option value="">Aucune dépense sur ce compte</option>';
     },
     closeVerifRefund() {
-      document.getElementById('bh-verif-refund-overlay').classList.remove('open');
+      document.getElementById('bh-verif-refund-overlay').classList.remove('open', 'front');
       this.verif.refundOpId = null;
     },
     async confirmVerifRefund() {
@@ -6513,7 +6527,7 @@
       if (!document.getElementById('verif-wallet-select').options.length) {
         toast('Aucun portefeuille sur ce compte — change de compte');
       }
-      document.getElementById('bh-verif-wallet-overlay').classList.add('open');
+      this.presentOverlay('bh-verif-wallet-overlay');
     },
     refreshVerifWalletSelect() {
       const accId = document.getElementById('verif-wallet-account')?.value;
@@ -6525,7 +6539,7 @@
         : '<option value="">Aucun portefeuille actif</option>';
     },
     closeVerifWallet() {
-      document.getElementById('bh-verif-wallet-overlay').classList.remove('open');
+      document.getElementById('bh-verif-wallet-overlay').classList.remove('open', 'front');
       this.verif.walletOpId = null;
     },
     async confirmVerifWallet() {
@@ -7740,7 +7754,7 @@
       document.getElementById('bh-duplicate-btn').style.display = 'none';
       this.populateSheetSelects();
       this.updateSheetForm();
-      document.getElementById('bh-sheet-overlay').classList.add('open');
+      this.presentOverlay('bh-sheet-overlay');
     },
 
     openEditSheet(type, id) {
@@ -7773,7 +7787,7 @@
          setTimeout(() => document.getElementById('f-payer').value = item.payer_id, 50);
       }
       document.getElementById('bh-duplicate-btn').style.display = 'flex';
-      document.getElementById('bh-sheet-overlay').classList.add('open');
+      this.presentOverlay('bh-sheet-overlay');
     },
 
     // Remplit les listes déroulantes Compte / Catégorie du formulaire saisie
@@ -7905,7 +7919,7 @@
       }
     },
 
-    closeSheet() { document.getElementById('bh-sheet-overlay').classList.remove('open'); },
+    closeSheet() { document.getElementById('bh-sheet-overlay').classList.remove('open', 'front'); },
 
     async saveEntry() {
       const type = this.sheetMode;
