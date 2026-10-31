@@ -24,6 +24,7 @@
 - **Persistance vérifs :** Table Supabase `bank_verifications` — actions unitaires + bouton Enregistrer (lot) ; portefeuille lié à l’id de transaction.
 - **CSV Crédit Agricole (export actuel) :** Préambule (`Téléchargement du…`, solde, plage) puis en-tête `Date d'opération;Date valeur;Libellé;Débit euros;Crédit euros;` ; libellés multi-lignes entre guillemets (type + détail) ; encodage Windows-1252. Le parseur saute le préambule, gère les retours ligne dans les guillemets, et nettoie les libellés (carte → marchand, prélèvement → créancier, virement → motif).
 - **Relevé multi-mois :** Plus de bascule auto vers le mois dominant — popup « Quel mois vérifier ? » avec le nombre d’opérations par mois ; le fichier reste en mémoire pour changer de mois ensuite.
+- **Vérif apports :** Les apports mensuels sont des candidats de matching (Valider comme une dépense) ; bouton **Délier** pour retirer une suggestion auto non enregistrée. Bouton **＋ Ajouter** restauré sur Saisies (desktop + FAB hors overflow).
 
 ## Prochaines étapes de développement (TODO)
 *(Liste à mettre à jour lors de nos prochaines sessions de développement)*
