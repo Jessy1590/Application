@@ -1161,6 +1161,14 @@
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-link-desc"></p>
     <div class="bh-field-label">Compte budget</div>
     <select id="verif-link-account" class="bh-input" onchange="BH.refreshVerifLinkList()"></select>
+    <div class="bh-field-label">Type</div>
+    <div id="verif-link-kind-filters" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+      <button type="button" class="bh-btn bh-btn-primary" data-link-kind="" onclick="BH.setVerifLinkKind('')" style="padding:7px 10px; font-size:12px;">Tous</button>
+      <button type="button" class="bh-btn bh-btn-outline" data-link-kind="expense" onclick="BH.setVerifLinkKind('expense')" style="padding:7px 10px; font-size:12px;">Dépenses</button>
+      <button type="button" class="bh-btn bh-btn-outline" data-link-kind="wallet" onclick="BH.setVerifLinkKind('wallet')" style="padding:7px 10px; font-size:12px;">Portefeuilles</button>
+      <button type="button" class="bh-btn bh-btn-outline" data-link-kind="income" onclick="BH.setVerifLinkKind('income')" style="padding:7px 10px; font-size:12px;">Revenus</button>
+      <button type="button" class="bh-btn bh-btn-outline" data-link-kind="apport" onclick="BH.setVerifLinkKind('apport')" style="padding:7px 10px; font-size:12px;">Apports</button>
+    </div>
     <div class="bh-field-label">Rechercher</div>
     <input type="text" id="verif-link-search" class="bh-input" placeholder="Libellé, montant…" oninput="BH.refreshVerifLinkList()">
     <div id="verif-link-list"></div>
@@ -1387,7 +1395,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], allOps: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, walletOpId: null, refundOpId: null },
+    verif: { ops: [], allOps: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, linkKindFilter: '', walletOpId: null, refundOpId: null },
 
     async init() {
       await this.fetchData();
@@ -2087,7 +2095,6 @@
       const mode = opts.mode || 'theorique';
       const mKey = opts.mKey || this.monthKey(new Date());
       const dues = [];
-      const breakdownByAccounts = [];
       // Réutilise la même logique de montant que outboundContributionsBreakdown, compte par compte
       const curKey = this.monthKey(new Date());
       this.state.accounts.forEach(acc => {
@@ -2095,6 +2102,49 @@
         const mems = this.state.members.filter(m => m.account_id === acc.id);
         const myMem = mems.find(m => m.user_id === this.user.id);
         if (!myMem) return;
+
+        const cMode = myMem.contribution_mode || 'fixed';
+        const target = Number(myMem.contribution_target) || 0;
+
+        // Fixe : toujours afficher la cible (même sans snapshot théorique du mois)
+        // Effectif validé : préférer le montant réellement versé ce mois-ci
+        const paidRec = this.state.months[mainAccId + '_' + mKey]?.[this.apportExpenseId(acc.id)];
+        if (paidRec && opts.preferPaid !== false) {
+          const paidAmt = Number(paidRec.amount) || 0;
+          if (paidAmt > 0 || cMode === 'fixed') {
+            dues.push({
+              id: this.apportExpenseId(acc.id),
+              is_apport: true,
+              is_wallet: false,
+              account_id: mainAccId,
+              target_account_id: acc.id,
+              description: 'Apport → ' + (acc.name || 'Compte'),
+              amount: Math.round((paidAmt || target) * 100) / 100,
+              day: 1,
+              category: 'Apport',
+              contribution_mode: cMode,
+              paid: true
+            });
+            return;
+          }
+        }
+
+        if (cMode === 'fixed') {
+          if (!(target > 0)) return;
+          dues.push({
+            id: this.apportExpenseId(acc.id),
+            is_apport: true,
+            is_wallet: false,
+            account_id: mainAccId,
+            target_account_id: acc.id,
+            description: 'Apport → ' + (acc.name || 'Compte'),
+            amount: Math.round(target * 100) / 100,
+            day: 1,
+            category: 'Apport',
+            contribution_mode: cMode
+          });
+          return;
+        }
 
         let tExp = 0, accTInc = 0;
         if (mode === 'theorique' && mKey !== curKey) {
@@ -2124,15 +2174,11 @@
         }
 
         const netExp = Math.max(0, tExp - accTInc);
-        const cMode = myMem.contribution_mode || 'fixed';
         let amt = 0;
         if (cMode === 'prorata') {
           amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
         } else if (cMode === 'percent') {
-          amt = netExp * (Number(myMem.contribution_target) || 0) / 100;
-        } else {
-          const target = Number(myMem.contribution_target) || 0;
-          amt = mode === 'effective' ? Math.min(target, netExp) : target;
+          amt = netExp * target / 100;
         }
         if (!(amt > 0)) return;
         dues.push({
@@ -4657,15 +4703,16 @@
       this.listOutboundApportDues({ mKey }).forEach(ap => {
         if (!accIds.includes(ap.account_id)) return;
         const paidMap = this.state.months[ap.account_id + '_' + mKey] || {};
+        const paidRec = paidMap[ap.id];
         list.push({
           kind: 'apport',
           id: ap.id,
           accId: ap.account_id,
           accName: accName(ap.account_id),
           label: ap.description,
-          amount: Number(ap.amount),
+          amount: paidRec ? (Number(paidRec.amount) || Number(ap.amount)) : Number(ap.amount),
           date: `${mKey}-01`,
-          paid: !!paidMap[ap.id],
+          paid: !!paidRec || !!ap.paid,
           category: 'Apport',
           is_apport: true,
           target_account_id: ap.target_account_id || null
@@ -5028,18 +5075,62 @@
       const op = this.findVerifOp(opId);
       if (!op) return;
       this.verif.linkOpId = opId;
+      // Virement sortant → filtre Apports par défaut pour retrouver facilement l’apport mensuel
+      const isOut = Number(op.amount) < 0;
+      const looksApport = /apport|virement\s*[ée]mis|vir\s*inst|vers\s/i.test(op.label || '');
+      this.verif.linkKindFilter = (isOut && looksApport) ? 'apport' : (this.verif.linkKindFilter || '');
       document.getElementById('verif-link-desc').textContent =
         `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
       const accSel = document.getElementById('verif-link-account');
       const ordered = this.getOrderedAccounts();
       accSel.innerHTML = `<option value="">Tous les comptes</option>` +
         ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
-      // Par défaut : tous (pour lier un CIC à un compte joint) ; préselection du compte relevé en 2e choix
-      accSel.value = '';
+      // Par défaut : compte principal si on filtre apports, sinon tous
+      const mainId = this.state.profile?.main_account_id || '';
+      accSel.value = (this.verif.linkKindFilter === 'apport' && mainId) ? mainId : '';
       const search = document.getElementById('verif-link-search');
       if (search) search.value = '';
+      this.syncVerifLinkKindUi();
       this.refreshVerifLinkList();
       document.getElementById('bh-verif-link-overlay').classList.add('open');
+    },
+    setVerifLinkKind(kind) {
+      this.verif.linkKindFilter = kind || '';
+      this.syncVerifLinkKindUi();
+      // Apports = toujours sur le compte principal
+      if (kind === 'apport') {
+        const mainId = this.state.profile?.main_account_id || '';
+        const accSel = document.getElementById('verif-link-account');
+        if (accSel && mainId) accSel.value = mainId;
+      }
+      this.refreshVerifLinkList();
+    },
+    syncVerifLinkKindUi() {
+      const cur = this.verif.linkKindFilter || '';
+      document.querySelectorAll('#verif-link-kind-filters [data-link-kind]').forEach(btn => {
+        const k = btn.getAttribute('data-link-kind') || '';
+        const active = k === cur;
+        btn.classList.toggle('bh-btn-primary', active);
+        btn.classList.toggle('bh-btn-outline', !active);
+      });
+    },
+    scoreVerifMatchForLink(op, cand) {
+      // Score souple pour la liaison manuelle : on n’exclut pas si le montant diffère
+      const hard = this.scoreVerifMatch(op, cand);
+      if (hard > 0) return hard;
+      const bankAbs = Math.abs(Number(op.amount));
+      const candAbs = Math.abs(Number(cand.amount));
+      const amountDiff = Math.abs(bankAbs - candAbs);
+      const ratio = amountDiff / Math.max(bankAbs, candAbs, 1);
+      let score = Math.max(5, Math.round(45 - ratio * 45));
+      score += Math.round(this.labelSimilarity(op.label, cand.label) * 30);
+      const signBank = Number(op.amount) >= 0 ? 1 : -1;
+      const expectOut = cand.kind === 'expense' || cand.kind === 'apport'
+        || cand.kind === 'wallet-budget'
+        || (cand.kind === 'wallet' && Number(cand.amount) >= 0);
+      if ((signBank < 0 && expectOut) || (signBank > 0 && !expectOut)) score += 8;
+      if (cand.kind === 'apport' && signBank < 0) score += 10;
+      return Math.max(1, Math.min(100, score));
     },
     refreshVerifLinkList() {
       const op = this.findVerifOp(this.verif.linkOpId);
@@ -5047,26 +5138,42 @@
       if (!op || !list) return;
       const accFilter = document.getElementById('verif-link-account')?.value || '';
       const q = (document.getElementById('verif-link-search')?.value || '').trim().toLowerCase();
-      const mKey = this.verif.mKey;
+      const kindFilter = this.verif.linkKindFilter || '';
+      const mKey = this.verif.mKey || this.monthKey(new Date());
       let cands = this.buildVerifCandidates(accFilter || null, mKey)
-        .map(c => ({ ...c, score: this.scoreVerifMatch(op, c) }))
-        .sort((a, b) => b.score - a.score);
+        .map(c => ({ ...c, score: this.scoreVerifMatchForLink(op, c) }))
+        .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'fr'));
+
+      if (kindFilter === 'expense') {
+        cands = cands.filter(c => c.kind === 'expense');
+      } else if (kindFilter === 'wallet') {
+        cands = cands.filter(c => c.kind === 'wallet' || c.kind === 'wallet-budget');
+      } else if (kindFilter === 'income') {
+        cands = cands.filter(c => c.kind === 'income');
+      } else if (kindFilter === 'apport') {
+        cands = cands.filter(c => c.kind === 'apport');
+      }
+
       if (q) {
         cands = cands.filter(c =>
-          [c.label, c.accName, c.kind, String(c.amount)].join(' ').toLowerCase().includes(q)
+          [c.label, c.accName, c.kind, c.category, String(c.amount)].join(' ').toLowerCase().includes(q)
         );
       }
+
       const kindFr = { expense: 'Dépense', apport: 'Apport', income: 'Revenu', wallet: 'Portefeuille', 'wallet-budget': 'Enveloppe' };
+      const limit = kindFilter ? 100 : 60;
       list.innerHTML = cands.length
-        ? cands.slice(0, 50).map(c => `
+        ? cands.slice(0, limit).map(c => `
           <div class="bh-manage-row" style="cursor:pointer;" onclick="BH.confirmVerifLink('${c.kind}','${c.id}','${c.expId || ''}','${c.accId}')">
             <div>
               <div style="font-weight:600;font-size:13.5px;"><span class="bh-verif-acc-tag">${this.esc(c.accName || '')}</span>${this.esc(c.label)}</div>
-              <div style="font-size:11px;color:var(--ink-faint);">${kindFr[c.kind] || c.kind}${c.paid ? ' · déjà traité' : ''} · score ${c.score}%</div>
+              <div style="font-size:11px;color:var(--ink-faint);">${kindFr[c.kind] || c.kind}${c.paid ? ' · déjà traité' : ''} · ${this.fmt(c.amount)} · score ${c.score}%</div>
             </div>
             <div class="num">${this.fmt(c.amount)}</div>
           </div>`).join('')
-        : '<div class="bh-empty">Aucune saisie trouvée.</div>';
+        : `<div class="bh-empty">${kindFilter === 'apport'
+            ? 'Aucun apport configuré (compte principal + contribution vers un compte partagé).'
+            : 'Aucune saisie trouvée.'}</div>`;
     },
     closeVerifLink() {
       document.getElementById('bh-verif-link-overlay').classList.remove('open');
