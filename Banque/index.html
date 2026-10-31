@@ -3743,26 +3743,104 @@
       const asUtf8 = new TextDecoder('utf-8').decode(buf);
       let as1252 = asUtf8;
       try { as1252 = new TextDecoder('windows-1252').decode(buf); } catch (_) {}
+      // Export CA : préambule + en-tête plus bas ; scorer un extrait, pas seulement la 1re ligne
       const score = (t) => {
-        const h = (t.split(/\r?\n/)[0] || '');
+        const sample = t.slice(0, 4000);
         let s = 0;
-        if (/Débit|Libellé|Crédit|État|Début|début/.test(h)) s += 5;
-        if (/Date de valeur/i.test(h)) s += 2;
-        if (/DÃ©bit|LibellÃ©|CrÃ©dit|Ã‰tat|dÃ©but|DÃ©but/.test(h)) s -= 5;
-        if (/D.bit|Libell.|Cr.dit/.test(h) && !/Débit|Libellé|Crédit/.test(h)) s -= 2;
-        if (/\uFFFD/.test(h)) s -= 3;
+        if (/Débit|Libellé|Crédit|État|Début|début|opération/.test(sample)) s += 5;
+        if (/Date de valeur|Date d'opération|Date valeur/i.test(sample)) s += 2;
+        if (/Débit euros|Crédit euros/i.test(sample)) s += 3;
+        if (/Téléchargement du|Liste des opérations/i.test(sample)) s += 2;
+        if (/DÃ©bit|LibellÃ©|CrÃ©dit|Ã‰tat|dÃ©but|DÃ©but|opÃ©ration/.test(sample)) s -= 5;
+        if (/D.bit|Libell.|Cr.dit/.test(sample) && !/Débit|Libellé|Crédit/.test(sample)) s -= 2;
+        if (/\uFFFD/.test(sample)) s -= 3;
         return s;
       };
       return score(as1252) >= score(asUtf8) ? as1252 : asUtf8;
     },
 
     cleanBankLabel(label) {
-      let s = String(label || '').replace(/\s+/g, ' ').trim();
-      // PAIEMENT CB 1010 GUICHAINVILLE 27 CARREFOUR CARTE 2489… → CARREFOUR
+      const raw = String(label || '');
+      const lines = raw.split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+
+      // Export Crédit Agricole récent : type sur la 1re ligne, détail en dessous
+      if (lines.length >= 2) {
+        const kind = lines[0];
+        const detail = lines[1];
+        const last = lines[lines.length - 1];
+
+        if (/^paiement par carte$/i.test(kind)) {
+          // "X9937 RELAIS MALBROUCK NAS 24/10 - TotalEnergies"
+          let m = detail.match(/\s-\s+(.+)$/);
+          if (m && m[1].trim().length >= 2) return m[1].trim().slice(0, 80);
+          m = detail.match(/^X\d{3,5}\s+(.+?)(?:\s+\d{1,2}\/\d{2})?\s*$/i);
+          if (m) return m[1].replace(/\s+/g, ' ').trim().slice(0, 80);
+          return detail.slice(0, 80);
+        }
+
+        if (/^pr[eé]l[eè]vement$/i.test(kind)) {
+          if (/paypal/i.test(detail)) return 'PayPal';
+          if (/\bMAIF\b/i.test(detail)) return 'MAIF';
+          if (/PACIFICA|ASSURANCE HABITATION/i.test(detail)) return 'Assurance habitation';
+          if (/FRAIS CARTE/i.test(detail)) {
+            const m = detail.match(/-\s*(.+)$/);
+            return ('Frais carte ' + (m ? m[1] : detail)).replace(/\s+/g, ' ').trim().slice(0, 80);
+          }
+          // "Secours Catholique - Siege - …" / "Offre Compte à composer"
+          let m = detail.match(/^(.+?)\s+-\s+/);
+          if (m) {
+            let name = m[1].replace(/^\d+\s+/, '').trim();
+            if (name.length >= 3 && name.length <= 50 && !/^\d+$/.test(name) && !/^CA NORD/i.test(name)) {
+              return name.slice(0, 80);
+            }
+          }
+          return detail
+            .replace(/\s+(?:FR|LU|DE)\d{2}ZZZ.*$/i, '')
+            .replace(/\s+\d{10,}.*$/, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 80);
+        }
+
+        if (/^virement en votre faveur$/i.test(kind)) {
+          if (/paypal/i.test(detail)) return 'PayPal';
+          let m = detail.match(/^VIR INST de\s+(.+?)(?:\s+-\s+(.+))?$/i);
+          if (m) {
+            if (lines.length >= 3 && last.length >= 3 && last.length <= 70) return last.slice(0, 80);
+            if (m[2]) return m[2].replace(/\s+/g, ' ').trim().slice(0, 80);
+            return ('Virement ' + m[1]).replace(/\s+/g, ' ').trim().slice(0, 80);
+          }
+          // Motif court en dernière ligne (ex. "Remboursement coiffeur", "Monnaie", "Pizza")
+          if (lines.length >= 3 && last.length >= 3 && last.length <= 60 && !/^DE M\./i.test(last) && !/paypal/i.test(last)) {
+            return last.slice(0, 80);
+          }
+          m = detail.match(/^DE\s+(.+)/i);
+          if (m) return ('Virement ' + m[1].replace(/\s+/g, ' ').trim()).slice(0, 80);
+          return detail.replace(/\s+M\.?\s*OU\s*MME.*$/i, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        }
+
+        if (/^virement [eé]mis$/i.test(kind)) {
+          let m = detail.match(/^VIR INST vers\s+(.+)/i);
+          if (m) return ('Virement ' + m[1]).replace(/\s+/g, ' ').trim().slice(0, 80);
+          m = detail.match(/^WEB\s+(.+?)(?:\s+-\s+(.+))?$/i);
+          if (m) {
+            if (m[2]) return m[2].replace(/\s+/g, ' ').trim().slice(0, 80);
+            if (lines.length >= 3 && last.length >= 3 && last.length <= 70) return last.slice(0, 80);
+            return ('Virement ' + m[1]).replace(/\s+/g, ' ').trim().slice(0, 80);
+          }
+          return detail.slice(0, 80);
+        }
+
+        if (/^ch[eè]que\s+emis$/i.test(kind)) {
+          return ('Chèque ' + (detail || '')).replace(/\s+/g, ' ').trim().slice(0, 60);
+        }
+      }
+
+      let s = raw.replace(/\s+/g, ' ').trim();
+      // Ancien format CA / CIC : PAIEMENT CB 1010 GUICHAINVILLE 27 CARREFOUR CARTE 2489… → CARREFOUR
       let m = s.match(/^PAIEMENT CB\s+\d{3,4}\s+(.+?)\s+CARTE\s+\d+/i);
       if (m) {
         let mid = m[1].trim();
-        // "VILLE 27 MARCHAND" ou "PAYS MARCHAND"
         mid = mid.replace(/^[A-ZÀ-Ü][A-ZÀ-Ü\s\-']+?\s+\d{2}\s+/i, '');
         mid = mid.replace(/^(LUXEMBOURG|AMSTERDAM|BRUXELLES|LONDON|DUBLIN|BERLIN|MADRID|ROME)\s+/i, '');
         mid = mid.replace(/^(GUICHAINVILLE|BERNAY|PARIS|LYON|LILLE|NANTES|TOULOUSE|ROUEN|EVREUX)\s+/i, '');
@@ -3777,23 +3855,50 @@
     },
 
     splitCsvRows(text) {
-      const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
-      if (!lines.length) return { header: [], rows: [], sep: ';' };
-      const sep = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
-      const split = (line) => {
-        const out = []; let cur = '', q = false;
-        for (let i = 0; i < line.length; i++) {
-          const c = line[i];
-          if (c === '"') { q = !q; continue; }
-          if (c === sep && !q) { out.push(cur.trim()); cur = ''; continue; }
-          cur += c;
+      // Parse CSV entier (libellés CA multi-lignes entre guillemets) + saute le préambule
+      const src = String(text || '').replace(/^\uFEFF/, '');
+      if (!src.trim()) return { header: [], rows: [], sep: ';', data: [] };
+      const sep = (src.match(/;/g) || []).length >= (src.match(/,/g) || []).length ? ';' : ',';
+      const rows = [];
+      let row = [], cur = '', q = false;
+      for (let i = 0; i < src.length; i++) {
+        const c = src[i];
+        if (c === '"') {
+          if (q && src[i + 1] === '"') { cur += '"'; i++; continue; }
+          q = !q;
+          continue;
         }
-        out.push(cur.trim());
-        return out;
-      };
-      const rows = lines.map(split);
-      const header = rows[0].map(h => h.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      return { header, rows, sep, data: rows.slice(1) };
+        if (c === sep && !q) { row.push(cur.trim()); cur = ''; continue; }
+        if ((c === '\n' || c === '\r') && !q) {
+          if (c === '\r' && src[i + 1] === '\n') i++;
+          row.push(cur.trim());
+          cur = '';
+          if (row.some(x => x)) rows.push(row);
+          row = [];
+          continue;
+        }
+        cur += c;
+      }
+      row.push(cur.trim());
+      if (row.some(x => x)) rows.push(row);
+
+      const normCell = (h) => String(h || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      let headerIdx = 0;
+      for (let i = 0; i < Math.min(rows.length, 50); i++) {
+        const cells = rows[i].map(normCell).filter(Boolean);
+        if (cells.length < 3) continue;
+        const hasDate = cells.some(h => /^date/.test(h) || /date d.?operation/.test(h));
+        const hasLabel = cells.some(h => /libell|label|desc|motif|communication/.test(h));
+        const hasMoney = cells.some(h => /debit|credit|montant|amount/.test(h));
+        if (hasDate && hasMoney && (hasLabel || cells.length >= 4)) {
+          headerIdx = i;
+          break;
+        }
+      }
+      const headerRow = rows[headerIdx] || [];
+      const header = headerRow.map(normCell);
+      const data = rows.slice(headerIdx + 1);
+      return { header, rows: rows.slice(headerIdx), sep, data };
     },
     findCsvCol(header, ...preds) {
       for (const pred of preds) {
@@ -3823,10 +3928,12 @@
       // CIC : Date d'opération + Montant (une colonne) ; pas de Débit/Crédit séparés
       const hasOpDate = header.some(x => /date d.?operation|date operation/.test(x));
       const hasMontant = header.some(x => /^montant$/.test(x));
-      const hasDebit = header.some(x => /^debit$/.test(x) || /d.?bit/.test(x));
-      const hasCredit = header.some(x => /^credit$/.test(x) || /cr.?dit/.test(x));
+      const hasDebit = header.some(x => /^debit(?:\s+euros)?$/.test(x) || /d.?bit/.test(x));
+      const hasCredit = header.some(x => /^credit(?:\s+euros)?$/.test(x) || /cr.?dit/.test(x));
+      const hasDebitEuros = header.some(x => /debit\s+euros/.test(x));
+      if (hasDebitEuros && hasCredit) return 'ca';
       if ((hasOpDate || (hasMontant && !hasDebit)) && hasMontant && !hasDebit) return 'cic';
-      // Crédit Agricole : Date + Débit + Crédit + Libellé
+      // Crédit Agricole : Date d'opération ; Date valeur ; Libellé ; Débit euros ; Crédit euros
       if (hasDebit && hasCredit) return 'ca';
       if (header[0] === 'date' && hasDebit) return 'ca';
       return 'ca'; // défaut FR courant
@@ -3844,20 +3951,40 @@
     },
 
     parseCsvCreditAgricole(header, data) {
-      // Date;Date de valeur;Débit;Crédit;Libellé;Solde
+      // Export CA (2025+) :
+      // Date d'opération;Date valeur;Libellé;Débit euros;Crédit euros;
+      // + préambule « Téléchargement du… / Liste des opérations… » (ignoré par splitCsvRows)
+      // + libellés multi-lignes entre guillemets (type puis détail)
+      // Ancien format possible : Date;Date de valeur;Débit;Crédit;Libellé;Solde
       let idx = {
-        date: this.findCsvCol(header, h => h === 'date', h => h.startsWith('date') && !/valeur/.test(h), h => /date/.test(h)),
+        date: this.findCsvCol(header,
+          h => /date d.?operation|date operation/.test(h),
+          h => h === 'date',
+          h => h.startsWith('date') && !/valeur/.test(h),
+          h => /date/.test(h)),
         label: this.findCsvCol(header, h => /libell|label|desc|motif|communication/.test(h)),
-        debit: this.findCsvCol(header, h => /^debit$/.test(h), h => /d.?bit|sortie/.test(h)),
-        credit: this.findCsvCol(header, h => /^credit$/.test(h), h => /cr.?dit|entree/.test(h))
+        debit: this.findCsvCol(header,
+          h => /^debit(?:\s+euros)?$/.test(h),
+          h => /d.?bit|sortie/.test(h)),
+        credit: this.findCsvCol(header,
+          h => /^credit(?:\s+euros)?$/.test(h),
+          h => /cr.?dit|entree/.test(h))
       };
       if (header.length >= 5 && header[0] === 'date' && (idx.debit < 0 || idx.credit < 0 || idx.label < 0)) {
         idx = { date: 0, debit: idx.debit >= 0 ? idx.debit : 2, credit: idx.credit >= 0 ? idx.credit : 3, label: idx.label >= 0 ? idx.label : 4 };
       }
+      // Variante CA : Date ; Date valeur ; Libellé ; Débit ; Crédit (libellé en col 2)
+      if (idx.label >= 0 && idx.debit >= 0 && idx.label === idx.debit) {
+        idx.label = this.findCsvCol(header, h => /libell|label|desc|motif/.test(h) && !/debit|credit|date/.test(h));
+      }
       const ops = [];
       data.forEach((cols, i) => {
         if (!cols.length || cols.every(c => !c)) return;
-        const date = idx.date >= 0 ? this.parseDateFR(cols[idx.date]) : null;
+        // Ignorer lignes non opération (solde, totaux, 2e en-tête recopié)
+        const dateRaw = idx.date >= 0 ? cols[idx.date] : '';
+        if (!/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/.test(String(dateRaw || '').trim())
+          && !/^\d{4}-\d{2}-\d{2}/.test(String(dateRaw || '').trim())) return;
+        const date = this.parseDateFR(dateRaw);
         const label = idx.label >= 0 ? cols[idx.label] : '';
         const d = idx.debit >= 0 ? this.cellAmount(cols[idx.debit]) : null;
         const c = idx.credit >= 0 ? this.cellAmount(cols[idx.credit]) : null;
@@ -3866,7 +3993,8 @@
         else if (c != null && d == null) amount = Math.abs(c);
         else if (d != null && c != null) amount = Math.abs(c) - Math.abs(d);
         if (!date || !Number.isFinite(amount) || amount === 0) return;
-        ops.push({ id: 'csv-' + i, date, label: this.cleanBankLabel(label), labelRaw: String(label || '').slice(0, 180), amount });
+        const labelRaw = String(label || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+        ops.push({ id: 'csv-' + i, date, label: this.cleanBankLabel(label), labelRaw, amount });
       });
       return ops;
     },
