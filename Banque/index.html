@@ -1152,6 +1152,19 @@
   </div>
 </div>
 
+<!-- VÉRIF : choix du mois si relevé multi-mois -->
+<div class="bh-sheet-overlay" id="bh-verif-month-overlay" onclick="if(event.target===this) BH.cancelVerifMonthPick()">
+  <div class="bh-sheet" style="max-width:420px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Quel mois vérifier ?</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="verif-month-pick-desc">
+      Ce relevé contient plusieurs mois. Choisis celui à prendre en compte.
+    </p>
+    <div id="verif-month-pick-list"></div>
+    <button class="bh-btn bh-btn-ghost bh-btn-block" style="margin-top:8px;" onclick="BH.cancelVerifMonthPick()">Annuler</button>
+  </div>
+</div>
+
 <!-- VÉRIF : remboursement d'une dépense existante -->
 <div class="bh-sheet-overlay" id="bh-verif-refund-overlay" onclick="if(event.target===this) BH.closeVerifRefund()">
   <div class="bh-sheet" style="max-width:560px;">
@@ -1320,7 +1333,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, walletOpId: null, refundOpId: null },
+    verif: { ops: [], allOps: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, walletOpId: null, refundOpId: null },
 
     async init() {
       await this.fetchData();
@@ -4253,6 +4266,95 @@
       return this.clusterPdfRows(items).map(r => r.items.map(it => it.str).join(' ')).join('\n');
     },
 
+    formatMonthKey(mKey) {
+      const [y, m] = String(mKey || '').split('-').map(Number);
+      if (!y || !m) return mKey || '';
+      const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    },
+    countOpsByMonth(ops) {
+      const months = {};
+      (ops || []).forEach(o => {
+        const k = (o.date || '').slice(0, 7);
+        if (k) months[k] = (months[k] || 0) + 1;
+      });
+      return months;
+    },
+    openVerifMonthPick(months) {
+      const list = document.getElementById('verif-month-pick-list');
+      const desc = document.getElementById('verif-month-pick-desc');
+      const current = document.getElementById('verif-month')?.value || this.verif.mKey;
+      const entries = Object.entries(months).sort((a, b) => b[0].localeCompare(a[0]));
+      const total = entries.reduce((s, [, n]) => s + n, 0);
+      if (desc) {
+        desc.textContent = 'Ce relevé contient ' + total + ' opérations sur ' + entries.length
+          + ' mois. Choisis celui à prendre en compte.';
+      }
+      if (list) {
+        list.innerHTML = entries.map(([k, n]) => {
+          const active = k === current;
+          return `<button type="button" class="bh-btn ${active ? 'bh-btn-primary' : 'bh-btn-outline'} bh-btn-block" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; gap:12px;" onclick="BH.applyVerifMonthSelection('${k}')">`
+            + `<span>${this.esc(this.formatMonthKey(k))}</span>`
+            + `<span style="opacity:.75; font-size:12.5px; white-space:nowrap;">${n} op.</span>`
+            + `</button>`;
+        }).join('');
+      }
+      document.getElementById('bh-verif-month-overlay')?.classList.add('open');
+    },
+    closeVerifMonthPick() {
+      document.getElementById('bh-verif-month-overlay')?.classList.remove('open');
+    },
+    cancelVerifMonthPick() {
+      this.closeVerifMonthPick();
+      this.verif.allOps = [];
+      this.verif.ops = [];
+      this.verif.fileName = '';
+      const dropTitle = document.getElementById('verif-drop-title');
+      if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
+      const dropSub = document.getElementById('verif-drop-sub');
+      if (dropSub) dropSub.textContent = 'Ou PDF. Traitement local — rien n’est envoyé ailleurs.';
+      this.renderVerifTable();
+    },
+    applyVerifMonthSelection(mKey) {
+      if (!mKey) return;
+      const monthInp = document.getElementById('verif-month');
+      if (monthInp) monthInp.value = mKey;
+      this.verif.mKey = mKey;
+      this.closeVerifMonthPick();
+      this.finishVerifImport(mKey);
+    },
+    finishVerifImport(mKey, opts = {}) {
+      const ops = this.verif.allOps || [];
+      if (!ops.length) return;
+      const ignoredLocal = this.loadVerifIgnored();
+      const mSel = mKey || document.getElementById('verif-month')?.value || this.verif.mKey || this.monthKey(new Date());
+      const filtered = ops.filter(o => (o.date || '').slice(0, 7) === mSel);
+      // Si le mois choisi n’a aucune ligne, on garde ce mois (liste vide) — pas de repli « tout le fichier »
+      const useOps = filtered;
+      const dbByFp = this.bankVerifByFingerprint(mSel);
+      this.verif.mKey = mSel;
+      this.verif.ops = useOps.map(o => {
+        const fp = this.verifFingerprint(o);
+        const saved = dbByFp.get(fp);
+        return {
+          ...o,
+          ignored: ignoredLocal.has(fp) || saved?.status === 'ignored',
+          savedStatus: saved?.status || null,
+          match: null
+        };
+      });
+      const bankName = this.bankLabel(this.verif.bankDetected);
+      const dropTitle = document.getElementById('verif-drop-title');
+      if (dropTitle) {
+        dropTitle.textContent = (this.verif.fileName || 'Relevé')
+          + ' · ' + this.verif.ops.length + ' lignes'
+          + ' · ' + this.formatMonthKey(mSel);
+      }
+      const dropSub = document.getElementById('verif-drop-sub');
+      if (dropSub) dropSub.textContent = 'Format détecté : ' + bankName;
+      this.rematchVerif();
+      if (!opts.quiet) toast(this.verif.ops.length + ' opérations · ' + this.formatMonthKey(mSel) + ' · ' + bankName);
+    },
     async onVerifFile(file) {
       if (!file) return;
       const dropTitle = document.getElementById('verif-drop-title');
@@ -4265,16 +4367,6 @@
           const parsed = this.parseBankCsv(await this.readCsvText(file), preferred);
           ops = parsed.ops || [];
           this.verif.bankDetected = parsed.bank || '';
-          // Aligner le mois du filtre sur le mois dominant du fichier
-          if (ops.length) {
-            const months = {};
-            ops.forEach(o => { months[o.date.slice(0, 7)] = (months[o.date.slice(0, 7)] || 0) + 1; });
-            const top = Object.entries(months).sort((a, b) => b[1] - a[1])[0];
-            if (top) {
-              const monthInp = document.getElementById('verif-month');
-              if (monthInp) { monthInp.value = top[0]; this.verif.mKey = top[0]; }
-            }
-          }
         } else {
           const items = await this.extractPdfItems(file);
           const revolutOps = this.parseRevolutPdfItems(items);
@@ -4295,37 +4387,25 @@
           if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
           return;
         }
-        const ignoredLocal = this.loadVerifIgnored();
-        const mSel = document.getElementById('verif-month')?.value;
-        const filtered = mSel
-          ? ops.filter(o => o.date.slice(0, 7) === mSel)
-          : ops;
-        const mKey = mSel || this.verif.mKey || this.monthKey(new Date());
-        const dbByFp = this.bankVerifByFingerprint(mKey);
-        this.verif.ops = (filtered.length ? filtered : ops).map(o => {
-          const fp = this.verifFingerprint(o);
-          const saved = dbByFp.get(fp);
-          return {
-            ...o,
-            ignored: ignoredLocal.has(fp) || saved?.status === 'ignored',
-            savedStatus: saved?.status || null,
-            match: null
-          };
-        });
+        this.verif.allOps = ops;
         this.verif.fileName = file.name;
-        const bankName = this.bankLabel(this.verif.bankDetected);
-        if (dropTitle) dropTitle.textContent = file.name + ' · ' + this.verif.ops.length + ' lignes';
-        const dropSub = document.getElementById('verif-drop-sub');
-        if (dropSub) dropSub.textContent = 'Format détecté : ' + bankName;
-        this.rematchVerif();
-        toast(this.verif.ops.length + ' opérations · ' + bankName);
+        const months = this.countOpsByMonth(ops);
+        const monthKeys = Object.keys(months);
+        if (monthKeys.length > 1) {
+          if (dropTitle) dropTitle.textContent = file.name + ' · ' + ops.length + ' lignes · choix du mois…';
+          this.openVerifMonthPick(months);
+          return;
+        }
+        // Un seul mois dans le fichier → on l’applique (sans popup)
+        this.applyVerifMonthSelection(monthKeys[0]);
       } catch (e) {
         console.error(e);
         toast('Impossible de lire le fichier : ' + (e.message || e));
         if (dropTitle) dropTitle.textContent = 'Déposer un relevé PDF ou CSV';
+      } finally {
+        const input = document.getElementById('verif-file');
+        if (input) input.value = '';
       }
-      const input = document.getElementById('verif-file');
-      if (input) input.value = '';
     },
     onVerifDrop(e) {
       e.preventDefault();
@@ -4347,8 +4427,12 @@
         this.renderVerifStatus();
         return;
       }
-      if (this.verif.ops.length && this.verif.fileName) this.rematchVerif();
-      else {
+      // Relevé encore en mémoire → refiltre sur le nouveau mois
+      if (this.verif.allOps?.length && this.verif.fileName) {
+        this.finishVerifImport(this.verif.mKey, { quiet: true });
+      } else if (this.verif.ops.length && this.verif.fileName) {
+        this.rematchVerif();
+      } else {
         this.renderVerifTable();
         this.renderUnverifiedExpenses();
       }

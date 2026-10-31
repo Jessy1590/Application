@@ -23,6 +23,7 @@
 - **Vérification relevé :** Onglet Vérif (desktop) — sous-vues Relevé (import CSV/PDF, matching, Enregistrer) et Vérification (dépenses / mouvements portefeuille / revenus / remboursements colorés vérifié ou non).
 - **Persistance vérifs :** Table Supabase `bank_verifications` — actions unitaires + bouton Enregistrer (lot) ; portefeuille lié à l’id de transaction.
 - **CSV Crédit Agricole (export actuel) :** Préambule (`Téléchargement du…`, solde, plage) puis en-tête `Date d'opération;Date valeur;Libellé;Débit euros;Crédit euros;` ; libellés multi-lignes entre guillemets (type + détail) ; encodage Windows-1252. Le parseur saute le préambule, gère les retours ligne dans les guillemets, et nettoie les libellés (carte → marchand, prélèvement → créancier, virement → motif).
+- **Relevé multi-mois :** Plus de bascule auto vers le mois dominant — popup « Quel mois vérifier ? » avec le nombre d’opérations par mois ; le fichier reste en mémoire pour changer de mois ensuite.
 
 ## Prochaines étapes de développement (TODO)
 *(Liste à mettre à jour lors de nos prochaines sessions de développement)*
