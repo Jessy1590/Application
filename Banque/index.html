@@ -163,6 +163,8 @@
     background:rgba(174,75,60,0.06);
   }
   .bh-verif-status-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .bh-verif-status-row .bh-verif-status-actions{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .bh-verif-status-row .bh-verif-status-actions .bh-btn{ padding:6px 10px; font-size:12px; }
   .bh-verif-status-badge{
     font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; white-space:nowrap;
   }
@@ -3804,19 +3806,39 @@
           : (r.kind === 'expense' || r.kind === 'apport'
             ? (r.paid ? 'payé' : 'non payé')
             : (r.paid ? 'encaissé' : 'non encaissé'));
+        const canValidate = !r.paid && (r.kind === 'expense' || r.kind === 'apport' || r.kind === 'income' || r.kind === 'refund');
+        const validateBtn = canValidate
+          ? `<button type="button" class="bh-btn bh-btn-primary" title="Marquer comme payé / encaissé ce mois-ci" onclick="event.stopPropagation(); BH.validateVerifStatusRow('${r.kind}','${r.id}','${r.accId}',${Number(r.amount) || 0})">${r.kind === 'income' || r.kind === 'refund' ? 'Encaisser' : 'Valider'}</button>`
+          : '';
         html += `
           <div class="bh-verif-status-row ${state}">
-            <div>
+            <div style="min-width:0;">
               <div><span class="bh-verif-acc-tag">${this.esc(r.accName)}</span><strong>${this.esc(r.label)}</strong></div>
               <div class="meta">Jour ${r.day}${r.category ? ' · ' + this.esc(r.category) : ''} · ${paidLbl}</div>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div class="bh-verif-status-actions">
+              ${validateBtn}
               <span class="bh-verif-status-badge">${badge}</span>
               <span class="num">${this.fmt(r.amount)}</span>
             </div>
           </div>`;
       });
       listEl.innerHTML = html;
+    },
+    async validateVerifStatusRow(kind, id, accId, amount) {
+      if (!id || !accId) return;
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      const amt = Math.abs(Number(amount) || 0);
+      if (kind === 'expense' || kind === 'apport') {
+        await this.markPaid(id, amt, accId, mKey);
+      } else if (kind === 'income' || kind === 'refund') {
+        if (!(amt > 0)) { toast('Montant invalide.'); return; }
+        await this.markIncome(id, amt, accId, mKey);
+      } else {
+        return;
+      }
+      // markPaid/markIncome déclenchent fetchData ; on rafraîchit aussi le panneau si besoin
+      this.renderVerifStatus();
     },
     renderUnverifiedExpenses() {
       // Compteur du panneau Relevé + rafraîchit la vue Vérification si ouverte
