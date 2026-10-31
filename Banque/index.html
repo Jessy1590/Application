@@ -726,7 +726,7 @@
         </div>
         <div>
           <div class="bh-field-label" style="margin-top:0;">Mois</div>
-          <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()">
+          <input type="month" id="verif-month" class="bh-input" style="margin:0;" onchange="BH.onVerifMonthChange()" oninput="BH.onVerifMonthChange()">
         </div>
       </div>
 
@@ -4440,11 +4440,14 @@
       if (!ops.length) return;
       const ignoredLocal = this.loadVerifIgnored();
       const mSel = mKey || document.getElementById('verif-month')?.value || this.verif.mKey || this.monthKey(new Date());
+      const monthInp = document.getElementById('verif-month');
+      if (monthInp && monthInp.value !== mSel) monthInp.value = mSel;
+      this.verif.mKey = mSel;
+      this._verifMonthHandled = mSel;
       const filtered = ops.filter(o => (o.date || '').slice(0, 7) === mSel);
       // Si le mois choisi n’a aucune ligne, on garde ce mois (liste vide) — pas de repli « tout le fichier »
       const useOps = filtered;
       const dbByFp = this.bankVerifByFingerprint(mSel);
-      this.verif.mKey = mSel;
       this.verif.ops = useOps.map(o => {
         const fp = this.verifFingerprint(o);
         const saved = dbByFp.get(fp);
@@ -4452,7 +4455,8 @@
           ...o,
           ignored: ignoredLocal.has(fp) || saved?.status === 'ignored',
           savedStatus: saved?.status || null,
-          match: null
+          match: null,
+          matchCleared: false
         };
       });
       const bankName = this.bankLabel(this.verif.bankDetected);
@@ -4465,7 +4469,12 @@
       const dropSub = document.getElementById('verif-drop-sub');
       if (dropSub) dropSub.textContent = 'Format détecté : ' + bankName;
       this.rematchVerif();
-      if (!opts.quiet) toast(this.verif.ops.length + ' opérations · ' + this.formatMonthKey(mSel) + ' · ' + bankName);
+      this.renderUnverifiedExpenses();
+      if (!opts.quiet) {
+        toast(this.verif.ops.length
+          ? (this.verif.ops.length + ' opérations · ' + this.formatMonthKey(mSel) + ' · ' + bankName)
+          : ('Aucune ligne banque pour ' + this.formatMonthKey(mSel)));
+      }
     },
     async onVerifFile(file) {
       if (!file) return;
@@ -4534,19 +4543,31 @@
       }
     },
     onVerifMonthChange() {
-      this.verif.mKey = document.getElementById('verif-month').value;
+      const monthInp = document.getElementById('verif-month');
+      const mKey = (monthInp?.value || '').trim();
+      if (!mKey) return;
+      // Évite les doubles appels oninput+onchange pour la même valeur
+      if (this.verif.mKey === mKey && this._verifMonthHandled === mKey) {
+        if (this.verif.pane === 'status') this.renderVerifStatus();
+        return;
+      }
+      this._verifMonthHandled = mKey;
+      this.verif.mKey = mKey;
+
+      // Toujours rafraîchir le statut budget pour le mois choisi
+      this.renderUnverifiedExpenses();
+
       if (this.verif.pane === 'status') {
         this.renderVerifStatus();
         return;
       }
-      // Relevé encore en mémoire → refiltre sur le nouveau mois
-      if (this.verif.allOps?.length && this.verif.fileName) {
-        this.finishVerifImport(this.verif.mKey, { quiet: true });
-      } else if (this.verif.ops.length && this.verif.fileName) {
+      // Relevé encore en mémoire → refiltre les lignes banque sur ce mois
+      if (this.verif.allOps?.length) {
+        this.finishVerifImport(mKey, { quiet: true });
+      } else if (this.verif.ops.length) {
         this.rematchVerif();
       } else {
         this.renderVerifTable();
-        this.renderUnverifiedExpenses();
       }
     },
 
@@ -4740,8 +4761,11 @@
       const pick = ordered.some(a => a.id === prevAcc) ? prevAcc : (this.state.profile?.main_account_id || ordered[0]?.id || '');
       if (pick) accSel.value = pick;
       this.verif.accId = accSel.value;
-      if (!monthInp.value) monthInp.value = this.monthKey(new Date());
-      this.verif.mKey = monthInp.value;
+      // Préserver le mois choisi (état) plutôt que de le perdre au re-render
+      if (this.verif.mKey) monthInp.value = this.verif.mKey;
+      else if (!monthInp.value) monthInp.value = this.monthKey(new Date());
+      this.verif.mKey = monthInp.value || this.monthKey(new Date());
+      this._verifMonthHandled = this.verif.mKey;
       if (bankSel) {
         const saved = localStorage.getItem('bh-verif-bank') || this.verif.bank || 'auto';
         bankSel.value = saved;
