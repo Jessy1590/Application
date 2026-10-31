@@ -110,10 +110,29 @@
   .bh-verif-score-cell.hi{ color:var(--sage-deep); }
   .bh-verif-score-cell.mid{ color:var(--amber); }
   .bh-verif-score-cell.lo{ color:var(--ink-faint); }
-  .bh-verif-match{ font-size:12px; line-height:1.4; }
-  .bh-verif-match strong{ display:inline; font-weight:650; word-break:break-word; }
-  .bh-verif-match .dest{ margin-top:2px; }
-  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); margin-top:2px; white-space:normal; }
+  .bh-verif-match{ font-size:12.5px; line-height:1.35; min-width:0; }
+  .bh-verif-match-l1{
+    display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; color:var(--ink);
+  }
+  .bh-verif-match-l1 strong{ font-weight:650; word-break:break-word; }
+  .bh-verif-match-l2{
+    display:flex; flex-wrap:wrap; align-items:center;
+    margin-top:4px; font-size:12px; color:var(--ink-soft); line-height:1.4;
+  }
+  .bh-verif-match-l2 .sep{ margin:0 6px; color:var(--ink-faint); }
+  .bh-verif-match-l2 .num{ color:var(--ink); font-size:12px; }
+  .bh-verif-origin{
+    display:inline-block; font-size:10px; font-weight:700; padding:1px 6px;
+    border-radius:6px; letter-spacing:.02em; vertical-align:middle;
+  }
+  .bh-verif-origin.linked{ background:var(--sage-pale); color:var(--sage-deep); }
+  .bh-verif-origin.detected{ background:var(--amber-pale); color:var(--amber); }
+  .bh-verif-match-l1 .alt-score{ margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums; color:var(--sage-deep); white-space:nowrap; }
+  .bh-verif-wallet{
+    display:inline-flex; align-items:center; gap:3px;
+    font-weight:650; color:var(--sage-deep); background:var(--sage-pale);
+    border-radius:999px; padding:1px 8px 1px 6px; font-size:12px; line-height:1.3;
+  }
   .bh-verif-match-alts{ display:flex; flex-direction:column; gap:4px; }
   .bh-verif-alts-hint{ font-size:10px; color:var(--ink-faint); margin-bottom:2px; font-weight:600; }
   .bh-verif-alt{
@@ -561,13 +580,17 @@
     .bh-verif-drop{ min-height:88px; }
     .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 320px); }
     .bh-verif-status-wrap{ max-height:calc(100vh - 280px); }
-    .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:6%; }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:13%; }
-    .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:8%; }
-    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:6%; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:17%; }
-    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:50%; }
-    .bh-verif-actions{ flex-wrap:nowrap; gap:6px; }
+    .bh-verif-table{ table-layout:auto; }
+    .bh-verif-table td{ vertical-align:top; }
+    .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:1%; }
+    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:14%; max-width:200px; }
+    .bh-verif-table th:nth-child(3), .bh-verif-table td:nth-child(3){ width:1%; }
+    .bh-verif-table th:nth-child(4), .bh-verif-table td:nth-child(4){ width:1%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){
+      width:46%; min-width:420px; overflow:visible; white-space:normal;
+    }
+    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:auto; }
+    .bh-verif-actions{ flex-wrap:wrap; gap:6px; }
     .bh-verif-actions .bh-btn{ padding:7px 10px; font-size:12px; }
 
     /* Stats : grille large */
@@ -610,9 +633,7 @@
     #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); }
     .bh-view{ padding:16px 40px 48px; }
     .bh-topbar{ padding:22px 40px 14px; }
-    .bh-verif-table th:nth-child(2), .bh-verif-table td:nth-child(2){ width:15%; }
-    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ width:18%; }
-    .bh-verif-table th:nth-child(6), .bh-verif-table td:nth-child(6){ width:48%; }
+    .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:520px; width:50%; }
   }
 
 </style>
@@ -3357,7 +3378,8 @@
             const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
             op.match = {
               kind: 'expense', id, accId, accName,
-              label: desc, amount, paid: true, score: 100, fromDb: true
+              label: desc, category: category || '', day,
+              amount, paid: true, score: 100, fromDb: true
             };
             op.matchCleared = false;
             await this.upsertBankVerification(op, 'matched', { kind: 'expense', id, accId, score: 100 });
@@ -4671,9 +4693,17 @@
           kind: kind === 'refund' ? 'refund' : 'income', id, accId, score: 100
         });
       } else if (kind === 'wallet') {
+        const exp = (this.state.expenses || []).find(e => String(e.id) === String(link.walletExpId || ''));
+        const rawLabel = link.label || op.label || '';
+        const txLabel = rawLabel.includes(' · ') ? rawLabel.split(' · ').slice(1).join(' · ') : rawLabel;
         op.match = {
           kind: 'wallet', id, expId: link.walletExpId || null, accId, accName,
-          label: link.label || op.label, amount: Number(op.amount), paid: true, score: 100, fromDb: true
+          label: rawLabel,
+          walletName: exp?.description || (rawLabel.includes(' · ') ? rawLabel.split(' · ')[0] : ''),
+          txLabel: txLabel || op.label,
+          category: exp?.category || '',
+          day: op.date ? Number(String(op.date).slice(8, 10)) : null,
+          amount: this.verifEnvelopeAmount(op.amount), paid: true, score: 100, fromDb: true
         };
         await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       } else if (kind === 'exceptional') {
@@ -5571,6 +5601,8 @@
             list.push({
               kind: 'wallet', id: t.id, expId: e.id, accId, accName: accName(accId),
               label: `${e.description} · ${t.description || 'Mouvement'}`,
+              walletName: e.description || '',
+              txLabel: t.description || 'Mouvement',
               amount: Number(t.amount), budgetAmount: Number(t.amount), day,
               date, paid: true, category: e.category || ''
             });
@@ -5580,6 +5612,7 @@
           list.push({
             kind: 'wallet-budget', id: e.id, accId, accName: accName(accId),
             label: '👛 ' + e.description,
+            walletName: e.description || '',
             amount: Number(e.amount), budgetAmount: Number(e.amount), day: 1,
             date: `${mKey}-01`, paid: false, category: e.category || ''
           });
@@ -5756,6 +5789,121 @@
       this.switchVerifPane(this.verif.pane || 'releve');
     },
 
+    verifEnvelopeAmount(bankAmount) {
+      const n = Number(bankAmount) || 0;
+      if (n < 0) return Math.abs(n);
+      if (n > 0) return -Math.abs(n);
+      return 0;
+    },
+
+    verifMatchFacts(m) {
+      if (!m) return null;
+      const accounts = this.state.accounts || [];
+      const expenses = this.state.expenses || [];
+      const incomes = this.state.incomes || [];
+      const accById = (id) => (accounts.find(a => a.id === id) || {}).name || '';
+      const expById = (id) => expenses.find(e => String(e.id) === String(id)) || null;
+
+      const accName = m.accName || accById(m.accId);
+      let walletName = m.walletName || '';
+      let subject = String(m.txLabel || m.label || '').replace(/^👛\s*/, '');
+      let category = m.category || '';
+      let day = m.day != null && m.day !== ''
+        ? Number(m.day)
+        : (m.date ? Number(String(m.date).slice(8, 10)) || null : null);
+      if (!Number.isFinite(day) || day <= 0) day = null;
+      let budgetAmt = m.budgetAmount != null ? Number(m.budgetAmount) : null;
+      let targetName = '';
+
+      if (m.kind === 'wallet' || m.kind === 'wallet-budget') {
+        const expId = m.expId || (m.kind === 'wallet-budget' ? m.id : null);
+        const exp = expId ? expById(expId) : null;
+        if (exp) {
+          walletName = walletName || exp.description || '';
+          if (!category) category = exp.category || '';
+        }
+        if (!walletName && String(m.label || '').includes(' · ')) {
+          walletName = String(m.label).split(' · ')[0].replace(/^👛\s*/, '');
+        }
+        if (m.kind === 'wallet') {
+          if (m.txLabel) subject = m.txLabel;
+          else if (String(m.label || '').includes(' · ')) subject = String(m.label).split(' · ').slice(1).join(' · ');
+          else subject = subject || 'Mouvement';
+        } else {
+          subject = walletName || subject || 'Portefeuille';
+          day = null;
+        }
+      } else if (m.kind === 'expense') {
+        const exp = expById(m.id);
+        if (exp) {
+          if (!subject) subject = exp.description || '';
+          if (!category) category = exp.category || '';
+          if (!day) day = Number(exp.day) || null;
+          if (budgetAmt == null || !Number.isFinite(budgetAmt)) budgetAmt = Number(exp.amount);
+        }
+      } else if (m.kind === 'income' || m.kind === 'refund') {
+        const inc = incomes.find(i => String(i.id) === String(m.id));
+        if (inc) {
+          if (!subject) subject = inc.description || '';
+          if (!day) day = Number(inc.day) || null;
+          if (budgetAmt == null || !Number.isFinite(budgetAmt)) budgetAmt = Number(inc.amount);
+        }
+      } else if (m.kind === 'apport') {
+        if (category === 'Apport') category = '';
+        if (m.target_account_id) targetName = accById(m.target_account_id);
+        if (this.verif?.mKey && (!subject || !day || budgetAmt == null || !targetName)) {
+          const ap = this.listOutboundApportDues({ mKey: this.verif.mKey }).find(a => String(a.id) === String(m.id));
+          if (ap) {
+            if (!subject) subject = ap.description || '';
+            if (!day) day = Number(ap.day) || null;
+            if (budgetAmt == null || !Number.isFinite(budgetAmt)) budgetAmt = Number(ap.amount);
+            if (!targetName && ap.target_account_id) targetName = accById(ap.target_account_id);
+          }
+        }
+      }
+
+      const isRefund = m.kind === 'refund' || /^remb\.?\s/i.test(subject);
+      let kindLabel = '';
+      if (m.kind === 'wallet') kindLabel = Number(m.amount) < 0 ? 'Remboursement' : 'Dépense';
+      else if (m.kind === 'wallet-budget') kindLabel = 'Enveloppe';
+      else if (m.kind === 'apport') kindLabel = 'Apport';
+      else if (isRefund) kindLabel = 'Remboursement';
+      else if (m.kind === 'income') kindLabel = 'Revenu';
+      else if (m.kind === 'expense') kindLabel = 'Dépense';
+      else kindLabel = m.kind || '';
+
+      if (category && kindLabel && category.toLowerCase() === kindLabel.toLowerCase()) category = '';
+
+      let status = '';
+      if (m.kind === 'wallet') status = 'saisi';
+      else if (m.kind === 'wallet-budget') status = 'à rattacher';
+      else if (m.paid && (m.kind === 'income' || isRefund)) status = 'encaissé';
+      else if (m.paid) status = 'validé';
+      else status = 'prévu';
+
+      const shownAmt = Number(m.amount);
+      let budgetHint = '';
+      if (m.paid && budgetAmt != null && Number.isFinite(budgetAmt) && Number.isFinite(shownAmt) && Math.abs(budgetAmt - shownAmt) > 0.009) {
+        budgetHint = 'budget ' + this.fmt(budgetAmt);
+      }
+
+      const showWallet = m.kind === 'wallet' && !!walletName && walletName !== subject;
+      return {
+        accName,
+        subject: subject || '—',
+        walletPill: showWallet ? walletName : '',
+        logoOnSubject: m.kind === 'wallet-budget' || (m.kind === 'wallet' && !!walletName && !showWallet),
+        category,
+        day,
+        kindLabel,
+        status,
+        targetName,
+        amountHtml: this.fmt(Number.isFinite(shownAmt) ? shownAmt : 0),
+        budgetHint,
+        linked: !!m.fromDb
+      };
+    },
+
     renderVerifTable() {
       const tbody = document.getElementById('verif-tbody');
       if (!tbody) return;
@@ -5782,48 +5930,37 @@
         return;
       }
 
-      const kindLabel = (m) => {
-        if (!m) return '';
-        if (m.kind === 'expense') return m.paid ? 'Dépense déjà validée' : 'Dépense budgétée';
-        if (m.kind === 'apport') return m.paid ? 'Apport déjà validé' : 'Apport mensuel';
-        if (m.kind === 'income') return m.paid ? 'Revenu déjà encaissé' : 'Revenu prévu';
-        if (m.kind === 'wallet') return 'Mouvement portefeuille';
-        if (m.kind === 'wallet-budget') return 'Portefeuille (enveloppe)';
-        if (m.kind === 'refund') return 'Remboursement';
-        return m.kind;
-      };
-      const formatVerifMatchMeta = (m) => {
-        if (!m) return '';
-        const day = m.day != null
-          ? Number(m.day)
-          : (m.date ? Number(String(m.date).slice(8, 10)) || null : null);
-        const bits = [kindLabel(m)];
-        if (day) bits.push(`jour ${day}`);
-        if (m.category) bits.push(this.esc(m.category));
-        const budgetAmt = m.budgetAmount != null ? Number(m.budgetAmount) : null;
-        const shownAmt = Number(m.amount);
-        let amtBit;
-        if (m.paid) {
-          amtBit = `parti : ${this.fmt(shownAmt)}`;
-          if (budgetAmt != null && Number.isFinite(budgetAmt) && Math.abs(budgetAmt - shownAmt) > 0.009) {
-            amtBit += ` (budget ${this.fmt(budgetAmt)})`;
-          }
-        } else {
-          amtBit = `budget ${this.fmt(shownAmt)}`;
-        }
-        bits.push(amtBit);
-        return bits.join(' · ');
-      };
-      const formatVerifMatchDest = (m) => {
-        if (!m) return '';
-        const tag = m.accName
-          ? `<span class="bh-verif-acc-tag">${this.esc(m.accName)}</span>`
+      const formatVerifMatchBody = (m, scoreHtml) => {
+        const f = this.verifMatchFacts(m);
+        if (!f) return '';
+        const acc = f.accName
+          ? `<span class="bh-verif-acc-tag">${this.esc(f.accName)}</span>`
           : '';
+        const origin = f.linked
+          ? '<span class="bh-verif-origin linked">Lié</span>'
+          : '<span class="bh-verif-origin detected">Détecté</span>';
+        const subject = f.logoOnSubject
+          ? `<strong class="bh-verif-wallet">👛 ${this.esc(f.subject)}</strong>`
+          : `<strong>${this.esc(f.subject)}</strong>`;
+        const wallet = f.walletPill
+          ? `<span class="bh-verif-wallet">👛 ${this.esc(f.walletPill)}</span>`
+          : '';
+        const score = scoreHtml ? `<span class="alt-score">${scoreHtml}</span>` : '';
+        const bits = [];
+        const add = (html) => { if (html) bits.push(html); };
+        add(`<span class="num">${f.amountHtml}</span>`);
+        if (f.day) add('le ' + f.day);
+        if (f.category) add(this.esc(f.category));
+        if (f.kindLabel) add(this.esc(f.kindLabel));
+        if (f.status) add(this.esc(f.status));
+        if (f.targetName) add('vers ' + this.esc(f.targetName));
+        if (f.budgetHint) add(this.esc(f.budgetHint));
         return `<div class="bh-verif-match">
-          <div class="dest">${tag}<strong>${this.esc(m.label)}</strong></div>
-          <div class="score">${formatVerifMatchMeta(m)}</div>
+          <div class="bh-verif-match-l1">${acc}${origin}${subject}${wallet}${score}</div>
+          <div class="bh-verif-match-l2">${bits.join('<span class="sep">·</span>')}</div>
         </div>`;
       };
+      const formatVerifMatchDest = (m) => formatVerifMatchBody(m, '');
       const formatVerifMatchOptions = (op) => {
         const opts = op.matchOptions || [];
         if (opts.length < 2) return formatVerifMatchDest(op.match);
@@ -5832,15 +5969,11 @@
           <div class="bh-verif-alts-hint">Plusieurs propositions proches — choisis :</div>
           ${opts.map(m => {
             const selected = cur && cur.kind === m.kind && String(cur.id) === String(m.id);
-            const tag = m.accName
-              ? `<span class="bh-verif-acc-tag">${this.esc(m.accName)}</span>`
-              : '';
             const sc = Math.min(100, Number(m.score) || 0);
             return `<button type="button" class="bh-verif-alt${selected ? ' selected' : ''}"
               title="Utiliser cette proposition"
               onclick="BH.pickVerifMatchOption('${op.id}','${m.kind}','${String(m.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-              <div class="alt-head">${tag}<strong>${this.esc(m.label)}</strong><span class="alt-score">${sc}&nbsp;%</span></div>
-              <div class="alt-meta">${formatVerifMatchMeta(m)}</div>
+              ${formatVerifMatchBody(m, sc + '&nbsp;%')}
             </button>`;
           }).join('')}
         </div>`;
@@ -5916,7 +6049,7 @@
       this.openInfo('Actions de vérification', `
         <div style="font-size:13px; line-height:1.45; color:var(--ink);">
           <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Ouvre le même formulaire qu’Aujourd’hui : montant réel + ponctuel (ce mois) ou durable (montant habituel). Vert pâle = déjà fait ce mois-ci.</p>
-          <p style="margin:0 0 12px;"><strong>Lien budget</strong> — Indique exactement où le mouvement est parti (compte, libellé, jour, catégorie). Si déjà validé : montant réellement parti, avec le budget entre parenthèses s’il diffère. Si plusieurs propositions ont un score proche (±5 pts), elles sont listées : clique pour choisir.</p>
+          <p style="margin:0 0 12px;"><strong>Lien budget</strong> — Compte, Détecté (suggestion) ou Lié (déjà rattaché), libellé, portefeuille avec 👛, montant, jour et catégorie. Si le montant validé diffère du budget, le budget est rappelé. Si plusieurs propositions ont un score proche (±5 pts), elles sont listées : clique pour choisir.</p>
           <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie ou un apport sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
           <p style="margin:0 0 12px;"><strong>Délier</strong> — Retire une suggestion automatique de rapprochement (sans lien enregistré). La ligne redevient « Non trouvé ».</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
@@ -6020,7 +6153,12 @@
       if (!txId) return;
       op.match = {
         kind: 'wallet', id: txId, expId: m.id, accId: m.accId, accName: m.accName,
-        label: m.label, amount: Number(op.amount), paid: true, score: 100
+        label: `${m.walletName || String(m.label || '').replace(/^👛\s*/, '')} · ${op.label || 'Mouvement'}`,
+        walletName: m.walletName || String(m.label || '').replace(/^👛\s*/, ''),
+        txLabel: op.label || 'Mouvement',
+        category: m.category || '',
+        day: op.date ? Number(op.date.slice(8, 10)) : null,
+        amount: this.verifEnvelopeAmount(op.amount), paid: true, score: 100, fromDb: true
       };
       await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       this.renderVerifTable();
@@ -6031,6 +6169,7 @@
         this.openVerifWallet(opId);
         return;
       }
+      op.match = { ...op.match, fromDb: true, paid: true };
       await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       toast('Mouvement portefeuille vérifié');
       this.renderVerifTable();
@@ -6190,28 +6329,38 @@
         op.match = {
           kind, id, accId, accName,
           label: exp?.description || (kind === 'apport' ? 'Apport' : 'Dépense'),
+          category: kind === 'expense' ? (exp?.category || '') : '',
+          day: exp?.day,
+          budgetAmount: exp?.amount != null ? Number(exp.amount) : null,
+          target_account_id: exp?.target_account_id || null,
           amount, paid: true, score: 100, fromDb: true
         };
         await this.markPaid(id, amount, accId, mKey);
         await this.upsertBankVerification(op, 'matched', { kind, id, accId, score: 100 });
       } else if (kind === 'income') {
         const inc = this.state.incomes.find(e => e.id === id);
-        op.match = { kind, id, accId, accName, label: inc?.description || 'Revenu', amount, paid: true, score: 100 };
+        op.match = {
+          kind, id, accId, accName,
+          label: inc?.description || 'Revenu',
+          day: inc?.day,
+          budgetAmount: inc?.amount != null ? Number(inc.amount) : null,
+          amount, paid: true, score: 100, fromDb: true
+        };
         await this.markIncome(id, amount, accId, mKey);
         await this.upsertBankVerification(op, 'matched', { kind: 'income', id, accId, score: 100 });
-      } else if (kind === 'wallet') {
-        // Transaction déjà présente dans l’enveloppe : on enregistre le rapprochement
-        op.match = {
-          kind: 'wallet', id, expId: expId || null, accId, accName,
-          label: op.label, amount: Number(op.amount), paid: true, score: 100
-        };
-        await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
-      } else if (kind === 'wallet-budget') {
-        const txId = await this.addWalletTxFromVerif(id, accId, op);
+      } else if (kind === 'wallet' || kind === 'wallet-budget') {
+        const txId = kind === 'wallet' ? id : await this.addWalletTxFromVerif(id, accId, op);
         if (!txId) return;
+        const walletId = kind === 'wallet' ? (expId || null) : id;
+        const exp = (this.state.expenses || []).find(e => String(e.id) === String(walletId));
         op.match = {
-          kind: 'wallet', id: txId, expId: id, accId, accName,
-          label: op.label, amount: Number(op.amount), paid: true, score: 100
+          kind: 'wallet', id: txId, expId: walletId, accId, accName,
+          label: exp ? `${exp.description} · ${op.label || 'Mouvement'}` : (op.label || 'Mouvement'),
+          walletName: exp?.description || '',
+          txLabel: op.label || 'Mouvement',
+          category: exp?.category || '',
+          day: op.date ? Number(op.date.slice(8, 10)) : null,
+          amount: this.verifEnvelopeAmount(op.amount), paid: true, score: 100, fromDb: true
         };
         await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       }
@@ -6318,7 +6467,8 @@
         const accName = (this.state.accounts.find(a => a.id === incAccId) || {}).name || '';
         op.match = {
           kind: 'refund', id: incomeId, accId: incAccId, accName,
-          label: desc, amount, paid: true, score: 100, refundOf: expId
+          label: desc, category: exp.category || '', day,
+          amount, paid: true, score: 100, fromDb: true, refundOf: expId
         };
         await this.upsertBankVerification(op, 'refund', {
           kind: 'refund', id: incomeId, accId: incAccId, score: 100,
@@ -6387,7 +6537,16 @@
       const txId = await this.addWalletTxFromVerif(expId, accId, op);
       if (!txId) return;
       const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
-      op.match = { kind: 'wallet', id: txId, expId, accId, accName, label: op.label, amount: Number(op.amount), paid: true, score: 100 };
+      const exp = (this.state.expenses || []).find(e => String(e.id) === String(expId));
+      op.match = {
+        kind: 'wallet', id: txId, expId, accId, accName,
+        label: exp ? `${exp.description} · ${op.label || 'Mouvement'}` : (op.label || 'Mouvement'),
+        walletName: exp?.description || '',
+        txLabel: op.label || 'Mouvement',
+        category: exp?.category || '',
+        day: op.date ? Number(op.date.slice(8, 10)) : null,
+        amount: this.verifEnvelopeAmount(op.amount), paid: true, score: 100, fromDb: true
+      };
       await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       this.renderVerifTable();
     },
