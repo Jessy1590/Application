@@ -110,11 +110,22 @@
   .bh-verif-score-cell.hi{ color:var(--sage-deep); }
   .bh-verif-score-cell.mid{ color:var(--amber); }
   .bh-verif-score-cell.lo{ color:var(--ink-faint); }
-  .bh-verif-match{ font-size:12px; line-height:1.35; overflow:hidden; }
-  .bh-verif-match strong{
-    display:inline; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
+  .bh-verif-match{ font-size:12px; line-height:1.4; }
+  .bh-verif-match strong{ display:inline; font-weight:650; word-break:break-word; }
+  .bh-verif-match .dest{ margin-top:2px; }
+  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); margin-top:2px; white-space:normal; }
+  .bh-verif-match-alts{ display:flex; flex-direction:column; gap:4px; }
+  .bh-verif-alts-hint{ font-size:10px; color:var(--ink-faint); margin-bottom:2px; font-weight:600; }
+  .bh-verif-alt{
+    text-align:left; width:100%; border:1px solid var(--line-soft);
+    background:var(--card); border-radius:8px; padding:6px 8px; cursor:pointer;
+    font:inherit; color:inherit; line-height:1.35;
   }
-  .bh-verif-match .score{ font-size:10.5px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bh-verif-alt:hover{ border-color:var(--sage); }
+  .bh-verif-alt.selected{ border-color:var(--sage); background:var(--sage-pale); }
+  .bh-verif-alt .alt-head{ display:flex; justify-content:space-between; gap:6px; align-items:baseline; }
+  .bh-verif-alt .alt-score{ font-weight:700; font-variant-numeric:tabular-nums; color:var(--sage-deep); white-space:nowrap; }
+  .bh-verif-alt .alt-meta{ font-size:10.5px; color:var(--ink-faint); margin-top:2px; }
   .bh-verif-actions{ display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
   .bh-verif-actions .bh-btn{ padding:6px 9px; font-size:11.5px; border-radius:8px; flex:0 0 auto; white-space:nowrap; }
   .bh-btn-done{
@@ -179,6 +190,26 @@
     display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:6px;
     background:var(--line-soft); color:var(--ink-soft); margin-right:4px; vertical-align:middle;
   }
+  .bh-verif-gaps-body{ max-height:min(62vh, 520px); overflow:auto; margin:0 -4px; padding:0 4px; }
+  .bh-verif-gaps-section{ margin-bottom:16px; }
+  .bh-verif-gaps-section h4{
+    font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--ink-faint); margin:0 0 8px; display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .bh-verif-gaps-section h4 .cnt{
+    font-variant-numeric:tabular-nums; background:var(--line-soft); color:var(--ink-soft);
+    padding:2px 8px; border-radius:999px; font-size:11px;
+  }
+  .bh-verif-gaps-row{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    padding:10px 12px; border:1px solid var(--line-soft); border-radius:12px;
+    background:var(--card); margin-bottom:8px; font-size:13px;
+  }
+  .bh-verif-gaps-row.app{ border-left:3px solid var(--amber); }
+  .bh-verif-gaps-row.bank{ border-left:3px solid var(--clay); }
+  .bh-verif-gaps-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .bh-verif-gaps-row .bh-verif-actions{ margin-top:0; flex-shrink:0; justify-content:flex-end; }
+  .bh-verif-gaps-empty{ padding:14px 8px; text-align:center; color:var(--ink-soft); font-size:12.5px; }
 
   .bh-card:hover{ box-shadow: 0 2px 4px rgba(21,37,32,0.06), 0 10px 26px -10px rgba(21,37,32,0.18); }
   .bh-manage-row:hover{ border-color: var(--sage); }
@@ -663,6 +694,9 @@
             <div class="bh-stat-value num" id="bh-stat-paid">—</div>
           </div>
         </div>
+        <div style="margin-bottom:12px;">
+          <button type="button" class="bh-btn bh-btn-outline bh-btn-block" onclick="BH.openExceptionalSheet()" title="Sortie ponctuelle hors budget récurrent">＋ Dépense exceptionnelle</button>
+        </div>
         <div id="bh-wallets-section"></div>
         <div id="bh-due-section"></div>
         <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
@@ -703,6 +737,7 @@
           <option value="">Toutes les saisies</option>
           <option value="expired">⚠️ Expirées seulement</option>
           <option value="active">Actives seulement</option>
+          <option value="disabled">Désactivées seulement</option>
           <option value="wallet">👛 Portefeuilles seulement</option>
         </select>
         <button type="button" class="bh-btn bh-btn-primary bh-saisies-add" onclick="BH.openAddSheet()" title="Ajouter une dépense ou un revenu">＋ Ajouter</button>
@@ -978,6 +1013,40 @@
 </button>
 
 <!-- MONTANT DIFFÉRENT SHEET -->
+<div class="bh-sheet-overlay" id="bh-exceptional-overlay" onclick="if(event.target===this) BH.closeExceptionalSheet()">
+  <div class="bh-sheet">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Dépense exceptionnelle</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;">Sortie ponctuelle hors cadre budgétaire classique. Elle est comptée dans l’historique et les effectifs du mois, sans créer de dépense récurrente.</p>
+
+    <div class="bh-field-label">Libellé</div>
+    <input type="text" id="exc-desc" placeholder="Ex. Réparation voiture" autocomplete="off">
+
+    <div class="bh-two-col">
+      <div>
+        <div class="bh-field-label">Montant (€)</div>
+        <input type="number" step="0.01" id="exc-amount" placeholder="0.00">
+      </div>
+      <div>
+        <div class="bh-field-label">Date</div>
+        <input type="date" id="exc-date">
+      </div>
+    </div>
+
+    <div class="bh-field-label">Compte</div>
+    <select id="exc-compte" class="bh-input"></select>
+
+    <div class="bh-field-label">Catégorie <span style="font-weight:400; color:var(--ink-faint);">(optionnel)</span></div>
+    <select id="exc-cat" class="bh-input" onchange="BH.onExceptionalCatSelect()"></select>
+    <input type="text" id="exc-cat-new" placeholder="Nouvelle catégorie" style="display:none; margin-top:4px;">
+
+    <div class="bh-sheet-actions" style="margin-top:16px;">
+      <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.closeExceptionalSheet()">Annuler</button>
+      <button type="button" class="bh-btn bh-btn-primary" onclick="BH.saveExceptionalExpense()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
 <div class="bh-sheet-overlay" id="bh-diffamount-overlay" onclick="if(event.target===this) BH.closeDifferentAmount()">
   <div class="bh-sheet">
     <div class="bh-sheet-handle"></div>
@@ -1143,6 +1212,15 @@
        <input type="file" id="bh-restore-input" accept="application/json" style="display:none;" onchange="BH.restoreBackup(this.files[0])">
        <button class="bh-btn bh-btn-outline bh-btn-block" onclick="document.getElementById('bh-restore-input').click()">📤 Restaurer depuis un fichier</button>
     </div>
+
+    <div class="bh-section-label">Outils</div>
+    <div class="bh-card" style="padding:12px;">
+       <div style="font-size:13px; font-weight:600; margin-bottom:6px;">Purger les vieux rapprochements</div>
+       <div style="font-size:13px; color:var(--ink-soft); margin-bottom:8px;">Supprime uniquement les rapprochements banque trop anciens. Les dépenses, revenus, comptes et historiques restent intacts.</div>
+       <label class="bh-field-label" for="purge-verif-months">Plus vieux que (mois)</label>
+       <input type="number" id="purge-verif-months" class="bh-input" min="1" max="120" value="12" style="margin-bottom:10px;">
+       <button type="button" class="bh-btn bh-btn-outline bh-btn-block" onclick="BH.purgeOldBankVerifications()">🗑 Purger les vieux rapprochements</button>
+    </div>
   </div>
 </div>
 
@@ -1275,6 +1353,22 @@
   </div>
 </div>
 
+<!-- VÉRIF : récapitulatif des écarts après Enregistrer -->
+<div class="bh-sheet-overlay" id="bh-verif-gaps-overlay" onclick="if(event.target===this) BH.closeVerifGapsSheet()">
+  <div class="bh-sheet" style="max-width:640px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;" id="verif-gaps-title">Écarts de rapprochement</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="verif-gaps-desc">
+      Voici ce qui n’est pas encore rapproché entre tes saisies et le relevé. Choisis une action pour chaque écart.
+    </p>
+    <div id="verif-gaps-body" class="bh-verif-gaps-body"></div>
+    <div class="bh-sheet-actions" style="margin-top:14px;">
+      <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.closeVerifGapsSheet()">Fermer</button>
+      <button type="button" class="bh-btn bh-btn-outline" onclick="BH.refreshVerifGapsSheet()">Actualiser</button>
+    </div>
+  </div>
+</div>
+
 <div class="bh-toast" id="bh-toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -1397,7 +1491,7 @@
     sheetEditId: null,
     groupSelect: {}, // expId -> accId
     groupValidateItems: [],
-    verif: { ops: [], allOps: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, linkKindFilter: '', walletOpId: null, refundOpId: null },
+    verif: { ops: [], allOps: [], accId: '', mKey: '', fileName: '', bank: 'auto', bankDetected: '', pane: 'releve', listFilter: 'all', scoreFilter: '', statusFilter: 'all', linkOpId: null, linkKindFilter: '', walletOpId: null, refundOpId: null, gapLinkApp: null },
 
     async init() {
       await this.fetchData();
@@ -1470,6 +1564,10 @@
         // Snapshots du budget théorique par compte/mois (pour graphiques historiques)
         theoreticalMonths: (recs.data || []).reduce((acc, m) => {
           acc[m.account_id + '_' + m.month_key] = m.theoretical_expenses || {};
+          return acc;
+        }, {}),
+        theoreticalIncomesMonths: (recs.data || []).reduce((acc, m) => {
+          acc[m.account_id + '_' + m.month_key] = m.theoretical_incomes || {};
           return acc;
         }, {})
       };
@@ -1820,6 +1918,24 @@
       let paidExpHtml = '', paidIncHtml = '';
       const late = [], today = [], soonExp = [], soonInc = [];
 
+      // Dépenses exceptionnelles déjà enregistrées sur le mois affiché
+      this.listExceptionalExpenses(null, mKey).forEach(exc => {
+        const acc = this.state.accounts.find(a => a.id === exc.account_id);
+        if (!acc) return;
+        totalPaid += Number(exc.amount) || 0;
+        paidExpHtml += `
+          <div class="bh-due" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <div style="min-width:0;">
+               <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(exc.description)}</div>
+               <div class="bh-due-meta">${this.esc(acc.name)} · Exceptionnelle${exc.category ? ' · ' + this.esc(exc.category) : ''}${exc.date ? ' · ' + this.fmtDate(exc.date) : ''}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <div class="num" style="color:var(--sage);">${this.fmt(exc.amount)}</div>
+              <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Supprimer cette dépense exceptionnelle" onclick="BH.deleteExceptionalExpense('${exc.id}', '${acc.id}', '${mKey}')">Annuler</button>
+            </div>
+          </div>`;
+      });
+
       const todayExpenses = [
         ...(this.state.expenses || []).filter(e => this.isActiveInMonth(e, mKey)),
         ...this.listOutboundApportDues({ mKey })
@@ -1960,7 +2076,7 @@
           + section('Non encaissés', late.filter(i => i.kind === 'income')));
 
       // Portefeuilles (budgets enveloppe avec dépenses internes multiples)
-      const wallets = this.state.expenses.filter(e => e.is_wallet && this.isActiveInMonth(e, mKey)).map(exp => {
+      const wallets = this.state.expenses.filter(e => this.isWalletVisibleInMonth(e, mKey)).map(exp => {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if (!acc) return null;
         const txs = this.getWalletTx(acc.id, exp.id, mKey);
@@ -2016,6 +2132,7 @@
       const remaining = Number(exp.amount) - spent;
       const pct = Math.max(0, Math.min(100, (spent / Number(exp.amount)) * 100 || 0));
       const expanded = !!(this.walletExpanded && this.walletExpanded[exp.id]);
+      const usable = this.isWalletUsable(exp);
       const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
       const sortedTxs = txs.slice().sort((a,b)=>Number(b.day)-Number(a.day));
       const [y, m] = mKey.split('-').map(Number);
@@ -2029,11 +2146,11 @@
         .filter(a => a.id !== acc.id)
         .map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`)
         .join('');
-      return `<div class="bh-card${expiredCls}" style="margin-bottom:10px; padding:14px;">
+      return `<div class="bh-card${expiredCls}" style="margin-bottom:10px; padding:14px;${!usable ? ' opacity:0.72;' : ''}">
         <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; gap:10px;" onclick="BH.toggleWalletExpand('${exp.id}')">
           <div style="min-width:0;">
-            <div style="font-weight:700; font-size:14px;">👛 ${this.esc(exp.description)}</div>
-            <div style="font-size:11px; color:var(--ink-faint);">${this.esc(acc.name)}${exp.category ? ' · '+this.esc(exp.category) : ''}${this.isExpired(exp) ? ` · ⚠️ Expirée le ${this.fmtDate(exp.end_date)}` : ''}</div>
+            <div style="font-weight:700; font-size:14px;">👛 ${this.esc(exp.description)}${!usable ? ' <span class="bh-pill" style="background:var(--line); color:var(--ink-faint); font-size:10px; font-weight:600;">Désactivé</span>' : ''}</div>
+            <div style="font-size:11px; color:var(--ink-faint);">${this.esc(acc.name)}${exp.category ? ' · '+this.esc(exp.category) : ''}${this.isExpired(exp) ? ` · ⚠️ Expirée le ${this.fmtDate(exp.end_date)}` : ''}${!usable ? ' · historique seul' : ''}</div>
           </div>
           <div style="text-align:right; flex-shrink:0;">
             <div class="num" style="font-weight:700; color:${remaining>=0?'var(--sage-deep)':'var(--clay)'};">${this.fmt(remaining)}</div>
@@ -2048,9 +2165,10 @@
                 <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· ${this.walletTxDateLabel(t)}</span> ${this.walletTxKindPill(t)}</span>
                 <span style="display:flex; align-items:center; gap:8px;">
                   <span class="num" style="color:${Number(t.amount) < 0 ? 'var(--sage-deep)' : 'inherit'};">${Number(t.amount) < 0 ? '+' + this.fmt(Math.abs(Number(t.amount))) : this.fmt(t.amount)}</span>
-                  <button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}','${mKey}')" title="Supprimer">✕</button>
+                  ${usable ? `<button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}','${mKey}')" title="Supprimer">✕</button>` : ''}
                 </span>
               </div>`).join('') : '<div style="font-size:12px; color:var(--ink-faint); padding:6px 0;">Aucune dépense saisie ce mois-ci.</div>'}
+            ${usable ? `
             <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;" onclick="event.stopPropagation()">
               <div style="display:flex; gap:6px;">
                 <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc / remboursement / apport">
@@ -2066,6 +2184,7 @@
               </div>
             </div>
             <p style="font-size:11px; color:var(--ink-faint); margin:6px 0 0;">Négatif = remboursement. Compte source = apport depuis un autre compte (ex. Swile → ce portefeuille).</p>
+            ` : '<p style="font-size:11px; color:var(--ink-faint); margin:8px 0 0;">Portefeuille désactivé — consultation de l\'historique uniquement.</p>'}
           </div>
         ` : ''}
       </div>`;
@@ -2153,14 +2272,15 @@
           const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
           if (!snap || !Object.keys(snap).length) return;
           tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
-            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         } else if (mode === 'effective') {
           this.state.expenses.forEach(e => {
             if (e.account_id !== acc.id) return;
             if (!this.isActiveInMonth(e, mKey)) return;
+            if (!this.isExpenseActive(e) && !e.is_wallet) return;
             tExp += this.expenseAmountForStats(e, mKey, 'effective');
           });
+          tExp += this.exceptionalAmountForAccount(acc.id, mKey);
           this.state.incomes.forEach(i => {
             if (i.account_id !== acc.id) return;
             accTInc += this.effectiveIncomeAmount(i, mKey);
@@ -2169,10 +2289,10 @@
           this.state.expenses.forEach(e => {
             if (e.account_id !== acc.id) return;
             if (!this.isActiveInMonth(e, mKey)) return;
+            if (!this.isExpenseActive(e)) return;
             tExp += Number(e.amount) || 0;
           });
-          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
-            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         }
 
         const netExp = Math.max(0, tExp - accTInc);
@@ -2198,11 +2318,12 @@
       });
       return dues;
     },
-    findExpenseLike(expId) {
+    findExpenseLike(expId, mKeyOpt) {
       const real = (this.state.expenses || []).find(e => e.id === expId);
       if (real) return real;
       if (this.isApportExpenseId(expId)) {
-        return this.listOutboundApportDues({ mKey: this.todayViewKey() }).find(a => a.id === expId) || null;
+        const mKey = mKeyOpt || this.todayViewKey();
+        return this.listOutboundApportDues({ mKey }).find(a => a.id === expId) || null;
       }
       return null;
     },
@@ -2227,14 +2348,15 @@
           const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
           if (!snap || !Object.keys(snap).length) return; // pas d'historique → ignore
           tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
-            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         } else if (mode === 'effective') {
           this.state.expenses.forEach(e => {
             if (e.account_id !== acc.id) return;
             if (!this.isActiveInMonth(e, mKey)) return;
+            if (!this.isExpenseActive(e) && !e.is_wallet) return;
             tExp += this.expenseAmountForStats(e, mKey, 'effective');
           });
+          tExp += this.exceptionalAmountForAccount(acc.id, mKey);
           this.state.incomes.forEach(i => {
             if (i.account_id !== acc.id) return;
             accTInc += this.effectiveIncomeAmount(i, mKey);
@@ -2243,10 +2365,10 @@
           this.state.expenses.forEach(e => {
             if (e.account_id !== acc.id) return;
             if (!this.isActiveInMonth(e, mKey)) return;
+            if (!this.isExpenseActive(e)) return;
             tExp += Number(e.amount) || 0;
           });
-          accTInc = this.state.incomes.filter(i => i.account_id === acc.id)
-            .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+          accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         }
 
         const netExp = Math.max(0, tExp - accTInc);
@@ -2376,11 +2498,11 @@
         return;
       }
       const rows = info.exps.map(e => `
-        <div class="bh-info-row"${this.isExpired(e) ? ' style="color:var(--clay);"' : ''}>
-          <span>${e.is_wallet ? '👛 ' : ''}${this.esc(e.description || e.category || 'Dépense')}${e.category ? ` <span style="color:var(--ink-faint); font-weight:400;">(${this.esc(e.category)})</span>` : ''}${!e.is_wallet && e.day ? ` <span style="color:var(--ink-faint); font-weight:400;">· le ${e.day}</span>` : ''}${this.isExpired(e) ? ` <span style="font-weight:400;">⚠️ Expirée le ${this.fmtDate(e.end_date)}</span>` : ''}</span>
+        <div class="bh-info-row"${this.isExpired(e) ? ' style="color:var(--clay);"' : (!this.isExpenseActive(e) ? ' style="opacity:0.65;"' : '')}>
+          <span>${e.is_wallet ? '👛 ' : ''}${this.esc(e.description || e.category || 'Dépense')}${!this.isExpenseActive(e) ? ' <span style="font-weight:400;">(désactivé)</span>' : ''}${e.category ? ` <span style="color:var(--ink-faint); font-weight:400;">(${this.esc(e.category)})</span>` : ''}${!e.is_wallet && e.day ? ` <span style="color:var(--ink-faint); font-weight:400;">· le ${e.day}</span>` : ''}${this.isExpired(e) ? ` <span style="font-weight:400;">⚠️ Expirée le ${this.fmtDate(e.end_date)}</span>` : ''}</span>
           <span class="num">${this.fmt(Number(e.amount))}</span>
         </div>`).join('');
-      const total = info.exps.reduce((s,e)=>s+Number(e.amount),0);
+      const total = info.exps.filter(e => this.isExpenseActive(e)).reduce((s,e)=>s+Number(e.amount),0);
       this.openInfo(`${info.accName} — dépenses saisies`, rows + `<div class="bh-info-row" style="margin-top:4px;"><span>Total</span><span class="num">${this.fmt(total)}</span></div>`);
     },
 
@@ -2528,12 +2650,16 @@
 
         let tExp = 0, tInc = 0, paidSum = 0;
         exps.forEach(e => {
-          tExp += Number(e.amount);
-          // Déjà réglé portefeuille = sorties de CE compte (pas les crédits apportés par un autre)
+          // Budget théorique : hors enveloppes désactivées
+          if (this.isExpenseActive(e)) tExp += Number(e.amount);
+          // Déjà réglé portefeuille = sorties de CE compte (historique conservé même si désactivé)
           if (e.is_wallet) paidSum += this.walletOwnSpent(acc.id, e.id, mKey);
-          else if (paidMap[e.id]) paidSum += Number(paidMap[e.id].amount);
+          else if (this.isExpenseActive(e) && paidMap[e.id]) paidSum += Number(paidMap[e.id].amount);
         });
         incs.forEach(i => { tInc += Number(i.amount); });
+        // Dépenses exceptionnelles : comptées dans le déjà réglé (effectif), pas dans le budget théorique
+        const exceptionalPaid = this.exceptionalAmountForAccount(acc.id, mKey);
+        paidSum += exceptionalPaid;
 
         const isMain = acc.id === mainAccId;
         // Apports mensuels validés (dépenses virtuelles jour 1) comptent dans "Déjà réglé"
@@ -2558,9 +2684,13 @@
         let settleHtml = '';
         let chartsHtml = '';
 
-        // Camembert : catégories de dépenses de ce compte
+        // Camembert : catégories de dépenses de ce compte (hors enveloppes désactivées)
         const catTotals = {};
-        exps.forEach(e => { const c = e.category || 'Autre'; catTotals[c] = (catTotals[c]||0) + Number(e.amount); });
+        exps.forEach(e => {
+          if (!this.isExpenseActive(e)) return;
+          const c = e.category || 'Autre';
+          catTotals[c] = (catTotals[c]||0) + Number(e.amount);
+        });
         const catItemsAcc = Object.entries(catTotals).map(([label,value])=>({label,value}));
         if (catItemsAcc.length) {
           chartsHtml += `<div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
@@ -2657,7 +2787,7 @@
               .reduce((a,t)=>a+(Number(t.amount)||0), 0);
           }
           return Number(e.day) <= selDay ? s + Number(e.amount) : s;
-        }, 0);
+        }, 0) + this.exceptionalAmountForAccount(acc.id, mKey, { maxDay: selDay });
         const walletApportsOut = this.outboundWalletApports(acc.id, mKey, selDay);
         let resteEnDate, totalApportsRecus = 0;
         if (isMain) {
@@ -2666,7 +2796,7 @@
           totalApportsRecus = totalAllocated;
           resteEnDate = totalApportsRecus + tInc - expsToDate - walletApportsOut;
         }
-        const hasWallet = exps.some(e => e.is_wallet);
+        const hasWallet = exps.some(e => e.is_wallet && this.isExpenseActive(e));
         if (!this.resteInfo) this.resteInfo = {};
         this.resteInfo[acc.id] = {
           accName: acc.name, isMain, resteDate, paidSum, expsToDate, resteEnDate,
@@ -2791,7 +2921,22 @@
       return total;
     },
 
+    // Doublon portefeuille : même libellé + même montant dans la même enveloppe / mois
+    isDuplicateWalletTx(list, description, amount) {
+      const norm = String(description || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const amt = Number(amount);
+      if (!norm || !Number.isFinite(amt)) return false;
+      return (list || []).some(t =>
+        Math.abs(Number(t.amount) - amt) < 0.005 &&
+        String(t.description || '').trim().toLowerCase().replace(/\s+/g, ' ') === norm
+      );
+    },
     async addWalletTx(expId, accId, mKeyOpt) {
+      const exp = (this.state.expenses || []).find(e => e.id === expId);
+      if (!this.isWalletUsable(exp)) {
+        toast('Ce portefeuille est désactivé : impossible d\'ajouter un mouvement.');
+        return;
+      }
       const desc = (document.getElementById(`wtx-desc-${expId}`)?.value || '').trim();
       const rawAmount = document.getElementById(`wtx-amount-${expId}`)?.value;
       const mKey = mKeyOpt || this.todayViewKey();
@@ -2815,6 +2960,10 @@
       const day = d.getDate();
       const bucket = this.state.walletTx?.[accId + '_' + mKey] || {};
       const list = (bucket[expId] || []).slice();
+      if (this.isDuplicateWalletTx(list, desc, amount)) {
+        toast('Cette transaction existe déjà dans ce portefeuille (même libellé et même montant).');
+        return;
+      }
       const kind = fromAccId ? 'apport' : (amount < 0 ? 'refund' : 'expense');
       const tx = {
         id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
@@ -2842,6 +2991,7 @@
       const newBucket = { ...bucket, [expId]: list };
 
       await withRetry(async () => {
+        await this.deleteBankVerificationsForLink('wallet', txId);
         await this.upsertMonthRecord(accId, mKey, { wallet_transactions: newBucket });
         toast('Mouvement retiré du portefeuille');
         this.fetchData();
@@ -2866,6 +3016,9 @@
       if (patch.theoretical_expenses !== undefined) payload.theoretical_expenses = patch.theoretical_expenses;
       else if (!existing) payload.theoretical_expenses = this.state.theoreticalMonths?.[key] || {};
 
+      if (patch.theoretical_incomes !== undefined) payload.theoretical_incomes = patch.theoretical_incomes;
+      else if (!existing) payload.theoretical_incomes = this.state.theoreticalIncomesMonths?.[key] || {};
+
       if (existing) {
         const { account_id, month_key, ...updates } = payload;
         if (Object.keys(updates).length === 0) return;
@@ -2881,6 +3034,10 @@
           if (!this.state.theoreticalMonths) this.state.theoreticalMonths = {};
           this.state.theoreticalMonths[key] = updates.theoretical_expenses;
         }
+        if (updates.theoretical_incomes !== undefined) {
+          if (!this.state.theoreticalIncomesMonths) this.state.theoreticalIncomesMonths = {};
+          this.state.theoreticalIncomesMonths[key] = updates.theoretical_incomes;
+        }
       } else {
         const row = {
           account_id: accId,
@@ -2888,7 +3045,8 @@
           paid_expenses: payload.paid_expenses || {},
           paid_incomes: payload.paid_incomes || {},
           wallet_transactions: payload.wallet_transactions || {},
-          theoretical_expenses: payload.theoretical_expenses || {}
+          theoretical_expenses: payload.theoretical_expenses || {},
+          theoretical_incomes: payload.theoretical_incomes || {}
         };
         const { error } = await supabaseApp.from('month_records').upsert(row, { onConflict: 'account_id,month_key' });
         if (error) throw error;
@@ -2896,6 +3054,8 @@
         this.state.monthRecords.push(row);
         if (!this.state.theoreticalMonths) this.state.theoreticalMonths = {};
         this.state.theoreticalMonths[key] = row.theoretical_expenses;
+        if (!this.state.theoreticalIncomesMonths) this.state.theoreticalIncomesMonths = {};
+        this.state.theoreticalIncomesMonths[key] = row.theoretical_incomes;
       }
     },
 
@@ -2907,7 +3067,8 @@
         description: exp.description || '',
         is_wallet: !!exp.is_wallet,
         day: Number(exp.day) || 1,
-        end_date: exp.end_date || null
+        end_date: exp.end_date || null,
+        active: exp.active !== false
       };
     },
 
@@ -2916,7 +3077,26 @@
       (this.state.expenses || []).forEach(exp => {
         if (exp.account_id !== accId) return;
         if (!this.isActiveInMonth(exp, mKey)) return;
+        if (!this.isExpenseActive(exp)) return;
         snap[exp.id] = this.expenseSnapshotRow(exp);
+      });
+      return snap;
+    },
+
+    incomeSnapshotRow(inc) {
+      return {
+        amount: Number(inc.amount) || 0,
+        description: inc.description || '',
+        day: Number(inc.day) || 1,
+        income_type: inc.income_type || null
+      };
+    },
+
+    buildTheoreticalIncomesSnapshot(accId, mKey) {
+      const snap = {};
+      (this.state.incomes || []).forEach(inc => {
+        if (inc.account_id !== accId) return;
+        snap[inc.id] = this.incomeSnapshotRow(inc);
       });
       return snap;
     },
@@ -2929,6 +3109,28 @@
       }));
     },
 
+    theoreticalIncomesSnapFingerprint(snap) {
+      const keys = Object.keys(snap || {}).sort();
+      return JSON.stringify(keys.map(k => {
+        const r = snap[k] || {};
+        return [k, Number(r.amount) || 0, r.description || '', Number(r.day) || 1, r.income_type || null];
+      }));
+    },
+
+    // Total revenus théoriques d'un compte/mois (snapshot historique si présent, sinon revenus actuels)
+    theoreticalIncomeTotalForAccount(accId, mKey) {
+      const curKey = this.monthKey(new Date());
+      if (mKey !== curKey) {
+        const snap = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey];
+        if (snap && Object.keys(snap).length) {
+          return Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        }
+      }
+      return (this.state.incomes || [])
+        .filter(i => i.account_id === accId)
+        .reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    },
+
     // Figé / met à jour le snapshot du mois courant pour chaque compte
     async syncCurrentTheoreticalSnapshots() {
       if (this._theoSnapSyncing) return;
@@ -2937,11 +3139,20 @@
         const mKey = this.monthKey(new Date());
         for (const acc of (this.state.accounts || [])) {
           const key = acc.id + '_' + mKey;
-          const next = this.buildTheoreticalSnapshot(acc.id, mKey);
-          const prev = this.state.theoreticalMonths?.[key] || {};
-          if (this.theoreticalSnapFingerprint(prev) === this.theoreticalSnapFingerprint(next)) continue;
+          const nextExp = this.buildTheoreticalSnapshot(acc.id, mKey);
+          const prevExp = this.state.theoreticalMonths?.[key] || {};
+          const nextInc = this.buildTheoreticalIncomesSnapshot(acc.id, mKey);
+          const prevInc = this.state.theoreticalIncomesMonths?.[key] || {};
+          const patch = {};
+          if (this.theoreticalSnapFingerprint(prevExp) !== this.theoreticalSnapFingerprint(nextExp)) {
+            patch.theoretical_expenses = nextExp;
+          }
+          if (this.theoreticalIncomesSnapFingerprint(prevInc) !== this.theoreticalIncomesSnapFingerprint(nextInc)) {
+            patch.theoretical_incomes = nextInc;
+          }
+          if (!Object.keys(patch).length) continue;
           await withRetry(async () => {
-            await this.upsertMonthRecord(acc.id, mKey, { theoretical_expenses: next });
+            await this.upsertMonthRecord(acc.id, mKey, patch);
           }, 'snapshot budget théorique');
         }
       } finally {
@@ -3008,6 +3219,173 @@
       return end < today;
     },
 
+    // --- Dépenses exceptionnelles (ponctuelles hors budget récurrent) ---
+    // Stockées dans month_records.paid_expenses sous une clé synthétique `exc_<uuid>`
+    // avec métadonnées (description, category, date). Pas d'entrée dans `expenses`.
+    isExceptionalPaidKey(id) {
+      return typeof id === 'string'
+        && /^exc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    },
+    newExceptionalPaidKey() {
+      const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+      return 'exc_' + uuid;
+    },
+    listExceptionalExpenses(accFilter, mKey) {
+      const out = [];
+      const accounts = accFilter
+        ? this.state.accounts.filter(a => a.id === accFilter)
+        : (this.state.accounts || []);
+      accounts.forEach(acc => {
+        const paidMap = this.state.months[acc.id + '_' + mKey] || {};
+        Object.entries(paidMap).forEach(([id, rec]) => {
+          if (!rec || !this.isExceptionalPaidKey(id)) return;
+          if (!rec.exceptional && !rec.description) return;
+          out.push({
+            id,
+            account_id: acc.id,
+            amount: Number(rec.amount) || 0,
+            description: rec.description || 'Dépense exceptionnelle',
+            category: (rec.category || '').trim(),
+            date: rec.date || null,
+            day: Number(rec.day) || (rec.date ? Number(String(rec.date).slice(8, 10)) : 1),
+            on: rec.on || null,
+            exceptional: true
+          });
+        });
+      });
+      return out;
+    },
+    exceptionalAmountForAccount(accId, mKey, { maxDay = 31 } = {}) {
+      return this.listExceptionalExpenses(accId, mKey)
+        .filter(e => Number(e.day) <= maxDay)
+        .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    },
+    openExceptionalSheet(prefs) {
+      if (this.verif) this.verif.pendingExceptionalOpId = null;
+      const p = prefs || {};
+      const mKey = p.mKey || this.todayViewKey();
+      const defaultDate = p.date
+        || (mKey === this.monthKey(new Date()) ? this._todayISO() : (mKey + '-01'));
+      document.getElementById('exc-desc').value = p.desc || '';
+      document.getElementById('exc-amount').value = p.amount != null && Number.isFinite(Number(p.amount))
+        ? Math.abs(Number(p.amount)).toFixed(2)
+        : '';
+      document.getElementById('exc-date').value = defaultDate;
+      const accSel = document.getElementById('exc-compte');
+      const accs = this.state.accounts || [];
+      const mainId = this.state.profile?.main_account_id;
+      const pick = (p.accId && accs.some(a => a.id === p.accId))
+        ? p.accId
+        : ((mainId && accs.some(a => a.id === mainId)) ? mainId : (accs[0] && accs[0].id) || '');
+      accSel.innerHTML = accs.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+      if (pick) accSel.value = pick;
+      const catSel = document.getElementById('exc-cat');
+      const cats = [...new Set(this.state.expenses.map(e => e.category).filter(Boolean))].sort();
+      catSel.innerHTML =
+        `<option value="">— Aucune —</option>` +
+        cats.map(c => `<option value="${this.esc(c)}">${this.esc(c)}</option>`).join('') +
+        `<option value="__autres__">Autres…</option>`;
+      catSel.value = p.category || '';
+      document.getElementById('exc-cat-new').value = '';
+      document.getElementById('exc-cat-new').style.display = 'none';
+      document.getElementById('bh-exceptional-overlay').classList.add('open');
+    },
+    closeExceptionalSheet() {
+      document.getElementById('bh-exceptional-overlay').classList.remove('open');
+      if (this.verif) this.verif.pendingExceptionalOpId = null;
+    },
+    onExceptionalCatSelect() {
+      const isNew = document.getElementById('exc-cat').value === '__autres__';
+      const inp = document.getElementById('exc-cat-new');
+      inp.style.display = isNew ? 'block' : 'none';
+      if (isNew) inp.focus();
+    },
+    async saveExceptionalExpense() {
+      const desc = (document.getElementById('exc-desc').value || '').trim();
+      const rawAmount = document.getElementById('exc-amount').value;
+      const amount = Number(rawAmount);
+      const dateStr = document.getElementById('exc-date').value;
+      const accId = document.getElementById('exc-compte').value;
+      const catVal = document.getElementById('exc-cat').value;
+      let category = '';
+      if (catVal === '__autres__') category = (document.getElementById('exc-cat-new').value || '').trim();
+      else if (catVal) category = catVal;
+
+      if (!desc) { toast('Indique un libellé pour la dépense.'); return; }
+      if (rawAmount === '' || rawAmount == null || !Number.isFinite(amount) || amount <= 0) {
+        toast('Le montant doit être un nombre positif.'); return;
+      }
+      if (!dateStr) { toast('Indique une date.'); return; }
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) { toast('Date invalide.'); return; }
+      if (!accId || !this.state.accounts.some(a => a.id === accId)) {
+        toast('Choisis un compte valide.'); return;
+      }
+
+      const mKey = this.monthKey(d);
+      const day = d.getDate();
+      const id = this.newExceptionalPaidKey();
+      let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
+      recs[id] = {
+        amount,
+        on: new Date().toISOString(),
+        exceptional: true,
+        description: desc,
+        category: category || '',
+        date: dateStr,
+        day
+      };
+
+      const pendingOpId = this.verif?.pendingExceptionalOpId || null;
+
+      await withRetry(async () => {
+        await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
+        // Afficher le mois de la dépense si différent du mois AJD courant
+        if (this.todayViewKey() !== mKey) {
+          this.todayMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+        }
+        // Depuis l’écran d’écarts : rattacher la ligne banque à cette exceptionnelle
+        if (pendingOpId) {
+          const op = this.findVerifOp(pendingOpId);
+          if (op) {
+            const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
+            op.match = {
+              kind: 'expense', id, accId, accName,
+              label: desc, amount, paid: true, score: 100, fromDb: true
+            };
+            op.matchCleared = false;
+            await this.upsertBankVerification(op, 'matched', { kind: 'expense', id, accId, score: 100 });
+          }
+          this.verif.pendingExceptionalOpId = null;
+        }
+        toast('Dépense exceptionnelle enregistrée');
+        this.closeExceptionalSheet();
+        this.fetchData();
+        this.renderVerifTable();
+        this.renderVerifStatus();
+        this.refreshVerifGapsSheet();
+      }, 'enregistrement dépense exceptionnelle');
+    },
+    async deleteExceptionalExpense(excId, accId, mKeyOpt) {
+      if (!this.isExceptionalPaidKey(excId)) return;
+      const mKey = mKeyOpt || this.todayViewKey();
+      let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
+      if (!recs[excId]) return;
+      delete recs[excId];
+      await withRetry(async () => {
+        await this.deleteBankVerificationsForLink('expense', excId);
+        await this.upsertMonthRecord(accId, mKey, { paid_expenses: recs });
+        toast('Dépense exceptionnelle supprimée');
+        this.fetchData();
+      }, 'suppression dépense exceptionnelle');
+    },
+
     async markPaid(expId, amount, accId, mKeyOpt) {
       const mKey = mKeyOpt || this.todayViewKey();
       let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
@@ -3059,18 +3437,37 @@
     },
 
     // --- MONTANT DIFFÉRENT (validation avec un montant divergent) ---
-    diffAmount: { expId: null, accId: null, baseAmount: 0, mode: 'temp', kind: 'expense' },
+    diffAmount: { expId: null, accId: null, baseAmount: 0, mode: 'temp', kind: 'expense', mKey: null, opId: null, linkKind: null, score: null },
 
-    openDifferentAmount(expId, accId, kind = 'expense') {
+    openDifferentAmount(expId, accId, kind = 'expense', opts = {}) {
+      const mKey = opts.mKey || this.todayViewKey();
       const item = kind === 'income'
         ? this.state.incomes.find(i => i.id === expId)
-        : this.findExpenseLike(expId);
+        : this.findExpenseLike(expId, mKey);
       if (!item) return;
       const acc = this.state.accounts.find(a => a.id === accId);
-      this.diffAmount = { expId, accId, baseAmount: Number(item.amount), mode: 'temp', kind, isApport: !!item.is_apport, targetAccId: item.target_account_id || null, contributionMode: item.contribution_mode || 'fixed' };
-      const label = kind === 'income' ? 'montant habituel' : 'montant habituel';
-      document.getElementById('da-desc').textContent = `${item.description} — ${acc ? acc.name : ''} · ${label} ${this.fmt(item.amount)}`;
-      document.getElementById('da-amount').value = item.amount;
+      const isApport = !!item.is_apport || this.isApportExpenseId(expId);
+      const prefAmount = (opts.amount != null && Number.isFinite(Number(opts.amount)))
+        ? Number(opts.amount)
+        : Number(item.amount);
+      this.diffAmount = {
+        expId, accId,
+        baseAmount: Number(item.amount),
+        mode: 'temp',
+        kind,
+        isApport,
+        targetAccId: item.target_account_id || null,
+        contributionMode: item.contribution_mode || 'fixed',
+        mKey,
+        opId: opts.opId || null,
+        linkKind: opts.linkKind || (isApport ? 'apport' : kind),
+        score: opts.score != null ? Number(opts.score) : null
+      };
+      const titleEl = document.querySelector('#bh-diffamount-overlay .bh-sheet-title');
+      if (titleEl) titleEl.textContent = opts.title || 'Montant différent';
+      document.getElementById('da-desc').textContent =
+        `${item.description} — ${acc ? acc.name : ''} · montant habituel ${this.fmt(item.amount)}`;
+      document.getElementById('da-amount').value = prefAmount;
       const amountLabel = document.querySelector('#bh-diffamount-overlay .bh-field-label');
       if (amountLabel) {
         amountLabel.textContent = kind === 'income'
@@ -3080,7 +3477,7 @@
       const permBtn = document.getElementById('da-mode-perm');
       if (permBtn) {
         // Durable : OK pour apport fixe (met à jour la cible) ; masqué pour % / prorata
-        const showPerm = !(item.is_apport && (item.contribution_mode || 'fixed') !== 'fixed');
+        const showPerm = !(isApport && (item.contribution_mode || 'fixed') !== 'fixed');
         permBtn.style.display = showPerm ? '' : 'none';
       }
       this.setDiffAmountMode('temp');
@@ -3091,6 +3488,12 @@
       document.getElementById('bh-diffamount-overlay').classList.remove('open');
       const permBtn = document.getElementById('da-mode-perm');
       if (permBtn) permBtn.style.display = '';
+      const titleEl = document.querySelector('#bh-diffamount-overlay .bh-sheet-title');
+      if (titleEl) titleEl.textContent = 'Montant différent';
+      this.diffAmount.opId = null;
+      this.diffAmount.mKey = null;
+      this.diffAmount.linkKind = null;
+      this.diffAmount.score = null;
     },
 
     setDiffAmountMode(mode) {
@@ -3113,7 +3516,7 @@
     },
 
     async confirmDifferentAmount() {
-      const { expId, accId, mode, kind } = this.diffAmount;
+      const { expId, accId, mode, kind, opId, linkKind, score } = this.diffAmount;
       const rawAmount = document.getElementById('da-amount').value;
       if (rawAmount === '' || rawAmount == null) { toast('Indique un montant.'); return; }
       const newAmount = Number(rawAmount);
@@ -3158,11 +3561,17 @@
             }
           }
         }
-        const mKey = this.todayViewKey();
+        const mKey = this.diffAmount.mKey || this.todayViewKey();
         if (kind === 'income') {
           let recs = { ...(this.state.monthsIncomes?.[accId + '_' + mKey] || {}) };
           recs[expId] = { amount: newAmount, on: new Date().toISOString() };
-          await this.upsertMonthRecord(accId, mKey, { paid_incomes: recs });
+          const patch = { paid_incomes: recs };
+          if (mode === 'perm') {
+            const localInc = this.state.incomes.find(i => i.id === expId);
+            if (localInc) localInc.amount = newAmount;
+            patch.theoretical_incomes = this.buildTheoreticalIncomesSnapshot(accId, mKey);
+          }
+          await this.upsertMonthRecord(accId, mKey, patch);
           toast(mode === 'perm' ? "Montant mis à jour durablement et encaissé" : "Encaissé avec le montant ponctuel");
         } else {
           let recs = { ...(this.state.months[accId + '_' + mKey] || {}) };
@@ -3176,8 +3585,26 @@
             ? (isApport ? "Cible d'apport mise à jour et validée" : "Montant mis à jour durablement et validé")
             : "Validé avec le montant ponctuel");
         }
+        // Depuis le relevé Vérif : enregistrer aussi le rapprochement banque ↔ budget
+        if (opId) {
+          const op = this.findVerifOp(opId);
+          if (op) {
+            const lk = linkKind || (isApport ? 'apport' : kind);
+            if (op.match) {
+              op.match.paid = true;
+              op.match.amount = newAmount;
+            }
+            op.matchCleared = false;
+            await this.upsertBankVerification(op, 'matched', {
+              kind: lk, id: expId, accId, score: score != null ? score : (op.match?.score || 100)
+            });
+          }
+        }
         this.closeDifferentAmount();
         this.fetchData();
+        this.renderVerifTable();
+        this.renderVerifStatus();
+        this.refreshVerifGapsSheet();
       }, 'montant différent');
     },
 
@@ -3371,7 +3798,8 @@
         if (catFilter && item.category !== catFilter) return false;
         if (accFilter && item.account_id !== accFilter) return false;
         if (statusFilter === 'expired' && !this.isExpired(item)) return false;
-        if (statusFilter === 'active' && this.isExpired(item)) return false;
+        if (statusFilter === 'active' && (this.isExpired(item) || !this.isExpenseActive(item))) return false;
+        if (statusFilter === 'disabled' && this.isExpenseActive(item)) return false;
         if (statusFilter === 'wallet' && !item.is_wallet) return false;
         if (!q) return true;
         const hay = [item.description, item.category, acc?.name, String(item.amount)].filter(Boolean).join(' ').toLowerCase();
@@ -3398,8 +3826,9 @@
 
       const rowExpense = (i, acc) => {
         const expiredCls = this.isExpired(i) ? ' bh-expired' : '';
-        return `<div class="bh-manage-row${expiredCls}" onclick="BH.openEditSheet('expense','${i.id}')">
-          <div><div class="bh-manage-row-desc" style="font-weight:600;font-size:14px;">${i.is_wallet ? '👛 ' : ''}${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${i.is_wallet ? 'Portefeuille mensuel' : 'Le '+i.day}${i.category ? ' · '+this.esc(i.category) : ''}${this.isExpired(i) ? ' · ⚠️ Expirée le '+this.fmtDate(i.end_date) : ''}</div></div>
+        const disabled = !this.isExpenseActive(i);
+        return `<div class="bh-manage-row${expiredCls}" style="${disabled ? 'opacity:0.65;' : ''}" onclick="BH.openEditSheet('expense','${i.id}')">
+          <div><div class="bh-manage-row-desc" style="font-weight:600;font-size:14px;">${i.is_wallet ? '👛 ' : ''}${this.esc(i.description)}${disabled ? ' <span class="bh-pill" style="background:var(--line); color:var(--ink-faint); font-size:10px;">Désactivé</span>' : ''}</div><div style="font-size:11px;color:var(--ink-faint);">${i.is_wallet ? (disabled ? 'Portefeuille désactivé' : 'Portefeuille mensuel') : 'Le '+i.day}${i.category ? ' · '+this.esc(i.category) : ''}${this.isExpired(i) ? ' · ⚠️ Expirée le '+this.fmtDate(i.end_date) : ''}</div></div>
           <div class="num">${this.fmt(i.amount)}</div>
         </div>`;
       };
@@ -3413,6 +3842,9 @@
         let any = false;
         ordered.forEach(acc => {
           const items = (byAcc.get(acc.id) || []).slice().sort((a,b) => {
+            const aOff = this.isExpenseActive(a) ? 0 : 1;
+            const bOff = this.isExpenseActive(b) ? 0 : 1;
+            if (aOff !== bOff) return aOff - bOff;
             if (!!a.is_wallet !== !!b.is_wallet) return a.is_wallet ? 1 : -1;
             return (Number(a.day)||0) - (Number(b.day)||0);
           });
@@ -3577,6 +4009,69 @@
       }, 'suppression vérification');
       if (result) this.removeLocalBankVerif(mKey, fingerprint);
     },
+
+    // Supprime tous les rapprochements pointant vers un élément budget (linked_kind + linked_id)
+    async deleteBankVerificationsForLink(kind, id) {
+      if (!this.user?.id || !kind || id == null || id === '') return;
+      const linkedId = String(id);
+      const kinds = kind === 'expense' ? ['expense', 'apport']
+        : kind === 'income' ? ['income', 'refund']
+        : kind === 'wallet' ? ['wallet']
+        : [kind];
+      await withRetry(async () => {
+        for (const k of kinds) {
+          const { error } = await supabaseApp.from('bank_verifications')
+            .delete()
+            .eq('user_id', this.user.id)
+            .eq('linked_kind', k)
+            .eq('linked_id', linkedId);
+          if (error) throw error;
+        }
+        return true;
+      }, 'nettoyage rapprochements');
+      this.state.bankVerifications = (this.state.bankVerifications || []).filter(v => {
+        if (String(v.linked_id) !== linkedId) {
+          // tx portefeuille parfois aussi référencée dans meta
+          if (kind === 'wallet' && v.meta) {
+            const metaTx = v.meta.tx_id || v.meta.wallet_tx_id;
+            if (metaTx != null && String(metaTx) === linkedId) return false;
+          }
+          return true;
+        }
+        return !kinds.includes(v.linked_kind);
+      });
+    },
+
+    // Purge manuelle : uniquement bank_verifications de l'utilisateur courant, mois trop anciens
+    async purgeOldBankVerifications() {
+      if (!this.user?.id) return;
+      const raw = document.getElementById('purge-verif-months')?.value;
+      const months = Math.max(1, Math.min(120, parseInt(raw, 10) || 12));
+      const d = new Date();
+      d.setMonth(d.getMonth() - months);
+      const cutoff = this.monthKey(d);
+      const ok = confirm(
+        `Supprimer les rapprochements bancaires de plus de ${months} mois ?\n\n` +
+        `Seules les lignes bank_verifications antérieures à ${cutoff} seront effacées.\n` +
+        `Aucune autre donnée (dépenses, revenus, comptes…) ne sera touchée.`
+      );
+      if (!ok) return;
+      await withRetry(async () => {
+        const { data, error } = await supabaseApp.from('bank_verifications')
+          .delete()
+          .eq('user_id', this.user.id)
+          .lt('month_key', cutoff)
+          .select('id');
+        if (error) throw error;
+        const n = (data || []).length;
+        this.state.bankVerifications = (this.state.bankVerifications || [])
+          .filter(v => !(String(v.month_key || '') < cutoff));
+        toast(n === 0
+          ? 'Aucun vieux rapprochement à supprimer'
+          : (n === 1 ? '1 rapprochement supprimé' : `${n} rapprochements supprimés`));
+        return true;
+      }, 'purge rapprochements');
+    },
     listBudgetStatusRows(mKey, accId) {
       if (!mKey) return [];
       const sets = this.verifiedLinkedSets(mKey);
@@ -3588,6 +4083,7 @@
 
       (this.state.expenses || []).forEach(e => {
         if (!accIds.includes(e.account_id) || e.is_wallet || !this.isActiveInMonth(e, mKey)) return;
+        if (!this.isExpenseActive(e)) return;
         const paid = !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id];
         rows.push({
           kind: 'expense',
@@ -3606,6 +4102,7 @@
 
       (this.state.expenses || []).forEach(e => {
         if (!accIds.includes(e.account_id) || !e.is_wallet || !this.isActiveInMonth(e, mKey)) return;
+        // Historique txs même si enveloppe désactivée
         this.getWalletTx(e.account_id, e.id, mKey).forEach(t => {
           if (this.isExternalWalletApport(t)) return;
           const txId = String(t.id);
@@ -3825,20 +4322,17 @@
       });
       listEl.innerHTML = html;
     },
-    async validateVerifStatusRow(kind, id, accId, amount) {
+    validateVerifStatusRow(kind, id, accId, amount) {
       if (!id || !accId) return;
+      if (!(kind === 'expense' || kind === 'apport' || kind === 'income' || kind === 'refund')) return;
+      const daKind = (kind === 'income' || kind === 'refund') ? 'income' : 'expense';
       const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
-      const amt = Math.abs(Number(amount) || 0);
-      if (kind === 'expense' || kind === 'apport') {
-        await this.markPaid(id, amt, accId, mKey);
-      } else if (kind === 'income' || kind === 'refund') {
-        if (!(amt > 0)) { toast('Montant invalide.'); return; }
-        await this.markIncome(id, amt, accId, mKey);
-      } else {
-        return;
-      }
-      // markPaid/markIncome déclenchent fetchData ; on rafraîchit aussi le panneau si besoin
-      this.renderVerifStatus();
+      this.openDifferentAmount(id, accId, daKind, {
+        amount: Math.abs(Number(amount) || 0),
+        mKey,
+        linkKind: kind,
+        title: (kind === 'income' || kind === 'refund') ? 'Encaisser' : 'Valider'
+      });
     },
     renderUnverifiedExpenses() {
       // Compteur du panneau Relevé + rafraîchit la vue Vérification si ouverte
@@ -3891,7 +4385,361 @@
       }
       this.renderVerifTable();
       this.renderVerifStatus();
-      toast(saved ? saved + ' ligne(s) enregistrée(s)' : 'Rien à enregistrer (aucune correspondance solide ni oubliée)');
+
+      const gaps = this.collectVerifGaps();
+      const gapCount = gaps.appGaps.length + gaps.bankGaps.length;
+      if (!gapCount) {
+        toast(saved
+          ? saved + ' ligne(s) enregistrée(s) · tout est rapproché'
+          : 'Tout est rapproché');
+        return;
+      }
+      if (saved) toast(saved + ' ligne(s) enregistrée(s) · ' + gapCount + ' écart(s) à trancher');
+      else toast(gapCount + ' écart(s) à trancher');
+      this.openVerifGapsSheet(gaps);
+    },
+
+    // --- Écarts budget ↔ relevé (après Enregistrer) ---
+    verifAppGapIgnoredKey(mKey) {
+      return 'bh-verif-app-gap-ignored-' + (this.user?.id || 'anon') + '-' + (mKey || '');
+    },
+    loadVerifAppGapIgnored(mKey) {
+      try { return new Set(JSON.parse(localStorage.getItem(this.verifAppGapIgnoredKey(mKey)) || '[]')); }
+      catch { return new Set(); }
+    },
+    saveVerifAppGapIgnored(mKey, set) {
+      localStorage.setItem(this.verifAppGapIgnoredKey(mKey), JSON.stringify([...set]));
+    },
+    appGapKey(kind, id) {
+      return String(kind || '') + ':' + String(id || '');
+    },
+    isVerifOpSolidLinked(op) {
+      if (!op || op.ignored || op.savedStatus === 'ignored') return false;
+      if (op.savedStatus === 'matched' || op.savedStatus === 'wallet' || op.savedStatus === 'refund') return true;
+      const m = op.match;
+      if (!m || m.kind === 'wallet-budget') return false;
+      const score = Number(m.score) || 0;
+      if (score < 70) return false;
+      if (m.kind === 'wallet' && (!m.id || m.id === 'new')) return false;
+      return !!(m.fromDb || op.savedStatus);
+    },
+    collectVerifGaps() {
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
+      const ignoredApp = this.loadVerifAppGapIgnored(mKey);
+      const sets = this.verifiedLinkedSets(mKey);
+      const accName = (id) => (this.state.accounts.find(a => a.id === id) || {}).name || '';
+
+      const appGaps = [];
+      this.listBudgetStatusRows(mKey, accId || null).forEach(r => {
+        if (r.verified) return;
+        const key = this.appGapKey(r.kind, r.id);
+        if (ignoredApp.has(key)) return;
+        appGaps.push({
+          side: 'app',
+          kind: r.kind,
+          group: r.group,
+          id: r.id,
+          label: r.label,
+          amount: Number(r.amount) || 0,
+          day: r.day,
+          category: r.category || '',
+          accId: r.accId,
+          accName: r.accName,
+          paid: !!r.paid,
+          walletExpId: r.walletExpId || null
+        });
+      });
+
+      this.listExceptionalExpenses(accId || null, mKey).forEach(exc => {
+        if (sets.expense.has(String(exc.id))) return;
+        const key = this.appGapKey('exceptional', exc.id);
+        if (ignoredApp.has(key)) return;
+        appGaps.push({
+          side: 'app',
+          kind: 'exceptional',
+          group: 'Exceptionnelles',
+          id: exc.id,
+          label: exc.description,
+          amount: Number(exc.amount) || 0,
+          day: exc.day,
+          category: exc.category || '',
+          accId: exc.account_id,
+          accName: accName(exc.account_id),
+          paid: true,
+          walletExpId: null
+        });
+      });
+
+      const bankGaps = (this.verif.ops || [])
+        .filter(op => !this.isVerifOpSolidLinked(op) && !op.ignored && op.savedStatus !== 'ignored')
+        .map(op => ({
+          side: 'bank',
+          opId: op.id,
+          date: op.date || '',
+          label: op.label || '',
+          amount: Number(op.amount) || 0,
+          score: op.match ? (Number(op.match.score) || 0) : 0,
+          matchLabel: op.match ? (op.match.label || '') : '',
+          weakMatch: !!(op.match && (Number(op.match.score) || 0) > 0 && (Number(op.match.score) || 0) < 70)
+        }));
+
+      return { mKey, accId, appGaps, bankGaps };
+    },
+    openVerifGapsSheet(gapsOpt) {
+      this.verif.gapLinkApp = null;
+      const gaps = gapsOpt || this.collectVerifGaps();
+      this.renderVerifGapsSheet(gaps);
+      document.getElementById('bh-verif-gaps-overlay')?.classList.add('open');
+    },
+    closeVerifGapsSheet() {
+      document.getElementById('bh-verif-gaps-overlay')?.classList.remove('open');
+      this.verif.gapLinkApp = null;
+    },
+    isVerifGapsSheetOpen() {
+      return !!document.getElementById('bh-verif-gaps-overlay')?.classList.contains('open');
+    },
+    refreshVerifGapsSheet() {
+      if (!this.isVerifGapsSheetOpen()) return;
+      const gaps = this.collectVerifGaps();
+      if (!gaps.appGaps.length && !gaps.bankGaps.length && !this.verif.gapLinkApp) {
+        this.closeVerifGapsSheet();
+        toast('Tout est rapproché');
+        return;
+      }
+      this.renderVerifGapsSheet(gaps);
+    },
+    renderVerifGapsSheet(gapsOpt) {
+      const body = document.getElementById('verif-gaps-body');
+      const title = document.getElementById('verif-gaps-title');
+      const desc = document.getElementById('verif-gaps-desc');
+      if (!body) return;
+      const gaps = gapsOpt || this.collectVerifGaps();
+      const gapLink = this.verif.gapLinkApp;
+
+      // Mode « Lier » depuis une saisie app → choisir une ligne banque
+      if (gapLink) {
+        if (title) title.textContent = 'Lier à une ligne du relevé';
+        if (desc) {
+          desc.textContent = `Choisis la ligne banque qui correspond à « ${gapLink.label || 'cette saisie'} » (${this.fmt(gapLink.amount)}).`;
+        }
+        const pending = (this.verif.ops || []).filter(op =>
+          !this.isVerifOpSolidLinked(op) && !op.ignored && op.savedStatus !== 'ignored'
+        );
+        body.innerHTML = `
+          <button type="button" class="bh-btn bh-btn-ghost bh-btn-block" style="margin-bottom:10px;" onclick="BH.cancelVerifGapLinkApp()">← Retour aux écarts</button>
+          ${pending.length ? pending.map(op => {
+            const dateLbl = op.date ? new Date(op.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+            const amtColor = Number(op.amount) < 0 ? 'var(--clay)' : 'var(--sage-deep)';
+            return `<div class="bh-verif-gaps-row bank" style="cursor:pointer;" onclick="BH.confirmVerifGapLinkApp('${op.id}')">
+              <div style="min-width:0;">
+                <div><strong>${this.esc(op.label || '—')}</strong></div>
+                <div class="meta">${dateLbl}${op.match ? ' · suggestion : ' + this.esc(op.match.label || '') : ''}</div>
+              </div>
+              <div class="num" style="color:${amtColor}; flex-shrink:0;">${this.fmt(op.amount)}</div>
+            </div>`;
+          }).join('') : '<div class="bh-verif-gaps-empty">Aucune ligne banque libre à lier. Oublie d’abord une ligne, ou importe un autre relevé.</div>'}`;
+        return;
+      }
+
+      const nApp = gaps.appGaps.length;
+      const nBank = gaps.bankGaps.length;
+      if (title) title.textContent = 'Écarts de rapprochement';
+      if (desc) {
+        desc.textContent = nApp || nBank
+          ? `Encore ${nApp} saisie(s) hors relevé et ${nBank} ligne(s) banque hors appli. Oublier · Lier · Saisie.`
+          : 'Tout est rapproché pour ce mois.';
+      }
+
+      const kindFr = {
+        expense: 'Dépense', apport: 'Apport', income: 'Revenu', refund: 'Remboursement',
+        wallet: 'Portefeuille', exceptional: 'Exceptionnelle'
+      };
+
+      const appHtml = nApp
+        ? gaps.appGaps.map(g => {
+          const kid = this.esc(g.kind);
+          const id = this.esc(g.id);
+          const acc = this.esc(g.accId || '');
+          return `<div class="bh-verif-gaps-row app">
+            <div style="min-width:0;">
+              <div><span class="bh-verif-acc-tag">${this.esc(g.accName || '')}</span><strong>${this.esc(g.label)}</strong></div>
+              <div class="meta">${kindFr[g.kind] || g.kind}${g.paid ? ' · saisi' : ' · non saisi'} · jour ${g.day || '—'}${g.category ? ' · ' + this.esc(g.category) : ''}</div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+              <span class="num">${this.fmt(g.amount)}</span>
+              <div class="bh-verif-actions">
+                <button type="button" class="bh-btn bh-btn-ghost" title="Ne plus proposer cet écart" onclick="event.stopPropagation(); BH.ignoreVerifAppGap('${kid}','${id}')">Oublier</button>
+                <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une ligne du relevé" onclick="event.stopPropagation(); BH.startVerifGapLinkApp('${kid}','${id}','${acc}')">Lier</button>
+                <button type="button" class="bh-btn bh-btn-primary" title="Valider ou saisir" onclick="event.stopPropagation(); BH.saisieVerifAppGap('${kid}','${id}','${acc}',${Number(g.amount) || 0})">Saisie</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')
+        : '<div class="bh-verif-gaps-empty">Aucune saisie orpheline — tout le budget du mois est couvert par le relevé (ou oublié).</div>';
+
+      const bankHtml = nBank
+        ? gaps.bankGaps.map(g => {
+          const dateLbl = g.date ? new Date(g.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
+          const amtColor = g.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
+          const weak = g.weakMatch ? ` · score faible ${g.score}%` : '';
+          return `<div class="bh-verif-gaps-row bank">
+            <div style="min-width:0;">
+              <div><strong>${this.esc(g.label)}</strong></div>
+              <div class="meta">${dateLbl}${weak}${g.matchLabel ? ' · ' + this.esc(g.matchLabel) : ''}</div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+              <span class="num" style="color:${amtColor};">${this.fmt(g.amount)}</span>
+              <div class="bh-verif-actions">
+                <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne banque" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublier</button>
+                <button type="button" class="bh-btn bh-btn-outline" title="Lier à une saisie existante" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
+                <button type="button" class="bh-btn bh-btn-primary" title="Créer la saisie manquante" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Saisie</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')
+        : '<div class="bh-verif-gaps-empty">Aucune ligne banque orpheline — tout le relevé est lié ou oublié.</div>';
+
+      body.innerHTML = `
+        <div class="bh-verif-gaps-section">
+          <h4>Sur l’appli, pas dans le relevé <span class="cnt">${nApp}</span></h4>
+          ${appHtml}
+        </div>
+        <div class="bh-verif-gaps-section">
+          <h4>Sur le relevé, pas dans l’appli <span class="cnt">${nBank}</span></h4>
+          ${bankHtml}
+        </div>`;
+    },
+    ignoreVerifAppGap(kind, id) {
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const set = this.loadVerifAppGapIgnored(mKey);
+      set.add(this.appGapKey(kind, id));
+      this.saveVerifAppGapIgnored(mKey, set);
+      toast('Écart oublié');
+      this.refreshVerifGapsSheet();
+    },
+    startVerifGapLinkApp(kind, id, accId) {
+      const gaps = this.collectVerifGaps();
+      const g = gaps.appGaps.find(x => x.kind === kind && String(x.id) === String(id))
+        || this.listBudgetStatusRows(gaps.mKey, gaps.accId || null)
+          .find(x => x.kind === kind && String(x.id) === String(id));
+      const exc = kind === 'exceptional'
+        ? this.listExceptionalExpenses(null, gaps.mKey).find(e => String(e.id) === String(id))
+        : null;
+      this.verif.gapLinkApp = {
+        kind,
+        id,
+        accId: accId || g?.accId || exc?.account_id || this.verif.accId,
+        label: g?.label || exc?.description || '',
+        amount: g?.amount ?? exc?.amount ?? 0,
+        walletExpId: g?.walletExpId || null
+      };
+      this.renderVerifGapsSheet(gaps);
+    },
+    cancelVerifGapLinkApp() {
+      this.verif.gapLinkApp = null;
+      this.refreshVerifGapsSheet();
+    },
+    async confirmVerifGapLinkApp(opId) {
+      const link = this.verif.gapLinkApp;
+      const op = this.findVerifOp(opId);
+      if (!link || !op) return;
+      const kind = link.kind;
+      const id = link.id;
+      const accId = link.accId || this.verif.accId;
+      const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
+      const amount = Math.abs(Number(op.amount));
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      this.verif.gapLinkApp = null;
+      op.matchCleared = false;
+
+      if (kind === 'expense' || kind === 'apport') {
+        op.match = {
+          kind, id, accId, accName,
+          label: link.label || (kind === 'apport' ? 'Apport' : 'Dépense'),
+          amount, paid: true, score: 100, fromDb: true
+        };
+        await this.markPaid(id, amount, accId, mKey);
+        await this.upsertBankVerification(op, 'matched', { kind, id, accId, score: 100 });
+      } else if (kind === 'income' || kind === 'refund') {
+        op.match = {
+          kind: kind === 'refund' ? 'refund' : 'income',
+          id, accId, accName, label: link.label || 'Revenu', amount, paid: true, score: 100, fromDb: true
+        };
+        await this.markIncome(id, amount, accId, mKey);
+        await this.upsertBankVerification(op, kind === 'refund' ? 'refund' : 'matched', {
+          kind: kind === 'refund' ? 'refund' : 'income', id, accId, score: 100
+        });
+      } else if (kind === 'wallet') {
+        op.match = {
+          kind: 'wallet', id, expId: link.walletExpId || null, accId, accName,
+          label: link.label || op.label, amount: Number(op.amount), paid: true, score: 100, fromDb: true
+        };
+        await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
+      } else if (kind === 'exceptional') {
+        op.match = {
+          kind: 'expense', id, accId, accName,
+          label: link.label || 'Dépense exceptionnelle',
+          amount, paid: true, score: 100, fromDb: true
+        };
+        await this.upsertBankVerification(op, 'matched', { kind: 'expense', id, accId, score: 100 });
+      } else {
+        toast('Type de saisie non géré pour la liaison.');
+        this.refreshVerifGapsSheet();
+        return;
+      }
+      toast('Liaison enregistrée');
+      this.renderVerifTable();
+      this.renderVerifStatus();
+      this.refreshVerifGapsSheet();
+    },
+    saisieVerifAppGap(kind, id, accId, amount) {
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      if (kind === 'exceptional') {
+        toast('Cette dépense exceptionnelle est déjà saisie — utilise Lier pour la rattacher au relevé.');
+        return;
+      }
+      if (kind === 'wallet') {
+        toast('Mouvement portefeuille déjà saisi — utilise Lier pour le rattacher au relevé.');
+        return;
+      }
+      if (kind === 'expense' || kind === 'apport' || kind === 'income' || kind === 'refund') {
+        const daKind = (kind === 'income' || kind === 'refund') ? 'income' : 'expense';
+        this.openDifferentAmount(id, accId, daKind, {
+          amount: Math.abs(Number(amount) || 0),
+          mKey,
+          linkKind: kind,
+          title: (kind === 'income' || kind === 'refund') ? 'Encaisser' : 'Valider'
+        });
+        return;
+      }
+      toast('Action non disponible pour ce type.');
+    },
+    async ignoreVerifBankGap(opId) {
+      await this.ignoreVerifOp(opId);
+      this.refreshVerifGapsSheet();
+    },
+    linkVerifBankGap(opId) {
+      // Laisse la sheet écarts ouverte en fond ; le flux Lier… existant s’occupe de la liaison
+      this.openVerifLink(opId);
+    },
+    saisieVerifBankGap(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      if (Number(op.amount) < 0) {
+        // Sortie ponctuelle → dépense exceptionnelle préremplie
+        this.openExceptionalSheet({
+          desc: op.label || '',
+          amount: Math.abs(Number(op.amount)),
+          date: op.date || null,
+          accId: this.verif.accId || '',
+          mKey: this.verif.mKey || (op.date || '').slice(0, 7)
+        });
+        // Mémorise l’op pour lier après enregistrement exceptionnelle
+        this.verif.pendingExceptionalOpId = opId;
+      } else {
+        this.verifAddAsEntry(opId);
+      }
     },
     parseAmountFR(raw) {
       if (raw == null) return NaN;
@@ -4684,39 +5532,56 @@
         const paidInc = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
 
         (this.state.expenses || []).filter(e => e.account_id === accId && !e.is_wallet).forEach(e => {
-          if (!this.isActiveInMonth(e, mKey)) return;
+          if (!this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
           const day = Math.min(Number(e.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
+          const paidRec = paidMap[e.id];
+          const budgetAmount = Number(e.amount);
+          const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
           list.push({
             kind: 'expense', id: e.id, accId, accName: accName(accId),
-            label: e.description, amount: Number(e.amount),
-            date, paid: !!paidMap[e.id], category: e.category || ''
+            label: e.description,
+            amount: (paidAmount != null && Number.isFinite(paidAmount)) ? paidAmount : budgetAmount,
+            budgetAmount,
+            day,
+            date, paid: !!paidRec, category: e.category || ''
           });
         });
         (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
           const day = Math.min(Number(i.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
+          const paidRec = paidInc[i.id];
+          const budgetAmount = Number(i.amount);
+          const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
           list.push({
             kind: 'income', id: i.id, accId, accName: accName(accId),
-            label: i.description, amount: Number(i.amount),
-            date, paid: !!paidInc[i.id], category: ''
+            label: i.description,
+            amount: (paidAmount != null && Number.isFinite(paidAmount)) ? paidAmount : budgetAmount,
+            budgetAmount,
+            day,
+            date, paid: !!paidRec, category: ''
           });
         });
         (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet).forEach(e => {
+          // Txs historiques toujours proposables au matching (même enveloppe désactivée)
           this.getWalletTx(accId, e.id, mKey).forEach(t => {
             if (this.isExternalWalletApport(t)) return;
             const day = Number(t.day) || 1;
             const date = t.date || `${mKey}-${String(day).padStart(2, '0')}`;
             list.push({
               kind: 'wallet', id: t.id, expId: e.id, accId, accName: accName(accId),
-              label: `${e.description} · ${t.description}`,
-              amount: Number(t.amount), date, paid: true, category: e.category || ''
+              label: `${e.description} · ${t.description || 'Mouvement'}`,
+              amount: Number(t.amount), budgetAmount: Number(t.amount), day,
+              date, paid: true, category: e.category || ''
             });
           });
+          // Nouvelle saisie sur enveloppe : uniquement si active
+          if (!this.isWalletUsable(e)) return;
           list.push({
             kind: 'wallet-budget', id: e.id, accId, accName: accName(accId),
             label: '👛 ' + e.description,
-            amount: Number(e.amount), date: `${mKey}-01`, paid: false, category: e.category || ''
+            amount: Number(e.amount), budgetAmount: Number(e.amount), day: 1,
+            date: `${mKey}-01`, paid: false, category: e.category || ''
           });
         });
       });
@@ -4726,14 +5591,19 @@
         if (!accIds.includes(ap.account_id)) return;
         const paidMap = this.state.months[ap.account_id + '_' + mKey] || {};
         const paidRec = paidMap[ap.id];
+        const budgetAmount = Number(ap.amount);
+        const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
+        const day = Math.min(Number(ap.day) || 1, dim);
         list.push({
           kind: 'apport',
           id: ap.id,
           accId: ap.account_id,
           accName: accName(ap.account_id),
           label: ap.description,
-          amount: paidRec ? (Number(paidRec.amount) || Number(ap.amount)) : Number(ap.amount),
-          date: `${mKey}-01`,
+          amount: (paidAmount != null && Number.isFinite(paidAmount)) ? paidAmount : budgetAmount,
+          budgetAmount,
+          day,
+          date: `${mKey}-${String(day).padStart(2, '0')}`,
           paid: !!paidRec || !!ap.paid,
           category: 'Apport',
           is_apport: true,
@@ -4775,8 +5645,11 @@
       // Léger bonus si même compte que le relevé
       if (cand.accId && this.verif.accId && cand.accId === this.verif.accId) score += 5;
       else if (cand.accId && this.verif.accId && cand.accId !== this.verif.accId) score -= 3;
-      return Math.max(0, Math.min(100, score));
+      return Math.min(100, Math.max(0, score));
     },
+
+    // Écart de score (points) sous lequel plusieurs propositions sont considérées « à égalité »
+    VERIF_SCORE_TIE_WINDOW: 5,
 
     rematchVerif() {
       const accId = this.verif.accId || document.getElementById('verif-account')?.value;
@@ -4794,14 +5667,19 @@
       const candidates = this.buildVerifCandidates(null, mKey);
       const used = new Set();
       const scored = [];
+      const byOp = new Map();
       this.verif.ops.forEach(op => {
         const saved = dbByFp.get(this.verifFingerprint(op));
         if (saved?.status === 'ignored') op.ignored = true;
         op.savedStatus = saved?.status || null;
-        if (op.ignored) { op.match = null; return; }
+        if (op.ignored) { op.match = null; op.matchOptions = null; return; }
         candidates.forEach(c => {
           const score = this.scoreVerifMatch(op, c);
-          if (score >= 55) scored.push({ opId: op.id, cand: c, score });
+          if (score >= 55) {
+            scored.push({ opId: op.id, cand: c, score });
+            if (!byOp.has(op.id)) byOp.set(op.id, []);
+            byOp.get(op.id).push({ ...c, score });
+          }
         });
       });
       scored.sort((a, b) => b.score - a.score);
@@ -4813,8 +5691,9 @@
         used.add(key);
         assigned.set(opId, { ...cand, score });
       });
+      const tieWin = this.VERIF_SCORE_TIE_WINDOW;
       this.verif.ops.forEach(op => {
-        if (op.ignored) { op.match = null; return; }
+        if (op.ignored) { op.match = null; op.matchOptions = null; return; }
         const saved = dbByFp.get(this.verifFingerprint(op));
         if (saved && saved.status !== 'ignored' && saved.linked_kind && saved.linked_id) {
           const savedTxId = saved.meta?.tx_id || saved.meta?.wallet_tx_id || null;
@@ -4837,13 +5716,20 @@
             const key = linked.kind + ':' + linked.id;
             used.add(key);
             op.matchCleared = false;
+            op.matchOptions = null;
             op.match = { ...linked, score: 100, fromDb: true, paid: true };
             return;
           }
         }
         // Suggestion auto rejetée manuellement (« Délier ») — ne pas re-proposer
-        if (op.matchCleared) { op.match = null; return; }
-        op.match = assigned.get(op.id) || null;
+        if (op.matchCleared) { op.match = null; op.matchOptions = null; return; }
+        const options = (byOp.get(op.id) || []).slice().sort((a, b) => b.score - a.score);
+        const topScore = options[0]?.score ?? 0;
+        const near = topScore > 0
+          ? options.filter(o => topScore - o.score <= tieWin)
+          : [];
+        op.matchOptions = near.length > 1 ? near : null;
+        op.match = assigned.get(op.id) || (near[0] || null);
       });
       this.renderVerifTable();
     },
@@ -4906,6 +5792,59 @@
         if (m.kind === 'refund') return 'Remboursement';
         return m.kind;
       };
+      const formatVerifMatchMeta = (m) => {
+        if (!m) return '';
+        const day = m.day != null
+          ? Number(m.day)
+          : (m.date ? Number(String(m.date).slice(8, 10)) || null : null);
+        const bits = [kindLabel(m)];
+        if (day) bits.push(`jour ${day}`);
+        if (m.category) bits.push(this.esc(m.category));
+        const budgetAmt = m.budgetAmount != null ? Number(m.budgetAmount) : null;
+        const shownAmt = Number(m.amount);
+        let amtBit;
+        if (m.paid) {
+          amtBit = `parti : ${this.fmt(shownAmt)}`;
+          if (budgetAmt != null && Number.isFinite(budgetAmt) && Math.abs(budgetAmt - shownAmt) > 0.009) {
+            amtBit += ` (budget ${this.fmt(budgetAmt)})`;
+          }
+        } else {
+          amtBit = `budget ${this.fmt(shownAmt)}`;
+        }
+        bits.push(amtBit);
+        return bits.join(' · ');
+      };
+      const formatVerifMatchDest = (m) => {
+        if (!m) return '';
+        const tag = m.accName
+          ? `<span class="bh-verif-acc-tag">${this.esc(m.accName)}</span>`
+          : '';
+        return `<div class="bh-verif-match">
+          <div class="dest">${tag}<strong>${this.esc(m.label)}</strong></div>
+          <div class="score">${formatVerifMatchMeta(m)}</div>
+        </div>`;
+      };
+      const formatVerifMatchOptions = (op) => {
+        const opts = op.matchOptions || [];
+        if (opts.length < 2) return formatVerifMatchDest(op.match);
+        const cur = op.match;
+        return `<div class="bh-verif-match-alts">
+          <div class="bh-verif-alts-hint">Plusieurs propositions proches — choisis :</div>
+          ${opts.map(m => {
+            const selected = cur && cur.kind === m.kind && String(cur.id) === String(m.id);
+            const tag = m.accName
+              ? `<span class="bh-verif-acc-tag">${this.esc(m.accName)}</span>`
+              : '';
+            const sc = Math.min(100, Number(m.score) || 0);
+            return `<button type="button" class="bh-verif-alt${selected ? ' selected' : ''}"
+              title="Utiliser cette proposition"
+              onclick="BH.pickVerifMatchOption('${op.id}','${m.kind}','${String(m.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+              <div class="alt-head">${tag}<strong>${this.esc(m.label)}</strong><span class="alt-score">${sc}&nbsp;%</span></div>
+              <div class="alt-meta">${formatVerifMatchMeta(m)}</div>
+            </button>`;
+          }).join('')}
+        </div>`;
+      };
 
       const visible = ops.filter(op => this.verifOpPassesFilters(op));
       if (!visible.length) {
@@ -4920,20 +5859,19 @@
         const dateLbl = op.date ? new Date(op.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
         let matchHtml = '<span style="color:var(--ink-faint);">Non trouvé</span>';
         if (op.ignored) matchHtml = '<span style="color:var(--ink-faint);">Oublié</span>';
-        else if (op.match) {
-          const tag = op.match.accName
-            ? `<span class="bh-verif-acc-tag">${this.esc(op.match.accName)}</span>`
-            : '';
-          matchHtml = `<div class="bh-verif-match">${tag}<strong>${this.esc(op.match.label)}</strong><div class="score">${kindLabel(op.match)} · ${this.fmt(op.match.amount)}</div></div>`;
-        }
+        else if (op.matchOptions && op.matchOptions.length > 1) matchHtml = formatVerifMatchOptions(op);
+        else if (op.match) matchHtml = formatVerifMatchDest(op.match);
+        const multiNear = !!(op.matchOptions && op.matchOptions.length > 1);
         const scoreCls = !op.match || op.ignored ? 'lo' : (score >= 70 ? 'hi' : (score >= 55 ? 'mid' : 'lo'));
         const scoreHtml = op.ignored
           ? '—'
-          : (op.match ? `${score}&nbsp;%` : '—');
+          : (op.match
+            ? (multiNear ? `${score}&nbsp;% <span style="font-weight:500;font-size:10px;color:var(--ink-faint);">(${op.matchOptions.length})</span>` : `${score}&nbsp;%`)
+            : '—');
         const canValidate = op.match && (op.match.kind === 'expense' || op.match.kind === 'apport' || op.match.kind === 'income' || op.match.kind === 'refund');
         const already = !!(op.match && op.match.paid);
         const validateBtn = canValidate
-          ? `<button type="button" class="bh-btn ${already ? 'bh-btn-done' : 'bh-btn-primary'}" title="${already ? 'Déjà validé ce mois-ci — recliquer met à jour le montant du relevé' : 'Marquer comme payé / encaissé avec le montant du relevé'}" onclick="BH.applyVerifMatch('${op.id}')">${already ? 'Déjà validé' : 'Valider'}</button>`
+          ? `<button type="button" class="bh-btn ${already ? 'bh-btn-done' : 'bh-btn-primary'}" title="${already ? 'Déjà validé — rouvrir pour ajuster le montant (ponctuel / durable)' : 'Choisir le montant et ponctuel / durable'}" onclick="BH.applyVerifMatch('${op.id}')">${already ? 'Déjà validé' : 'Valider'}</button>`
           : '';
         // Portefeuille : déjà dedans (vert pâle) / enveloppe suggérée (vert) / sinon ouvrir le choix
         let walletBtn = '';
@@ -4977,20 +5915,31 @@
     showVerifActionsHelp() {
       this.openInfo('Actions de vérification', `
         <div style="font-size:13px; line-height:1.45; color:var(--ink);">
-          <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Marque la saisie liée comme payée (dépense, apport ou revenu). Vert pâle = déjà fait ce mois-ci.</p>
+          <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Ouvre le même formulaire qu’Aujourd’hui : montant réel + ponctuel (ce mois) ou durable (montant habituel). Vert pâle = déjà fait ce mois-ci.</p>
+          <p style="margin:0 0 12px;"><strong>Lien budget</strong> — Indique exactement où le mouvement est parti (compte, libellé, jour, catégorie). Si déjà validé : montant réellement parti, avec le budget entre parenthèses s’il diffère. Si plusieurs propositions ont un score proche (±5 pts), elles sont listées : clique pour choisir.</p>
           <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie ou un apport sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
           <p style="margin:0 0 12px;"><strong>Délier</strong> — Retire une suggestion automatique de rapprochement (sans lien enregistré). La ligne redevient « Non trouvé ».</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli).</p>
           <p style="margin:0 0 12px;"><strong>+ Portefeuille / Dans portefeuille</strong> — Ajoute dans une enveloppe, ou confirme qu’un mouvement déjà saisi est vérifié. Vert pâle = déjà présent.</p>
           <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne. Tu peux la réafficher plus tard.</p>
-          <p style="margin:0;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
+          <p style="margin:0 0 12px;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
+          <p style="margin:0;"><strong>Enregistrer</strong> — Persiste les correspondances solides, puis ouvre le récap des écarts (saisies hors relevé / lignes banque hors appli) avec Oublier, Lier ou Saisie. Si tout colle : message « tout est rapproché ».</p>
         </div>
       `);
     },
 
     findVerifOp(opId) {
       return (this.verif.ops || []).find(o => o.id === opId);
+    },
+    pickVerifMatchOption(opId, kind, id) {
+      const op = this.findVerifOp(opId);
+      if (!op?.matchOptions?.length) return;
+      const chosen = op.matchOptions.find(m => m.kind === kind && String(m.id) === String(id));
+      if (!chosen) return;
+      op.matchCleared = false;
+      op.match = { ...chosen };
+      this.renderVerifTable();
     },
     clearVerifMatch(opId) {
       const op = this.findVerifOp(opId);
@@ -5001,6 +5950,7 @@
         return;
       }
       op.match = null;
+      op.matchOptions = null;
       op.matchCleared = true;
       this.renderVerifTable();
       toast('Suggestion retirée');
@@ -5010,6 +5960,7 @@
       if (!op) return;
       op.ignored = true;
       op.match = null;
+      op.matchOptions = null;
       op.matchCleared = false;
       op.savedStatus = 'ignored';
       const set = this.loadVerifIgnored();
@@ -5041,28 +5992,21 @@
       toast('Oubliés réaffichés');
     },
 
-    async applyVerifMatch(opId) {
+    applyVerifMatch(opId) {
       const op = this.findVerifOp(opId);
       if (!op?.match) return;
       const m = op.match;
-      const amount = Math.abs(Number(op.amount));
-      const mKey = this.verif.mKey || this.monthKey(new Date());
-      const wasPaid = !!m.paid;
-      if (m.kind === 'expense' || m.kind === 'apport') {
-        await this.markPaid(m.id, amount, m.accId, mKey);
-        toast(wasPaid
-          ? 'Montant mis à jour (déjà validé)'
-          : (m.kind === 'apport' ? 'Apport validé depuis le relevé' : 'Dépense validée depuis le relevé'));
-      } else if (m.kind === 'income' || m.kind === 'refund') {
-        await this.markIncome(m.id, amount, m.accId, mKey);
-        toast(wasPaid ? 'Montant mis à jour (déjà encaissé)' : 'Revenu encaissé depuis le relevé');
-      }
-      m.paid = true;
-      op.matchCleared = false;
-      await this.upsertBankVerification(op, 'matched', {
-        kind: m.kind, id: m.id, accId: m.accId, score: m.score
+      if (!(m.kind === 'expense' || m.kind === 'apport' || m.kind === 'income' || m.kind === 'refund')) return;
+      const daKind = (m.kind === 'income' || m.kind === 'refund') ? 'income' : 'expense';
+      const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
+      this.openDifferentAmount(m.id, m.accId, daKind, {
+        amount: Math.abs(Number(op.amount)),
+        mKey,
+        opId: op.id,
+        linkKind: m.kind,
+        score: m.score,
+        title: m.paid ? 'Ajuster la validation' : 'Valider depuis le relevé'
       });
-      this.renderVerifTable();
     },
 
     async applyVerifWalletMatch(opId) {
@@ -5154,6 +6098,33 @@
       if (cand.kind === 'apport' && signBank < 0) score += 10;
       return Math.max(1, Math.min(100, score));
     },
+    // Candidat déjà lié en BDD (bank_verifications) ou associé à une autre ligne du relevé en cours
+    isVerifCandidateAlreadyLinked(cand, mKey, excludeOpId) {
+      if (!cand || cand.kind === 'wallet-budget') return false; // enveloppe réutilisable (nouvelles txs)
+      const id = String(cand.id);
+      const sets = this.verifiedLinkedSets(mKey);
+      if (cand.kind === 'expense' || cand.kind === 'apport') {
+        if (sets.expense.has(id)) return true;
+      } else if (cand.kind === 'income') {
+        if (sets.income.has(id)) return true;
+      } else if (cand.kind === 'wallet') {
+        if (sets.wallet.has(id)) return true;
+      }
+      const ops = this.verif.ops || [];
+      for (let i = 0; i < ops.length; i++) {
+        const other = ops[i];
+        if (!other || other.ignored || !other.match) continue;
+        if (excludeOpId && other.id === excludeOpId) continue;
+        const m = other.match;
+        if (!m || m.kind === 'wallet-budget') continue;
+        if (String(m.id) !== id) continue;
+        if (m.kind === cand.kind) return true;
+        // Même id dépense / apport selon le matching
+        if ((cand.kind === 'expense' || cand.kind === 'apport') &&
+            (m.kind === 'expense' || m.kind === 'apport')) return true;
+      }
+      return false;
+    },
     refreshVerifLinkList() {
       const op = this.findVerifOp(this.verif.linkOpId);
       const list = document.getElementById('verif-link-list');
@@ -5163,6 +6134,7 @@
       const kindFilter = this.verif.linkKindFilter || '';
       const mKey = this.verif.mKey || this.monthKey(new Date());
       let cands = this.buildVerifCandidates(accFilter || null, mKey)
+        .filter(c => !this.isVerifCandidateAlreadyLinked(c, mKey, this.verif.linkOpId))
         .map(c => ({ ...c, score: this.scoreVerifMatchForLink(op, c) }))
         .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'fr'));
 
@@ -5194,8 +6166,8 @@
             <div class="num">${this.fmt(c.amount)}</div>
           </div>`).join('')
         : `<div class="bh-empty">${kindFilter === 'apport'
-            ? 'Aucun apport configuré (compte principal + contribution vers un compte partagé).'
-            : 'Aucune saisie trouvée.'}</div>`;
+            ? 'Aucun apport non lié (compte principal + contribution vers un compte partagé).'
+            : 'Aucune saisie non liée pour ce mois.'}</div>`;
     },
     closeVerifLink() {
       document.getElementById('bh-verif-link-overlay').classList.remove('open');
@@ -5210,6 +6182,7 @@
       const mKey = this.verif.mKey || this.monthKey(new Date());
       this.closeVerifLink();
       op.matchCleared = false;
+      op.matchOptions = null;
       if (kind === 'expense' || kind === 'apport') {
         const exp = kind === 'apport'
           ? this.listOutboundApportDues({ mKey }).find(a => a.id === id)
@@ -5243,6 +6216,8 @@
         await this.upsertBankVerification(op, 'wallet', this.walletVerifLink(op.match));
       }
       this.renderVerifTable();
+      this.renderVerifStatus();
+      this.refreshVerifGapsSheet();
     },
 
     openVerifRefund(opId) {
@@ -5394,8 +6369,10 @@
       const accId = document.getElementById('verif-wallet-account')?.value;
       const sel = document.getElementById('verif-wallet-select');
       if (!sel) return;
-      const wallets = (this.state.expenses || []).filter(e => e.account_id === accId && e.is_wallet);
-      sel.innerHTML = wallets.map(w => `<option value="${w.id}">${this.esc(w.description)} (${this.fmt(w.amount)})</option>`).join('');
+      const wallets = (this.state.expenses || []).filter(e => e.account_id === accId && this.isWalletUsable(e));
+      sel.innerHTML = wallets.length
+        ? wallets.map(w => `<option value="${w.id}">${this.esc(w.description)} (${this.fmt(w.amount)})</option>`).join('')
+        : '<option value="">Aucun portefeuille actif</option>';
     },
     closeVerifWallet() {
       document.getElementById('bh-verif-wallet-overlay').classList.remove('open');
@@ -5416,6 +6393,11 @@
     },
 
     async addWalletTxFromVerif(expId, accId, op) {
+      const exp = (this.state.expenses || []).find(e => e.id === expId);
+      if (!this.isWalletUsable(exp)) {
+        toast('Ce portefeuille est désactivé : impossible d\'y rattacher une opération.');
+        return null;
+      }
       const mKey = this.verif.mKey || this.monthKey(new Date());
       // Le relevé peut être d'un autre mois que "en cours" — on écrit sur le mois du relevé
       const opKey = (op.date || '').slice(0, 7);
@@ -5430,6 +6412,10 @@
       const day = op.date ? Number(op.date.slice(8, 10)) : 1;
       const bucket = this.state.walletTx?.[accId + '_' + writeKey] || {};
       const list = (bucket[expId] || bucket[String(expId)] || []).slice();
+      if (this.isDuplicateWalletTx(list, op.label, amount)) {
+        toast('Cette transaction existe déjà dans ce portefeuille (même libellé et même montant).');
+        return null;
+      }
       const txId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
       list.push({
         id: txId,
@@ -5459,11 +6445,11 @@
        if (epargneStatAccId) {
           const mainAcc = this.state.accounts.find(a => a.id === epargneStatAccId);
           const mainInc = this.state.incomes.filter(i => i.account_id === epargneStatAccId).reduce((s,i)=>s+Number(i.amount),0);
-          const mainExpAll = this.state.expenses.filter(e => e.account_id === epargneStatAccId).reduce((s,e)=>s+Number(e.amount),0);
+          const mainExpAll = this.state.expenses.filter(e => e.account_id === epargneStatAccId && this.isExpenseActive(e)).reduce((s,e)=>s+Number(e.amount),0);
           const contribsAll = this.outboundContributionsBreakdown(epargneStatAccId).total;
           const walletApportsOut = this.outboundWalletApports(epargneStatAccId, this.monthKey(new Date()));
           const epargneCategorisee = this.state.expenses
-             .filter(e => e.account_id === epargneStatAccId && /(é|e)pargne/i.test(e.category || ''))
+             .filter(e => e.account_id === epargneStatAccId && this.isExpenseActive(e) && /(é|e)pargne/i.test(e.category || ''))
              .reduce((s,e)=>s+Number(e.amount),0);
           const capaciteEpargne = mainInc - mainExpAll - contribsAll - walletApportsOut + epargneCategorisee;
           document.getElementById('stat-epargne').textContent = this.fmt(capaciteEpargne);
@@ -5489,7 +6475,7 @@
           const mems = this.state.members.filter(m => m.account_id === acc.id);
           const myMem = mems.find(m => m.user_id === this.user.id);
           if (!myMem) return;
-          const exps = this.state.expenses.filter(e => e.account_id === acc.id);
+          const exps = this.state.expenses.filter(e => e.account_id === acc.id && this.isExpenseActive(e));
           const tExp = exps.reduce((s,e)=>s+Number(e.amount),0);
           const accTInc = this.state.incomes.filter(i => i.account_id === acc.id).reduce((s,i)=>s+Number(i.amount),0);
           const netExp = Math.max(0, tExp - accTInc);
@@ -5515,6 +6501,23 @@
     isActiveInMonth(exp, mKey) {
        if (!exp?.end_date) return true;
        return exp.end_date.slice(0, 7) >= mKey;
+    },
+
+    // Soft-flag portefeuille / dépense (active !== false). Défaut true si colonne absente.
+    isExpenseActive(exp) {
+      return !exp || exp.active !== false;
+    },
+
+    // Enveloppe utilisable pour de nouvelles saisies
+    isWalletUsable(exp) {
+      return !!(exp && exp.is_wallet && this.isExpenseActive(exp));
+    },
+
+    // Visible dans AJD : actif, ou désactivé en lecture seule sur un mois passé (historique)
+    isWalletVisibleInMonth(exp, mKey) {
+      if (!exp?.is_wallet || !this.isActiveInMonth(exp, mKey)) return false;
+      if (this.isExpenseActive(exp)) return true;
+      return mKey < this.monthKey(new Date());
     },
 
     // Montant effectif d'une dépense sur un mois (validé, ou txs portefeuille hors apports externes)
@@ -5568,11 +6571,24 @@
        this.state.expenses.forEach(exp => {
           if (accFilter && exp.account_id !== accFilter) return;
           if (!this.isActiveInMonth(exp, mKey)) return;
+          // Théorique courant : hors désactivés. Effectif : enveloppes désactivées gardent leur dépensé.
+          if (!this.isExpenseActive(exp)) {
+             if (mode !== 'effective' || !exp.is_wallet) return;
+          }
           const amt = this.expenseAmountForStats(exp, mKey, mode);
           if (amt <= 0) return;
           const cat = exp.category || 'Autre';
           totals[cat] = (totals[cat] || 0) + amt;
        });
+       // Effectif : dépenses exceptionnelles (hors budget récurrent) du mois
+       if (mode === 'effective') {
+          this.listExceptionalExpenses(accFilter || null, mKey).forEach(exc => {
+             const amt = Number(exc.amount) || 0;
+             if (amt <= 0) return;
+             const cat = exc.category || 'Autre';
+             totals[cat] = (totals[cat] || 0) + amt;
+          });
+       }
        return totals;
     },
 
@@ -5588,7 +6604,7 @@
        if (accId === mainId) return 0;
        const mems = this.state.members.filter(m => m.account_id === accId);
        if (!mems.length) return 0;
-       const tExp = this.state.expenses.filter(e => e.account_id === accId).reduce((s,e)=>s+Number(e.amount),0);
+       const tExp = this.state.expenses.filter(e => e.account_id === accId && this.isExpenseActive(e)).reduce((s,e)=>s+Number(e.amount),0);
        const tInc = this.state.incomes.filter(i => i.account_id === accId).reduce((s,i)=>s+Number(i.amount),0);
        const shares = this.computeFairShares(acc, mems, tExp, tInc);
        return Object.values(shares).reduce((a,b)=>a+Number(b||0),0);
@@ -5624,11 +6640,29 @@
        const curKey = this.monthKey(new Date());
 
        focusIds.forEach(accId => {
-          this.state.incomes.forEach(inc => {
-             if (inc.account_id !== accId) return;
-             const amt = mode === 'theorique' ? Number(inc.amount) || 0 : this.effectiveIncomeAmount(inc, mKey);
-             if (amt > 0) revenusDirects += amt;
-          });
+          if (mode === 'theorique') {
+             const snapInc = (mKey !== curKey)
+               ? this.state.theoreticalIncomesMonths?.[accId + '_' + mKey]
+               : null;
+             if (snapInc && Object.keys(snapInc).length) {
+                Object.values(snapInc).forEach(row => {
+                   const amt = Number(row.amount) || 0;
+                   if (amt > 0) revenusDirects += amt;
+                });
+             } else {
+                this.state.incomes.forEach(inc => {
+                   if (inc.account_id !== accId) return;
+                   const amt = Number(inc.amount) || 0;
+                   if (amt > 0) revenusDirects += amt;
+                });
+             }
+          } else {
+             this.state.incomes.forEach(inc => {
+                if (inc.account_id !== accId) return;
+                const amt = this.effectiveIncomeAmount(inc, mKey);
+                if (amt > 0) revenusDirects += amt;
+             });
+          }
 
           // Apports reçus : seulement en vue compte partagé filtré (pas en agrégat global)
           if (!isGlobal && accId !== mainId) {
@@ -5649,11 +6683,23 @@
              this.state.expenses.forEach(exp => {
                 if (exp.account_id !== accId) return;
                 if (!this.isActiveInMonth(exp, mKey)) return;
+                if (!this.isExpenseActive(exp)) {
+                   if (mode !== 'effective' || !exp.is_wallet) return;
+                }
                 const amt = this.expenseAmountForStats(exp, mKey, mode);
                 if (amt <= 0) return;
                 if (this.isEpargneExpense(exp)) epargne += amt;
                 else depenses += amt;
              });
+             // Effectif : dépenses exceptionnelles du mois (hors cadre budgétisé)
+             if (mode === 'effective') {
+                this.listExceptionalExpenses(accId, mKey).forEach(exc => {
+                   const amt = Number(exc.amount) || 0;
+                   if (amt <= 0) return;
+                   if (/(é|e)pargne/i.test(exc.category || '')) epargne += amt;
+                   else depenses += amt;
+                });
+             }
           }
 
           // Apports de ce compte vers des portefeuilles d'autres comptes
@@ -5996,6 +7042,25 @@
        URL.revokeObjectURL(url);
     },
 
+    walletTxCsvType(t) {
+       if (!t) return 'Mouvement portefeuille';
+       if (t.kind === 'apport' || t.from_account_id) return 'Apport portefeuille';
+       if (t.kind === 'refund' || Number(t.amount) < 0) return 'Remboursement portefeuille';
+       return 'Mouvement portefeuille';
+    },
+    appendWalletTxCsvRows(rows, acc, exp, list, mKey) {
+       (list || []).forEach(t => {
+          rows.push([
+             this.walletTxCsvType(t),
+             t.description || '',
+             exp?.category || '',
+             acc?.name || '',
+             t.amount,
+             t.day != null ? t.day : '',
+             mKey
+          ]);
+       });
+    },
     exportCSV(scope) {
        const rows = [['Type','Description','Catégorie','Compte','Montant (€)','Jour','Mois']];
        const now = new Date();
@@ -6004,19 +7069,40 @@
           const mKey = this.monthKey(now);
           this.state.expenses.forEach(e => {
              const acc = this.state.accounts.find(a=>a.id===e.account_id);
-             rows.push(['Dépense', e.description, e.category||'', acc?.name||'', e.amount, e.day, mKey]);
+             const type = e.is_wallet ? 'Portefeuille (enveloppe)' : 'Dépense';
+             rows.push([type, e.description, e.category||'', acc?.name||'', e.amount, e.day, mKey]);
           });
           this.state.incomes.forEach(i => {
              const acc = this.state.accounts.find(a=>a.id===i.account_id);
              rows.push(['Revenu', i.description, '', acc?.name||'', i.amount, i.day||'', mKey]);
           });
+          // Dépenses exceptionnelles (exc_*) du mois
+          this.listExceptionalExpenses(null, mKey).forEach(exc => {
+             const acc = this.state.accounts.find(a => a.id === exc.account_id);
+             rows.push(['Dépense exceptionnelle', exc.description || '', exc.category || '', acc?.name || '', exc.amount, exc.day || '', mKey]);
+          });
+          // Mouvements portefeuille du mois
+          (this.state.expenses || []).filter(e => e.is_wallet).forEach(exp => {
+             const acc = this.state.accounts.find(a => a.id === exp.account_id);
+             this.appendWalletTxCsvRows(rows, acc, exp, this.getWalletTx(exp.account_id, exp.id, mKey), mKey);
+          });
        } else {
-          // Année : utilise l'historique réellement validé (month_records) sur les 12 derniers mois
+          // Année : historique validé (month_records) + exceptionnelles + portefeuilles
           (this.state.monthRecords || []).forEach(rec => {
              const acc = this.state.accounts.find(a=>a.id===rec.account_id);
              Object.entries(rec.paid_expenses || {}).forEach(([expId, p]) => {
+                if (this.isExceptionalPaidKey(expId) || p?.exceptional) {
+                   rows.push(['Dépense exceptionnelle', p?.description || expId, p?.category || '', acc?.name||'', p.amount, p?.day || '', rec.month_key]);
+                   return;
+                }
                 const exp = this.state.expenses.find(e=>e.id===expId);
                 rows.push(['Dépense validée', exp?.description||expId, exp?.category||'', acc?.name||'', p.amount, '', rec.month_key]);
+             });
+             Object.entries(rec.wallet_transactions || {}).forEach(([expId, raw]) => {
+                const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.transactions) ? raw.transactions : []);
+                if (!list.length) return;
+                const exp = this.state.expenses.find(e => e.id === expId || String(e.id) === String(expId));
+                this.appendWalletTxCsvRows(rows, acc, exp, list, rec.month_key);
              });
           });
        }
@@ -6286,12 +7372,13 @@
           ? this.pieChart(salaryItems, { size: 130, centerSub: 'Apports' })
           : '<p class="muted">Aucun apport configuré.</p>';
 
-       // Tableau détail dépenses (théo vs eff)
+       // Tableau détail dépenses (théo vs eff) — enveloppes + exceptionnelles
        let detailRows = '';
        this.state.expenses.forEach(exp => {
           if (!this.isActiveInMonth(exp, mKey)) return;
+          if (!this.isExpenseActive(exp) && !(exp.is_wallet && this.expenseAmountForStats(exp, mKey, 'effective') > 0)) return;
           const acc = this.state.accounts.find(a => a.id === exp.account_id);
-          const theo = Number(exp.amount) || 0;
+          const theo = this.isExpenseActive(exp) ? (Number(exp.amount) || 0) : 0;
           const eff = this.expenseAmountForStats(exp, mKey, 'effective');
           if (theo <= 0 && eff <= 0) return;
           const pct = theo > 0 ? Math.round((eff / theo) * 100) : (eff > 0 ? '—' : '0');
@@ -6304,6 +7391,48 @@
             <td class="num">${pct}${typeof pct === 'number' ? ' %' : ''}</td>
           </tr>`;
        });
+       // Dépenses exceptionnelles (hors budget récurrent) — effectif uniquement
+       this.listExceptionalExpenses(null, mKey).forEach(exc => {
+          const acc = this.state.accounts.find(a => a.id === exc.account_id);
+          const amt = Number(exc.amount) || 0;
+          if (amt <= 0) return;
+          detailRows += `<tr>
+            <td>⚡ ${this.esc(exc.description || 'Dépense exceptionnelle')}</td>
+            <td>${this.esc(exc.category || 'Autre')}</td>
+            <td>${this.esc(acc?.name || '')}</td>
+            <td class="num muted">—</td>
+            <td class="num">${this.fmt(amt)}</td>
+            <td class="num">—</td>
+          </tr>`;
+       });
+
+       // Détail des mouvements portefeuille (liste des txs du mois)
+       let walletTxRows = '';
+       (this.state.expenses || []).filter(e => e.is_wallet).forEach(exp => {
+          if (!this.isActiveInMonth(exp, mKey) && this.walletOwnSpent(exp.account_id, exp.id, mKey) <= 0) return;
+          const acc = this.state.accounts.find(a => a.id === exp.account_id);
+          this.getWalletTx(exp.account_id, exp.id, mKey).forEach(t => {
+             const amt = Number(t.amount) || 0;
+             const typeLbl = this.walletTxCsvType(t);
+             walletTxRows += `<tr>
+               <td>${this.esc(t.description || '')}</td>
+               <td>${this.esc(typeLbl)}</td>
+               <td>${this.esc(exp.description || '')}</td>
+               <td>${this.esc(acc?.name || '')}</td>
+               <td class="num">${this.fmt(amt)}</td>
+               <td class="num">${t.day != null ? t.day : '—'}</td>
+             </tr>`;
+          });
+       });
+       const walletTxSection = walletTxRows
+          ? `<h2>Mouvements portefeuille</h2>
+             <div class="card" style="padding:8px 10px;">
+               <table>
+                 <thead><tr><th>Libellé</th><th>Type</th><th>Enveloppe</th><th>Compte</th><th style="text-align:right">Montant</th><th style="text-align:right">Jour</th></tr></thead>
+                 <tbody>${walletTxRows}</tbody>
+               </table>
+             </div>`
+          : '';
 
        const win = window.open('', '_blank');
        if (!win) { toast('Autorisez les pop-ups pour générer le rapport'); return; }
@@ -6428,7 +7557,9 @@
              <thead><tr><th>Description</th><th>Catégorie</th><th>Compte</th><th style="text-align:right">Théo.</th><th style="text-align:right">Eff.</th><th style="text-align:right">%</th></tr></thead>
              <tbody>${detailRows || '<tr><td colspan="6" class="muted">Aucune dépense</td></tr>'}</tbody>
            </table>
-         </div>`}
+           <p class="muted" style="margin:8px 0 0;font-size:10px;">⚡ = dépense exceptionnelle (effectif uniquement) · 👛 = enveloppe portefeuille (effectif = mouvements sortis du compte)</p>
+         </div>
+         ${walletTxSection}`}
 
          <div class="footer">Budget Partagé · Rapport non contractuel · ${this.esc(isMulti ? (opts.fromKey + ' → ' + opts.toKey) : mKey)}</div>
        </body></html>`);
@@ -6444,7 +7575,9 @@
       document.getElementById('f-amount').value = '';
       document.getElementById('f-wallet').checked = false;
       document.getElementById('f-enddate').value = '';
-      document.getElementById('bh-delete-btn').style.display = 'none';
+      const delBtn = document.getElementById('bh-delete-btn');
+      delBtn.style.display = 'none';
+      delBtn.textContent = 'Supprimer';
       document.getElementById('bh-duplicate-btn').style.display = 'none';
       this.populateSheetSelects();
       this.updateSheetForm();
@@ -6467,7 +7600,13 @@
         document.getElementById('f-wallet').checked = !!item.is_wallet;
         document.getElementById('f-enddate').value = item.end_date || '';
       }
-      document.getElementById('bh-delete-btn').style.display = 'flex';
+      const delBtn = document.getElementById('bh-delete-btn');
+      delBtn.style.display = 'flex';
+      if (type === 'expense' && item.is_wallet) {
+        delBtn.textContent = this.isExpenseActive(item) ? 'Désactiver' : 'Réactiver';
+      } else {
+        delBtn.textContent = 'Supprimer';
+      }
       
       this.updateSheetForm();
       if(type==='expense' && item.payer_id) {
@@ -6554,6 +7693,11 @@
           });
           await this.upsertMonthRecord(rest.account_id, mKey, {
             theoretical_expenses: this.buildTheoreticalSnapshot(rest.account_id, mKey)
+          });
+        } else if (type === 'income' && data?.id) {
+          this.state.incomes.push({ id: data.id, ...rest });
+          await this.upsertMonthRecord(rest.account_id, mKey, {
+            theoretical_incomes: this.buildTheoreticalIncomesSnapshot(rest.account_id, mKey)
           });
         }
         toast("Entrée dupliquée");
@@ -6716,6 +7860,21 @@
               theoretical_expenses: this.buildTheoreticalSnapshot(previousAccId, mKey)
             });
           }
+        } else if (type === 'income') {
+          const oldInc = this.sheetEditId
+            ? this.state.incomes.find(i => i.id === this.sheetEditId)
+            : null;
+          const previousIncAccId = oldInc?.account_id || null;
+          if (oldInc) Object.assign(oldInc, payload);
+          else if (savedId) this.state.incomes.push({ id: savedId, ...payload });
+          await this.upsertMonthRecord(accId, mKey, {
+            theoretical_incomes: this.buildTheoreticalIncomesSnapshot(accId, mKey)
+          });
+          if (previousIncAccId && previousIncAccId !== accId) {
+            await this.upsertMonthRecord(previousIncAccId, mKey, {
+              theoretical_incomes: this.buildTheoreticalIncomesSnapshot(previousIncAccId, mKey)
+            });
+          }
         }
 
         toast("Enregistré");
@@ -6747,7 +7906,47 @@
        const oldExp = this.sheetMode === 'expense'
          ? this.state.expenses.find(e => e.id === this.sheetEditId)
          : null;
+       const oldInc = this.sheetMode === 'income'
+         ? this.state.incomes.find(i => i.id === this.sheetEditId)
+         : null;
+
+       // Portefeuille : soft-désactivation (pas de hard delete → pas de txs fantômes)
+       if (oldExp?.is_wallet) {
+         const activating = !this.isExpenseActive(oldExp);
+         const ok = confirm(activating
+           ? `Réactiver le portefeuille « ${oldExp.description} » ?`
+           : `Désactiver le portefeuille « ${oldExp.description} » ?\n\nL'historique des mouvements est conservé. Il n'apparaîtra plus comme enveloppe active.`);
+         if (!ok) return;
+         await withRetry(async () => {
+           const { error } = await supabaseApp.from('expenses')
+             .update({ active: activating })
+             .eq('id', oldExp.id);
+           if (error) throw error;
+           // Pas de cleanup bank_verifications : les wallet_transactions restent (historique + rapprochements valides)
+           oldExp.active = activating;
+           await this.logExpenseChange({
+             expenseId: oldExp.id,
+             accountId: oldExp.account_id,
+             changeType: 'update_meta',
+             oldAmount: Number(oldExp.amount),
+             newAmount: Number(oldExp.amount),
+             oldPayload: this.expenseSnapshotRow({ ...oldExp, active: !activating }),
+             newPayload: this.expenseSnapshotRow(oldExp),
+             monthKey: mKey
+           });
+           await this.upsertMonthRecord(oldExp.account_id, mKey, {
+             theoretical_expenses: this.buildTheoreticalSnapshot(oldExp.account_id, mKey)
+           });
+           toast(activating ? 'Portefeuille réactivé' : 'Portefeuille désactivé');
+           this.closeSheet();
+           this.fetchData();
+         }, activating ? 'réactivation portefeuille' : 'désactivation portefeuille');
+         return;
+       }
+
        await withRetry(async () => {
+         if (oldExp) await this.deleteBankVerificationsForLink('expense', oldExp.id);
+         if (oldInc) await this.deleteBankVerificationsForLink('income', oldInc.id);
          const { error } = await supabaseApp.from(table).delete().eq('id', this.sheetEditId);
          if (error) throw error;
          if (oldExp) {
@@ -6764,6 +7963,12 @@
            this.state.expenses = this.state.expenses.filter(e => e.id !== oldExp.id);
            await this.upsertMonthRecord(oldExp.account_id, mKey, {
              theoretical_expenses: this.buildTheoreticalSnapshot(oldExp.account_id, mKey)
+           });
+         }
+         if (oldInc) {
+           this.state.incomes = this.state.incomes.filter(i => i.id !== oldInc.id);
+           await this.upsertMonthRecord(oldInc.account_id, mKey, {
+             theoretical_incomes: this.buildTheoreticalIncomesSnapshot(oldInc.account_id, mKey)
            });
          }
          toast("Supprimé");
