@@ -737,6 +737,7 @@ Object.assign(BH, {
           ${advanceNote}
           ${settleHtml}
           ${chartsHtml}
+          ${this.accountWalletsHtml(acc, mKey)}
         </div>`;
       });
       const names = visibleAccounts.map(a => this.esc(a.name)).join(' · ');

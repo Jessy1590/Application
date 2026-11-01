@@ -891,7 +891,7 @@ Object.assign(BH, {
       if (title) title.textContent = 'Écarts de rapprochement';
       if (desc) {
         desc.textContent = nApp || nBank
-          ? `Encore ${nApp} saisie(s) hors relevé et ${nBank} ligne(s) banque hors appli. Oublier · Lier · Vérifier / Saisie.`
+          ? `Encore ${nApp} saisie(s) hors relevé et ${nBank} ligne(s) banque hors appli. Oublier · Lier · Vérifier / Exceptionnelle / Saisie.`
           : 'Tout est rapproché pour ce mois.';
       }
 
@@ -925,6 +925,9 @@ Object.assign(BH, {
           const dateLbl = g.date ? new Date(g.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
           const amtColor = g.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
           const weak = g.weakMatch ? ` · score faible ${g.score}%` : '';
+          const excBtn = Number(g.amount) < 0
+            ? `<button type="button" class="bh-btn bh-btn-outline" title="Enregistrer cette sortie comme dépense exceptionnelle (ponctuelle) et la lier à cette ligne" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Exceptionnelle</button>`
+            : '';
           return `<div class="bh-verif-gaps-row bank">
             <div class="bh-verif-gaps-main">
               <div><strong>${this.esc(g.label)}</strong></div>
@@ -934,7 +937,8 @@ Object.assign(BH, {
             <div class="bh-verif-gap-actions">
               <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne banque" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublier</button>
               <button type="button" class="bh-btn bh-btn-outline" title="Lier à une saisie existante" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
-              <button type="button" class="bh-btn bh-btn-primary" title="Créer la saisie manquante" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Saisie</button>
+              ${excBtn}
+              <button type="button" class="bh-btn bh-btn-primary" title="Créer une dépense ou un revenu durable prérempli" onclick="event.stopPropagation(); BH.verifAddAsEntry('${g.opId}')">Saisie</button>
             </div>
           </div>`;
         }).join('')
@@ -2385,6 +2389,9 @@ Object.assign(BH, {
         const refundBtn = Number(op.amount) > 0
           ? `<button type="button" class="bh-btn bh-btn-outline" title="Créer un remboursement lié à une dépense déjà saisie (ex. frais bancaires remboursés)" onclick="BH.openVerifRefund('${op.id}')">Rembours.</button>`
           : '';
+        const exceptionalBtn = Number(op.amount) < 0 && !savedLink
+          ? `<button type="button" class="bh-btn bh-btn-outline" title="Enregistrer cette sortie comme dépense exceptionnelle (ponctuelle) et la lier à cette ligne" onclick="BH.saisieVerifBankGap('${op.id}')">Exceptionnelle</button>`
+          : '';
         const unlinkBtn = !op.match ? ''
           : savedLink
             ? `<button type="button" class="bh-btn bh-btn-ghost" title="Supprimer le lien enregistré (et éventuellement la validation)" onclick="BH.unlinkVerifOp('${op.id}')">Délier</button>`
@@ -2396,6 +2403,7 @@ Object.assign(BH, {
               <button type="button" class="bh-btn bh-btn-outline" title="Choisir une saisie (tous comptes) qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
               ${unlinkBtn}
               ${refundBtn}
+              ${exceptionalBtn}
               <button type="button" class="bh-btn bh-btn-outline" title="Créer une nouvelle dépense ou un nouveau revenu prérempli" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
               ${walletBtn}
               <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
@@ -2420,6 +2428,7 @@ Object.assign(BH, {
           <p style="margin:0 0 12px;"><strong>Délier</strong> — Sur une suggestion : la retire. Sur un lien enregistré : supprime le lien, et propose d’annuler aussi la validation du mois.</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli). À l’enregistrement, elle est validée et liée à la ligne du relevé.</p>
+          <p style="margin:0 0 12px;"><strong>Exceptionnelle</strong> — Sur une sortie pas encore liée : ouvre une dépense exceptionnelle préremplie, liée à cette ligne à l’enregistrement.</p>
           <p style="margin:0 0 12px;"><strong>+ Portefeuille / Dans portefeuille</strong> — Ajoute dans une enveloppe, ou confirme qu’un mouvement déjà saisi est vérifié. « 👛 Vérifié » = lien enregistré.</p>
           <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne (enregistré en base). Sur une ligne déjà liée, propose d’annuler aussi la validation.</p>
           <p style="margin:0 0 12px;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
