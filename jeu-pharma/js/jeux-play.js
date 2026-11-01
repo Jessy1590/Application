@@ -497,7 +497,8 @@
     const nbWanted = Math.max(1, Number(cfg.nb_questions) || 8);
     const manuelles = buildManualQuizQuestions(cfg);
     let autoCap = pool.length * Math.max(1, (cfg.champs_interroges || cfg.champs || []).length);
-    if (cfg.nb_auto_max != null && cfg.nb_auto_max !== '') {
+    if (cfg.manuel_seul === true) autoCap = 0;
+    else if (cfg.nb_auto_max != null && cfg.nb_auto_max !== '') {
       autoCap = Math.min(autoCap, Math.max(0, Number(cfg.nb_auto_max)));
     }
     const auto = autoCap > 0 ? await buildAutoQuizQuestions(modele, pool, autoCap) : [];

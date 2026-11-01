@@ -583,6 +583,9 @@
       + esc(cfg0.nb_auto_max != null ? String(cfg0.nb_auto_max) : '') + '" placeholder="Illimité">'
       + '<small class="jp-field-hint">Max de questions auto candidates (vide = illimité)</small></div>'
       + '</div>'
+      + '<label class="jp-quiz-admin-champ"><input type="checkbox" id="jwManuelSeul"'
+      + (cfg0.manuel_seul === true || cfg0.nb_auto_max === 0 ? ' checked' : '')
+      + '> Questions manuelles uniquement — pas de questions générées automatiquement</label>'
       + '<div class="jp-jeu-manuelles">'
       + '<h4 class="jp-quiz-admin-panel-title" style="font-size:1rem;margin-top:0.75rem">Questions manuelles</h4>'
       + '<p class="jp-muted jp-field-hint">Banque QCM libre + questions auto (molécules). Tirage aléatoire à chaque partie.</p>'
@@ -1542,11 +1545,15 @@
         base.nb_fiches = base.nb_lignes;
         base.densite_trous = Math.max(1, Math.min(5, Math.round(base.taux_trous / 20) || 3));
       }
-      const autoMaxRaw = overlay.querySelector('#jwNbAutoMax').value;
-      if (autoMaxRaw !== '' && !Number.isNaN(Number(autoMaxRaw))) {
-        base.nb_auto_max = Math.max(0, Number(autoMaxRaw));
-      }
       if (type === 'quiz') {
+        const manuelSeul = !!overlay.querySelector('#jwManuelSeul')?.checked;
+        base.manuel_seul = manuelSeul;
+        const autoMaxRaw = overlay.querySelector('#jwNbAutoMax').value;
+        if (manuelSeul) {
+          base.nb_auto_max = 0;
+        } else if (autoMaxRaw !== '' && !Number.isNaN(Number(autoMaxRaw))) {
+          base.nb_auto_max = Math.max(0, Number(autoMaxRaw));
+        }
         base.questions_manuelles = quizManuelles.map((q) => ({
           id: q.id,
           question: (q.question || '').trim(),

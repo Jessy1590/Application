@@ -802,9 +802,9 @@
       padding-right:18px;
     }
 
-    /* Safe areas */
+    /* Safe areas — le haut réel est posé plus bas (bande #budget-root). */
     .bh-topbar{
-      padding-top:calc(18px + env(safe-area-inset-top, 0px));
+      padding-top:12px;
       padding-left:calc(18px + env(safe-area-inset-left, 0px));
       padding-right:calc(18px + env(safe-area-inset-right, 0px));
     }
@@ -1312,13 +1312,36 @@
   body.bh-report-open{ overflow:hidden; }
   body.bh-report-open a[title="Retour au portail"]{ display:none !important; }
 
-  /* Téléphone : plein écran, barre collée en bas, feuilles jusqu’au bord */
+  /* Téléphone : plein écran, barres hors îlot et hors indicateur d’accueil.
+     env() vaut souvent 0 en signet : le 2e argument n’est alors pas utilisé.
+     Une longueur en px est déclarée avant max(env(), …) : si WebKit ignore
+     max(env()), la valeur en px reste. La bande existe sans .bh-standalone. */
   @media (max-width: 959px){
     html, body{
       background:var(--paper);
       width:100%;
       min-height:100vh;
       min-height:100dvh;
+    }
+    body::before,
+    body::after{
+      content:"";
+      position:fixed;
+      left:0;
+      right:0;
+      background:var(--paper);
+      z-index:35;
+      pointer-events:auto;
+    }
+    body::before{
+      top:0;
+      height:59px;
+      height:max(env(safe-area-inset-top, 0px), 59px);
+    }
+    body::after{
+      bottom:0;
+      height:34px;
+      height:max(env(safe-area-inset-bottom, 0px), 34px);
     }
     #budget-root{
       max-width:none;
@@ -1328,10 +1351,13 @@
       min-height:100vh;
       min-height:100dvh;
       box-shadow:none;
+      padding-top:59px;
+      padding-top:max(env(safe-area-inset-top, 0px), 59px);
     }
     .bh-main{ width:100%; min-width:0; }
     .bh-view{
-      padding-bottom:calc(96px + env(safe-area-inset-bottom, 0px));
+      padding-bottom:calc(20dvh + 34px + 74px);
+      padding-bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 74px);
     }
     #view-today.active{ display:flex; flex-direction:column; }
     .bh-today-top,
@@ -1347,8 +1373,11 @@
     .bh-tabbar{
       left:0;
       right:0;
-      bottom:0;
-      width:100%;
+      width:auto;
+      bottom:34px;
+      bottom:max(env(safe-area-inset-bottom, 0px), 34px);
+      height:20dvh;
+      min-height:20dvh;
       max-width:none;
       transform:none;
       margin:0;
@@ -1358,21 +1387,50 @@
       border-bottom:none;
       border-top:1px solid var(--line);
       box-shadow:none;
-      padding:8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
+      padding:10px 6px;
       background:var(--card);
+      z-index:90;
+      align-items:center;
+      justify-content:space-around;
+      pointer-events:none;
     }
     .bh-tab{
-      min-height:52px;
-      font-size:11px;
-      gap:4px;
-      padding-top:6px;
-      padding-bottom:6px;
+      pointer-events:auto;
+      flex:1 1 0;
+      align-self:center;
+      min-height:88px;
+      height:auto;
+      font-size:14px;
+      font-weight:700;
+      line-height:1.15;
+      gap:6px;
+      padding:12px 2px;
+      margin:0 3px;
+      border-radius:16px;
     }
-    .bh-tab svg{ width:22px; height:22px; }
+    .bh-tab svg{ width:32px; height:32px; }
     .bh-topbar{
-      padding-top:calc(14px + max(env(safe-area-inset-top, 0px), 59px));
+      position:-webkit-sticky;
+      position:sticky;
+      top:59px;
+      top:max(env(safe-area-inset-top, 0px), 59px);
+      flex-shrink:0;
+      z-index:40;
+      background:var(--paper);
+      padding-top:12px;
       padding-left:max(16px, env(safe-area-inset-left, 0px));
       padding-right:max(16px, env(safe-area-inset-right, 0px));
+    }
+    .bh-topbar .bh-icon-btn{
+      width:88px;
+      height:88px;
+      min-width:88px;
+      min-height:88px;
+      border-radius:20px;
+    }
+    .bh-topbar .bh-icon-btn svg{
+      width:34px;
+      height:34px;
     }
     .bh-due-check{
       width:18px;
@@ -1391,6 +1449,7 @@
       align-items:flex-end;
       justify-content:center;
       padding:0;
+      padding-top:59px;
       padding-top:max(env(safe-area-inset-top, 0px), 59px);
     }
     .bh-sheet{
@@ -1399,7 +1458,8 @@
       margin:0;
       border-radius:18px 18px 0 0;
       max-height:min(78dvh, calc(100dvh - 96px));
-      padding:8px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      padding:8px 16px 46px;
+      padding-bottom:calc(12px + max(env(safe-area-inset-bottom, 0px), 34px));
       animation:bhSheetUp 0.22s ease;
     }
     #bh-settings-overlay .bh-sheet{
@@ -1417,39 +1477,37 @@
     }
     .bh-fab{
       right:max(14px, env(safe-area-inset-right, 0px));
-      bottom:calc(148px + env(safe-area-inset-bottom, 0px));
+      bottom:calc(20dvh + 34px + 70px);
+      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 70px);
     }
     .bh-group-bar{
       left:12px;
       right:12px;
       transform:none;
       width:auto;
-      bottom:calc(92px + env(safe-area-inset-bottom, 0px));
+      bottom:calc(20dvh + 34px + 70px);
+      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 70px);
     }
     .bh-toast{
-      bottom:calc(150px + env(safe-area-inset-bottom, 0px));
+      bottom:calc(20dvh + 34px + 78px);
+      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 78px);
     }
     a[title="Retour au portail"]{
       width:46px !important;
       height:46px !important;
       right:max(14px, env(safe-area-inset-right, 0px)) !important;
-      bottom:calc(88px + env(safe-area-inset-bottom, 0px)) !important;
+      bottom:calc(20dvh + 34px + 12px) !important;
+      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 12px) !important;
+      z-index:100 !important;
     }
     body:has(.bh-sheet-overlay.open) a[title="Retour au portail"]{
       visibility:hidden !important;
     }
-  }
-
-  /* App installée : le haut passe sous la Dynamic Island si l’inset vaut 0 */
-  @media (max-width: 959px) {
-    html.bh-standalone .bh-topbar{
-      padding-top:calc(12px + max(env(safe-area-inset-top, 0px), 59px));
-    }
-    html.bh-standalone .bh-sheet-overlay{
+    .bh-report-overlay{
+      padding-top:59px;
       padding-top:max(env(safe-area-inset-top, 0px), 59px);
-    }
-    html.bh-standalone .bh-report-overlay{
-      padding-top:max(env(safe-area-inset-top, 0px), 59px);
+      padding-bottom:34px;
+      padding-bottom:max(env(safe-area-inset-bottom, 0px), 34px);
     }
   }
 

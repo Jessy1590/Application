@@ -724,6 +724,18 @@
         niveaux[n] = entry;
       });
       if (Object.keys(niveaux).length) out.niveaux = niveaux;
+      if (m.criteres_json && m.criteres_json.examen) {
+        out.examen = true;
+        if (m.criteres_json.note_min_pct != null) out.note_min_pct = m.criteres_json.note_min_pct;
+        const poids = {};
+        (m.criteres_json.jeux || []).forEach((j) => {
+          if (j && j.modele_id) poids[j.modele_id] = Number(j.poids) > 0 ? Number(j.poids) : 1;
+        });
+        out.jeux = (out.jeux || []).map((j) => Object.assign({}, j, {
+          poids: poids[j.modele_id] != null ? poids[j.modele_id] : 1,
+          score_min_pct: 0,
+        }));
+      }
       return out;
     }
 

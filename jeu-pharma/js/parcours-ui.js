@@ -78,7 +78,16 @@
     (detail.lecons_lecture || []).filter((L) => !(L.ok || L.lu)).forEach((L) => {
       parts.push('lire la leçon « ' + (L.titre || '') + ' » jusqu’en bas');
     });
-    (detail.jeux || []).filter((j) => !j.ok).forEach((j) => { parts.push(jeuPart(j)); });
+    if (detail.examen) {
+      const nPass = Number(detail.passages) || 0;
+      const min = Number(detail.note_min_pct) || 0;
+      if (!nPass) parts.push('terminer un passage d’examen');
+      else if (min > 0) {
+        parts.push('atteindre ' + sur10(min) + ' de moyenne à l’examen (moyenne actuelle : ' + sur10(detail.moyenne_pct) + ')');
+      }
+    } else {
+      (detail.jeux || []).filter((j) => !j.ok).forEach((j) => { parts.push(jeuPart(j)); });
+    }
     return { parts, joiner: detail.logique === 'ou' && !detail.est_groupe ? 'ou' : 'et' };
   }
 

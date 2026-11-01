@@ -3008,6 +3008,75 @@
     return out;
   }
 
+  function examAdminHtml(m) {
+    if (!m || !(m.criteres_json && m.criteres_json.examen)) return '';
+    const poids = {};
+    (m.criteres_json.jeux || []).forEach((j) => {
+      if (j && j.modele_id) poids[String(j.modele_id)] = Number(j.poids) > 0 ? Number(j.poids) : 1;
+    });
+    const rows = state.blocs.filter((b) => b.type_bloc === 'jeu').map((b) => {
+      const p = effPayload(b);
+      const id = p.modele_id ? String(p.modele_id) : '';
+      const w = id && poids[id] != null ? poids[id] : 1;
+      return '<li class="jp-exam-admin-row">'
+        + '<span>' + esc(effTitre(b) || p.code_unique || 'Épreuve') + '</span>'
+        + (id
+          ? '<label>Poids <input type="number" min="0.5" step="0.5" data-exam-poids="'
+            + esc(id) + '" value="' + esc(String(w)) + '"></label>'
+          : '<span class="jp-muted">Jeu non lié</span>')
+        + '</li>';
+    }).join('');
+    const min10 = (Number(m.criteres_json.note_min_pct) || 0) / 10;
+    return '<section class="jp-exam-admin" id="jpExamAdmin">'
+      + '<h2>Examen</h2>'
+      + '<p class="jp-muted">Un passage donne une seule note : la moyenne pondérée des épreuves. '
+      + 'La note de la personne est la moyenne de tous ses passages. Elle peut repasser l’examen.</p>'
+      + (rows ? '<ul class="jp-exam-admin-list">' + rows + '</ul>' : '<p class="jp-muted">Ajoutez des blocs jeu : ce sont les épreuves.</p>')
+      + '<div class="jp-field jp-field-tight"><label for="jpExamMin">Note minimale pour valider (/10)</label>'
+      + '<input id="jpExamMin" type="number" min="0" max="10" step="0.5" value="' + esc(String(min10)) + '">'
+      + '<small class="jp-field-hint">0 = la leçon est validée dès qu’un passage est terminé. La note affichée reste la moyenne.</small></div>'
+      + '<button type="button" class="jp-btn jp-btn-primary" id="jpExamSave">Enregistrer l’examen</button>'
+      + '</section>';
+  }
+
+  function bindExamAdmin() {
+    const btn = document.getElementById('jpExamSave');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      const m = selectedModule();
+      if (!m) return;
+      btn.disabled = true;
+      try {
+        const crit = Object.assign({}, m.criteres_json || {});
+        const prev = {};
+        (crit.jeux || []).forEach((j) => { if (j && j.modele_id) prev[String(j.modele_id)] = j; });
+        const jeux = [];
+        document.querySelectorAll('[data-exam-poids]').forEach((input) => {
+          const id = input.getAttribute('data-exam-poids');
+          if (!id) return;
+          const poids = Number(input.value);
+          const row = Object.assign({}, prev[id] || {}, {
+            modele_id: id,
+            poids: poids > 0 ? poids : 1,
+            score_min_pct: 0,
+          });
+          jeux.push(row);
+        });
+        crit.examen = true;
+        crit.jeux = jeux;
+        const min10 = Number(document.getElementById('jpExamMin')?.value);
+        crit.note_min_pct = Math.round(Math.max(0, Math.min(10, Number.isNaN(min10) ? 0 : min10)) * 10);
+        const row = await rpc('v2_upsert_module', { p_payload: { id: m.id, criteres_json: crit } });
+        m.criteres_json = row.criteres_json || crit;
+        global.JpToast?.ok?.('Examen enregistré');
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   function paintBlocks() {
     if (state.molRail) {
       renderMolRail();
@@ -3018,15 +3087,18 @@
     syncViewModeToggle();
     const list = document.getElementById('blocksList');
     if (!list) return;
+    const examHtml = examAdminHtml(selectedModule());
     const all = state.blocs;
     const shown = visibleBlocs();
     if (!all.length) {
-      list.innerHTML = '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
+      list.innerHTML = examHtml + '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
+      bindExamAdmin();
       updateStatus();
       return;
     }
     if (!shown.length) {
-      list.innerHTML = '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
+      list.innerHTML = examHtml + '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
+      bindExamAdmin();
       updateStatus();
       return;
     }
@@ -3048,7 +3120,7 @@
           + (vc ? '<span class="jp-outline-var" title="Variantes">+' + vc + '</span>' : '')
           + '</button>';
       }).join('');
-      list.innerHTML = '<div class="jp-contenu-layout">'
+      list.innerHTML = examHtml + '<div class="jp-contenu-layout">'
         + '<nav class="jp-outline" aria-label="Blocs de la leçon">' + outline + '</nav>'
         + '<div class="jp-contenu-editor"></div></div>';
       list.querySelectorAll('[data-outline]').forEach((btn) => {
@@ -3060,9 +3132,10 @@
       });
       paintContenuEditorOnly();
       ensureOutlineVisible(state.selectedBlocId);
+      bindExamAdmin();
     } else {
       // Structure : lignes compactes + sections en bandeau
-      list.innerHTML = shown.map((b) => {
+      list.innerHTML = examHtml + shown.map((b) => {
         const i = all.findIndex((x) => x.id === b.id);
         const tag = hasPending(b)
           ? '<span class="jp-bloc-tag">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>'
@@ -3124,6 +3197,7 @@
       if (m) void renderInspector(m);
       return;
     }
+    if (state.viewMode !== 'contenu') bindExamAdmin();
     updateStatus();
     });
   }
@@ -3845,8 +3919,12 @@
     }
 
     // Onglet Leçon — sections repliables
+    const examOn = !!(m.criteres_json && m.criteres_json.examen);
     body.innerHTML = inspFold('Leçon',
-      '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
+      '<label class="jp-quiz-admin-champ"><input type="checkbox" id="metaExamen"'
+      + (examOn ? ' checked' : '') + '> Examen</label>'
+      + '<p class="jp-muted jp-field-hint">Affiche un bloc Examen en haut de la leçon : épreuves, poids, et une seule note (moyenne des passages).</p>'
+      + '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
       + '<input id="metaTitreLecon" value="' + esc(m.titre || '') + '" placeholder="Titre de la leçon"></div>'
       + '<div class="jp-field"><label for="metaResumeLecon">Résumé</label>'
       + '<textarea id="metaResumeLecon" rows="2" placeholder="Court résumé (facultatif)">'
@@ -3865,6 +3943,35 @@
     mountDeblocage(m);
     const leconPlage = body.querySelector('[data-plage="lecon-' + m.id + '"]');
     bindPlage(leconPlage, () => {});
+    body.querySelector('#metaExamen')?.addEventListener('change', async (ev) => {
+      const on = !!ev.target.checked;
+      const crit = Object.assign({}, m.criteres_json || {});
+      crit.examen = on;
+      if (on) {
+        if (crit.note_min_pct == null) crit.note_min_pct = 0;
+        const have = new Set((crit.jeux || []).map((j) => String(j.modele_id)));
+        const jeux = (crit.jeux || []).map((j) => Object.assign({}, j, {
+          poids: Number(j.poids) > 0 ? Number(j.poids) : 1,
+          score_min_pct: 0,
+        }));
+        state.blocs.filter((b) => b.type_bloc === 'jeu').forEach((b) => {
+          const id = effPayload(b).modele_id;
+          if (id && !have.has(String(id))) {
+            jeux.push({ modele_id: id, poids: 1, score_min_pct: 0 });
+          }
+        });
+        crit.jeux = jeux;
+      }
+      try {
+        const row = await rpc('v2_upsert_module', { p_payload: { id: m.id, criteres_json: crit } });
+        m.criteres_json = row.criteres_json || crit;
+        paintBlocks();
+        global.JpToast?.ok?.(on ? 'Examen activé' : 'Examen désactivé');
+      } catch (e) {
+        ev.target.checked = !on;
+        global.JpToast?.fromError?.(e);
+      }
+    });
     body.querySelector('#btnSaveMetaLecon')?.addEventListener('click', async () => {
       try {
         const titre = (body.querySelector('#metaTitreLecon')?.value || '').trim();

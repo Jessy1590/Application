@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aperçu téléphone</title>
+<link rel="stylesheet" href="../css/app.css?v=20261101-safe">
+<style>
+  body { display: block !important; }
+  #budget-root { display: flex !important; }
+</style>
+</head>
+<body>
+<div id="budget-root">
+  <nav class="bh-tabbar" aria-label="Navigation principale">
+    <button class="bh-tab active" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/></svg>
+      Aujourd'hui
+    </button>
+    <button class="bh-tab" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="3"/></svg>
+      Comptes
+    </button>
+    <button class="bh-tab" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+      Saisies
+    </button>
+    <button class="bh-tab" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      Stats
+    </button>
+  </nav>
+  <div class="bh-main">
+    <div class="bh-topbar">
+      <div class="bh-topbar-row">
+        <div class="bh-brand">
+          <span class="bh-brand-mark"></span>
+          <div><div class="bh-title">Budget</div></div>
+        </div>
+        <button class="bh-icon-btn" type="button" aria-label="Réglages">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
+        </button>
+      </div>
+      <div class="bh-sub">dimanche 1 novembre</div>
+    </div>
+    <div class="bh-view active" id="view-today">
+      <div id="scroll-block" style="height:1400px;background:linear-gradient(#fff,#e4eee8);border-radius:16px;"></div>
+      <div id="end-marker" style="height:24px;background:#3E6B57;border-radius:8px;"></div>
+    </div>
+  </div>
+</div>
+<a title="Retour au portail" href="#" style="position:fixed;bottom:20px;right:20px;width:56px;height:56px;background:#2c3e50;color:#fff;border-radius:50%;z-index:9999;display:flex;align-items:center;justify-content:center;">⌂</a>
+<pre id="metrics" hidden></pre>
+<script>
+function box(el){ const r = el.getBoundingClientRect(); return { top:r.top, bottom:r.bottom, left:r.left, right:r.right, width:r.width, height:r.height }; }
+function measure(tag){
+  const root = document.getElementById('budget-root');
+  const topbar = document.querySelector('.bh-topbar');
+  const title = document.querySelector('.bh-title');
+  const gear = document.querySelector('.bh-topbar .bh-icon-btn');
+  const tabbar = document.querySelector('.bh-tabbar');
+  const tab = document.querySelector('.bh-tab');
+  const home = document.querySelector('a[title="Retour au portail"]');
+  const end = document.getElementById('end-marker');
+  const before = getComputedStyle(document.body, '::before');
+  const after = getComputedStyle(document.body, '::after');
+  return {
+    tag: tag,
+    innerWidth: innerWidth,
+    innerHeight: innerHeight,
+    rootPadTop: getComputedStyle(root).paddingTop,
+    topbarPadTop: getComputedStyle(topbar).paddingTop,
+    topbarTop: getComputedStyle(topbar).top,
+    topbarPos: getComputedStyle(topbar).position,
+    beforeH: before.height,
+    beforeContent: before.content,
+    afterH: after.height,
+    title: box(title),
+    gear: box(gear),
+    tabbar: box(tabbar),
+    tab: box(tab),
+    tabFont: getComputedStyle(tab).fontSize,
+    tabClip: tab.scrollWidth > tab.clientWidth + 1,
+    home: box(home),
+    end: end ? box(end) : null,
+    scrollY: scrollY
+  };
+}
+window.__shots = [];
+addEventListener('load', () => {
+  window.__shots.push(measure('rest'));
+  window.scrollTo(0, 180);
+  window.__shots.push(measure('mid'));
+  window.scrollTo(0, document.documentElement.scrollHeight);
+  window.__shots.push(measure('end'));
+  window.scrollTo(0, 0);
+  document.getElementById('metrics').textContent = JSON.stringify(window.__shots);
+});
+</script>
+</body>
+</html>

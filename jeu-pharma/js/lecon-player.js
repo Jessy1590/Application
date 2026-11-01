@@ -426,7 +426,23 @@
           + ' <a class="jp-crit-play" href="' + esc(href) + '">Ouvrir</a></span></li>');
       }
     });
-    (detail.jeux || []).forEach((j) => {
+    if (detail.examen) {
+      const nPass = Number(detail.passages) || 0;
+      const moy = detail.moyenne_pct != null ? PU().sur10(detail.moyenne_pct) : '—';
+      const min = Number(detail.note_min_pct) || 0;
+      if (nPass > 0 && (min <= 0 || Number(detail.moyenne_pct) >= min)) {
+        rows.push('<li class="is-ok"><span class="jp-crit-mark">✓</span><span>Moyenne des passages d’examen : '
+          + esc(moy) + '</span></li>');
+      } else if (nPass > 0) {
+        rows.push('<li><span class="jp-crit-mark">○</span><span>Moyenne des passages : ' + esc(moy)
+          + ' <small>(minimum ' + esc(PU().sur10(min)) + ')</small></span></li>');
+      } else {
+        rows.push('<li><span class="jp-crit-mark">○</span><span>Terminer un passage d’examen'
+          + (min > 0 ? ' <small>(moyenne minimale ' + esc(PU().sur10(min)) + ')</small>' : '')
+          + '</span></li>');
+      }
+    }
+    if (!detail.examen) (detail.jeux || []).forEach((j) => {
       const isFiche = j.type_jeu === 'fiche_aleatoire';
       const min = isFiche
         ? Math.round(j.score_min_pct) + ' % maîtrisées'
@@ -680,8 +696,11 @@
       return '<li data-exam-step="' + i + '"><span>' + (i + 1) + '</span> ' + esc(g.titre || 'Épreuve') + '</li>';
     }).join('');
     return '<section class="jp-examen" id="jpExamen">'
+      + '<h2 class="jp-examen-title">Examen</h2>'
       + '<p class="jp-examen-lead">' + (games || []).length
-      + ' épreuves, dans l’ordre. La note est la moyenne des épreuves. Vous pouvez repasser l’examen.</p>'
+      + ' épreuves, dans l’ordre. La note d’un passage est la moyenne pondérée des épreuves. '
+      + 'Votre note est la moyenne de tous vos passages. Vous pouvez repasser l’examen.</p>'
+      + '<p class="jp-examen-moyenne" id="jpExamenMoyenne"></p>'
       + '<ol class="jp-examen-steps">' + steps + '</ol>'
       + '<p class="jp-examen-status" id="jpExamenStatus"></p>'
       + '<div class="jp-examen-actions" id="jpExamenActions"></div>'
@@ -724,8 +743,18 @@
       const rows = data || [];
       const open = rows.find((r) => !r.termine_at) || null;
       const closed = rows.filter((r) => r.termine_at && Array.isArray(r.detail) && r.detail.length >= games.length);
+      const moyEl = host.querySelector('#jpExamenMoyenne');
+      if (moyEl) {
+        if (closed.length) {
+          const moy = closed.reduce(function (s, r) { return s + (Number(r.note_pct) || 0); }, 0) / closed.length;
+          moyEl.textContent = 'Votre moyenne : ' + global.JpParcoursUi.sur10(moy)
+            + ' (' + closed.length + ' passage' + (closed.length > 1 ? 's' : '') + ')';
+        } else {
+          moyEl.textContent = '';
+        }
+      }
       historyEl.innerHTML = closed.length
-        ? '<h2>Notes enregistrées</h2><ul>' + closed.map(function (r) {
+        ? '<h2>Passages enregistrés</h2><ul>' + closed.map(function (r) {
           const when = global.JpParcoursUi.fmtDate(r.termine_at || r.started_at);
           return '<li>' + esc(when) + ' — <strong>' + esc(global.JpParcoursUi.sur10(r.note_pct)) + '</strong></li>';
         }).join('') + '</ul>'
@@ -781,10 +810,25 @@
       if (error) throw error;
     }
 
+    function poidsOf(game) {
+      const w = Number(game && game.poids);
+      return w > 0 ? w : 1;
+    }
+
+    function notePassage(detail) {
+      let poids = 0;
+      let somme = 0;
+      (detail || []).forEach(function (d) {
+        const w = poidsOf(d);
+        poids += w;
+        somme += w * (Number(d.pct) || 0);
+      });
+      return poids ? somme / poids : 0;
+    }
+
     async function closePassage() {
       const detail = passage.detail || [];
-      const pcts = detail.map(function (d) { return Number(d.pct) || 0; });
-      const note = pcts.length ? pcts.reduce(function (a, b) { return a + b; }, 0) / pcts.length : 0;
+      const note = notePassage(detail);
       const obtenu = detail.reduce(function (a, d) { return a + (Number(d.obtenu) || 0); }, 0);
       const max = detail.reduce(function (a, d) { return a + (Number(d.max) || 0); }, 0);
       if (!preview && passage.id) {
@@ -837,6 +881,7 @@
         obtenu: obtenu,
         max: max,
         pct: pct,
+        poids: poidsOf(game),
       };
       const detail = passage.detail || (passage.detail = []);
       if (detail.length && detail[detail.length - 1].code === game.code) detail[detail.length - 1] = entry;
@@ -889,7 +934,7 @@
           { id: 'restart', label: 'Recommencer' },
         ]);
       } else {
-        setStatus(games.length + ' épreuves. Le quiz en tire 10 à chaque passage. Le tableau à trous en tire 4 molécules.');
+        setStatus(games.length + ' épreuves. La note du passage est la moyenne pondérée. Votre note est la moyenne de tous vos passages.');
         showActions([{ id: 'start', label: 'Commencer l’examen', primary: true }]);
       }
       paintSteps();
@@ -929,6 +974,10 @@
 
     const detail = data.detail || null;
     const examMode = !!(module.criteres_json && module.criteres_json.examen);
+    const poidsParModele = {};
+    ((module.criteres_json && module.criteres_json.jeux) || []).forEach((j) => {
+      if (j && j.modele_id) poidsParModele[j.modele_id] = Number(j.poids) > 0 ? Number(j.poids) : 1;
+    });
     const examJeux = [];
     const jeuxDetail = {};
     ((detail && detail.jeux) || []).forEach((j) => { jeuxDetail[j.modele_id] = j; });
@@ -938,8 +987,9 @@
       + (maj ? '<p class="jp-lecon-maj">' + esc(maj) + '</p>' : '')
       + (module.resume ? '<p class="jp-lecon-resume">' + esc(module.resume) + '</p>' : '')
       + '</header>';
-    if (!blocs.length) {
-      html += '<p class="jp-muted">—</p>';
+    let corps = '';
+    if (!blocs.length && !examMode) {
+      corps += '<p class="jp-muted">—</p>';
     }
     for (const b of blocs) {
       const p = b.payload_json || {};
@@ -947,7 +997,7 @@
       const meta = BLOC_META[type];
       let inner = '';
       if (b.type_bloc === 'section') {
-        html += '<section class="jp-lecon-section" id="jp-bloc-' + esc(b.id) + '">'
+        corps += '<section class="jp-lecon-section" id="jp-bloc-' + esc(b.id) + '">'
           + '<h2 class="jp-lecon-section-title">' + esc(b.titre || 'Section') + '</h2></section>';
         continue;
       } else if (b.type_bloc === 'texte') {
@@ -971,6 +1021,7 @@
           titre: b.titre || 'Épreuve',
           code: p.code_unique || '',
           type: p.type_jeu || '',
+          poids: poidsParModele[p.modele_id] || 1,
         });
         continue;
       } else if (b.type_bloc === 'jeu') {
@@ -1027,11 +1078,12 @@
           + '<span class="jp-bloc-kind">' + esc(meta.label) + '</span>'
           + (b.titre ? '<h2>' + esc(b.titre) + '</h2>' : '') + '</header>';
       }
-      html += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '" id="jp-bloc-' + esc(b.id) + '">'
+      corps += '<article class="jp-lecon-block jp-bloc jp-bloc--' + type + '" id="jp-bloc-' + esc(b.id) + '">'
         + head
         + '<div class="jp-bloc-body">' + inner + '</div></article>';
     }
     if (examMode) html += examShellHtml(examJeux);
+    html += corps;
     html += '<div id="jpReadEnd" aria-hidden="true"></div><footer class="jp-lecon-foot" id="leconFoot"></footer>';
     root.innerHTML = html;
     global.JpBlocPhoto.hydrate(root);
