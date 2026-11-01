@@ -208,9 +208,10 @@ Object.assign(BH, {
     async verifCommitLink(op, match, { markPaid = false, paidAmount = null } = {}) {
       const mKey = this.verifMonthKey(op);
       const m = { ...match };
+      const payKey = m.payMonth || mKey;
       if (markPaid && this.isVerifPayableKind(m.kind) && !m.exceptional) {
         const amt = paidAmount != null ? Number(paidAmount) : Math.abs(Number(op.amount));
-        await this.verifWritePaid(m.kind, m.id, m.accId, mKey, amt);
+        await this.verifWritePaid(m.kind, m.id, m.accId, payKey, amt);
         m.amount = amt;
         m.paid = true;
       }
@@ -220,6 +221,10 @@ Object.assign(BH, {
         : { kind: m.kind, id: m.id, accId: m.accId, meta: m.refundOf ? { refund_of: m.refundOf } : {} };
       base.score = m.score != null ? m.score : 100;
       base.meta = { ...(base.meta || {}), budget_label: m.label || '' };
+      if (m.payMonth && m.payMonth !== mKey) {
+        base.meta.pay_month = m.payMonth;
+        base.meta.timing = m.payMonth > mKey ? 'anticipe' : 'rattrapage';
+      }
       await this.sendBankVerifRows([this.buildBankVerifRow(op, status, base)]);
       op.match = { ...m, fromDb: true, paid: m.kind === 'wallet' ? true : !!m.paid };
       op.matchOptions = null;
@@ -336,6 +341,30 @@ Object.assign(BH, {
         return !kinds.includes(v.linked_kind);
       });
     },
+    async deleteBankVerificationsForLinkMonth(kind, id, mKey) {
+      if (!this.user?.id || !kind || id == null || id === '' || !mKey) return;
+      const linkedId = String(id);
+      const kinds = kind === 'expense' ? ['expense', 'apport']
+        : kind === 'income' ? ['income', 'refund']
+        : [kind];
+      await withRetry(async () => {
+        for (const k of kinds) {
+          const { error } = await supabaseApp.from('bank_verifications')
+            .delete()
+            .eq('user_id', this.user.id)
+            .eq('linked_kind', k)
+            .eq('linked_id', linkedId)
+            .eq('month_key', mKey);
+          if (error) throw error;
+        }
+        return true;
+      }, 'nettoyage rapprochement du mois');
+      this.state.bankVerifications = (this.state.bankVerifications || []).filter(v => {
+        if (String(v.month_key || '') !== mKey) return true;
+        if (String(v.linked_id) !== linkedId) return true;
+        return !kinds.includes(v.linked_kind);
+      });
+    },
 
     // Purge manuelle : uniquement bank_verifications de l'utilisateur courant, mois trop anciens
     async purgeOldBankVerifications() {
@@ -388,7 +417,7 @@ Object.assign(BH, {
           group: 'Dépenses',
           id: e.id,
           label: card ? (e.description + ' · carte') : e.description,
-          amount: Number(e.amount),
+          amount: this.budgetAmountOf(e.account_id, e.id, mKey, e.amount),
           day: Number(e.day) || 1,
           category: e.category || '',
           accId: showAcc,
@@ -436,7 +465,7 @@ Object.assign(BH, {
           group: isRefund ? 'Remboursements' : 'Revenus',
           id: i.id,
           label: i.description,
-          amount: Number(i.amount),
+          amount: this.incomeBudgetAmountOf(i.account_id, i.id, mKey, i.amount),
           day: Number(i.day) || 1,
           category: '',
           accId: i.account_id,
@@ -462,6 +491,49 @@ Object.assign(BH, {
           accName: accName(ap.account_id),
           paid,
           verified: sets.expense.has(String(ap.id))
+        });
+      });
+
+      accIds.forEach(accId => {
+        const snap = this.state.theoreticalMonths?.[accId + '_' + mKey] || {};
+        Object.keys(snap).forEach(id => {
+          if (rows.some(r => (r.kind === 'expense' || r.kind === 'apport') && String(r.id) === String(id))) return;
+          const row = snap[id];
+          if (!row || row.is_wallet) return;
+          if ((this.state.expenses || []).some(e => e.id === id && e.account_id === accId && this.isExpenseActive(e) && this.isActiveInMonth(e, mKey))) return;
+          rows.push({
+            kind: 'expense',
+            group: 'Dépenses',
+            id,
+            label: row.description || 'Dépense',
+            amount: Number(row.amount) || 0,
+            day: Number(row.day) || 1,
+            category: row.category || '',
+            accId,
+            accName: accName(accId),
+            paid: !!(this.state.months[accId + '_' + mKey] || {})[id],
+            verified: sets.expense.has(String(id))
+          });
+        });
+        const incSnap = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey] || {};
+        Object.keys(incSnap).forEach(id => {
+          if (rows.some(r => (r.kind === 'income' || r.kind === 'refund') && String(r.id) === String(id))) return;
+          const row = incSnap[id];
+          if (!row) return;
+          if ((this.state.incomes || []).some(i => i.id === id && i.account_id === accId)) return;
+          rows.push({
+            kind: 'income',
+            group: 'Revenus',
+            id,
+            label: row.description || 'Revenu',
+            amount: Number(row.amount) || 0,
+            day: Number(row.day) || 1,
+            category: '',
+            accId,
+            accName: accName(accId),
+            paid: !!(this.state.monthsIncomes?.[accId + '_' + mKey] || {})[id],
+            verified: sets.income.has(String(id))
+          });
         });
       });
 
@@ -1864,7 +1936,7 @@ Object.assign(BH, {
           const day = Math.min(Number(e.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
           const paidRec = paidMap[e.id];
-          const budgetAmount = Number(e.amount);
+          const budgetAmount = this.budgetAmountOf(accId, e.id, mKey, e.amount);
           const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
           list.push({
             kind: 'expense', id: e.id, accId, accName: accName(accId),
@@ -1881,7 +1953,7 @@ Object.assign(BH, {
             const day = Math.min(Number(e.day) || 1, dim);
             const date = `${mKey}-${String(day).padStart(2, '0')}`;
             const paidRec = paidMap[e.id] || (this.state.months[e.account_id + '_' + mKey] || {})[e.id];
-            const budgetAmount = Number(e.amount);
+            const budgetAmount = this.budgetAmountOf(e.account_id, e.id, mKey, e.amount);
             const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
             const origin = (this.state.accounts.find(a => a.id === e.account_id) || {}).name || '';
             list.push({
@@ -1898,7 +1970,7 @@ Object.assign(BH, {
           const day = Math.min(Number(i.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
           const paidRec = paidInc[i.id];
-          const budgetAmount = Number(i.amount);
+          const budgetAmount = this.incomeBudgetAmountOf(accId, i.id, mKey, i.amount);
           const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
           list.push({
             kind: 'income', id: i.id, accId, accName: accName(accId),
@@ -2400,7 +2472,9 @@ Object.assign(BH, {
           ? `<button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
           : `<div class="bh-verif-actions">
               ${validateBtn}
-              <button type="button" class="bh-btn bh-btn-outline" title="Choisir une saisie (tous comptes) qui correspond à ce mouvement" onclick="BH.openVerifLink('${op.id}')">Lier…</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie de ce compte, pour août" onclick="BH.openVerifLink('${op.id}')">Lier</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un autre compte" onclick="BH.openVerifLink('${op.id}','compte')">Autre compte</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un mois passé ou à venir" onclick="BH.openVerifLink('${op.id}','mois')">Autre mois</button>
               ${unlinkBtn}
               ${refundBtn}
               ${exceptionalBtn}
@@ -2424,7 +2498,9 @@ Object.assign(BH, {
         <div style="font-size:13px; line-height:1.45; color:var(--ink);">
           <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Ouvre le même formulaire qu’Aujourd’hui : montant réel + ponctuel (ce mois) ou durable (montant habituel). Vert pâle = déjà fait ce mois-ci.</p>
           <p style="margin:0 0 12px;"><strong>Lien budget</strong> — Compte, Détecté (suggestion) ou Lié (déjà rattaché), libellé, portefeuille avec 👛, montant, jour et catégorie. Si le montant validé diffère du budget, le budget est rappelé. Si plusieurs propositions ont un score proche (±5 pts), elles sont listées : clique pour choisir.</p>
-          <p style="margin:0 0 12px;"><strong>Lier…</strong> — Choisis une saisie ou un apport sur n’importe quel compte (ex. crédit CIC ↔ dépense compte joint).</p>
+          <p style="margin:0 0 12px;"><strong>Lier</strong> — Saisie de ce compte, pour le mois du relevé. Le lien valide le paiement et l’enregistre.</p>
+          <p style="margin:0 0 12px;"><strong>Autre compte</strong> — Saisie d’un autre compte, même mois (dépense couple, apport, revenu). Le paiement s’écrit sur ce compte.</p>
+          <p style="margin:0 0 12px;"><strong>Autre mois</strong> — Rattrapage (mois passé) ou Anticipé (mois à venir). Le paiement s’écrit sur ce mois-là, le rapprochement reste sur le relevé.</p>
           <p style="margin:0 0 12px;"><strong>Délier</strong> — Sur une suggestion : la retire. Sur un lien enregistré : supprime le lien, et propose d’annuler aussi la validation du mois.</p>
           <p style="margin:0 0 12px;"><strong>Rembours.</strong> — Pour un crédit banque : crée un revenu lié à une dépense existante, avec date de fin optionnelle (frais remboursés jusqu’à un mois).</p>
           <p style="margin:0 0 12px;"><strong>+ Saisie</strong> — Crée une nouvelle dépense ou un revenu (formulaire prérempli). À l’enregistrement, elle est validée et liée à la ligne du relevé.</p>
@@ -2577,23 +2653,95 @@ Object.assign(BH, {
       if (ok) toast('Mouvement portefeuille vérifié');
     },
 
-    openVerifLink(opId) {
+    shiftMonthKey(mKey, delta) {
+      const [y, m] = String(mKey || this.monthKey(new Date())).split('-').map(Number);
+      return this.monthKey(new Date(y, m - 1 + delta, 1));
+    },
+    guessVerifMonthSide(op) {
+      const base = this.verif.mKey || this.monthKey(new Date());
+      const accId = this.verif.accId || null;
+      const scoreAt = (mKey) => {
+        let best = 0;
+        this.buildVerifCandidates(accId, mKey).forEach(c => {
+          if (c.kind === 'wallet' || c.kind === 'wallet-budget') return;
+          best = Math.max(best, this.scoreVerifMatchForLink(op, c));
+        });
+        return best;
+      };
+      const past = scoreAt(this.shiftMonthKey(base, -1));
+      const next = scoreAt(this.shiftMonthKey(base, 1));
+      if (next >= 40 && next > past) return 'anticipe';
+      return 'retard';
+    },
+    setVerifLinkMonthSide(side, skipRefresh) {
+      const base = this.verif.mKey || this.monthKey(new Date());
+      const next = side === 'anticipe';
+      this.verif.linkMonthSide = next ? 'anticipe' : 'retard';
+      this.verif.linkPayMonth = this.shiftMonthKey(base, next ? 1 : -1);
+      document.querySelectorAll('#verif-link-month-modes [data-month-side]').forEach(btn => {
+        const on = btn.getAttribute('data-month-side') === this.verif.linkMonthSide;
+        btn.classList.toggle('bh-btn-primary', on);
+        btn.classList.toggle('bh-btn-outline', !on);
+      });
+      const desc = document.getElementById('verif-link-desc');
+      const op = this.findVerifOp(this.verif.linkOpId);
+      if (desc && op) {
+        const when = next ? 'anticipé' : 'rattrapage';
+        desc.textContent = `${op.date || ''} · ${op.label} · ${this.fmt(op.amount)} · paiement sur ${this.formatMonthKey(this.verif.linkPayMonth)} (${when})`;
+      }
+      if (!skipRefresh) this.refreshVerifLinkList();
+    },
+    openVerifLink(opId, mode) {
       const op = this.findVerifOp(opId);
       if (!op) return;
+      const linkMode = mode === 'compte' || mode === 'mois' ? mode : 'lien';
+      const statementAcc = this.verif.accId || document.getElementById('verif-account')?.value || '';
+      const ordered = this.getOrderedAccounts();
+      const others = ordered.filter(a => a.id !== statementAcc);
+      if (linkMode === 'compte' && !others.length) {
+        toast('Aucun autre compte.');
+        return;
+      }
       this.verif.linkOpId = opId;
-      // Virement sortant → filtre Apports par défaut pour retrouver facilement l’apport mensuel
+      this.verif.linkMode = linkMode;
       const isOut = Number(op.amount) < 0;
       const looksApport = /apport|virement\s*[ée]mis|vir\s*inst|vers\s/i.test(op.label || '');
-      this.verif.linkKindFilter = (isOut && looksApport) ? 'apport' : (this.verif.linkKindFilter || '');
-      document.getElementById('verif-link-desc').textContent =
-        `${op.date} · ${op.label} · ${this.fmt(op.amount)}`;
+      this.verif.linkKindFilter = (linkMode === 'lien' && isOut && looksApport) ? 'apport' : '';
+      const title = document.getElementById('verif-link-title');
+      const monthBox = document.getElementById('verif-link-month-modes');
       const accSel = document.getElementById('verif-link-account');
-      const ordered = this.getOrderedAccounts();
-      accSel.innerHTML = `<option value="">Tous les comptes</option>` +
-        ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
-      // Par défaut : compte principal si on filtre apports, sinon tous
-      const mainId = this.state.profile?.main_account_id || '';
-      accSel.value = (this.verif.linkKindFilter === 'apport' && mainId) ? mainId : '';
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      if (title) {
+        title.textContent = linkMode === 'compte'
+          ? 'Autre compte'
+          : (linkMode === 'mois' ? 'Rattrapage ou anticipé' : 'Lier à une saisie');
+      }
+      if (monthBox) monthBox.style.display = linkMode === 'mois' ? 'flex' : 'none';
+      if (linkMode === 'compte') {
+        accSel.innerHTML = others.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+        accSel.disabled = false;
+        this.verif.linkPayMonth = mKey;
+      } else if (linkMode === 'mois') {
+        const current = ordered.find(a => a.id === statementAcc);
+        accSel.innerHTML = current
+          ? `<option value="${current.id}">${this.esc(current.name)}</option>`
+          : ordered.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+        if (statementAcc) accSel.value = statementAcc;
+        accSel.disabled = true;
+        this.setVerifLinkMonthSide(this.guessVerifMonthSide(op), true);
+      } else {
+        const current = ordered.find(a => a.id === statementAcc);
+        const pool = current ? [current] : ordered;
+        accSel.innerHTML = pool.map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`).join('');
+        if (statementAcc) accSel.value = statementAcc;
+        accSel.disabled = false;
+        this.verif.linkPayMonth = mKey;
+        const mainId = this.state.profile?.main_account_id || '';
+        if (this.verif.linkKindFilter === 'apport' && mainId) accSel.value = mainId;
+      }
+      document.getElementById('verif-link-desc').textContent = linkMode === 'mois'
+        ? document.getElementById('verif-link-desc').textContent
+        : `${op.date || ''} · ${op.label} · ${this.fmt(op.amount)}`;
       const search = document.getElementById('verif-link-search');
       if (search) search.value = '';
       this.syncVerifLinkKindUi();
@@ -2603,11 +2751,10 @@ Object.assign(BH, {
     setVerifLinkKind(kind) {
       this.verif.linkKindFilter = kind || '';
       this.syncVerifLinkKindUi();
-      // Apports = toujours sur le compte principal
-      if (kind === 'apport') {
+      if (kind === 'apport' && this.verif.linkMode !== 'mois') {
         const mainId = this.state.profile?.main_account_id || '';
         const accSel = document.getElementById('verif-link-account');
-        if (accSel && mainId) accSel.value = mainId;
+        if (accSel && mainId && !accSel.disabled) accSel.value = mainId;
       }
       this.refreshVerifLinkList();
     },
@@ -2672,9 +2819,18 @@ Object.assign(BH, {
       const accFilter = document.getElementById('verif-link-account')?.value || '';
       const q = (document.getElementById('verif-link-search')?.value || '').trim().toLowerCase();
       const kindFilter = this.verif.linkKindFilter || '';
-      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const statementKey = this.verif.mKey || this.monthKey(new Date());
+      const mKey = this.verif.linkPayMonth || statementKey;
+      const linkMode = this.verif.linkMode || 'lien';
       let cands = this.buildVerifCandidates(accFilter || null, mKey)
+        .filter(c => c.kind !== 'wallet' && c.kind !== 'wallet-budget')
         .filter(c => !this.isVerifCandidateAlreadyLinked(c, mKey, this.verif.linkOpId))
+        .filter(c => mKey === statementKey || !this.isVerifCandidateAlreadyLinked(c, statementKey, this.verif.linkOpId));
+      if (linkMode === 'compte') {
+        const statementAcc = this.verif.accId || '';
+        cands = cands.filter(c => c.accId !== statementAcc);
+      }
+      cands = cands
         .map(c => ({ ...c, score: this.scoreVerifMatchForLink(op, c) }))
         .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label, 'fr'));
 
@@ -2711,11 +2867,16 @@ Object.assign(BH, {
     },
     closeVerifLink() {
       document.getElementById('bh-verif-link-overlay').classList.remove('open', 'front');
+      const accSel = document.getElementById('verif-link-account');
+      if (accSel) accSel.disabled = false;
       this.verif.linkOpId = null;
+      this.verif.linkMode = 'lien';
+      this.verif.linkPayMonth = null;
     },
     async confirmVerifLink(kind, id, expId, accIdParam) {
       const op = this.findVerifOp(this.verif.linkOpId);
       if (!op) return;
+      const payMonth = this.verif.linkPayMonth || null;
       const accId = accIdParam || this.verif.accId;
       const accName = (this.state.accounts.find(a => a.id === accId) || {}).name || '';
       const mKey = this.verifMonthKey(op);
@@ -2727,7 +2888,7 @@ Object.assign(BH, {
       let match;
       if (kind === 'expense' || kind === 'apport') {
         const exp = kind === 'apport'
-          ? this.listOutboundApportDues({ mKey }).find(a => a.id === id)
+          ? this.listOutboundApportDues({ mKey: payMonth || mKey }).find(a => a.id === id)
           : this.state.expenses.find(e => e.id === id);
         match = {
           kind, id, accId, accName,
@@ -2752,11 +2913,16 @@ Object.assign(BH, {
       } else {
         return;
       }
+      const statementKey = this.verifMonthKey(op);
+      if (payMonth && payMonth !== statementKey) match.payMonth = payMonth;
       const ok = await this.runVerif('liaison', async () => {
         await this.verifCommitLink(op, match, { markPaid: true });
         return true;
       });
-      if (ok) toast(kind === 'wallet' ? 'Mouvement portefeuille lié' : 'Lié et validé');
+      if (!ok) return;
+      if (match.payMonth && match.payMonth > statementKey) toast('Lié sur ' + this.formatMonthKey(match.payMonth) + ' (anticipé)');
+      else if (match.payMonth && match.payMonth < statementKey) toast('Lié sur ' + this.formatMonthKey(match.payMonth) + ' (rattrapage)');
+      else toast(kind === 'wallet' ? 'Mouvement portefeuille lié' : 'Lié et validé');
     },
 
     openVerifRefund(opId) {

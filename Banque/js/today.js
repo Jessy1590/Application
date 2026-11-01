@@ -443,10 +443,19 @@ Object.assign(BH, {
         }
 
         let tExp = 0, accTInc = 0;
-        if (mode === 'theorique' && mKey !== curKey) {
+        if (mode === 'theorique') {
           const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
-          if (!snap || !Object.keys(snap).length) return;
-          tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          if (snap && Object.keys(snap).length) {
+            tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          } else if (mKey !== curKey) {
+            return;
+          } else {
+            this.state.expenses.forEach(e => {
+              if (e.account_id !== acc.id) return;
+              if (!this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
+              tExp += Number(e.amount) || 0;
+            });
+          }
           accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         } else if (mode === 'effective') {
           this.state.expenses.forEach(e => {
@@ -524,10 +533,19 @@ Object.assign(BH, {
         if (!myMem) return;
 
         let tExp = 0, accTInc = 0;
-        if (mode === 'theorique' && mKey !== curKey) {
+        if (mode === 'theorique') {
           const snap = this.state.theoreticalMonths?.[acc.id + '_' + mKey];
-          if (!snap || !Object.keys(snap).length) return; // pas d'historique → ignore
-          tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          if (snap && Object.keys(snap).length) {
+            tExp = Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+          } else if (mKey !== curKey) {
+            return;
+          } else {
+            this.state.expenses.forEach(e => {
+              if (e.account_id !== acc.id) return;
+              if (!this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
+              tExp += Number(e.amount) || 0;
+            });
+          }
           accTInc = this.theoreticalIncomeTotalForAccount(acc.id, mKey);
         } else if (mode === 'effective') {
           this.state.expenses.forEach(e => {

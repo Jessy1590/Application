@@ -1,5 +1,47 @@
 Object.assign(BH, {
     // --- Historique budget théorique ---
+    dueDay(item) {
+      const d = Number(item && item.day);
+      return d >= 1 && d <= 31 ? d : 1;
+    },
+    // Jour de prélèvement atteint pour ce mois : le barème déjà figé ne bouge plus.
+    barèmeFrozen(item, mKey, now = new Date()) {
+      const cur = this.monthKey(now);
+      if (!mKey || mKey > cur) return false;
+      if (mKey < cur) return true;
+      return now.getDate() >= this.dueDay(item);
+    },
+    holdFrozenBarème(accId, mKey, id, item, kind) {
+      if (!accId || id == null || !this.barèmeFrozen(item, mKey)) return;
+      const incomes = kind === 'income';
+      const bagName = incomes ? 'theoreticalIncomesMonths' : 'theoreticalMonths';
+      if (!this.state[bagName]) this.state[bagName] = {};
+      const key = accId + '_' + mKey;
+      const prev = this.state[bagName][key] || {};
+      if (prev[id]) return;
+      const row = incomes ? this.incomeSnapshotRow(item) : this.expenseSnapshotRow(item);
+      this.state[bagName][key] = { ...prev, [id]: row };
+    },
+    budgetAmountOf(accId, id, mKey, live) {
+      const cur = this.monthKey(new Date());
+      const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
+      if (snap && Object.keys(snap).length) {
+        const row = snap[id];
+        if (row) return Number(row.amount) || 0;
+        if (mKey !== cur) return 0;
+      }
+      return Number(live) || 0;
+    },
+    incomeBudgetAmountOf(accId, id, mKey, live) {
+      const cur = this.monthKey(new Date());
+      const snap = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey];
+      if (snap && Object.keys(snap).length) {
+        const row = snap[id];
+        if (row) return Number(row.amount) || 0;
+        if (mKey !== cur) return 0;
+      }
+      return Number(live) || 0;
+    },
     expenseSnapshotRow(exp) {
       return {
         amount: Number(exp.amount) || 0,
@@ -13,12 +55,21 @@ Object.assign(BH, {
     },
 
     buildTheoreticalSnapshot(accId, mKey) {
+      const prev = this.state.theoreticalMonths?.[accId + '_' + mKey] || {};
       const snap = {};
       (this.state.expenses || []).forEach(exp => {
         if (exp.account_id !== accId) return;
         if (!this.isActiveInMonth(exp, mKey)) return;
         if (!this.isExpenseActive(exp)) return;
-        snap[exp.id] = this.expenseSnapshotRow(exp);
+        const row = this.expenseSnapshotRow(exp);
+        const old = prev[exp.id];
+        if (old && this.barèmeFrozen(exp, mKey)) row.amount = Number(old.amount) || 0;
+        snap[exp.id] = row;
+      });
+      Object.keys(prev).forEach(id => {
+        if (snap[id]) return;
+        const old = prev[id];
+        if (old && this.barèmeFrozen(old, mKey)) snap[id] = old;
       });
       return snap;
     },
@@ -33,10 +84,19 @@ Object.assign(BH, {
     },
 
     buildTheoreticalIncomesSnapshot(accId, mKey) {
+      const prev = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey] || {};
       const snap = {};
       (this.state.incomes || []).forEach(inc => {
         if (inc.account_id !== accId) return;
-        snap[inc.id] = this.incomeSnapshotRow(inc);
+        const row = this.incomeSnapshotRow(inc);
+        const old = prev[inc.id];
+        if (old && this.barèmeFrozen(inc, mKey)) row.amount = Number(old.amount) || 0;
+        snap[inc.id] = row;
+      });
+      Object.keys(prev).forEach(id => {
+        if (snap[id]) return;
+        const old = prev[id];
+        if (old && this.barèmeFrozen(old, mKey)) snap[id] = old;
       });
       return snap;
     },
@@ -59,13 +119,11 @@ Object.assign(BH, {
 
     // Total revenus théoriques d'un compte/mois (snapshot historique si présent, sinon revenus actuels)
     theoreticalIncomeTotalForAccount(accId, mKey) {
-      const curKey = this.monthKey(new Date());
-      if (mKey !== curKey) {
-        const snap = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey];
-        if (snap && Object.keys(snap).length) {
-          return Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-        }
+      const snap = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey];
+      if (snap && Object.keys(snap).length) {
+        return Object.values(snap).reduce((s, r) => s + (Number(r.amount) || 0), 0);
       }
+      if (mKey !== this.monthKey(new Date())) return 0;
       return (this.state.incomes || [])
         .filter(i => i.account_id === accId)
         .reduce((s, i) => s + (Number(i.amount) || 0), 0);
@@ -472,6 +530,12 @@ Object.assign(BH, {
             const oldAmount = oldExp ? Number(oldExp.amount) : (kind === 'income' ? Number(this.state.incomes.find(i => i.id === expId)?.amount) : null);
             const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
             if (e1) throw e1;
+            const durKey = this.diffAmount.mKey || this.todayViewKey();
+            if (kind === 'expense' && oldExp) this.holdFrozenBarème(accId, durKey, expId, oldExp, 'expense');
+            if (kind === 'income') {
+              const oldInc = this.state.incomes.find(i => i.id === expId);
+              if (oldInc) this.holdFrozenBarème(accId, durKey, expId, oldInc, 'income');
+            }
             if (kind === 'expense' && oldExp) {
               await this.logExpenseChange({
                 expenseId: expId,
@@ -1061,6 +1125,7 @@ Object.assign(BH, {
         if (error) throw error;
 
         if (type === 'expense') {
+          if (oldExp) this.holdFrozenBarème(oldExp.account_id, mKey, savedId, oldExp, 'expense');
           if (oldExp) {
             const amountChanged = Number(oldExp.amount) !== Number(amount);
             const metaChanged = (oldExp.category || '') !== (payload.category || '')
@@ -1109,6 +1174,7 @@ Object.assign(BH, {
             ? this.state.incomes.find(i => i.id === this.sheetEditId)
             : null;
           const previousIncAccId = oldInc?.account_id || null;
+          if (oldInc) this.holdFrozenBarème(oldInc.account_id, mKey, savedId, oldInc, 'income');
           if (oldInc) Object.assign(oldInc, payload);
           else if (savedId) this.state.incomes.push({ id: savedId, ...payload });
           await this.upsertMonthRecord(accId, mKey, {
@@ -1212,8 +1278,18 @@ Object.assign(BH, {
        }
 
        await withRetry(async () => {
-         if (oldExp) await this.deleteBankVerificationsForLink('expense', oldExp.id);
-         if (oldInc) await this.deleteBankVerificationsForLink('income', oldInc.id);
+         const frozenExp = oldExp && this.barèmeFrozen(oldExp, mKey);
+         const frozenInc = oldInc && this.barèmeFrozen(oldInc, mKey);
+         if (oldExp) this.holdFrozenBarème(oldExp.account_id, mKey, oldExp.id, oldExp, 'expense');
+         if (oldInc) this.holdFrozenBarème(oldInc.account_id, mKey, oldInc.id, oldInc, 'income');
+         if (oldExp && !frozenExp) {
+           await this.deleteBankVerificationsForLinkMonth('expense', oldExp.id, mKey);
+           await this.clearPaid('expense', oldExp.id, oldExp.account_id, mKey);
+         }
+         if (oldInc && !frozenInc) {
+           await this.deleteBankVerificationsForLinkMonth('income', oldInc.id, mKey);
+           await this.clearPaid('income', oldInc.id, oldInc.account_id, mKey);
+         }
          const { error } = await supabaseApp.from(table).delete().eq('id', this.sheetEditId);
          if (error) throw error;
          if (oldExp) {

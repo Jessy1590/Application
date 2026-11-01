@@ -666,8 +666,12 @@
 <div class="bh-sheet-overlay" id="bh-verif-link-overlay" onclick="if(event.target===this) BH.closeVerifLink()">
   <div class="bh-sheet" style="max-width:560px;">
     <div class="bh-sheet-handle"></div>
-    <h3 class="bh-sheet-title" style="margin-bottom:4px;">Lier à une saisie</h3>
+    <h3 class="bh-sheet-title" id="verif-link-title" style="margin-bottom:4px;">Lier à une saisie</h3>
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;" id="verif-link-desc"></p>
+    <div id="verif-link-month-modes" style="display:none; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+      <button type="button" class="bh-btn bh-btn-outline" data-month-side="retard" onclick="BH.setVerifLinkMonthSide('retard')" style="padding:7px 10px; font-size:12px;">Rattrapage</button>
+      <button type="button" class="bh-btn bh-btn-outline" data-month-side="anticipe" onclick="BH.setVerifLinkMonthSide('anticipe')" style="padding:7px 10px; font-size:12px;">Anticipé</button>
+    </div>
     <div class="bh-field-label">Compte budget</div>
     <select id="verif-link-account" class="bh-input" onchange="BH.refreshVerifLinkList()"></select>
     <div class="bh-field-label">Type</div>

@@ -369,16 +369,7 @@ Object.assign(BH, {
     expenseAmountForStats(exp, mKey, mode) {
        if (!exp) return 0;
        if (mode === 'theorique') {
-          const curKey = this.monthKey(new Date());
-          // Mois passé : préférer le snapshot figé (budget réel de l'époque)
-          if (mKey !== curKey) {
-             const snap = this.state.theoreticalMonths?.[exp.account_id + '_' + mKey];
-             if (snap && Object.keys(snap).length) {
-                const row = snap[exp.id];
-                return row ? (Number(row.amount) || 0) : 0;
-             }
-          }
-          return Number(exp.amount) || 0;
+          return this.budgetAmountOf(exp.account_id, exp.id, mKey, exp.amount);
        }
        // Effectif portefeuille : uniquement l'argent sorti de CE compte
        if (exp.is_wallet) return this.walletOwnSpent(exp.account_id, exp.id, mKey);
@@ -399,10 +390,9 @@ Object.assign(BH, {
     categoryTotalsForMonth(mKey, { accFilter = '', mode = 'effective' } = {}) {
        // Théorique + mois passé : snapshot figé uniquement (pas de rejeu du budget actuel)
        if (mode === 'theorique') {
-          const curKey = this.monthKey(new Date());
-          if (mKey !== curKey) {
-             return this.categoryTotalsFromTheoreticalSnapshots(mKey, accFilter) || {};
-          }
+          const fromSnap = this.categoryTotalsFromTheoreticalSnapshots(mKey, accFilter);
+          if (fromSnap) return fromSnap;
+          if (mKey !== this.monthKey(new Date())) return {};
        }
        const totals = {};
        this.state.expenses.forEach(exp => {
@@ -478,15 +468,13 @@ Object.assign(BH, {
 
        focusIds.forEach(accId => {
           if (mode === 'theorique') {
-             const snapInc = (mKey !== curKey)
-               ? this.state.theoreticalIncomesMonths?.[accId + '_' + mKey]
-               : null;
+             const snapInc = this.state.theoreticalIncomesMonths?.[accId + '_' + mKey];
              if (snapInc && Object.keys(snapInc).length) {
                 Object.values(snapInc).forEach(row => {
                    const amt = Number(row.amount) || 0;
                    if (amt > 0) revenusDirects += amt;
                 });
-             } else {
+             } else if (mKey === curKey) {
                 this.state.incomes.forEach(inc => {
                    if (inc.account_id !== accId) return;
                    const amt = Number(inc.amount) || 0;
@@ -507,16 +495,14 @@ Object.assign(BH, {
           }
 
           const snap = this.state.theoreticalMonths?.[accId + '_' + mKey];
-          if (mode === 'theorique' && mKey !== curKey) {
-             if (snap && Object.keys(snap).length) {
-                Object.values(snap).forEach(row => {
-                   const amt = Number(row.amount) || 0;
-                   if (amt <= 0) return;
-                   if (/(é|e)pargne/i.test(row.category || '')) epargne += amt;
-                   else depenses += amt;
-                });
-             }
-          } else {
+          if (mode === 'theorique' && snap && Object.keys(snap).length) {
+             Object.values(snap).forEach(row => {
+                const amt = Number(row.amount) || 0;
+                if (amt <= 0) return;
+                if (/(é|e)pargne/i.test(row.category || '')) epargne += amt;
+                else depenses += amt;
+             });
+          } else if (!(mode === 'theorique' && mKey !== curKey)) {
              this.state.expenses.forEach(exp => {
                 if (exp.account_id !== accId) return;
                 if (!this.isActiveInMonth(exp, mKey)) return;

@@ -253,6 +253,8 @@ Object.assign(BH, {
         const saved = await withRetry(async () => {
           const { error } = await supabaseApp.from('expenses').update({ amount: newAmount }).eq('id', expId);
           if (error) throw error;
+          const mKeyHold = this.monthKey(new Date());
+          this.holdFrozenBarème(exp.account_id, mKeyHold, expId, exp, 'expense');
           exp.amount = newAmount;
           const mKey = this.monthKey(new Date());
           await this.logExpenseChange({

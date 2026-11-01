@@ -386,7 +386,7 @@ Object.assign(BH, {
           if (!this.isActiveInMonth(exp, mKey)) return;
           if (!this.isExpenseActive(exp) && !(exp.is_wallet && this.expenseAmountForStats(exp, mKey, 'effective') > 0)) return;
           const acc = this.state.accounts.find(a => a.id === exp.account_id);
-          const theo = this.isExpenseActive(exp) ? (Number(exp.amount) || 0) : 0;
+          const theo = this.expenseAmountForStats(exp, mKey, 'theorique');
           const eff = this.expenseAmountForStats(exp, mKey, 'effective');
           if (theo <= 0 && eff <= 0) return;
           const pct = theo > 0 ? Math.round((eff / theo) * 100) : (eff > 0 ? '—' : '0');

@@ -68,6 +68,7 @@
   .amount-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;}
   .amount-row input{width:110px; margin:0;}
   .modes{display:flex; gap:6px;}
+  .sheet .modes{margin:0 0 12px;}
   .modes button.is-on{background:var(--sage); color:#fff; border-color:var(--sage);}
   .info{
     width:22px; height:22px; min-height:22px; padding:0; border-radius:50%;
@@ -211,15 +212,9 @@ function helpText(r) {
     return "Cette ligne est déjà vérifiée. Un nouvel import ne crée pas un second paiement. Modifier seulement si le rapprochement est faux.";
   }
   if (r.source === "csv" && r.proposal && !picking[r.id]) {
-    const when = timing(r.proposal.item);
-    const where = when === "anticipé"
-      ? " La dépense est anticipée : le paiement s’écrit sur le mois prochain, pas une deuxième fois en août."
-      : when === "en retard"
-        ? " La dépense est en retard : le paiement s’écrit sur le mois précédent, pas une deuxième fois en août."
-        : "";
-    return "Confirmer retient la proposition. Invalider la remplace par d’autres traitements." + where + " Rien n’est écrit avant Enregistrer.";
+    return "Confirmer retient la proposition. Invalider la remplace par d’autres traitements. Rien n’est écrit avant Enregistrer.";
   }
-  return "Lier rattache une saisie déjà créée (dépense, revenu ou avance carte), pas un mouvement d’enveloppe. Saisie durable crée le barème. Exceptionnelle ne vaut que pour ce mois. Portefeuille permet de lier un mouvement déjà saisi, ou d’en créer un. Oublier ignore la ligne. Rien n’est écrit avant Enregistrer.";
+  return "Lier rattache une saisie d’août. Autre mois ouvre une fenêtre : Rattrapage pour un mois passé, Anticipé pour un mois à venir. Saisie durable crée le barème. Exceptionnelle ne vaut que pour ce mois. Portefeuille permet de lier un mouvement déjà saisi, ou d’en créer un. Oublier ignore la ligne. Rien n’est écrit avant Enregistrer.";
 }
 
 function esc(s) {
@@ -266,13 +261,12 @@ function propose(op) {
   BUDGET.forEach((item) => {
     if (taken.has(item.id)) return;
     const signOk = op.amount < 0 ? item.kind !== "income" : item.kind === "income";
-    if (!signOk && item.kind !== "wallet") return;
+    if (!isCurrent(item) || (!signOk && item.kind !== "wallet")) return;
     let score = Math.round(similar(op.label, item.label) * 70);
     const diff = Math.abs(bankAbs - item.amount);
     if (diff <= 0.05) score += 30;
     else if (diff / Math.max(bankAbs, 1) <= 0.15) score += 12;
-    if (!isCurrent(item) && score < 55) return;
-    if (!best || score > best.score || (score === best.score && isCurrent(item) && !isCurrent(best.item))) best = { item, score };
+    if (!best || score > best.score) best = { item, score };
   });
   if (!best || best.score < 25) return null;
   return best;
@@ -358,6 +352,7 @@ function actionsHtml(r, hasProposal, showChoices) {
     ${choiceBtn(r.id, "durable", "Saisie durable")}
     ${choiceBtn(r.id, "exceptionnelle", "Exceptionnelle")}
     ${choiceBtn(r.id, "portefeuille", "Portefeuille")}
+    ${choiceBtn(r.id, "autre-mois", "Autre mois")}
     ${choiceBtn(r.id, "oublier", "Oublier")}
     ${back}`);
 }
@@ -365,7 +360,7 @@ function detailHtml(r) {
   const draft = drafts[r.id];
   if (!draft || (draft.choice === "portefeuille" && !draft.walletMode)) return "";
   if (draft.choice === "lien") {
-    const options = BUDGET.filter((b) => b.kind !== "wallet").map((b) =>
+    const options = BUDGET.filter((b) => b.kind !== "wallet" && isCurrent(b)).map((b) =>
       `<option value="${esc(b.id)}" ${draft.target === b.id ? "selected" : ""}>${saisieOption(b)}</option>`).join("");
     return `<div class="detail"><div class="label">Saisie existante</div><select class="input" data-field="target" data-id="${r.id}">${options}</select></div>`;
   }
@@ -575,9 +570,57 @@ function openSheet(id) {
   ok.onclick = retainSheet;
   document.getElementById("overlay").classList.add("open");
 }
+let sheetMode = "";
+let sheetSide = "retard";
+let sheetItemId = "";
+function otherItems(side) {
+  const when = side === "anticipe" ? "anticipé" : "en retard";
+  return BUDGET.filter((b) => b.kind !== "wallet" && timing(b) === when);
+}
+function bestOther(op, side) {
+  let best = null;
+  otherItems(side).forEach((item) => {
+    let score = Math.round(similar(op.label, item.label) * 70);
+    const diff = Math.abs(Math.abs(op.amount) - item.amount);
+    if (diff <= 0.05) score += 30;
+    if (!best || score > best.score) best = { item, score };
+  });
+  return best && best.score >= 40 ? best.item : null;
+}
+function renderAutreBody() {
+  const items = otherItems(sheetSide);
+  const tabs = `<div class="modes">
+    <button type="button" class="btn btn-outline btn-sm ${sheetSide === "retard" ? "is-on" : ""}" data-side="retard">Rattrapage</button>
+    <button type="button" class="btn btn-outline btn-sm ${sheetSide === "anticipe" ? "is-on" : ""}" data-side="anticipe">Anticipé</button>
+  </div>`;
+  const list = items.length
+    ? items.map((b) => `<button type="button" class="choice ${sheetItemId === b.id ? "is-on" : ""}" data-item="${esc(b.id)}"><strong>${esc(b.label)}</strong><span>${esc(monthName(b))} · ${money(b.amount)}</span></button>`).join("")
+    : `<p class="lead">Aucune saisie ${sheetSide === "anticipe" ? "des mois à venir" : "des mois passés"}.</p>`;
+  document.getElementById("sheet-body").innerHTML = tabs + list;
+}
+function openAutre(id) {
+  const row = rows.find((r) => r.id === id);
+  if (!row) return;
+  sheetFor = id;
+  sheetMode = "autre";
+  const past = bestOther(row, "retard");
+  const next = bestOther(row, "anticipe");
+  const pastScore = past ? Math.round(similar(row.label, past.label) * 70) : 0;
+  const nextScore = next ? Math.round(similar(row.label, next.label) * 70) : 0;
+  sheetSide = nextScore > pastScore ? "anticipe" : "retard";
+  const hinted = sheetSide === "anticipe" ? next : past;
+  sheetItemId = hinted ? hinted.id : "";
+  document.getElementById("sheet-title").textContent = "Rattrapage ou anticipé";
+  document.getElementById("sheet-lead").textContent = row.label + " · " + money(row.amount) + ". Le paiement s’écrit sur le mois choisi, pas une deuxième fois en août.";
+  document.getElementById("sheet-ok").textContent = "Retenir";
+  document.getElementById("sheet-ok").onclick = retainSheet;
+  renderAutreBody();
+  document.getElementById("overlay").classList.add("open");
+}
 function closeSheet() {
   document.getElementById("overlay").classList.remove("open");
   sheetFor = null;
+  sheetMode = "";
 }
 function sheetDetail() {
   const box = document.getElementById("sheet-detail");
@@ -597,6 +640,16 @@ function sheetDetail() {
 }
 function retainSheet() {
   const row = rows.find((r) => r.id === sheetFor);
+  if (sheetMode === "autre") {
+    const item = BUDGET.find((b) => b.id === sheetItemId);
+    if (!row || !item) { toast("Choisis une saisie."); return; }
+    const word = timing(item) === "anticipé" ? "anticipé" : "rattrapage";
+    decisions[row.id] = { text: withReplace(row.id, "Rapprocher " + item.label + " sur " + monthName(item) + " (" + word + "). Août ne reçoit pas une deuxième dépense.") };
+    delete drafts[row.id];
+    closeSheet();
+    render();
+    return;
+  }
   if (!row || !sheetChoice) { toast("Choisis un traitement."); return; }
   let text = "";
   if (sheetChoice === "retirer") text = "Retirer la validation de " + money(row.item.amount) + ". La saisie reste.";
@@ -688,6 +741,9 @@ function pickChoice(id, choice) {
     decisions[id] = { text: "Retirer la validation de " + money(row.item.amount) + " à l’enregistrement. La saisie reste." };
   } else if (choice === "supprimer") {
     decisions[id] = { text: "Supprimer le mouvement " + row.item.label + " à l’enregistrement. L’enveloppe reste." };
+  } else if (choice === "autre-mois") {
+    openAutre(id);
+    return;
   } else if (choice === "portefeuille") {
     drafts[id] = { choice, walletMode: "" };
     delete decisions[id];
@@ -699,7 +755,7 @@ function pickChoice(id, choice) {
     drafts[id] = { choice: "portefeuille", walletMode: "creer", wallet: "Courses", label: row.label };
     applyDraft(id);
   } else {
-    const firstSaisie = BUDGET.find((b) => b.kind !== "wallet");
+    const firstSaisie = BUDGET.find((b) => b.kind !== "wallet" && isCurrent(b));
     drafts[id] = {
       choice,
       target: firstSaisie ? firstSaisie.id : "",
@@ -711,6 +767,21 @@ function pickChoice(id, choice) {
   render();
 }
 document.getElementById("sheet-body").addEventListener("click", (event) => {
+  const sideBtn = event.target.closest("[data-side]");
+  if (sideBtn && sheetMode === "autre") {
+    sheetSide = sideBtn.dataset.side;
+    const row = rows.find((r) => r.id === sheetFor);
+    const hinted = row ? bestOther(row, sheetSide) : null;
+    sheetItemId = hinted ? hinted.id : "";
+    renderAutreBody();
+    return;
+  }
+  const itemBtn = event.target.closest("[data-item]");
+  if (itemBtn && sheetMode === "autre") {
+    sheetItemId = itemBtn.dataset.item;
+    renderAutreBody();
+    return;
+  }
   const choice = event.target.closest("[data-choice]");
   if (!choice) return;
   sheetChoice = choice.dataset.choice;
