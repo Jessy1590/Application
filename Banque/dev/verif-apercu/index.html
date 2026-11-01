@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aperçu vérification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F3F6F3; --card:#FFFFFF; --ink:#152520; --ink-soft:#5A6B62; --ink-faint:#93A29A;
+    --line:#DBE3DD; --line-soft:#E9EEEA; --sage:#3E6B57; --sage-deep:#28453A; --sage-pale:#E4EEE8;
+    --amber:#B8793A; --amber-pale:#F7EADA; --clay:#AE4B3C; --clay-pale:#F7E2DE;
+    --shadow:0 1px 2px rgba(21,37,32,0.04), 0 6px 20px -8px rgba(21,37,32,0.14);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:Inter,sans-serif; font-size:14px;}
+  button,input,select{font-family:inherit;}
+  h1,h2,h3{font-family:"Space Grotesk",sans-serif; margin:0;}
+  .num{font-family:"JetBrains Mono",monospace; font-weight:600; letter-spacing:-0.02em;}
+  .app{max-width:720px; margin:0 auto; min-height:100dvh;}
+  .topbar{position:sticky; top:0; z-index:20; background:var(--paper); padding:max(16px, env(safe-area-inset-top)) 18px 12px; border-bottom:1px solid var(--line-soft);}
+  .brand{display:flex; align-items:center; gap:8px;}
+  .mark{width:10px; height:10px; border-radius:3px; background:var(--sage); transform:rotate(45deg);}
+  .title{font-size:19px; font-weight:700; color:var(--sage-deep);}
+  .sub{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .view{padding:16px 16px 40px;}
+  .card{background:var(--card); border:1px solid var(--line-soft); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px; margin-bottom:12px;}
+  .label{font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); margin:0 0 6px;}
+  .filters{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .month{display:flex; justify-content:space-between; align-items:center; background:var(--line-soft); border-radius:12px; padding:6px; font-family:"Space Grotesk",sans-serif; font-weight:700; text-transform:capitalize;}
+  .input, select.input{width:100%; border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:16px; background:var(--paper); color:var(--ink); margin:0;}
+  .drop{border:1.5px dashed var(--line); border-radius:12px; background:#fff; min-height:44px; padding:10px 14px; display:flex; align-items:center; justify-content:center; gap:8px; text-align:center; cursor:pointer; color:var(--ink-soft);}
+  .drop:hover,.drop.drag{border-color:var(--sage); background:var(--sage-pale); color:var(--sage-deep);}
+  .drop strong{color:var(--ink); font-size:14px;}
+  .drop span{font-size:12px;}
+  .row-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .btn{border:none; border-radius:10px; font-weight:600; font-size:14px; padding:12px 16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:5px; min-height:44px;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--sage); color:#fff;}
+  .btn-primary:hover{background:var(--sage-deep);}
+  .btn-ghost{background:var(--line-soft); color:var(--ink-soft);}
+  .btn-outline{background:#fff; color:var(--sage-deep); border:1px solid var(--line);}
+  .btn-sm{padding:6px 10px; min-height:44px; font-size:12.5px; border-radius:8px;}
+  .stats{display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px;}
+  @media(min-width:700px){.stats{grid-template-columns:repeat(4,1fr);}}
+  .stat{background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px;}
+  .stat .lbl{font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint);}
+  .stat .val{font-size:18px; margin-top:2px;}
+  .line{background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:12px; margin-bottom:8px;}
+  .line.done{background:rgba(228,238,232,.55); border-color:var(--sage);}
+  .line-top{display:flex; justify-content:space-between; gap:12px; align-items:flex-start;}
+  .split{display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px;}
+  @media(min-width:640px){.split{grid-template-columns:1fr 1fr;}}
+  .zone{border-radius:12px; padding:10px 12px; min-width:0;}
+  .zone.read{background:var(--paper); border:1px solid var(--line-soft);}
+  .zone.prop{background:var(--amber-pale); border:1px solid transparent;}
+  .zone .k{font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px;}
+  .zone.prop .k{color:var(--amber);}
+  .meta{font-size:12px; color:var(--ink-soft); margin-top:3px;}
+  .amt.out{color:var(--clay);} .amt.in{color:var(--sage-deep);}
+  .status{margin-top:8px; font-size:13px; color:var(--sage-deep);}
+  .amount-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;}
+  .amount-row input{width:110px; margin:0;}
+  .modes{display:flex; gap:6px;}
+  .modes button.is-on{background:var(--sage); color:#fff; border-color:var(--sage);}
+  .empty{padding:28px 16px; text-align:center; color:var(--ink-soft); background:var(--card); border:1px dashed var(--line); border-radius:14px;}
+  .overlay{position:fixed; inset:0; background:rgba(21,37,32,.42); z-index:50; display:none; align-items:flex-end; justify-content:center;}
+  .overlay.open{display:flex;}
+  .sheet{background:var(--paper); width:100%; max-width:560px; border-radius:20px 20px 0 0; padding:10px 20px calc(24px + env(safe-area-inset-bottom)); max-height:88dvh; overflow:auto;}
+  .handle{width:36px; height:4px; background:var(--line); border-radius:4px; margin:8px auto 14px;}
+  .sheet h3{font-size:20px; margin-bottom:4px;}
+  .sheet p.lead{font-size:12.5px; color:var(--ink-soft); margin:0 0 12px;}
+  .choice{width:100%; text-align:left; background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px; cursor:pointer; min-height:44px;}
+  .choice strong{display:block;}
+  .choice span{display:block; font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .choice.is-on{border-color:var(--sage); background:var(--sage-pale);}
+  .sheet-actions{display:flex; gap:8px; margin-top:14px;}
+  .sheet-actions .btn{flex:1;}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--sage-deep); color:#fff; border-radius:12px; padding:10px 14px; font-size:13px; z-index:90; max-width:90vw;}
+  @media(min-width:700px){
+    .overlay{align-items:center; padding:24px;}
+    .sheet{border-radius:20px; max-height:min(88dvh, 720px);}
+    .handle{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="mark"></span><div class="title">Budget</div></div>
+    <div class="sub">Aperçu vérification · données fictives, sans base</div>
+  </header>
+  <main class="view">
+    <div class="card">
+      <div class="filters">
+        <div>
+          <div class="label">Compte</div>
+          <select class="input" aria-label="Compte"><option>Compte courant</option></select>
+        </div>
+        <div>
+          <div class="label">Mois</div>
+          <div class="month"><span></span><span>août 2026</span><span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="label">Banque</div>
+      <select class="input" id="bank" aria-label="Banque" style="margin-bottom:10px;">
+        <option>Crédit Agricole</option>
+        <option>CIC</option>
+        <option>Revolut</option>
+      </select>
+      <div class="label">Fichier CSV</div>
+      <div class="drop" id="drop">
+        <div>
+          <strong id="drop-title">Déposer un CSV</strong>
+          <span id="drop-sub">releve-aout.csv · traitement local</span>
+        </div>
+      </div>
+      <input type="file" id="file" accept=".csv,text/csv,text/plain" hidden>
+      <div class="row-actions" style="margin-top:10px;">
+        <button type="button" class="btn btn-primary" id="load-demo">Charger le CSV de test</button>
+        <button type="button" class="btn btn-outline" id="pick">Choisir un fichier</button>
+        <button type="button" class="btn btn-ghost" id="save" hidden>Enregistrer</button>
+      </div>
+    </div>
+    <div class="stats" id="stats" hidden>
+      <div class="stat"><div class="lbl">Lignes</div><div class="val num" id="st-lines">0</div></div>
+      <div class="stat"><div class="lbl">Banque</div><div class="val" style="font-size:14px;" id="st-bank">CA</div></div>
+      <div class="stat"><div class="lbl">Trouvées</div><div class="val num" style="color:var(--sage-deep);" id="st-found">0</div></div>
+      <div class="stat"><div class="lbl">À traiter</div><div class="val num" style="color:var(--amber);" id="st-pending">0</div></div>
+    </div>
+    <div id="list"><div class="empty">Importe un relevé pour comparer avec tes saisies.</div></div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="handle"></div>
+    <h3 id="sheet-title">Que veux-tu faire ?</h3>
+    <p class="lead" id="sheet-lead"></p>
+    <div id="sheet-body"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn btn-ghost" id="sheet-cancel">Annuler</button>
+      <button type="button" class="btn btn-primary" id="sheet-ok">Retenir</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+const DEMO_CSV = `Date;Libellé;Débit;Crédit
+15/08/2026;PRLV TOTAL ENERGIE;95,00;
+18/08/2026;PRLV ORANGE;42,80;
+12/08/2026;CARREFOUR CITY;64,30;
+02/08/2026;VIR SEPA SALAIRE;;2150,00
+`;
+
+const BUDGET = [
+  { id: "energie", kind: "expense", label: "Total Énergie", amount: 95, paid: true, day: 15 },
+  { id: "orange", kind: "expense", label: "Orange", amount: 39.99, paid: false, day: 18 },
+  { id: "courses", kind: "expense", label: "Courses", amount: 60, paid: false, day: 5 },
+  { id: "assurance", kind: "expense", label: "Assurance habitation", amount: 28, paid: true, day: 8 },
+  { id: "boulangerie", kind: "wallet", label: "Courses · Boulangerie", amount: 4.2, wallet: "Courses", day: 9 },
+  { id: "salaire", kind: "income", label: "Salaire", amount: 2150, paid: false, day: 2 }
+];
+
+const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+let rows = [];
+let decisions = {};
+let sheetFor = null;
+let sheetChoice = null;
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function money(n) { return euro.format(Number(n) || 0); }
+function parseAmount(raw) {
+  if (raw == null || String(raw).trim() === "") return 0;
+  let s = String(raw).replace(/\s|\u00a0/g, "").replace("−", "-");
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+function parseDate(raw) {
+  const m = String(raw || "").trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (!m) return raw || "";
+  return m[1].padStart(2, "0") + "/" + m[2].padStart(2, "0");
+}
+function norm(s) {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function similar(a, b) {
+  const ta = new Set(norm(a).split(" ").filter((w) => w.length > 2));
+  const tb = new Set(norm(b).split(" ").filter((w) => w.length > 2));
+  if (!ta.size || !tb.size) return 0;
+  let n = 0;
+  ta.forEach((w) => { if (tb.has(w)) n++; });
+  return n / Math.max(ta.size, tb.size);
+}
+function propose(op) {
+  const bankAbs = Math.abs(op.amount);
+  let best = null;
+  BUDGET.forEach((item) => {
+    const signOk = op.amount < 0 ? item.kind !== "income" : item.kind === "income";
+    if (!signOk && item.kind !== "wallet") return;
+    let score = Math.round(similar(op.label, item.label) * 70);
+    const diff = Math.abs(bankAbs - item.amount);
+    if (diff <= 0.05) score += 30;
+    else if (diff / Math.max(bankAbs, 1) <= 0.15) score += 12;
+    if (!best || score > best.score) best = { item, score };
+  });
+  if (!best || best.score < 25) return null;
+  return best;
+}
+function parseCsv(text) {
+  const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const body = lines.slice(1);
+  return body.map((line, i) => {
+    const cells = line.split(";");
+    const debit = parseAmount(cells[2]);
+    const credit = parseAmount(cells[3]);
+    const amount = credit > 0 ? credit : -Math.abs(debit);
+    const op = { id: "csv-" + i, source: "csv", date: parseDate(cells[0]), label: (cells[1] || "").trim(), amount };
+    op.proposal = propose(op);
+    return op;
+  }).filter((op) => op.label);
+}
+function unmatchedBudget(ops) {
+  const used = new Set(ops.map((op) => op.proposal && op.proposal.score >= 55 ? op.proposal.item.id : null).filter(Boolean));
+  return BUDGET.filter((item) => !used.has(item.id) && (item.paid || item.kind === "wallet")).map((item) => ({
+    id: "app-" + item.id,
+    source: "app",
+    date: String(item.day).padStart(2, "0") + "/08",
+    label: item.label,
+    amount: item.kind === "income" ? item.amount : -Math.abs(item.amount),
+    item
+  }));
+}
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.hidden = false;
+  el.textContent = msg;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.hidden = true; }, 2400);
+}
+function kindFr(item) {
+  if (!item) return "";
+  if (item.kind === "wallet") return "mouvement d’enveloppe";
+  if (item.kind === "income") return item.paid ? "déjà encaissé" : "revenu non encaissé";
+  return item.paid ? "déjà validé" : "non validé";
+}
+
+function render() {
+  const list = document.getElementById("list");
+  const stats = document.getElementById("stats");
+  if (!rows.length) {
+    stats.hidden = true;
+    document.getElementById("save").hidden = true;
+    list.innerHTML = '<div class="empty">Importe un relevé pour comparer avec tes saisies.</div>';
+    return;
+  }
+  stats.hidden = false;
+  document.getElementById("save").hidden = false;
+  const found = rows.filter((r) => r.source === "csv" && r.proposal && r.proposal.score >= 70).length;
+  const pending = rows.filter((r) => !decisions[r.id]).length;
+  document.getElementById("st-lines").textContent = String(rows.length);
+  document.getElementById("st-found").textContent = String(found);
+  document.getElementById("st-pending").textContent = String(pending);
+  document.getElementById("st-bank").textContent = document.getElementById("bank").selectedOptions[0].textContent.split(" ")[0];
+
+  list.innerHTML = rows.map((r) => {
+    const decided = decisions[r.id];
+    const amt = r.amount;
+    const amtCls = amt < 0 ? "out" : "in";
+    const readLabel = r.source === "csv" ? r.label : "Absent du fichier";
+    const readDate = r.source === "csv" ? r.date : "—";
+    let prop = "Aucune saisie proche.";
+    if (r.source === "csv" && r.proposal) {
+      const it = r.proposal.item;
+      prop = esc(it.label) + " · " + money(it.amount) + " · " + kindFr(it) + " · " + r.proposal.score + " %";
+    } else if (r.source === "app") {
+      prop = esc(r.item.label) + " · " + money(r.item.amount) + " · " + kindFr(r.item);
+    }
+    const orange = r.proposal && r.proposal.item.id === "orange";
+    const amountBox = orange ? `
+      <div class="amount-row">
+        <input class="input" id="orange-amount" inputmode="decimal" value="${esc((decisions[r.id] && decisions[r.id].amount) || "42,80")}" aria-label="Montant retenu">
+        <div class="modes">
+          <button type="button" class="btn btn-outline btn-sm ${(decisions[r.id] && decisions[r.id].mode) === "durable" ? "" : "is-on"}" data-mode="ponctuel" data-id="${r.id}">Ponctuel</button>
+          <button type="button" class="btn btn-outline btn-sm ${(decisions[r.id] && decisions[r.id].mode) === "durable" ? "is-on" : ""}" data-mode="durable" data-id="${r.id}">Durable</button>
+        </div>
+      </div>` : "";
+    return `<article class="line ${decided ? "done" : ""}">
+      <div class="line-top">
+        <strong>${esc(r.source === "csv" ? r.label : r.item.label)}</strong>
+        <span class="num amt ${amtCls}">${r.source === "csv" ? money(amt) : money(Math.abs(r.item.amount))}</span>
+      </div>
+      <div class="split">
+        <div class="zone read">
+          <div class="k">Lu dans le CSV</div>
+          <div>${esc(readLabel)}</div>
+          <div class="meta">${esc(readDate)}${r.source === "csv" ? " · " + money(amt) : ""}</div>
+        </div>
+        <div class="zone prop">
+          <div class="k">Proposé par l’appli</div>
+          <div>${prop}</div>
+          ${amountBox}
+        </div>
+      </div>
+      <div class="row-actions" style="margin-top:10px;">
+        <button type="button" class="btn btn-primary btn-sm" data-act="confirm" data-id="${r.id}">Confirmer</button>
+        <button type="button" class="btn btn-outline btn-sm" data-act="invalidate" data-id="${r.id}">Invalider</button>
+      </div>
+      ${decided ? `<div class="status">${esc(decided.text)}</div>` : ""}
+    </article>`;
+  }).join("");
+}
+
+function loadText(text, name) {
+  const ops = parseCsv(text);
+  rows = ops.concat(unmatchedBudget(ops));
+  decisions = {};
+  document.getElementById("drop-title").textContent = name;
+  document.getElementById("drop-sub").textContent = ops.length + " lignes lues · rien n’est envoyé";
+  render();
+  toast(name + " lu");
+}
+
+function orangeMode(id) {
+  const on = document.querySelector('.modes button.is-on[data-id="' + id + '"]');
+  return on ? on.dataset.mode : "ponctuel";
+}
+function orangeAmountValue() {
+  const input = document.getElementById("orange-amount");
+  return input ? input.value.trim() : "42,80";
+}
+
+function confirmRow(id) {
+  const row = rows.find((r) => r.id === id);
+  if (!row) return;
+  if (row.source === "csv" && row.proposal && row.proposal.item.id === "orange") {
+    const mode = orangeMode(id);
+    const amount = orangeAmountValue() || "42,80";
+    decisions[id] = {
+      text: mode === "durable"
+        ? "Valider " + amount + " € et mettre à jour le barème."
+        : "Valider " + amount + " € pour août seulement.",
+      amount, mode
+    };
+  } else if (row.source === "csv" && row.proposal) {
+    decisions[id] = { text: "Rapprocher " + row.proposal.item.label + " et marquer vérifié." };
+  } else if (row.source === "csv") {
+    toast("Aucune proposition à confirmer. Invalide pour choisir un traitement.");
+    return;
+  } else if (row.item.kind === "wallet") {
+    decisions[id] = { text: "Marquer le mouvement " + row.item.label + " vérifié." };
+  } else {
+    decisions[id] = { text: "Marquer " + row.item.label + " vérifié, sans ligne de CSV." };
+  }
+  render();
+}
+
+const BANK_CHOICES = [
+  ["lien", "Lier à une saisie", "Rattacher cette ligne à une dépense ou un revenu déjà saisi."],
+  ["durable", "Saisie durable", "Créer la dépense récurrente, la valider et la vérifier."],
+  ["exceptionnelle", "Exceptionnelle", "Dépense de ce mois seulement, sans changer le barème."],
+  ["portefeuille", "Portefeuille", "Ajouter le mouvement dans une enveloppe existante."],
+  ["oublier", "Oublier", "Ignorer la ligne du CSV, sans rien créer."]
+];
+
+function openSheet(id) {
+  sheetFor = id;
+  sheetChoice = null;
+  const row = rows.find((r) => r.id === id);
+  const title = document.getElementById("sheet-title");
+  const lead = document.getElementById("sheet-lead");
+  const body = document.getElementById("sheet-body");
+  const ok = document.getElementById("sheet-ok");
+  if (row.source === "app" && row.item.kind === "wallet") {
+    title.textContent = "Supprimer le mouvement ?";
+    lead.textContent = row.item.label + " · " + money(row.item.amount) + ". L’enveloppe " + row.item.wallet + " reste.";
+    body.innerHTML = "";
+    ok.textContent = "Supprimer";
+    sheetChoice = "supprimer";
+  } else if (row.source === "app") {
+    title.textContent = "Retirer la validation ?";
+    lead.textContent = row.item.label + " · " + money(row.item.amount) + ". La saisie théorique reste, seul le paiement d’août disparaît.";
+    body.innerHTML = "";
+    ok.textContent = "Retirer";
+    sheetChoice = "retirer";
+  } else {
+    title.textContent = "Que veux-tu faire ?";
+    lead.textContent = "Lu : " + row.date + " · " + row.label + " · " + money(row.amount);
+    ok.textContent = "Retenir";
+    body.innerHTML = BANK_CHOICES.map(([key, name, hint]) =>
+      `<button type="button" class="choice" data-choice="${key}"><strong>${esc(name)}</strong><span>${esc(hint)}</span></button>`
+    ).join("") + `<div id="sheet-detail"></div>`;
+  }
+  ok.onclick = retainSheet;
+  document.getElementById("overlay").classList.add("open");
+}
+function closeSheet() {
+  document.getElementById("overlay").classList.remove("open");
+  sheetFor = null;
+}
+function sheetDetail() {
+  const box = document.getElementById("sheet-detail");
+  if (!box) return;
+  const row = rows.find((r) => r.id === sheetFor);
+  if (sheetChoice === "lien") {
+    const options = BUDGET.filter((b) => b.kind !== "wallet").map((b) =>
+      `<option value="${esc(b.id)}">${esc(b.label)} · ${money(b.amount)}</option>`).join("");
+    box.innerHTML = `<div class="label" style="margin-top:8px;">Saisie existante</div><select class="input" id="sheet-link">${options}</select>`;
+  } else if (sheetChoice === "durable" || sheetChoice === "exceptionnelle") {
+    box.innerHTML = `<div class="label" style="margin-top:8px;">Libellé</div><input class="input" id="sheet-label" value="${esc(row.label)}">`;
+  } else if (sheetChoice === "portefeuille") {
+    box.innerHTML = `<div class="label" style="margin-top:8px;">Enveloppe</div><select class="input" id="sheet-wallet"><option>Courses</option><option>Sorties</option></select>`;
+  } else {
+    box.innerHTML = "";
+  }
+}
+function retainSheet() {
+  const row = rows.find((r) => r.id === sheetFor);
+  if (!row || !sheetChoice) { toast("Choisis un traitement."); return; }
+  let text = "";
+  if (sheetChoice === "retirer") text = "Retirer la validation de " + money(row.item.amount) + ". La saisie reste.";
+  else if (sheetChoice === "supprimer") text = "Supprimer le mouvement " + row.item.label + ". L’enveloppe reste.";
+  else if (sheetChoice === "lien") {
+    const sel = document.getElementById("sheet-link");
+    const item = BUDGET.find((b) => b.id === sel.value);
+    text = "Lier à " + (item ? item.label : sel.value) + ", puis vérifier.";
+  } else if (sheetChoice === "durable") {
+    text = "Créer la saisie durable « " + document.getElementById("sheet-label").value.trim() + " », la valider et la vérifier.";
+  } else if (sheetChoice === "exceptionnelle") {
+    text = "Créer l’exceptionnelle « " + document.getElementById("sheet-label").value.trim() + " » et la vérifier.";
+  } else if (sheetChoice === "portefeuille") {
+    text = "Ajouter le mouvement dans " + document.getElementById("sheet-wallet").value + " et le vérifier.";
+  } else if (sheetChoice === "oublier") text = "Oublier la ligne, sans créer de saisie.";
+  decisions[row.id] = { text };
+  closeSheet();
+  render();
+}
+
+document.getElementById("list").addEventListener("click", (event) => {
+  const modeBtn = event.target.closest("[data-mode]");
+  if (modeBtn) {
+    modeBtn.parentElement.querySelectorAll("button").forEach((b) => b.classList.remove("is-on"));
+    modeBtn.classList.add("is-on");
+    return;
+  }
+  const btn = event.target.closest("[data-act]");
+  if (!btn) return;
+  if (btn.dataset.act === "confirm") confirmRow(btn.dataset.id);
+  else openSheet(btn.dataset.id);
+});
+document.getElementById("sheet-body").addEventListener("click", (event) => {
+  const choice = event.target.closest("[data-choice]");
+  if (!choice) return;
+  sheetChoice = choice.dataset.choice;
+  document.querySelectorAll(".choice").forEach((el) => el.classList.toggle("is-on", el === choice));
+  sheetDetail();
+});
+document.getElementById("sheet-cancel").onclick = closeSheet;
+document.getElementById("sheet-ok").onclick = retainSheet;
+document.getElementById("overlay").onclick = (event) => { if (event.target.id === "overlay") closeSheet(); };
+document.getElementById("pick").onclick = () => document.getElementById("file").click();
+document.getElementById("drop").onclick = () => document.getElementById("file").click();
+document.getElementById("drop").ondragover = (event) => { event.preventDefault(); event.currentTarget.classList.add("drag"); };
+document.getElementById("drop").ondragleave = (event) => event.currentTarget.classList.remove("drag");
+document.getElementById("drop").ondrop = (event) => {
+  event.preventDefault();
+  event.currentTarget.classList.remove("drag");
+  const file = event.dataTransfer.files && event.dataTransfer.files[0];
+  if (!file) return;
+  file.text().then((text) => loadText(text, file.name));
+};
+document.getElementById("file").onchange = (event) => {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  file.text().then((text) => loadText(text, file.name));
+};
+document.getElementById("load-demo").onclick = () => loadText(DEMO_CSV, "releve-aout.csv");
+document.getElementById("save").onclick = () => {
+  const missing = rows.filter((r) => !decisions[r.id]);
+  if (missing.length) {
+    toast(missing.length + (missing.length > 1 ? " lignes sans choix." : " ligne sans choix."));
+    return;
+  }
+  sheetFor = rows[0].id;
+  sheetChoice = "result";
+  document.getElementById("sheet-title").textContent = "Août serait mis à jour ainsi";
+  document.getElementById("sheet-lead").textContent = "Aperçu local. Aucune ligne n’est écrite dans une base.";
+  document.getElementById("sheet-body").innerHTML = "<ul style=\"margin:0; padding-left:18px;\">" +
+    rows.map((r) => "<li style=\"margin:6px 0;\">" + esc(decisions[r.id].text) + "</li>").join("") + "</ul>";
+  document.getElementById("sheet-ok").textContent = "Fermer";
+  document.getElementById("sheet-ok").onclick = () => {
+    closeSheet();
+    document.getElementById("sheet-ok").onclick = retainSheet;
+    document.getElementById("sheet-ok").textContent = "Retenir";
+  };
+  document.getElementById("overlay").classList.add("open");
+};
+document.getElementById("sheet-cancel").addEventListener("click", () => {
+  document.getElementById("sheet-ok").onclick = retainSheet;
+  document.getElementById("sheet-ok").textContent = "Retenir";
+});
+</script>
+</body>
+</html>
