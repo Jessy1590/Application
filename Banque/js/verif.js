@@ -2370,53 +2370,14 @@ Object.assign(BH, {
         return;
       }
 
-      const formatVerifMatchBody = (m, scoreHtml) => {
+      const proposalLine = (m, withScore) => {
         const f = this.verifMatchFacts(m);
         if (!f) return '';
-        const acc = f.accName
-          ? `<span class="bh-verif-acc-tag">${this.esc(f.accName)}</span>`
-          : '';
-        const origin = f.linked
-          ? '<span class="bh-verif-origin linked">Lié</span>'
-          : '<span class="bh-verif-origin detected">Détecté</span>';
-        const subject = f.logoOnSubject
-          ? `<strong class="bh-verif-wallet">👛 ${this.esc(f.subject)}</strong>`
-          : `<strong>${this.esc(f.subject)}</strong>`;
-        const wallet = f.walletPill
-          ? `<span class="bh-verif-wallet">👛 ${this.esc(f.walletPill)}</span>`
-          : '';
-        const score = scoreHtml ? `<span class="alt-score">${scoreHtml}</span>` : '';
-        const bits = [];
-        const add = (html) => { if (html) bits.push(html); };
-        add(`<span class="num">${f.amountHtml}</span>`);
-        if (f.day) add('le ' + f.day);
-        if (f.category) add(this.esc(f.category));
-        if (f.kindLabel) add(this.esc(f.kindLabel));
-        if (f.status) add(this.esc(f.status));
-        if (f.targetName) add('vers ' + this.esc(f.targetName));
-        if (f.budgetHint) add(this.esc(f.budgetHint));
-        return `<div class="bh-verif-match">
-          <div class="bh-verif-match-l1">${acc}${origin}${subject}${wallet}${score}</div>
-          <div class="bh-verif-match-l2">${bits.join('<span class="sep">·</span>')}</div>
-        </div>`;
-      };
-      const formatVerifMatchDest = (m) => formatVerifMatchBody(m, '');
-      const formatVerifMatchOptions = (op) => {
-        const opts = op.matchOptions || [];
-        if (opts.length < 2) return formatVerifMatchDest(op.match);
-        const cur = op.match;
-        return `<div class="bh-verif-match-alts">
-          <div class="bh-verif-alts-hint">Plusieurs propositions proches — choisis :</div>
-          ${opts.map(m => {
-            const selected = cur && cur.kind === m.kind && String(cur.id) === String(m.id);
-            const sc = Math.min(100, Number(m.score) || 0);
-            return `<button type="button" class="bh-verif-alt${selected ? ' selected' : ''}"
-              title="Utiliser cette proposition"
-              onclick="BH.pickVerifMatchOption('${op.id}','${m.kind}','${String(m.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
-              ${formatVerifMatchBody(m, sc + '&nbsp;%')}
-            </button>`;
-          }).join('')}
-        </div>`;
+        const parts = [this.esc(f.subject), f.amountHtml];
+        if (f.kindLabel) parts.push(this.esc(f.kindLabel));
+        if (withScore) parts.push((Math.min(100, Number(m.score) || 0)) + ' %');
+        else if (f.status) parts.push(this.esc(f.status));
+        return parts.join(' · ');
       };
 
       const visible = ops.filter(op => this.verifOpPassesFilters(op));
@@ -2425,74 +2386,69 @@ Object.assign(BH, {
         return;
       }
 
+      const infoBtn = `<button type="button" class="bh-verif-info" onclick="BH.showVerifActionsHelp()" aria-label="Explication des actions">i</button>`;
       tbody.innerHTML = visible.slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).map(op => {
-        const score = op.match ? Number(op.match.score) || 0 : 0;
-        const cls = op.ignored ? 'ignored' : (op.match && score >= 70 ? 'matched' : '');
-        const amtColor = op.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
         const dateLbl = op.date ? new Date(op.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
-        let matchHtml = '<span style="color:var(--ink-faint);">Non trouvé</span>';
-        if (op.ignored) matchHtml = '<span style="color:var(--ink-faint);">Oublié</span>';
-        else if (op.matchOptions && op.matchOptions.length > 1) matchHtml = formatVerifMatchOptions(op);
-        else if (op.match) matchHtml = formatVerifMatchDest(op.match);
-        const multiNear = !!(op.matchOptions && op.matchOptions.length > 1);
-        const scoreHtml = op.ignored
-          ? '—'
-          : (op.match
-            ? (multiNear ? `${score}&nbsp;% <span style="font-weight:500;font-size:10px;color:var(--ink-faint);">(${op.matchOptions.length})</span>` : `${score}&nbsp;%`)
-            : '—');
+        const amtCls = op.amount < 0 ? 'out' : 'in';
         const savedLink = this.isVerifOpSavedLink(op);
-        const canValidate = op.match && !op.match.exceptional && this.isVerifPayableKind(op.match.kind);
-        const already = !!(op.match && op.match.paid);
-        const validateBtn = canValidate
-          ? `<button type="button" class="bh-btn ${already ? 'bh-btn-done' : 'bh-btn-primary'}" title="${already ? 'Déjà validé — rouvrir pour ajuster le montant (ponctuel / durable)' : 'Choisir le montant et ponctuel / durable'}" onclick="BH.applyVerifMatch('${op.id}')">${already ? 'Déjà validé' : 'Valider'}</button>`
-          : '';
-        // Portefeuille : déjà dedans (vert pâle) / enveloppe suggérée (vert) / sinon ouvrir le choix
-        let walletBtn = '';
-        if (op.match && op.match.kind === 'wallet' && savedLink) {
-          walletBtn = `<span class="bh-btn bh-btn-done" title="Mouvement portefeuille lié et vérifié">👛 Vérifié</span>`;
-        } else if (op.match && op.match.kind === 'wallet') {
-          walletBtn = `<button type="button" class="bh-btn bh-btn-done" title="Confirmer que ce mouvement est déjà dans le portefeuille" onclick="BH.confirmExistingWalletVerif('${op.id}')">Dans portefeuille</button>`;
-        } else if (op.match && op.match.kind === 'wallet-budget') {
-          walletBtn = `<button type="button" class="bh-btn bh-btn-primary" title="Ajouter ce montant dans l’enveloppe suggérée" onclick="BH.applyVerifWalletMatch('${op.id}')">+ Portefeuille</button>`;
-        } else {
-          walletBtn = `<button type="button" class="bh-btn bh-btn-outline" title="Ajouter ce montant dans un portefeuille (enveloppe)" onclick="BH.openVerifWallet('${op.id}')">👛</button>`;
+        const hasProposal = !!(op.match && !op.ignored);
+        const showChoices = !op.ignored && (!hasProposal || op.uiPick);
+        const kept = savedLink && !op.uiPick && !op.ignored;
+        let zoneClass = 'prop';
+        let zoneTitle = 'Proposé par l’appli';
+        let proposal = 'Aucune saisie proche.';
+        if (op.ignored) {
+          zoneTitle = 'Ignoré';
+          proposal = 'Ligne oubliée';
+        } else if (savedLink && op.match) {
+          zoneClass = 'kept';
+          zoneTitle = 'Déjà écrit';
+          proposal = proposalLine(op.match, false);
+        } else if (op.matchOptions && op.matchOptions.length > 1) {
+          proposal = op.matchOptions.map(m => {
+            const selected = op.match && op.match.kind === m.kind && String(op.match.id) === String(m.id);
+            const mid = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `<button type="button" class="bh-verif-prop-pick${selected ? ' is-on' : ''}" onclick="BH.pickVerifMatchOption('${op.id}','${m.kind}','${mid}')">${proposalLine(m, true)}</button>`;
+          }).join('');
+        } else if (op.match) {
+          proposal = proposalLine(op.match, true);
         }
         const refundBtn = Number(op.amount) > 0
-          ? `<button type="button" class="bh-btn bh-btn-outline" title="Créer un remboursement lié à une dépense déjà saisie (ex. frais bancaires remboursés)" onclick="BH.openVerifRefund('${op.id}')">Rembours.</button>`
+          ? `<button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifRefund('${op.id}')">Rembours.</button>`
           : '';
-        const exceptionalBtn = Number(op.amount) < 0 && !savedLink
-          ? `<button type="button" class="bh-btn bh-btn-outline" title="Enregistrer cette sortie comme dépense exceptionnelle (ponctuelle) et la lier à cette ligne" onclick="BH.saisieVerifBankGap('${op.id}')">Exceptionnelle</button>`
+        const unlinkBtn = op.match
+          ? `<button type="button" class="bh-btn bh-btn-ghost" onclick="BH.${savedLink ? 'unlinkVerifOp' : 'clearVerifMatch'}('${op.id}')">Délier</button>`
           : '';
-        const unlinkBtn = !op.match ? ''
-          : savedLink
-            ? `<button type="button" class="bh-btn bh-btn-ghost" title="Supprimer le lien enregistré (et éventuellement la validation)" onclick="BH.unlinkVerifOp('${op.id}')">Délier</button>`
-            : `<button type="button" class="bh-btn bh-btn-ghost" title="Retirer cette suggestion" onclick="BH.clearVerifMatch('${op.id}')">Délier</button>`;
-        const actions = op.ignored
-          ? `<div class="bh-verif-actions"><button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button></div>`
-          : `<div class="bh-verif-actions">
-              ${validateBtn}
-              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie de ce compte, pour le mois du relevé" onclick="BH.openVerifLink('${op.id}')">Lier</button>
-              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un autre compte" onclick="BH.openVerifLink('${op.id}','compte')">Autre compte</button>
-              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un mois passé ou à venir" onclick="BH.openVerifLink('${op.id}','mois')">Autre mois</button>
-              ${unlinkBtn}
-              ${refundBtn}
-              ${exceptionalBtn}
-              <button type="button" class="bh-btn bh-btn-outline" title="Créer une nouvelle dépense ou un nouveau revenu prérempli" onclick="BH.verifAddAsEntry('${op.id}')">+ Saisie</button>
-              ${walletBtn}
-              <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
-            </div>`;
-        const kept = savedLink;
-        const zoneClass = kept ? 'kept' : 'prop';
-        const zoneTitle = op.ignored ? 'Ignoré' : (kept ? 'Déjà écrit' : 'Proposé par l’appli');
-        const proposal = op.ignored
-          ? '<span style="color:var(--ink-faint);">Ligne oubliée</span>'
-          : (op.match || (op.matchOptions && op.matchOptions.length) ? matchHtml : '<span style="color:var(--ink-soft);">Aucune saisie proche.</span>');
-        const scoreNote = (!op.ignored && op.match) ? `<div class="meta">${scoreHtml.replace(/&nbsp;/g, ' ')}</div>` : '';
-        const lineCls = op.ignored ? 'ignored' : (kept ? 'done' : (cls === 'matched' ? 'done' : ''));
-        return `<article class="bh-verif-line ${lineCls}">
+        const backBtn = (hasProposal || savedLink)
+          ? `<button type="button" class="bh-btn bh-btn-ghost" onclick="BH.setVerifPicking('${op.id}', false)">Retour</button>`
+          : '';
+        let actions = '';
+        let status = '';
+        if (op.ignored) {
+          actions = `<div class="bh-verif-actions"><button type="button" class="bh-btn bh-btn-ghost" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>${infoBtn}</div>`;
+        } else if (kept) {
+          status = `<div class="bh-verif-line-status"><div>Déjà rapproché. ${proposal}</div><button type="button" class="bh-btn bh-btn-ghost" onclick="BH.setVerifPicking('${op.id}', true)">Modifier</button></div>`;
+        } else if (!showChoices) {
+          actions = `<div class="bh-verif-actions"><button type="button" class="bh-btn bh-btn-primary" onclick="BH.confirmVerifLine('${op.id}')">Confirmer</button><button type="button" class="bh-btn bh-btn-outline" onclick="BH.setVerifPicking('${op.id}', true)">Invalider</button>${infoBtn}</div>`;
+        } else {
+          actions = `<div class="bh-verif-actions">
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifLink('${op.id}')">Lier</button>
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifLink('${op.id}','compte')">Autre compte</button>
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifLink('${op.id}','mois')">Autre mois</button>
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.verifAddAsEntry('${op.id}')">Saisie durable</button>
+            ${Number(op.amount) < 0 ? `<button type="button" class="bh-btn bh-btn-outline" onclick="BH.saisieVerifBankGap('${op.id}')">Exceptionnelle</button>` : ''}
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.openVerifWallet('${op.id}')">Portefeuille</button>
+            ${refundBtn}
+            ${unlinkBtn}
+            <button type="button" class="bh-btn bh-btn-outline" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
+            ${backBtn}
+            ${infoBtn}
+          </div>`;
+        }
+        return `<article class="bh-verif-line${kept ? ' done' : ''}${op.ignored ? ' ignored' : ''}">
           <div class="bh-verif-line-top">
-            <strong title="${this.esc(op.labelRaw || op.label)}">${this.esc(op.label)}</strong>
-            <span class="num" style="color:${amtColor};">${this.fmt(op.amount)}</span>
+            <strong>${this.esc(op.label)}</strong>
+            <span class="num amt ${amtCls}">${this.fmt(op.amount)}</span>
           </div>
           <div class="bh-verif-split">
             <div class="bh-verif-zone read">
@@ -2503,12 +2459,27 @@ Object.assign(BH, {
             <div class="bh-verif-zone ${zoneClass}">
               <div class="k">${zoneTitle}</div>
               <div>${proposal}</div>
-              ${scoreNote}
             </div>
           </div>
           ${actions}
+          ${status}
         </article>`;
       }).join('');
+    },
+
+    setVerifPicking(opId, on) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      op.uiPick = !!on;
+      this.renderVerifTable();
+    },
+
+    confirmVerifLine(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op?.match) return;
+      if (op.match.kind === 'wallet') { this.confirmExistingWalletVerif(opId); return; }
+      if (op.match.kind === 'wallet-budget') { this.applyVerifWalletMatch(opId); return; }
+      this.applyVerifMatch(opId);
     },
 
     showVerifActionsHelp() {
