@@ -43,6 +43,7 @@ Ne dupliquer pas ces écritures ailleurs sauf nécessité explicite déjà prés
 - Portefeuilles : dépense `is_wallet` = enveloppe avec transactions mensuelles (voir `js/wallets.js` + `js/data.js`).
 - Distinction **reste théorique** vs **reste à date** (onglet Aujourd’hui / Comptes).
 - Réponses concises côté agent lorsque l’utilisateur ne demande pas d’explication détaillée.
+- Ergonomie mobile et signet iOS : `.cursor/rules/mobile-ios.mdc` (`viewport-fit=cover`, safe areas, plancher 59/34 px si `env()` vaut 0 en signet, `dvh`, champs 16 px, cibles 44 px).
 
 ## Interdits
 

@@ -27,7 +27,7 @@
   /* MAIN APP */
   #budget-root{
     display: none; flex-direction:column; position:relative; max-width:560px; margin:0 auto;
-    min-height:100vh; background:var(--paper); color:var(--ink);
+    min-height:100vh; min-height:100dvh; background:var(--paper); color:var(--ink);
     border-left:1px solid var(--line-soft); border-right:1px solid var(--line-soft);
   }
   .bh-main{
@@ -722,10 +722,13 @@
   html{
     overflow-x:clip;
     -webkit-text-size-adjust:100%;
+    overscroll-behavior-y:none;
   }
   body{
     overflow-x:clip;
+    min-height:100vh;
     min-height:100dvh;
+    overscroll-behavior-y:none;
   }
   #budget-root{
     min-height:100dvh;
@@ -733,10 +736,14 @@
   }
 
   /* Zones tactiles, entrées iOS, défilement */
+  button,
+  a,
+  label,
   .bh-btn,
   .bh-tab,
   .bh-icon-btn,
   .bh-fab,
+  .bh-sheet-close,
   .bh-verif-subnav button,
   .bh-verif-stat.clickable,
   .bh-manage-row,
@@ -747,6 +754,15 @@
   .bh-order-btn,
   .bh-info-btn{
     touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .bh-view,
+  .bh-main,
+  .bh-verif-gaps-body,
+  .bh-verif-table-wrap,
+  .bh-verif-status-wrap,
+  .bh-sheet{
+    -webkit-overflow-scrolling:touch;
   }
   @media (max-width: 959px){
     .bh-input,
@@ -761,9 +777,12 @@
       padding-top:8px;
       padding-bottom:8px;
     }
-    .bh-icon-btn{
+    .bh-icon-btn,
+    .bh-sheet-close{
       min-width:44px;
       min-height:44px;
+      width:44px;
+      height:44px;
     }
     .bh-btn{
       min-height:44px;
@@ -802,9 +821,9 @@
       padding-right:18px;
     }
 
-    /* Safe areas — le haut réel est posé plus bas (bande #budget-root). */
+    /* Safari mobile : env() réel, sans plancher îlot (réservé au signet). */
     .bh-topbar{
-      padding-top:12px;
+      padding-top:max(16px, env(safe-area-inset-top));
       padding-left:calc(18px + env(safe-area-inset-left, 0px));
       padding-right:calc(18px + env(safe-area-inset-right, 0px));
     }
@@ -1312,212 +1331,113 @@
   body.bh-report-open{ overflow:hidden; }
   body.bh-report-open a[title="Retour au portail"]{ display:none !important; }
 
-  /* Téléphone : plein écran, barres hors îlot et hors indicateur d’accueil.
-     env() vaut souvent 0 en signet : le 2e argument n’est alors pas utilisé.
-     Une longueur en px est déclarée avant max(env(), …) : si WebKit ignore
-     max(env()), la valeur en px reste. La bande existe sans .bh-standalone. */
+  /* Signet iOS seulement (html.bh-standalone ou display-mode: standalone).
+     env() est souvent 0 alors qu'il est supporté : le 2e argument est ignoré.
+     Le 3e terme du max() pose le plancher 59px (îlot) et 34px (home indicator).
+     Safari mobile sans ces signaux garde le padding ~16px, sans bande de 59px. */
+  html.bh-standalone #budget-root{
+    padding-left:env(safe-area-inset-left, 0px);
+    padding-right:env(safe-area-inset-right, 0px);
+  }
+  html.bh-standalone .bh-topbar{
+    padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+  }
+  html.bh-standalone .bh-tabbar{
+    padding-bottom:max(12px, env(safe-area-inset-bottom, 0px), 34px);
+  }
+  html.bh-standalone .bh-sheet-overlay{
+    padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+  }
+  html.bh-standalone .bh-sheet{
+    padding-bottom:max(24px, env(safe-area-inset-bottom, 0px), 34px);
+  }
+  html.bh-standalone .bh-report-overlay{
+    padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+    padding-bottom:max(12px, env(safe-area-inset-bottom, 0px), 34px);
+  }
   @media (max-width: 959px){
-    html, body{
-      background:var(--paper);
-      width:100%;
-      min-height:100vh;
-      min-height:100dvh;
+    html.bh-standalone .bh-topbar{
+      padding-left:18px;
+      padding-right:18px;
     }
-    body::before,
-    body::after{
-      content:"";
-      position:fixed;
-      left:0;
-      right:0;
-      background:var(--paper);
-      z-index:35;
-      pointer-events:auto;
+    html.bh-standalone .bh-view{
+      padding-left:16px;
+      padding-right:16px;
+      padding-bottom:calc(62px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
     }
-    body::before{
-      top:0;
-      height:59px;
-      height:max(env(safe-area-inset-top, 0px), 59px);
+    html.bh-standalone .bh-fab,
+    html.bh-standalone .bh-group-bar{
+      bottom:calc(66px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
     }
-    body::after{
-      bottom:0;
-      height:34px;
-      height:max(env(safe-area-inset-bottom, 0px), 34px);
+    html.bh-standalone .bh-toast{
+      bottom:calc(98px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
     }
+    html.bh-standalone a[title="Retour au portail"]{
+      right:max(20px, env(safe-area-inset-right, 0px)) !important;
+      bottom:calc(62px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px)) !important;
+    }
+  }
+  @media (min-width: 960px){
+    html.bh-standalone .bh-tabbar{
+      padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+    }
+    html.bh-standalone a[title="Retour au portail"]{
+      right:max(20px, env(safe-area-inset-right, 0px)) !important;
+      bottom:max(20px, env(safe-area-inset-bottom, 0px), 34px) !important;
+    }
+  }
+
+  @media (display-mode: standalone){
     #budget-root{
-      max-width:none;
-      width:100%;
-      margin:0;
-      border:none;
-      min-height:100vh;
-      min-height:100dvh;
-      box-shadow:none;
-      padding-top:59px;
-      padding-top:max(env(safe-area-inset-top, 0px), 59px);
+      padding-left:env(safe-area-inset-left, 0px);
+      padding-right:env(safe-area-inset-right, 0px);
     }
-    .bh-main{ width:100%; min-width:0; }
-    .bh-view{
-      padding-bottom:calc(20dvh + 34px + 74px);
-      padding-bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 74px);
-    }
-    #view-today.active{ display:flex; flex-direction:column; }
-    .bh-today-top,
-    .bh-today-board,
-    .bh-today-side,
-    .bh-today-primary{ display:contents; }
-    .bh-today-month-nav{ order:1; }
-    #view-today .bh-stat-grid{ order:2; }
-    .bh-exc-btn{ order:3; }
-    #view-today #bh-wallets-section{ order:4; }
-    #bh-due-section{ order:5; }
-    .bh-today-secondary{ order:6; }
-    .bh-tabbar{
-      left:0;
-      right:0;
-      width:auto;
-      bottom:34px;
-      bottom:max(env(safe-area-inset-bottom, 0px), 34px);
-      height:20dvh;
-      min-height:20dvh;
-      max-width:none;
-      transform:none;
-      margin:0;
-      border-radius:0;
-      border-left:none;
-      border-right:none;
-      border-bottom:none;
-      border-top:1px solid var(--line);
-      box-shadow:none;
-      padding:10px 6px;
-      background:var(--card);
-      z-index:90;
-      align-items:center;
-      justify-content:space-around;
-      pointer-events:none;
-    }
-    .bh-tab{
-      pointer-events:auto;
-      flex:1 1 0;
-      align-self:center;
-      min-height:88px;
-      height:auto;
-      font-size:14px;
-      font-weight:700;
-      line-height:1.15;
-      gap:6px;
-      padding:12px 2px;
-      margin:0 3px;
-      border-radius:16px;
-    }
-    .bh-tab svg{ width:32px; height:32px; }
     .bh-topbar{
-      position:-webkit-sticky;
-      position:sticky;
-      top:59px;
-      top:max(env(safe-area-inset-top, 0px), 59px);
-      flex-shrink:0;
-      z-index:40;
-      background:var(--paper);
-      padding-top:12px;
-      padding-bottom:8px;
-      padding-left:max(16px, env(safe-area-inset-left, 0px));
-      padding-right:max(16px, env(safe-area-inset-right, 0px));
-      min-height:108px;
+      padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
     }
-    .bh-topbar-row{ align-items:flex-start; }
-    .bh-topbar .bh-sub{
-      margin-top:2px;
-      max-width:calc(100% - 104px);
-    }
-    .bh-topbar .bh-icon-btn{
-      position:absolute;
-      top:12px;
-      right:0;
-      width:88px;
-      height:88px;
-      min-width:88px;
-      min-height:88px;
-      border-radius:20px;
-    }
-    .bh-topbar .bh-icon-btn svg{
-      width:34px;
-      height:34px;
-    }
-    .bh-due-check{
-      width:18px;
-      height:18px;
-      min-width:18px;
-      min-height:18px;
-      margin:0;
-      padding:0;
-      border-radius:4px;
-      border:1.5px solid var(--ink-soft);
-      box-sizing:border-box;
-      align-self:center;
-      font-size:12px;
+    .bh-tabbar{
+      padding-bottom:max(12px, env(safe-area-inset-bottom, 0px), 34px);
     }
     .bh-sheet-overlay{
-      align-items:flex-end;
-      justify-content:center;
-      padding:0;
-      padding-top:59px;
-      padding-top:max(env(safe-area-inset-top, 0px), 59px);
+      padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
     }
     .bh-sheet{
-      width:100% !important;
-      max-width:none !important;
-      margin:0;
-      border-radius:18px 18px 0 0;
-      max-height:min(78dvh, calc(100dvh - 96px));
-      padding:8px 16px 46px;
-      padding-bottom:calc(12px + max(env(safe-area-inset-bottom, 0px), 34px));
-      animation:bhSheetUp 0.22s ease;
-    }
-    #bh-settings-overlay .bh-sheet{
-      max-height:min(68dvh, 560px);
-    }
-    .bh-sheet-handle{ display:block; }
-    .bh-sheet-actions{
-      position:static;
-      padding-bottom:0;
-      background:transparent;
-    }
-    .bh-sheet > .bh-btn.bh-btn-block:last-child{
-      position:static;
-      margin-bottom:0;
-    }
-    .bh-fab{
-      right:max(14px, env(safe-area-inset-right, 0px));
-      bottom:calc(20dvh + 34px + 70px);
-      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 70px);
-    }
-    .bh-group-bar{
-      left:12px;
-      right:12px;
-      transform:none;
-      width:auto;
-      bottom:calc(20dvh + 34px + 70px);
-      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 70px);
-    }
-    .bh-toast{
-      bottom:calc(20dvh + 34px + 78px);
-      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 78px);
-    }
-    a[title="Retour au portail"]{
-      width:46px !important;
-      height:46px !important;
-      right:max(14px, env(safe-area-inset-right, 0px)) !important;
-      bottom:calc(20dvh + 34px + 12px) !important;
-      bottom:calc(20dvh + max(env(safe-area-inset-bottom, 0px), 34px) + 12px) !important;
-      z-index:100 !important;
-    }
-    body:has(.bh-sheet-overlay.open) a[title="Retour au portail"]{
-      visibility:hidden !important;
+      padding-bottom:max(24px, env(safe-area-inset-bottom, 0px), 34px);
     }
     .bh-report-overlay{
-      padding-top:59px;
-      padding-top:max(env(safe-area-inset-top, 0px), 59px);
-      padding-bottom:34px;
-      padding-bottom:max(env(safe-area-inset-bottom, 0px), 34px);
+      padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+      padding-bottom:max(12px, env(safe-area-inset-bottom, 0px), 34px);
+    }
+  }
+  @media (display-mode: standalone) and (max-width: 959px){
+    .bh-topbar{
+      padding-left:18px;
+      padding-right:18px;
+    }
+    .bh-view{
+      padding-left:16px;
+      padding-right:16px;
+      padding-bottom:calc(62px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
+    }
+    .bh-fab,
+    .bh-group-bar{
+      bottom:calc(66px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
+    }
+    .bh-toast{
+      bottom:calc(98px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px));
+    }
+    a[title="Retour au portail"]{
+      right:max(20px, env(safe-area-inset-right, 0px)) !important;
+      bottom:calc(62px + max(10px, env(safe-area-inset-bottom, 0px)) + max(12px, env(safe-area-inset-bottom, 0px), 34px)) !important;
+    }
+  }
+  @media (display-mode: standalone) and (min-width: 960px){
+    .bh-tabbar{
+      padding-top:max(16px, env(safe-area-inset-top, 0px), 59px);
+    }
+    a[title="Retour au portail"]{
+      right:max(20px, env(safe-area-inset-right, 0px)) !important;
+      bottom:max(20px, env(safe-area-inset-bottom, 0px), 34px) !important;
     }
   }
 

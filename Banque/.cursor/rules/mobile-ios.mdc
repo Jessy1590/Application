@@ -1,0 +1,26 @@
+---
+description: Directives pour l'ergonomie mobile, le responsive design et le support des signets/PWA Apple iOS
+globs: "**/*.html, **/*.tsx, **/*.jsx, **/*.vue, **/*.css"
+alwaysApply: false
+---
+
+# Règles de Développement Mobile First & iOS Web App
+
+- **Meta Viewport** : Exiger systématiquement `viewport-fit=cover` dans la balise viewport.
+- **Safe Areas** :
+  - Toujours prendre en compte `env(safe-area-inset-top)` pour la barre de navigation supérieure.
+  - Toujours prendre en compte `env(safe-area-inset-bottom)` pour les pieds de page et barres de navigation bas.
+  - En mode signet iOS (`html.bh-standalone` ou `display-mode: standalone`), si `env()` vaut 0, garder un plancher (59px en haut, 34px en bas) car iOS renvoie souvent 0.
+- **Unité de Hauteur** : Utiliser `dvh` à la place de `vh` pour toutes les sections occupant toute la hauteur de l'écran.
+- **Champs de Formulaire** : Les balises `<input>`, `<select>` et `<textarea>` doivent avoir une font-size d'au moins `16px` pour éviter le zoom automatique sous Safari iOS.
+- **Cibles Tactiles** : Toutes les zones cliquables (boutons, icônes) doivent mesurer au minimum 44x44px.
+- **Feedback Tactile** : Appliquer `-webkit-tap-highlight-color: transparent;` sur les boutons et liens.
+- **Inertie de Défilement** : Utiliser `-webkit-overflow-scrolling: touch;` pour un défilement fluide sur les sous-conteneurs scrollables.
+
+Exemple signet (le 2e argument de `env()` ne remplace pas un 0) :
+
+```css
+html.bh-standalone .bh-topbar {
+  padding-top: max(16px, env(safe-area-inset-top, 0px), 59px);
+}
+```

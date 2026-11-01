@@ -3,6 +3,7 @@
 ## 1. Stack Technique
 - **Frontend :** Vanilla HTML5, CSS3, JavaScript (ES6+). Fichier unique `index.html`.
 - **PWA :** Présence d'un `manifest.webmanifest` pour installation sur mobile.
+- **Signet iOS :** `env(safe-area-inset-*)` sur le conteneur, la barre du haut et la barre d’onglets. En `html.bh-standalone` / `display-mode: standalone`, plancher 59 px en haut et 34 px en bas si `env()` vaut 0. Détail : `.cursor/rules/mobile-ios.mdc`.
 - **BaaS / BDD :** Supabase (PostgreSQL) via CDN.
 - **Protection globale :** Utilisation du script `protect.js` pour bloquer le rendu avant validation.
 
