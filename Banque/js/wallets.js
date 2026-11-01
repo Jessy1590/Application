@@ -132,12 +132,33 @@ Object.assign(BH, {
       </div>`;
     },
 
-    accountWalletsHtml(acc, mKey) {
-      const wallets = (this.state.expenses || [])
-        .filter(e => e.account_id === acc.id && this.isWalletVisibleInMonth(e, mKey))
-        .sort((a, b) => String(a.description || '').localeCompare(String(b.description || ''), 'fr'));
-      if (!wallets.length) return '';
-      const cards = wallets.map(exp => {
+    walletVisibleOnAccount(exp, mKey) {
+      if (!exp?.is_wallet) return false;
+      if (this.isWalletVisibleInMonth(exp, mKey)) return true;
+      return this.getWalletTx(exp.account_id, exp.id, mKey).length > 0;
+    },
+    walletsPanelHtml(mKey) {
+      const groups = this.getOrderedAccounts().map(acc => {
+        const wallets = (this.state.expenses || [])
+          .filter(e => e.account_id === acc.id && this.walletVisibleOnAccount(e, mKey))
+          .sort((a, b) => String(a.description || '').localeCompare(String(b.description || ''), 'fr'));
+        return wallets.length ? { acc, wallets } : null;
+      }).filter(Boolean);
+      if (!groups.length) return '';
+      const body = groups.map(({ acc, wallets }) => {
+        const cards = wallets.map(exp => this.walletPanelCardHtml(exp, acc, mKey)).join('');
+        return `<div class="bh-wgroup">
+          <div class="bh-wgroup-acc">${this.esc(acc.name)}</div>
+          <div class="bh-wgroup-cards">${cards}</div>
+        </div>`;
+      }).join('');
+      const count = groups.reduce((n, g) => n + g.wallets.length, 0);
+      return `<section class="bh-wpanel">
+        <div class="bh-wpanel-label">Portefeuilles <span class="bh-section-count">${count}</span></div>
+        ${body}
+      </section>`;
+    },
+    walletPanelCardHtml(exp, acc, mKey) {
         const budget = Number(exp.amount) || 0;
         const spent = this.walletSpent(acc.id, exp.id, mKey);
         const model = this.walletGaugeModel(spent, budget);
@@ -182,11 +203,6 @@ Object.assign(BH, {
             <div class="bh-wval${model.over ? ' is-over' : ''}"><span class="k">Taux</span><span class="v num">${this.walletPctLabel(model.pct)}</span></div>
           </div>
         </article>`;
-      }).join('');
-      return `<section class="bh-wpanel">
-        <div class="bh-wpanel-label">Portefeuilles <span class="bh-section-count">${wallets.length}</span></div>
-        ${cards}
-      </section>`;
     },
 
     beginWalletAllocEdit(expId) {

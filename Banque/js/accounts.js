@@ -737,7 +737,6 @@ Object.assign(BH, {
           ${advanceNote}
           ${settleHtml}
           ${chartsHtml}
-          ${this.accountWalletsHtml(acc, mKey)}
         </div>`;
       });
       const names = visibleAccounts.map(a => this.esc(a.name)).join(' · ');
@@ -746,9 +745,10 @@ Object.assign(BH, {
         <div class="bh-acct-pager-names">${names || 'Aucun compte'}<div class="bh-acct-pager-page">${page + 1} / ${pages}</div></div>
         <button type="button" class="bh-icon-btn" onclick="BH.shiftComptesPage(1)" ${page >= pages - 1 ? 'disabled' : ''} aria-label="Comptes suivants">&rarr;</button>
       </div>`;
+      const walletsBlock = this.walletsPanelHtml(mKey);
       document.getElementById('bh-accounts-list').innerHTML = orderedAccounts.length
-        ? pager + `<div class="bh-acct-pair">${html}</div>`
-        : `<div class="bh-empty">Aucun compte</div>`;
+        ? walletsBlock + pager + `<div class="bh-acct-pair">${html}</div>`
+        : (walletsBlock || `<div class="bh-empty">Aucun compte</div>`);
     },
 
     async saveContribution(accId, val) {
