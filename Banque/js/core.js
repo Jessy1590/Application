@@ -243,6 +243,7 @@
       else {
         const bar = document.getElementById('bh-group-bar');
         if (bar) { bar.classList.remove('open'); bar.innerHTML = ''; }
+        if (this.walletOpenId) this.closeWalletPopup();
       }
       if(this.activeTab === 'comptes') this.renderComptes();
       if(this.activeTab === 'saisies') this.renderSaisies();

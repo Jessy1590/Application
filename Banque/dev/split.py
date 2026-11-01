@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split BanqueV2/index.monolith.html into css/ + js/ (no behaviour change)."""
+"""Split Banque/dev/index.monolith.html into css/ + js/ (no behaviour change)."""
 from __future__ import annotations
 
 import re
@@ -203,8 +203,8 @@ def curl_check() -> tuple[bool, str]:
     import urllib.request
 
     urls = [
-        "http://localhost:8765/BanqueV2/js/core.js",
-        "http://localhost:8765/BanqueV2/css/app.css",
+        "http://localhost:8765/Banque/js/core.js",
+        "http://localhost:8765/Banque/css/app.css",
     ]
     details = []
     ok_all = True

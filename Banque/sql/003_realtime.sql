@@ -1,4 +1,4 @@
--- BanqueV2 · 003 · Temps réel (synchro PC / téléphone). Ajout seulement, aucun autre schéma touché.
+-- Banque · 003 · Temps réel (synchro PC / téléphone). Ajout seulement, aucun autre schéma touché.
 alter publication supabase_realtime add table banque.accounts, banque.account_members, banque.expenses,
   banque.incomes, banque.payments, banque.wallet_transactions, banque.month_snapshots;
 

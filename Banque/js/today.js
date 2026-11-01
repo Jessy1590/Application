@@ -210,6 +210,7 @@ Object.assign(BH, {
       if (paidIncEl) paidIncEl.innerHTML = paidIncHtml || '<div style="text-align:center;font-size:12px;color:var(--ink-faint);">Rien encaissé</div>';
       this.pruneGroupSelect(mKey);
       this.renderGroupBar();
+      if (this.walletOpenId) this.fillWalletPopup();
     },
 
     fmtDate(d) {
@@ -240,26 +241,13 @@ Object.assign(BH, {
       const mKey = mKeyOpt || this.todayViewKey();
       const remaining = Number(exp.amount) - spent;
       const pct = Math.max(0, Math.min(100, (spent / Number(exp.amount)) * 100 || 0));
-      const expanded = !!(this.walletExpanded && this.walletExpanded[exp.id]);
       const usable = this.isWalletUsable(exp);
       const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
-      const sortedTxs = txs.slice().sort((a,b)=>Number(b.day)-Number(a.day));
-      const [y, m] = mKey.split('-').map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      const monthStart = mKey + '-01';
-      const monthEnd = mKey + '-' + String(lastDay).padStart(2, '0');
-      const defaultDate = mKey === this.monthKey(new Date())
-        ? this._todayISO()
-        : monthStart;
-      const otherAccOpts = this.state.accounts
-        .filter(a => a.id !== acc.id)
-        .map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`)
-        .join('');
-      return `<div class="bh-card${expiredCls}" style="margin-bottom:10px; padding:14px;${!usable ? ' opacity:0.72;' : ''}">
-        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; gap:10px;" onclick="BH.toggleWalletExpand('${exp.id}')">
+      return `<div class="bh-card bh-wallet-card${expiredCls}${!usable ? ' is-off' : ''}" onclick="BH.openWalletPopup('${exp.id}')">
+        <div class="bh-wallet-card-top">
           <div style="min-width:0;">
             <div style="font-weight:700; font-size:14px;">👛 ${this.esc(exp.description)}${!usable ? ' <span class="bh-pill" style="background:var(--line); color:var(--ink-faint); font-size:10px; font-weight:600;">Désactivé</span>' : ''}</div>
-            <div style="font-size:11px; color:var(--ink-faint);">${this.esc(acc.name)}${exp.category ? ' · '+this.esc(exp.category) : ''}${this.isExpired(exp) ? ` · ⚠️ Expirée le ${this.fmtDate(exp.end_date)}` : ''}${!usable ? ' · historique seul' : ''}</div>
+            <div style="font-size:11px; color:var(--ink-faint);">${this.esc(acc.name)}${exp.category ? ' · '+this.esc(exp.category) : ''}${this.isExpired(exp) ? ` · ⚠️ Expirée le ${this.fmtDate(exp.end_date)}` : ''}</div>
           </div>
           <div style="text-align:right; flex-shrink:0;">
             <div class="num" style="font-weight:700; color:${remaining>=0?'var(--sage-deep)':'var(--clay)'};">${this.fmt(remaining)}</div>
@@ -267,36 +255,73 @@ Object.assign(BH, {
           </div>
         </div>
         <div class="bh-progress-track" style="margin-top:10px;"><div class="bh-progress-fill" style="width:${pct}%;${spent>Number(exp.amount)?'background:var(--clay);':''}"></div></div>
-        ${expanded ? `
-          <div style="margin-top:12px; border-top:1px dashed var(--line); padding-top:10px;">
-            ${sortedTxs.length ? sortedTxs.map(t => `
-              <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; padding:5px 0;">
-                <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· ${this.walletTxDateLabel(t)}</span> ${this.walletTxKindPill(t)}</span>
-                <span style="display:flex; align-items:center; gap:8px;">
-                  <span class="num" style="color:${Number(t.amount) < 0 ? 'var(--sage-deep)' : 'inherit'};">${Number(t.amount) < 0 ? '+' + this.fmt(Math.abs(Number(t.amount))) : this.fmt(t.amount)}</span>
-                  ${usable ? `<button class="bh-order-btn" style="width:20px; height:20px; border-radius:6px; font-size:11px;" onclick="event.stopPropagation(); BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}','${mKey}')" title="Supprimer">✕</button>` : ''}
-                </span>
-              </div>`).join('') : '<div style="font-size:12px; color:var(--ink-faint); padding:6px 0;">Aucune dépense saisie ce mois-ci.</div>'}
-            ${usable ? `
-            <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;" onclick="event.stopPropagation()">
-              <div style="display:flex; gap:6px;">
-                <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc / remboursement / apport">
-                <input type="number" id="wtx-amount-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:70px;" placeholder="+/- €" step="0.01">
-                <button class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}','${mKey}')">+</button>
-              </div>
-              <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                <input type="date" id="wtx-date-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:140px;" value="${defaultDate}" min="${monthStart}" max="${monthEnd}">
-                <select id="wtx-from-${exp.id}" class="bh-input" style="margin:0; flex:1.2; min-width:140px;">
-                  <option value="">Compte source : aucun</option>
-                  ${otherAccOpts}
-                </select>
-              </div>
-            </div>
-            <p style="font-size:11px; color:var(--ink-faint); margin:6px 0 0;">Négatif = remboursement. Compte source = apport depuis un autre compte (ex. Swile → ce portefeuille).</p>
-            ` : '<p style="font-size:11px; color:var(--ink-faint); margin:8px 0 0;">Portefeuille désactivé — consultation de l\'historique uniquement.</p>'}
-          </div>
-        ` : ''}
       </div>`;
+    },
+
+    openWalletPopup(expId) {
+      this.walletOpenId = expId;
+      this.fillWalletPopup();
+    },
+    closeWalletPopup() {
+      this.walletOpenId = null;
+      const overlay = document.getElementById('bh-wallet-overlay');
+      if (overlay) overlay.classList.remove('open');
+    },
+    fillWalletPopup() {
+      const expId = this.walletOpenId;
+      const overlay = document.getElementById('bh-wallet-overlay');
+      if (!expId || !overlay) return;
+      const exp = (this.state.expenses || []).find(e => e.id === expId);
+      if (!exp) { this.closeWalletPopup(); return; }
+      const mKey = this.todayViewKey();
+      const acc = (this.state.accounts || []).find(a => a.id === exp.account_id);
+      if (!acc) { this.closeWalletPopup(); return; }
+      const txs = this.getWalletTx(acc.id, exp.id, mKey);
+      const spent = this.walletSpent(acc.id, exp.id, mKey);
+      const title = document.getElementById('bh-wallet-title');
+      const body = document.getElementById('bh-wallet-body');
+      if (title) title.textContent = exp.description || 'Portefeuille';
+      if (body) body.innerHTML = this.walletPopupHtml({ exp, acc, txs, spent }, mKey);
+      overlay.classList.add('open');
+    },
+    walletPopupHtml({ exp, acc, txs, spent }, mKey) {
+      const remaining = Number(exp.amount) - spent;
+      const usable = this.isWalletUsable(exp);
+      const sortedTxs = txs.slice().sort((a, b) => Number(b.day) - Number(a.day));
+      const [y, m] = mKey.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      const monthStart = mKey + '-01';
+      const monthEnd = mKey + '-' + String(lastDay).padStart(2, '0');
+      const defaultDate = mKey === this.monthKey(new Date()) ? this._todayISO() : monthStart;
+      const otherAccOpts = this.state.accounts
+        .filter(a => a.id !== acc.id)
+        .map(a => `<option value="${a.id}">${this.esc(a.name)}</option>`)
+        .join('');
+      return `<div class="bh-wallet-pop-sum"><span>Restant</span><span class="num" style="color:${remaining >= 0 ? 'var(--sage-deep)' : 'var(--clay)'};">${this.fmt(remaining)} / ${this.fmt(exp.amount)}</span></div>
+        ${sortedTxs.length ? sortedTxs.map(t => `
+          <div class="bh-wallet-tx">
+            <span>${this.esc(t.description)} <span style="color:var(--ink-faint);">· ${this.walletTxDateLabel(t)}</span> ${this.walletTxKindPill(t)}</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span class="num" style="color:${Number(t.amount) < 0 ? 'var(--sage-deep)' : 'inherit'};">${Number(t.amount) < 0 ? '+' + this.fmt(Math.abs(Number(t.amount))) : this.fmt(t.amount)}</span>
+              ${usable ? `<button type="button" class="bh-order-btn" onclick="BH.deleteWalletTx('${exp.id}','${acc.id}','${t.id}','${mKey}')" title="Supprimer">✕</button>` : ''}
+            </span>
+          </div>`).join('') : '<div style="font-size:12px; color:var(--ink-faint); padding:6px 0;">Aucun mouvement ce mois-ci.</div>'}
+        ${usable ? `
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="wtx-desc-${exp.id}" class="bh-input" style="margin:0; flex:2;" placeholder="Ex: Leclerc / remboursement / apport">
+            <input type="number" id="wtx-amount-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:70px;" placeholder="+/- €" step="0.01">
+            <button type="button" class="bh-btn bh-btn-primary" style="padding:0 14px;" onclick="BH.addWalletTx('${exp.id}','${acc.id}','${mKey}')">+</button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <input type="date" id="wtx-date-${exp.id}" class="bh-input" style="margin:0; flex:1; min-width:140px;" value="${defaultDate}" min="${monthStart}" max="${monthEnd}">
+            <select id="wtx-from-${exp.id}" class="bh-input" style="margin:0; flex:1.2; min-width:140px;">
+              <option value="">Compte source : aucun</option>
+              ${otherAccOpts}
+            </select>
+          </div>
+          <p style="font-size:11px; color:var(--ink-faint); margin:0;">Négatif = remboursement. Compte source = apport depuis un autre compte.</p>
+        </div>` : '<p style="font-size:11px; color:var(--ink-faint); margin:8px 0 0;">Portefeuille désactivé — consultation de l\'historique uniquement.</p>'}`;
     },
 
     // Revenu "personnel" estimé d'un membre = somme des revenus enregistrés sur SON compte principal

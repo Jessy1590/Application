@@ -1,0 +1,35 @@
+# 📍 État actuel du projet (STATE) - Budget Partagé
+
+## Fonctionnalités actives et terminées
+- **Core Budgeting :** Gestion complète du CRUD pour les dépenses, les revenus, et les comptes partagés.
+- **Concept de Portefeuilles (Enveloppes) :** Possibilité de transformer une dépense fixe en un "Portefeuille" mensuel dans lequel on ajoute de multiples petites transactions manuelles.
+- **Gestion Avancée du Partage :** 
+  - Définition des modes d'apport : Montant Fixe, Pourcentage, ou Prorata des revenus croisés.
+  - Calcul intelligent des dettes croisées ("Qui doit quoi") pour régulariser les avances personnelles.
+- **Suivi Mensuel (Time-Travel) :** Validation des dépenses mois par mois stockée dans `month_records` via JSONB. Possibilité de remonter dans le temps.
+- **Flexibilité de Saisie :** Fonctionnalité "Montant différent" permettant de valider une facture avec un montant ponctuel (uniquement pour le mois) ou durable (mise à jour du budget).
+- **Statistiques et Visualisation :** 
+  - Graphiques en camembert (SVG natifs générés par JS).
+  - Bloc « Dépenses par catégorie » unifié : filtre compte + mode effectives/théoriques, camembert, comparatif MoM avec barres et montants par catégorie.
+  - Effectives = montants validés + total réellement dépensé des portefeuilles ; Théoriques = budgets prévus.
+  - Calcul de la capacité d'épargne globale.
+- **Saisie guidée :** Listes déroulantes Compte (＋ Nouveau compte) et Catégorie (Autres…) à l’ajout / édition.
+- **Outils Avancés :**
+  - Export CSV et PDF.
+  - Système de Backup local / Restauration (JSON complet).
+  - Notifications locales pour alerter sur les échéances proches (à j-2).
+- **Interface responsive (PWA) :** Mobile inchangé (colonne 560px, tabbar bas, bottom sheets). Desktop ≥960px : sidebar de navigation, contenu large multi-colonnes (Aujourd’hui / Comptes / Saisies / Stats / Vérif), modales centrées.
+- **Saisies par compte :** Dépenses et revenus groupés par compte (totaux + compteur).
+- **Vérification relevé :** Onglet Vérif (desktop) — sous-vues Relevé (import CSV/PDF, matching, Enregistrer) et Vérification (dépenses / mouvements portefeuille / revenus / remboursements colorés vérifié ou non).
+- **Persistance vérifs :** Table Supabase `bank_verifications` — actions unitaires + bouton Enregistrer (lot) ; portefeuille lié à l’id de transaction.
+- **CSV Crédit Agricole (export actuel) :** Préambule (`Téléchargement du…`, solde, plage) puis en-tête `Date d'opération;Date valeur;Libellé;Débit euros;Crédit euros;` ; libellés multi-lignes entre guillemets (type + détail) ; encodage Windows-1252. Le parseur saute le préambule, gère les retours ligne dans les guillemets, et nettoie les libellés (carte → marchand, prélèvement → créancier, virement → motif).
+- **Relevé multi-mois :** Plus de bascule auto vers le mois dominant — popup « Quel mois vérifier ? » avec le nombre d’opérations par mois ; le fichier reste en mémoire pour changer de mois ensuite.
+- **Vérif apports :** Les apports mensuels sont des candidats de matching (Valider comme une dépense) ; bouton **Délier** pour retirer une suggestion auto non enregistrée. Bouton **＋ Ajouter** restauré sur Saisies (desktop + FAB hors overflow).
+- **Aujourd’hui multi-mois :** Barre ← → en haut pour consulter / valider les mois passés (pas de mois futur).
+- **Impression Stats :** Popup de période — mois actuel, autre mois, ou plage multi-mois (historique + cumuls).
+
+## Prochaines étapes de développement (TODO)
+*(Liste à mettre à jour lors de nos prochaines sessions de développement)*
+- [ ] Mettre en place un système de relances widget sur iphone pour validé facilement les données.
+- [ ] Améliorer le module Vérif (OFX, apprentissage des libellés, écarts budget↔banque, OCR PDF scannés).
+- [ ] Mettre en place un systeme de lecture du compte bancaire en directe ou via un systeme tierce pour validé ou modifier les montants avec mon accord

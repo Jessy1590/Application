@@ -1,0 +1,28 @@
+---
+description: Conventions globales et style de code pour le projet Budget Partagé
+globs: *.html
+---
+
+# Conventions de Code et Architecture
+
+## Stack et Contraintes Technologiques
+- **Single File (Vanilla JS) :** Le projet est un monolithe `index.html` qui utilise du HTML, CSS et JavaScript Vanilla. Ne propose JAMAIS d'installer Node.js, Vite, React ou npm.
+- **Base de données :** Supabase (Client JS v2 importé via CDN)[cite: 14]. Le schéma utilisé semble être `public` par défaut.
+- **Styles :** CSS pur dans la balise `<style>` avec des variables CSS (`:root`)[cite: 14]. Pas de framework CSS externe.
+- **PWA :** Application web progressive avec un `manifest.webmanifest`[cite: 14, 15].
+
+## Règles de Développement (JavaScript & DOM)
+- **Architecture Modulaire Logicielle :** La logique est encapsulée dans des objets globaux comme `AppAuth` (pour l'authentification) et `BH` (pour le cœur de l'application Budget)[cite: 14].
+- **Manipulation du DOM :** Utilisation directe de `document.getElementById` et `innerHTML` pour le rendu[cite: 14]. 
+- **Appels Réseaux & Supabase :** Tous les appels Supabase sont encapsulés dans un wrapper `withRetry(fn, label)` qui gère les erreurs et affiche un toast avec bouton de relance[cite: 14].
+- **Calculs et Formatage :** 
+  - `BH.fmt(n)` pour le formatage en euros[cite: 14].
+  - `BH.esc(s)` pour échapper les chaînes de caractères (prévention XSS)[cite: 14].
+  - `BH.monthKey(date)` pour générer des clés mensuelles (ex: "2023-10")[cite: 14].
+- **Génération de Graphiques :** Les camemberts SVG sont générés programmatiquement via la fonction `BH.pieChart(items, opts)` sans librairie externe[cite: 14].
+
+## Particularités Métier
+- **Portefeuilles (Wallets) :** Une dépense peut être marquée comme "portefeuille" (`is_wallet`)[cite: 16]. Dans ce cas, ce n'est pas un prélèvement unique, mais une enveloppe mensuelle dans laquelle on saisit de multiples petites transactions manuelles stockées en JSONB dans `month_records`[cite: 14, 16].
+- **Reste Théorique vs Reste à Date :** Distinction importante entre ce qu'il devrait rester à la fin du mois (Théorique) et ce qu'il reste en fonction de ce qui a déjà été dépensé aujourd'hui (À date)[cite: 14].
+
+> Pour économiser nos ressources, renvoie directement le code modifié sans préambule poli ni explications détaillées après le code, sauf si je te le demande explicitement.

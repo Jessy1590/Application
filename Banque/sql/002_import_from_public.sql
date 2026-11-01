@@ -1,4 +1,4 @@
--- BanqueV2 · 002 · Import public → banque (LECTURE SEULE sur public, rejouable)
+-- Banque · 002 · Import public → banque (LECTURE SEULE sur public, rejouable)
 -- Usage (SQL editor / service role) : select banque.import_from_public();
 -- Rejouer = met à jour banque avec l'état actuel de la V1 (upsert par identifiant).
 -- Les lignes supprimées entre-temps dans la V1 ne sont pas supprimées dans banque.

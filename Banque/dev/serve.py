@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Serveur de test local pour BanqueV2 (aucune dépendance).
+"""Serveur de test local pour Banque (aucune dépendance).
 
-Lance : python3 BanqueV2/dev/serve.py   puis ouvre http://localhost:8765/BanqueV2/
+Lance : python3 Banque/dev/serve.py   puis ouvre http://localhost:8765/Banque/
 
 Uniquement en local :
 - injecte l'URL Supabase dans la CSP (__SUPABASE_HTTP__ / __SUPABASE_WSS__), comme scripts/build-pages.js ;
@@ -61,7 +61,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if path == '/protect.js':
             with open(os.path.join(HERE, 'protect-local.js'), encoding='utf-8') as f:
                 return self._send(f.read(), 'application/javascript; charset=utf-8')
-        if path.startswith('/BanqueV2/') and (path.endswith('/') or path.endswith('.html') or path.endswith('.js')):
+        if path.startswith('/Banque/') and (path.endswith('/') or path.endswith('.html') or path.endswith('.js')):
             fs_path = os.path.join(ROOT, path.lstrip('/'))
             if os.path.isdir(fs_path):
                 fs_path = os.path.join(fs_path, 'index.html')
@@ -83,5 +83,5 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 if __name__ == '__main__':
     if not URL or not KEY:
         print('dev/.env.local manquant (SUPABASE_URL / SUPABASE_ANON_KEY)')
-    print('BanqueV2 : http://localhost:%d/BanqueV2/' % PORT)
+    print('Banque : http://localhost:%d/Banque/' % PORT)
     Server(('127.0.0.1', PORT), Handler).serve_forever()

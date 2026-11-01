@@ -1,4 +1,4 @@
--- BanqueV2 · 001 · Schéma « banque » (création seule : ne modifie ni ne supprime rien dans public)
+-- Banque · 001 · Schéma « banque » (création seule : ne modifie ni ne supprime rien dans public)
 -- Principes :
 --   * une ligne par fait (validation, mouvement de portefeuille) au lieu de gros JSON par mois
 --     → plus d'écrasement quand deux appareils écrivent en même temps ;

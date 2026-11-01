@@ -2804,7 +2804,8 @@ Object.assign(BH, {
             account_id: incAccId,
             description: desc,
             amount,
-            day
+            day,
+            income_type: 'remboursement'
           }]).select('id').single();
           if (res.error) throw res.error;
           incomeId = res.data.id;

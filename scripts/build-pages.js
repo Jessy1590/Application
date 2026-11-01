@@ -12,7 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 
 const EXCLUDE_DIRS = new Set([
-  'node_modules', '.git', '.github', 'dist', '.cursor',
+  'node_modules', '.git', '.github', 'dist', '.cursor', 'dev',
   'PharmaOs/App', 'PharmaOs/Dashboard',
 ]);
 

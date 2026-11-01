@@ -729,7 +729,7 @@ Object.assign(BH, {
         </div>`;
       };
       const rowIncome = (i) => `<div class="bh-manage-row" onclick="BH.openEditSheet('income','${i.id}')">
-          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}</div><div style="font-size:11px;color:var(--ink-faint);">${i.day ? 'Le '+i.day : 'Revenu'}</div></div>
+          <div><div style="font-weight:600;font-size:14px;">${this.esc(i.description)}${i.income_type === 'remboursement' ? ' <span class="bh-pill" style="background:var(--gold-pale); color:var(--gold); font-size:10px;">Remboursement</span>' : ''}</div><div style="font-size:11px;color:var(--ink-faint);">${i.day ? 'Le '+i.day : 'Revenu'}</div></div>
           <div class="num" style="color:var(--sage-deep);">${this.fmt(i.amount)}</div>
         </div>`;
 
@@ -775,6 +775,7 @@ Object.assign(BH, {
       document.getElementById('f-desc').value = '';
       document.getElementById('f-amount').value = '';
       document.getElementById('f-wallet').checked = false;
+      document.getElementById('f-refund').checked = false;
       document.getElementById('f-enddate').value = '';
       const delBtn = document.getElementById('bh-delete-btn');
       delBtn.style.display = 'none';
@@ -800,6 +801,9 @@ Object.assign(BH, {
       if(type==='expense') {
         document.getElementById('f-wallet').checked = !!item.is_wallet;
         document.getElementById('f-enddate').value = item.end_date || '';
+        document.getElementById('f-refund').checked = false;
+      } else {
+        document.getElementById('f-refund').checked = item.income_type === 'remboursement';
       }
       const delBtn = document.getElementById('bh-delete-btn');
       delBtn.style.display = 'flex';
@@ -912,6 +916,7 @@ Object.assign(BH, {
        this.sheetMode = type;
        document.getElementById('f-cat-wrap').style.display = (type === 'expense') ? 'block' : 'none';
        document.getElementById('f-wallet-wrap').style.display = (type === 'expense') ? 'block' : 'none';
+       document.getElementById('f-refund-wrap').style.display = (type === 'income') ? 'flex' : 'none';
        document.getElementById('f-enddate-wrap').style.display = (type === 'expense') ? 'block' : 'none';
        const isWallet = type === 'expense' && document.getElementById('f-wallet').checked;
        document.getElementById('f-day-wrap').style.display = isWallet ? 'none' : 'block';
@@ -999,6 +1004,8 @@ Object.assign(BH, {
          payload.payer_id = payerId || null;
          payload.is_wallet = isWallet;
          payload.end_date = endDate;
+      } else {
+         payload.income_type = document.getElementById('f-refund').checked ? 'remboursement' : null;
       }
 
       const table = type === 'expense' ? 'expenses' : 'incomes';
