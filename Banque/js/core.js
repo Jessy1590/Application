@@ -118,6 +118,7 @@
       await this.fetchData();
       // Si on réduit la fenêtre sous desktop alors qu'on est sur Vérif → retour Aujourd'hui
       window.addEventListener('resize', () => {
+        this.syncFab();
         if (this.activeTab === 'verif' && window.matchMedia('(max-width: 959px)').matches) {
           this.switchTab('today');
         }
@@ -201,6 +202,7 @@
       };
       
       this.render();
+      this.syncFab();
       this.checkDueNotifications();
       // Figé le budget théorique du mois courant (sans bloquer le rendu)
       this.syncCurrentTheoreticalSnapshots();
@@ -216,8 +218,14 @@
       document.querySelectorAll('.bh-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
       document.querySelectorAll('.bh-view').forEach(v => v.classList.remove('active'));
       document.getElementById('view-' + tab).classList.add('active');
-      document.getElementById('bh-fab').style.display = (tab === 'saisies') ? 'flex' : 'none';
+      this.syncFab();
       this.render();
+    },
+    syncFab() {
+      const desktop = window.matchMedia('(min-width: 960px)').matches;
+      const show = desktop || this.activeTab === 'saisies';
+      const fab = document.getElementById('bh-fab');
+      if (fab) fab.style.display = show ? 'flex' : 'none';
     },
 
     shiftMonth(delta) {

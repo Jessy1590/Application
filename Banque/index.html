@@ -13,6 +13,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Budget">
 <meta name="theme-color" content="#F3F6F3">
+<script>
+  if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) {
+    document.documentElement.classList.add('bh-standalone');
+  }
+</script>
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -82,13 +87,8 @@
 
     <!-- VUE 1 : AUJOURD'HUI -->
     <div class="bh-view active" id="view-today">
-      <div class="bh-month-nav bh-today-month-nav" style="display:flex; justify-content:space-between; margin-bottom:12px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
-        <button type="button" onclick="BH.shiftTodayMonth(-1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);" aria-label="Mois précédent">&larr;</button>
-        <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; gap:8px; text-transform:capitalize;" id="bh-today-month-label">Mois</div>
-        <button type="button" onclick="BH.shiftTodayMonth(1)" class="bh-icon-btn" style="width:32px;height:32px; border:none; background:var(--line-soft);" aria-label="Mois suivant">&rarr;</button>
-      </div>
-      <div class="bh-today-primary">
-        <div class="bh-stat-grid" style="margin-bottom:6px;">
+      <div class="bh-today-top">
+        <div class="bh-stat-grid">
           <div class="bh-stat clay">
             <div class="bh-stat-label">Reste à valider</div>
             <div class="bh-stat-value num" id="bh-stat-remaining">—</div>
@@ -98,21 +98,30 @@
             <div class="bh-stat-value num" id="bh-stat-paid">—</div>
           </div>
         </div>
-        <div style="margin-bottom:12px;">
-          <button type="button" class="bh-btn bh-btn-outline bh-btn-block" onclick="BH.openExceptionalSheet()" title="Sortie ponctuelle hors budget récurrent">＋ Dépense exceptionnelle</button>
+        <div class="bh-month-nav bh-today-month-nav">
+          <button type="button" onclick="BH.shiftTodayMonth(-1)" class="bh-icon-btn" aria-label="Mois précédent">&larr;</button>
+          <div class="bh-today-month-label" id="bh-today-month-label">Mois</div>
+          <button type="button" onclick="BH.shiftTodayMonth(1)" class="bh-icon-btn" aria-label="Mois suivant">&rarr;</button>
         </div>
-        <div id="bh-wallets-section"></div>
-        <div id="bh-due-section"></div>
-        <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
       </div>
-      <div class="bh-today-secondary">
-        <div class="bh-section-label">Dépenses validées</div>
-        <div class="bh-card" id="bh-paid-list-wrap">
-          <div id="bh-paid-list"></div>
+      <div id="bh-wallets-section"></div>
+      <div class="bh-today-board">
+        <div class="bh-today-primary">
+          <div id="bh-due-section"></div>
+          <div id="bh-group-bar" class="bh-group-bar" aria-live="polite"></div>
         </div>
-        <div class="bh-section-label">Revenus encaissés</div>
-        <div class="bh-card" id="bh-paid-incomes-wrap">
-          <div id="bh-paid-incomes-list"></div>
+        <div class="bh-today-side">
+          <button type="button" class="bh-btn bh-btn-outline bh-btn-block bh-exc-btn" onclick="BH.openExceptionalSheet()" title="Sortie ponctuelle hors budget récurrent">＋ Dépense exceptionnelle</button>
+          <div class="bh-today-secondary">
+            <div class="bh-section-label">Dépenses validées</div>
+            <div class="bh-card" id="bh-paid-list-wrap">
+              <div id="bh-paid-list"></div>
+            </div>
+            <div class="bh-section-label">Revenus encaissés</div>
+            <div class="bh-card" id="bh-paid-incomes-wrap">
+              <div id="bh-paid-incomes-list"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

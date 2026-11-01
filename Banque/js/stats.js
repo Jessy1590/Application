@@ -254,8 +254,11 @@ Object.assign(BH, {
       }
       if (r.isGlobal) {
         rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.45;">Vue tous comptes : somme des revenus et dépenses de chaque compte. Les apports entre comptes ne sont pas ajoutés (évite le double comptage).</div>`;
-      } else if (r.lookingAtMain) {
+      } else       if (r.lookingAtMain) {
         rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:12px;line-height:1.45;">Vue capacité perso : compte principal${isEff ? ' + part déjà consommée sur les comptes partagés' : ' + apports versés aux autres comptes'}.</div>`;
+        if ((r.avancesCarte || 0) > 0) {
+          rows += `<div style="font-size:11.5px;color:var(--ink-faint);margin-top:8px;line-height:1.45;">Dont avancé par carte : ${this.fmt(r.avancesCarte)} (dépense du compte général) et reste à virer : ${this.fmt(r.apportAVirer || 0)}.</div>`;
+        }
       }
       if (r.overflow > 0) {
         rows += `<div class="bh-info-row"><span>Dépassement</span><span class="num">${this.fmt(r.overflow)}</span></div>`;
@@ -315,7 +318,11 @@ Object.assign(BH, {
           } else {
              amt = Number(myMem.contribution_target) || 0;
           }
-          if (amt > 0) salaryItems.push({ label: acc.name, value: amt });
+          if (amt > 0) {
+             const plan = this.splitApportForAdvances(acc.id, this.monthKey(new Date()), amt);
+             if (plan.transfer > 0) salaryItems.push({ label: acc.name + ' · à virer', value: plan.transfer });
+             if (plan.advances > 0) salaryItems.push({ label: acc.name + ' · carte', value: plan.advances });
+          }
        });
        document.getElementById('chart-salary-split').innerHTML = salaryItems.length
           ? this.pieChart(salaryItems, { centerSub: 'Apports / mois' })
@@ -352,7 +359,13 @@ Object.assign(BH, {
        if (!exp) return 0;
        if (exp.is_wallet) return this.walletOwnSpent(exp.account_id, exp.id, mKey);
        const paid = this.state.months[exp.account_id + '_' + mKey]?.[exp.id];
-       return paid ? Number(paid.amount || 0) : 0;
+       if (paid) return Number(paid.amount || 0);
+       if (this.isMyCardAdvance(exp)) {
+          const mainId = this.state.profile?.main_account_id;
+          const onMain = this.state.months[mainId + '_' + mKey]?.[exp.id];
+          if (onMain) return Number(onMain.amount || 0);
+       }
+       return 0;
     },
 
     // Montant d'une dépense pour les stats (théorique = budget / snapshot ; effectif = validé / txs portefeuille)
@@ -407,6 +420,18 @@ Object.assign(BH, {
           const cat = exp.category || 'Autre';
           totals[cat] = (totals[cat] || 0) + amt;
        });
+       // Carte perso : le débit est sur le compte général, la dépense reste rattachée au compte partagé.
+       const mainId = this.state.profile?.main_account_id;
+       if (accFilter && accFilter === mainId) {
+          this.state.expenses.forEach(exp => {
+             if (!this.isMyCardAdvance(exp) || !this.isActiveInMonth(exp, mKey)) return;
+             if (!this.isExpenseActive(exp)) return;
+             const amt = this.expenseAmountForStats(exp, mKey, mode);
+             if (amt <= 0) return;
+             const cat = exp.category || 'Autre';
+             totals[cat] = (totals[cat] || 0) + amt;
+          });
+       }
        // Effectif : dépenses exceptionnelles (hors budget récurrent) du mois
        if (mode === 'effective') {
           this.listExceptionalExpenses(accFilter || null, mKey).forEach(exc => {
@@ -560,9 +585,15 @@ Object.assign(BH, {
        // (il ne réduit pas la capacité, c’est de l’épargne déjà réalisée)
        const capacite = Math.max(0, revenus - depenses);
        const overflow = Math.max(0, depenses - revenus);
+       let avancesCarte = 0, apportAVirer = 0;
+       if (lookingAtMain && mainId) {
+          const split = this.outboundContributionsBreakdown(mainId, { mKey, mode });
+          avancesCarte = split.avancesCarte || 0;
+          apportAVirer = split.apportAVirer || 0;
+       }
        return {
           revenus, revenusDirects, apports, depenses, epargne, capacite, reste: capacite, overflow,
-          apportsSortants, apportsSortantsEpargne, mode, isGlobal, lookingAtMain
+          apportsSortants, apportsSortantsEpargne, avancesCarte, apportAVirer, mode, isGlobal, lookingAtMain
        };
     },
 

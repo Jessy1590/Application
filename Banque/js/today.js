@@ -49,11 +49,18 @@ Object.assign(BH, {
         ...(this.state.expenses || []).filter(e => this.isActiveInMonth(e, mKey)),
         ...this.listOutboundApportDues({ mKey })
       ];
+      const mainAccId = this.state.profile?.main_account_id;
+      const mainAcc = this.state.accounts.find(a => a.id === mainAccId);
       todayExpenses.forEach(exp => {
-        const acc = this.state.accounts.find(a => a.id === exp.account_id);
-        if(!acc) return;
+        const originAcc = this.state.accounts.find(a => a.id === exp.account_id);
+        if(!originAcc) return;
         if (exp.is_wallet) return;
-        const paidRec = this.state.months[acc.id + '_' + mKey]?.[exp.id];
+        const cardAdvance = this.isMyCardAdvance(exp);
+        const acc = (cardAdvance && mainAcc) ? mainAcc : originAcc;
+        const paidOnShown = this.state.months[acc.id + '_' + mKey]?.[exp.id];
+        const paidOnOrigin = cardAdvance ? this.state.months[originAcc.id + '_' + mKey]?.[exp.id] : null;
+        const paidRec = paidOnShown || paidOnOrigin;
+        const payAccId = paidOnShown ? acc.id : (paidOnOrigin ? originAcc.id : acc.id);
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
 
         if (paidRec) {
@@ -62,17 +69,17 @@ Object.assign(BH, {
             <div class="bh-due${expiredCls}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
               <div style="min-width:0;">
                  <div class="bh-due-desc" style="color:var(--ink-faint); text-decoration:line-through;">${this.esc(exp.description)}</div>
-                 <div class="bh-due-meta">${this.esc(acc.name)}${exp.is_apport ? ' · Apport' : ''}${this.isExpired(exp) ? ' · ⚠️ Expirée le '+this.fmtDate(exp.end_date) : ''}</div>
+                 <div class="bh-due-meta">${this.esc(acc.name)}${exp.is_apport ? ' · Apport' : ''}${cardAdvance ? ' · Carte pour ' + this.esc(originAcc.name) : ''}${this.isExpired(exp) ? ' · ⚠️ Expirée le '+this.fmtDate(exp.end_date) : ''}</div>
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
                 <div class="num" style="color:var(--sage);">${this.fmt(paidRec.amount)}</div>
-                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler la validation" onclick="BH.unmarkPaid('${exp.id}', '${acc.id}', '${mKey}')">Annuler</button>
+                <button class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px;" title="Annuler la validation" onclick="BH.unmarkPaid('${exp.id}', '${payAccId}', '${mKey}')">Annuler</button>
               </div>
             </div>`;
         } else {
           totalDue += Number(exp.amount);
           const diff = Math.min(Number(exp.day) || 1, dim) - refDay;
-          const item = { kind: 'expense', exp, acc, diff };
+          const item = { kind: 'expense', exp, acc, originAcc, cardAdvance, payAccId, diff };
           if (!isCurrentMonth) late.push(item);
           else if (diff < 0) late.push(item);
           else if (diff === 0) today.push(item);
@@ -150,12 +157,14 @@ Object.assign(BH, {
           <div class="bh-due${expiredCls}${selected ? ' selected' : ''}">
             <div class="bh-due-top">
               <div class="bh-due-main">
-                <button type="button" class="bh-due-check" onclick="BH.toggleGroupSelect('${exp.id}','${acc.id}')" aria-label="Sélectionner pour validation groupée" title="Sélectionner pour valider ensemble">${selected ? '✓' : ''}</button>
+                <button type="button" class="bh-due-check" onclick="BH.toggleGroupSelect('${exp.id}','${item.payAccId}')" aria-label="Sélectionner pour validation groupée" title="Sélectionner pour valider ensemble">${selected ? '✓' : ''}</button>
                 <div style="min-width:0;">
                   <div class="bh-due-desc">${this.esc(exp.description)}</div>
                   <div class="bh-due-meta">
                     <span class="bh-pill ${cls}">${lbl}</span>
-                    ${exp.is_apport ? `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Apport</span>` : ''}
+                    ${exp.is_apport ? `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Apport${exp.advances > 0 ? ' · à virer' : ''}</span>` : ''}
+                    ${exp.is_apport && exp.advances > 0 ? `<span class="bh-pill" style="background:var(--amber-pale); color:var(--amber);">Carte ${this.fmt(exp.advances)}</span>` : ''}
+                    ${item.cardAdvance ? `<span class="bh-pill" style="background:var(--amber-pale); color:var(--amber);">Carte · ${this.esc(item.originAcc.name)}</span>` : ''}
                     <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
                     ${this.isExpired(exp) ? `<span class="bh-pill" style="background:var(--clay-pale); color:var(--clay);">⚠️ Expirée le ${this.fmtDate(exp.end_date)}</span>` : ''}
                   </div>
@@ -164,8 +173,8 @@ Object.assign(BH, {
               <div class="bh-due-amount num">${this.fmt(exp.amount)}</div>
             </div>
             <div class="bh-due-actions">
-              <button class="bh-btn bh-btn-primary" onclick="BH.markPaid('${exp.id}', ${exp.amount}, '${acc.id}', '${mKey}')">Valider ${this.fmt(exp.amount)}</button>
-              <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${exp.id}', '${acc.id}')">Montant différent</button>
+              <button class="bh-btn bh-btn-primary" onclick="BH.markPaid('${exp.id}', ${exp.amount}, '${item.payAccId}', '${mKey}')">Valider ${this.fmt(exp.amount)}</button>
+              <button class="bh-btn bh-btn-ghost" onclick="BH.openDifferentAmount('${exp.id}', '${item.payAccId}')">Montant différent</button>
             </div>
           </div>`;
       };
@@ -336,6 +345,28 @@ Object.assign(BH, {
       return !!(acc && /(é|e)pargne/i.test(acc.name || ''));
     },
 
+    // Dépense d'un compte partagé payée avec ma carte : le débit est sur le compte général.
+    isMyCardAdvance(exp) {
+      const mainId = this.state.profile?.main_account_id;
+      return !!(exp && mainId && this.user && exp.payer_id === this.user.id
+        && exp.account_id !== mainId && !exp.is_wallet && !exp.is_apport);
+    },
+    cardAdvanceTotal(targetAccId, mKey) {
+      return (this.state.expenses || []).reduce((sum, exp) => {
+        if (exp.account_id !== targetAccId || !this.isMyCardAdvance(exp)) return sum;
+        if (!this.isExpenseActive(exp) || !this.isActiveInMonth(exp, mKey)) return sum;
+        return sum + (Number(exp.amount) || 0);
+      }, 0);
+    },
+    // Apport brut − avances carte = ce qu'il reste à virer depuis le compte général.
+    splitApportForAdvances(targetAccId, mKey, gross) {
+      const g = Math.max(0, Math.round((Number(gross) || 0) * 100) / 100);
+      const raw = Math.round(this.cardAdvanceTotal(targetAccId, mKey) * 100) / 100;
+      const advances = Math.min(g, raw);
+      const transfer = Math.max(0, Math.round((g - advances) * 100) / 100);
+      return { gross: g, advances, transfer };
+    },
+
     // ID synthétique d'un apport mensuel (validé comme une dépense sur le compte principal)
     apportExpenseId(targetAccId) {
       return 'apport_' + targetAccId;
@@ -367,6 +398,7 @@ Object.assign(BH, {
         if (paidRec && opts.preferPaid !== false) {
           const paidAmt = Number(paidRec.amount) || 0;
           if (paidAmt > 0 || cMode === 'fixed') {
+            const plan = this.splitApportForAdvances(acc.id, mKey, Math.max(target, paidAmt));
             dues.push({
               id: this.apportExpenseId(acc.id),
               is_apport: true,
@@ -375,6 +407,9 @@ Object.assign(BH, {
               target_account_id: acc.id,
               description: 'Apport → ' + (acc.name || 'Compte'),
               amount: Math.round((paidAmt || target) * 100) / 100,
+              advances: plan.advances,
+              transfer: plan.transfer,
+              gross: plan.gross,
               day: 1,
               category: 'Apport',
               contribution_mode: cMode,
@@ -386,6 +421,8 @@ Object.assign(BH, {
 
         if (cMode === 'fixed') {
           if (!(target > 0)) return;
+          const plan = this.splitApportForAdvances(acc.id, mKey, target);
+          if (!(plan.transfer > 0)) return;
           dues.push({
             id: this.apportExpenseId(acc.id),
             is_apport: true,
@@ -393,7 +430,10 @@ Object.assign(BH, {
             account_id: mainAccId,
             target_account_id: acc.id,
             description: 'Apport → ' + (acc.name || 'Compte'),
-            amount: Math.round(target * 100) / 100,
+            amount: plan.transfer,
+            advances: plan.advances,
+            transfer: plan.transfer,
+            gross: plan.gross,
             day: 1,
             category: 'Apport',
             contribution_mode: cMode
@@ -437,6 +477,8 @@ Object.assign(BH, {
           amt = netExp * target / 100;
         }
         if (!(amt > 0)) return;
+        const plan = this.splitApportForAdvances(acc.id, mKey, amt);
+        if (!(plan.transfer > 0)) return;
         dues.push({
           id: this.apportExpenseId(acc.id),
           is_apport: true,
@@ -444,7 +486,10 @@ Object.assign(BH, {
           account_id: mainAccId,
           target_account_id: acc.id,
           description: 'Apport → ' + (acc.name || 'Compte'),
-          amount: Math.round(amt * 100) / 100,
+          amount: plan.transfer,
+          advances: plan.advances,
+          transfer: plan.transfer,
+          gross: plan.gross,
           day: 1,
           category: 'Apport',
           contribution_mode: cMode
@@ -466,8 +511,8 @@ Object.assign(BH, {
     // opts.mode = 'theorique' (défaut) | 'effective'
     // opts.mKey = mois (défaut = mois courant) — en effective, basé sur dépenses/revenus validés
     outboundContributionsBreakdown(mainAccId, opts = {}) {
-      let nonSavings = 0, savings = 0;
-      if (!mainAccId) return { total: 0, nonSavings: 0, savings: 0 };
+      let nonSavings = 0, savings = 0, avancesCarte = 0;
+      if (!mainAccId) return { total: 0, nonSavings: 0, savings: 0, avancesCarte: 0, apportAVirer: 0 };
       const mode = opts.mode || 'theorique';
       const mKey = opts.mKey || this.monthKey(new Date());
       const curKey = this.monthKey(new Date());
@@ -525,8 +570,14 @@ Object.assign(BH, {
           amt = mode === 'effective' ? Math.min(target, netExp) : target;
         }
         if (amt <= 0) return;
+        const plan = this.splitApportForAdvances(acc.id, mKey, amt);
+        avancesCarte += plan.advances;
         if (this.isSavingsAccount(acc)) savings += amt; else nonSavings += amt;
       });
-      return { total: nonSavings + savings, nonSavings, savings };
+      const total = nonSavings + savings;
+      return {
+        total, nonSavings, savings, avancesCarte,
+        apportAVirer: Math.max(0, Math.round((total - avancesCarte) * 100) / 100)
+      };
     },
 });

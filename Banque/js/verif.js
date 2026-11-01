@@ -360,19 +360,22 @@ Object.assign(BH, {
       const rows = [];
 
       (this.state.expenses || []).forEach(e => {
-        if (!accIds.includes(e.account_id) || e.is_wallet || !this.isActiveInMonth(e, mKey)) return;
-        if (!this.isExpenseActive(e)) return;
-        const paid = !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id];
+        if (e.is_wallet || !this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
+        const card = this.isMyCardAdvance(e);
+        const showAcc = card ? this.state.profile?.main_account_id : e.account_id;
+        if (!showAcc || !accIds.includes(showAcc)) return;
+        const paid = !!(this.state.months[showAcc + '_' + mKey] || {})[e.id]
+          || !!(this.state.months[e.account_id + '_' + mKey] || {})[e.id];
         rows.push({
           kind: 'expense',
           group: 'Dépenses',
           id: e.id,
-          label: e.description,
+          label: card ? (e.description + ' · carte') : e.description,
           amount: Number(e.amount),
           day: Number(e.day) || 1,
           category: e.category || '',
-          accId: e.account_id,
-          accName: accName(e.account_id),
+          accId: showAcc,
+          accName: accName(showAcc),
           paid,
           verified: sets.expense.has(String(e.id))
         });
@@ -1845,6 +1848,7 @@ Object.assign(BH, {
 
         (this.state.expenses || []).filter(e => e.account_id === accId && !e.is_wallet).forEach(e => {
           if (!this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
+          if (this.isMyCardAdvance(e)) return;
           const day = Math.min(Number(e.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
           const paidRec = paidMap[e.id];
@@ -1859,6 +1863,25 @@ Object.assign(BH, {
             date, paid: !!paidRec, category: e.category || ''
           });
         });
+        if (accId === this.state.profile?.main_account_id) {
+          (this.state.expenses || []).filter(e => this.isMyCardAdvance(e)).forEach(e => {
+            if (!this.isActiveInMonth(e, mKey) || !this.isExpenseActive(e)) return;
+            const day = Math.min(Number(e.day) || 1, dim);
+            const date = `${mKey}-${String(day).padStart(2, '0')}`;
+            const paidRec = paidMap[e.id] || (this.state.months[e.account_id + '_' + mKey] || {})[e.id];
+            const budgetAmount = Number(e.amount);
+            const paidAmount = paidRec != null ? Number(paidRec.amount) : null;
+            const origin = (this.state.accounts.find(a => a.id === e.account_id) || {}).name || '';
+            list.push({
+              kind: 'expense', id: e.id, accId, accName: accName(accId),
+              label: e.description + (origin ? ' · carte ' + origin : ' · carte'),
+              amount: (paidAmount != null && Number.isFinite(paidAmount)) ? paidAmount : budgetAmount,
+              budgetAmount,
+              day,
+              date, paid: !!paidRec, category: e.category || ''
+            });
+          });
+        }
         (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
           const day = Math.min(Number(i.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;

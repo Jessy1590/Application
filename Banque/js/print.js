@@ -371,7 +371,11 @@ Object.assign(BH, {
           if (mode === 'prorata') amt = (this.computeFairShares(acc, mems, tExp, accTInc))[this.user.id] || 0;
           else if (mode === 'percent') amt = netExp * (Number(myMem.contribution_target)||0) / 100;
           else amt = Number(myMem.contribution_target) || 0;
-          if (amt > 0) salaryItems.push({ label: acc.name, value: amt });
+          if (amt > 0) {
+             const plan = this.splitApportForAdvances(acc.id, mKey, amt);
+             if (plan.transfer > 0) salaryItems.push({ label: acc.name + ' · à virer', value: plan.transfer });
+             if (plan.advances > 0) salaryItems.push({ label: acc.name + ' · carte', value: plan.advances });
+          }
        });
        const salaryPie = salaryItems.length
           ? this.pieChart(salaryItems, { size: 130, centerSub: 'Apports' })
