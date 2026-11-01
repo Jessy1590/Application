@@ -1505,20 +1505,12 @@
   .bh-acct-card .bh-apport{ margin-top:8px; }
   .bh-acct-card .bh-apport-note{ margin-top:10px; }
 
-  #bh-accounts-list > .bh-wpanel{ grid-column:1 / -1; margin-top:0; }
-  .bh-wgroup + .bh-wgroup{ margin-top:14px; }
-  .bh-wgroup-acc{
-    margin:0 0 6px; font-size:12px; font-weight:700; color:var(--sage-deep);
+  .bh-acct-card .bh-wpanel{
+    margin-top:14px; padding:0;
+    border:none; border-radius:0; background:transparent; box-shadow:none;
   }
+  .bh-acct-card .bh-wgroup-cards{ grid-template-columns:1fr; }
   .bh-wgroup-cards{ display:grid; grid-template-columns:1fr; gap:8px; }
-  @media (min-width: 700px){
-    .bh-wgroup-cards{ grid-template-columns:1fr 1fr; }
-  }
-  .bh-wpanel{
-    margin-top:14px; padding:12px;
-    border-radius:var(--radius); border:1px solid var(--line-soft);
-    background:var(--card);
-  }
   .bh-wpanel-label{
     display:flex; align-items:center; gap:8px;
     margin:0 0 10px; font-size:11px; font-weight:700; letter-spacing:.06em;

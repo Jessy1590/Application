@@ -137,25 +137,16 @@ Object.assign(BH, {
       if (this.isWalletVisibleInMonth(exp, mKey)) return true;
       return this.getWalletTx(exp.account_id, exp.id, mKey).length > 0;
     },
-    walletsPanelHtml(mKey) {
-      const groups = this.getOrderedAccounts().map(acc => {
-        const wallets = (this.state.expenses || [])
-          .filter(e => e.account_id === acc.id && this.walletVisibleOnAccount(e, mKey))
-          .sort((a, b) => String(a.description || '').localeCompare(String(b.description || ''), 'fr'));
-        return wallets.length ? { acc, wallets } : null;
-      }).filter(Boolean);
-      if (!groups.length) return '';
-      const body = groups.map(({ acc, wallets }) => {
-        const cards = wallets.map(exp => this.walletPanelCardHtml(exp, acc, mKey)).join('');
-        return `<div class="bh-wgroup">
-          <div class="bh-wgroup-acc">${this.esc(acc.name)}</div>
-          <div class="bh-wgroup-cards">${cards}</div>
-        </div>`;
-      }).join('');
-      const count = groups.reduce((n, g) => n + g.wallets.length, 0);
+    accountWalletsHtml(acc, mKey) {
+      const wallets = (this.state.expenses || [])
+        .filter(e => e.account_id === acc.id && this.walletVisibleOnAccount(e, mKey))
+        .sort((a, b) => String(a.description || '').localeCompare(String(b.description || ''), 'fr'));
+      if (!wallets.length) return '';
+      const cards = wallets.map(exp => this.walletPanelCardHtml(exp, acc, mKey)).join('');
+      const label = wallets.length > 1 ? 'Portefeuilles' : 'Portefeuille';
       return `<section class="bh-wpanel">
-        <div class="bh-wpanel-label">Portefeuilles <span class="bh-section-count">${count}</span></div>
-        ${body}
+        <div class="bh-wpanel-label">${label} <span class="bh-section-count">${wallets.length}</span></div>
+        <div class="bh-wgroup-cards">${cards}</div>
       </section>`;
     },
     walletPanelCardHtml(exp, acc, mKey) {

@@ -66,6 +66,14 @@
   .amount-row input{width:110px; margin:0;}
   .modes{display:flex; gap:6px;}
   .modes button.is-on{background:var(--sage); color:#fff; border-color:var(--sage);}
+  .info{
+    width:22px; height:22px; min-height:22px; padding:0; border-radius:50%;
+    border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+    font-size:12px; font-weight:700; line-height:1; cursor:pointer;
+  }
+  .choice-btn{display:inline-flex; align-items:center; gap:6px;}
+  .hint{margin-top:8px; font-size:12.5px; color:var(--ink-soft);}
+  .detail{margin-top:10px;}
   .empty{padding:28px 16px; text-align:center; color:var(--ink-soft); background:var(--card); border:1px dashed var(--line); border-radius:14px;}
   .overlay{position:fixed; inset:0; background:rgba(21,37,32,.42); z-index:50; display:none; align-items:flex-end; justify-content:center;}
   .overlay.open{display:flex;}
@@ -157,6 +165,7 @@ const DEMO_CSV = `Date;Libellé;Débit;Crédit
 18/08/2026;PRLV ORANGE;42,80;
 12/08/2026;CARREFOUR CITY;64,30;
 02/08/2026;VIR SEPA SALAIRE;;2150,00
+20/08/2026;CB COURSES COUPLE;86,40;
 `;
 
 const BUDGET = [
@@ -165,14 +174,26 @@ const BUDGET = [
   { id: "courses", kind: "expense", label: "Courses", amount: 60, paid: false, day: 5 },
   { id: "assurance", kind: "expense", label: "Assurance habitation", amount: 28, paid: true, day: 8 },
   { id: "boulangerie", kind: "wallet", label: "Courses · Boulangerie", amount: 4.2, wallet: "Courses", day: 9 },
-  { id: "salaire", kind: "income", label: "Salaire", amount: 2150, paid: false, day: 2 }
+  { id: "salaire", kind: "income", label: "Salaire", amount: 2150, paid: false, day: 2 },
+  { id: "courses-couple", kind: "expense", label: "Courses couple", amount: 86.4, paid: false, day: 20, account: "Couple", card: true }
 ];
 
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
 let rows = [];
 let decisions = {};
-let sheetFor = null;
-let sheetChoice = null;
+let picking = {};
+let drafts = {};
+let hints = {};
+const HINTS = {
+  lien: "Rattache cette ligne à une saisie déjà présente. Rien n’est écrit avant Enregistrer.",
+  durable: "Crée une dépense récurrente, la valide et la vérifie, seulement à Enregistrer.",
+  exceptionnelle: "Dépense de ce mois seulement. Le barème des mois suivants ne change pas.",
+  portefeuille: "Ajoute le mouvement dans une enveloppe déjà existante, à Enregistrer.",
+  oublier: "Ignore la ligne du CSV. Aucune saisie n’est créée.",
+  verifier: "Marque la saisie vérifiée, sans mouvement banque correspondant.",
+  retirer: "Retire le paiement d’août. La dépense théorique reste.",
+  supprimer: "Supprime ce mouvement. L’enveloppe reste."
+};
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -251,10 +272,76 @@ function toast(msg) {
 function kindFr(item) {
   if (!item) return "";
   if (item.kind === "wallet") return "mouvement d’enveloppe";
+  if (item.card) return "dépense Couple, payée avec ma carte" + (item.paid ? ", déjà validée" : ", non validée");
   if (item.kind === "income") return item.paid ? "déjà encaissé" : "revenu non encaissé";
   return item.paid ? "déjà validé" : "non validé";
 }
 
+function choiceBtn(id, key, label) {
+  return `<span class="choice-btn"><button type="button" class="btn btn-outline btn-sm" data-act="pick" data-choice="${key}" data-id="${id}">${label}</button><button type="button" class="info" data-act="info" data-hint="${key}" data-id="${id}" aria-label="Explication : ${esc(label)}">i</button></span>`;
+}
+function actionsHtml(r, hasProposal, showChoices) {
+  if (!showChoices) {
+    return `<div class="row-actions" style="margin-top:10px;">
+      <button type="button" class="btn btn-primary btn-sm" data-act="confirm" data-id="${r.id}">Confirmer</button>
+      <button type="button" class="btn btn-outline btn-sm" data-act="invalidate" data-id="${r.id}">Invalider</button>
+    </div>`;
+  }
+  if (r.source === "app" && r.item.kind === "wallet") {
+    return `<div class="row-actions" style="margin-top:10px;">
+      ${choiceBtn(r.id, "verifier", "Vérifier")}
+      ${choiceBtn(r.id, "supprimer", "Supprimer le mouvement")}
+    </div>`;
+  }
+  if (r.source === "app") {
+    return `<div class="row-actions" style="margin-top:10px;">
+      ${choiceBtn(r.id, "verifier", "Vérifier")}
+      ${choiceBtn(r.id, "retirer", "Retirer la validation")}
+    </div>`;
+  }
+  const back = hasProposal ? `<button type="button" class="btn btn-ghost btn-sm" data-act="back" data-id="${r.id}">Retour</button>` : "";
+  return `<div class="row-actions" style="margin-top:10px;">
+    ${choiceBtn(r.id, "lien", "Lier")}
+    ${choiceBtn(r.id, "durable", "Saisie durable")}
+    ${choiceBtn(r.id, "exceptionnelle", "Exceptionnelle")}
+    ${choiceBtn(r.id, "portefeuille", "Portefeuille")}
+    ${choiceBtn(r.id, "oublier", "Oublier")}
+    ${back}
+  </div>`;
+}
+function detailHtml(r) {
+  const draft = drafts[r.id];
+  if (!draft) return "";
+  if (draft.choice === "lien") {
+    const options = BUDGET.filter((b) => b.kind !== "wallet").map((b) =>
+      `<option value="${esc(b.id)}" ${draft.target === b.id ? "selected" : ""}>${esc(b.label)}${b.card ? " · Couple, ma carte" : ""} · ${money(b.amount)}</option>`).join("");
+    return `<div class="detail"><div class="label">Saisie existante</div><select class="input" data-field="target" data-id="${r.id}">${options}</select></div>`;
+  }
+  if (draft.choice === "durable" || draft.choice === "exceptionnelle") {
+    return `<div class="detail"><div class="label">Libellé</div><input class="input" data-field="label" data-id="${r.id}" value="${esc(draft.label || r.label)}"></div>`;
+  }
+  if (draft.choice === "portefeuille") {
+    return `<div class="detail"><div class="label">Enveloppe</div><select class="input" data-field="wallet" data-id="${r.id}"><option ${draft.wallet === "Sorties" ? "" : "selected"}>Courses</option><option ${draft.wallet === "Sorties" ? "selected" : ""}>Sorties</option></select></div>`;
+  }
+  return "";
+}
+function applyDraft(id) {
+  const row = rows.find((r) => r.id === id);
+  const draft = drafts[id];
+  if (!row || !draft) return;
+  let text = "";
+  if (draft.choice === "lien") {
+    const item = BUDGET.find((b) => b.id === draft.target) || BUDGET.find((b) => b.kind !== "wallet");
+    text = "Lier à " + (item ? item.label : "") + ", puis vérifier à l’enregistrement.";
+  } else if (draft.choice === "durable") {
+    text = "Créer la saisie durable « " + (draft.label || row.label) + " » à l’enregistrement.";
+  } else if (draft.choice === "exceptionnelle") {
+    text = "Créer l’exceptionnelle « " + (draft.label || row.label) + " » à l’enregistrement.";
+  } else if (draft.choice === "portefeuille") {
+    text = "Ajouter le mouvement dans " + (draft.wallet || "Courses") + " à l’enregistrement.";
+  }
+  decisions[id] = { text };
+}
 function render() {
   const list = document.getElementById("list");
   const stats = document.getElementById("stats");
@@ -286,7 +373,9 @@ function render() {
     } else if (r.source === "app") {
       prop = esc(r.item.label) + " · " + money(r.item.amount) + " · " + kindFr(r.item);
     }
-    const orange = r.proposal && r.proposal.item.id === "orange";
+    const hasProposal = r.source === "csv" && r.proposal;
+    const showChoices = !hasProposal || picking[r.id];
+    const orange = hasProposal && r.proposal.item.id === "orange";
     const amountBox = orange ? `
       <div class="amount-row">
         <input class="input" id="orange-amount" inputmode="decimal" value="${esc((decisions[r.id] && decisions[r.id].amount) || "42,80")}" aria-label="Montant retenu">
@@ -312,10 +401,9 @@ function render() {
           ${amountBox}
         </div>
       </div>
-      <div class="row-actions" style="margin-top:10px;">
-        <button type="button" class="btn btn-primary btn-sm" data-act="confirm" data-id="${r.id}">Confirmer</button>
-        <button type="button" class="btn btn-outline btn-sm" data-act="invalidate" data-id="${r.id}">Invalider</button>
-      </div>
+      ${actionsHtml(r, hasProposal, showChoices)}
+      ${hints[r.id] ? `<div class="hint">${esc(hints[r.id])}</div>` : ""}
+      ${detailHtml(r)}
       ${decided ? `<div class="status">${esc(decided.text)}</div>` : ""}
     </article>`;
   }).join("");
@@ -325,6 +413,9 @@ function loadText(text, name) {
   const ops = parseCsv(text);
   rows = ops.concat(unmatchedBudget(ops));
   decisions = {};
+  picking = {};
+  drafts = {};
+  hints = {};
   document.getElementById("drop-title").textContent = name;
   document.getElementById("drop-sub").textContent = ops.length + " lignes lues · rien n’est envoyé";
   render();
@@ -354,9 +445,6 @@ function confirmRow(id) {
     };
   } else if (row.source === "csv" && row.proposal) {
     decisions[id] = { text: "Rapprocher " + row.proposal.item.label + " et marquer vérifié." };
-  } else if (row.source === "csv") {
-    toast("Aucune proposition à confirmer. Invalide pour choisir un traitement.");
-    return;
   } else if (row.item.kind === "wallet") {
     decisions[id] = { text: "Marquer le mouvement " + row.item.label + " vérifié." };
   } else {
@@ -455,9 +543,61 @@ document.getElementById("list").addEventListener("click", (event) => {
   }
   const btn = event.target.closest("[data-act]");
   if (!btn) return;
-  if (btn.dataset.act === "confirm") confirmRow(btn.dataset.id);
-  else openSheet(btn.dataset.id);
+  const id = btn.dataset.id;
+  if (btn.dataset.act === "info") {
+    hints[id] = hints[id] === HINTS[btn.dataset.hint] ? "" : HINTS[btn.dataset.hint];
+    render();
+    return;
+  }
+  if (btn.dataset.act === "confirm") { confirmRow(id); return; }
+  if (btn.dataset.act === "invalidate") { picking[id] = true; render(); return; }
+  if (btn.dataset.act === "back") { delete picking[id]; delete drafts[id]; hints[id] = ""; render(); return; }
+  if (btn.dataset.act === "pick") pickChoice(id, btn.dataset.choice);
 });
+document.getElementById("list").addEventListener("change", (event) => {
+  const field = event.target.closest("[data-field]");
+  if (!field) return;
+  const draft = drafts[field.dataset.id];
+  if (!draft) return;
+  if (field.dataset.field === "target") draft.target = field.value;
+  if (field.dataset.field === "wallet") draft.wallet = field.value;
+  applyDraft(field.dataset.id);
+  render();
+});
+document.getElementById("list").addEventListener("input", (event) => {
+  const field = event.target.closest("[data-field='label']");
+  if (!field) return;
+  const draft = drafts[field.dataset.id];
+  if (!draft) return;
+  draft.label = field.value;
+  applyDraft(field.dataset.id);
+  const status = field.closest(".line").querySelector(".status");
+  if (status) status.textContent = decisions[field.dataset.id].text;
+});
+function pickChoice(id, choice) {
+  const row = rows.find((r) => r.id === id);
+  if (!row) return;
+  hints[id] = "";
+  if (choice === "oublier") {
+    decisions[id] = { text: "Oublier la ligne. Rien ne sera créé à l’enregistrement." };
+    delete drafts[id];
+  } else if (choice === "verifier") {
+    decisions[id] = { text: "Marquer « " + row.item.label + " » vérifié, sans ligne de CSV." };
+  } else if (choice === "retirer") {
+    decisions[id] = { text: "Retirer la validation de " + money(row.item.amount) + " à l’enregistrement. La saisie reste." };
+  } else if (choice === "supprimer") {
+    decisions[id] = { text: "Supprimer le mouvement " + row.item.label + " à l’enregistrement. L’enveloppe reste." };
+  } else {
+    drafts[id] = {
+      choice,
+      target: (BUDGET.find((b) => b.kind !== "wallet") || {}).id,
+      label: row.label,
+      wallet: "Courses"
+    };
+    applyDraft(id);
+  }
+  render();
+}
 document.getElementById("sheet-body").addEventListener("click", (event) => {
   const choice = event.target.closest("[data-choice]");
   if (!choice) return;
