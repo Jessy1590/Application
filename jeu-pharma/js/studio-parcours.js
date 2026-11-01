@@ -17,6 +17,7 @@
   function esc(s) { return global.JpUi.escapeHtml(String(s ?? '')); }
 
   const AUTOSAVE_MS = 900;
+  const EXAM_BLOC_ID = '__examen__';
   const TYPE_LABELS = {
     section: 'Section',
     texte: 'Texte', video: 'Vidéo', photo: 'Photo', molecule: 'Molécules',
@@ -390,6 +391,7 @@
     const sameBloc = prevId && id && prevId === id;
     if (o.toContenu) state.viewMode = 'contenu';
     if (o.inspectorTab) state.inspectorTab = o.inspectorTab;
+    else if (id === EXAM_BLOC_ID) state.inspectorTab = 'lecon';
     else if (id) state.inspectorTab = 'bloc';
     if (!sameBloc) state.variantTab = 'base';
     state.selectedBlocId = id || null;
@@ -444,6 +446,27 @@
       return;
     }
     const shown = visibleBlocs();
+    if (state.selectedBlocId === EXAM_BLOC_ID) {
+      const m = selectedModule();
+      clearEditors();
+      let pane = layout.querySelector('.jp-contenu-editor');
+      if (!pane) {
+        pane = document.createElement('div');
+        pane.className = 'jp-contenu-editor';
+        layout.appendChild(pane);
+      }
+      layout.querySelectorAll(':scope > .jp-block-card').forEach((n) => n.remove());
+      if (!(m && m.criteres_json && m.criteres_json.examen)) {
+        state.selectedBlocId = null;
+      } else {
+        pane.innerHTML = '<article class="jp-block-card jp-block-contenu jp-block-exam">'
+          + '<header><span class="jp-block-type">Examen</span>'
+          + '<span class="jp-block-title-ro">Épreuves, poids et note</span></header>'
+          + '<div class="jp-block-body">' + examFormHtml(m) + '</div></article>';
+        bindExamAdmin();
+        return;
+      }
+    }
     let b = shown.find((x) => x.id === state.selectedBlocId) || null;
     if (!b) {
       b = shown.find((x) => x.type_bloc !== 'section') || shown[0];
@@ -471,6 +494,7 @@
       + '<input class="jp-block-title" data-field="titre" data-id="' + b.id + '" value="' + esc(effTitre(b)) + '" placeholder="'
       + (b.type_bloc === 'section' ? 'Titre de la section' : 'Titre du bloc (facultatif)') + '" aria-label="Titre">'
       + tag
+      + examCoeffBadge(b)
       + plageBadge(b.niveau_min, b.niveau_max)
       + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer" aria-label="Supprimer">×</button>'
       + '</header>'
@@ -1806,7 +1830,7 @@
         list.querySelectorAll('.jp-block-card').forEach((c) => c.classList.remove('is-dragging', 'is-drop-target'));
       });
     });
-    list.querySelectorAll('.jp-block-card').forEach((card) => {
+    list.querySelectorAll('.jp-block-card:not(.jp-block-exam)').forEach((card) => {
       card.addEventListener('dragover', (ev) => {
         if (!dragBlocId) return;
         ev.preventDefault();
@@ -3008,8 +3032,21 @@
     return out;
   }
 
-  function examAdminHtml(m) {
-    if (!m || !(m.criteres_json && m.criteres_json.examen)) return '';
+  function lessonIsExam(m) {
+    const mod = m || selectedModule();
+    return !!(mod && mod.criteres_json && mod.criteres_json.examen);
+  }
+
+  function examCoeffBadge(bloc) {
+    if (!lessonIsExam() || !bloc || bloc.type_bloc !== 'jeu') return '';
+    const id = String((effPayload(bloc) || {}).modele_id || '');
+    const jeux = ((selectedModule() || {}).criteres_json || {}).jeux || [];
+    const row = jeux.find((j) => j && String(j.modele_id) === id);
+    const n = row && Number(row.poids) > 0 ? Number(row.poids) : 1;
+    return '<span class="jp-exam-coeff">coeff. ' + esc(String(n).replace('.', ',')) + '</span>';
+  }
+
+  function examFormHtml(m) {
     const poids = {};
     (m.criteres_json.jeux || []).forEach((j) => {
       if (j && j.modele_id) poids[String(j.modele_id)] = Number(j.poids) > 0 ? Number(j.poids) : 1;
@@ -3027,16 +3064,30 @@
         + '</li>';
     }).join('');
     const min10 = (Number(m.criteres_json.note_min_pct) || 0) / 10;
-    return '<section class="jp-exam-admin" id="jpExamAdmin">'
-      + '<h2>Examen</h2>'
-      + '<p class="jp-muted">Un passage donne une seule note : la moyenne pondérée des épreuves. '
+    return '<p class="jp-muted">Un passage donne une seule note : la moyenne pondérée des épreuves. '
       + 'La note de la personne est la moyenne de tous ses passages. Elle peut repasser l’examen.</p>'
       + (rows ? '<ul class="jp-exam-admin-list">' + rows + '</ul>' : '<p class="jp-muted">Ajoutez des blocs jeu : ce sont les épreuves.</p>')
       + '<div class="jp-field jp-field-tight"><label for="jpExamMin">Note minimale pour valider (/10)</label>'
       + '<input id="jpExamMin" type="number" min="0" max="10" step="0.5" value="' + esc(String(min10)) + '">'
       + '<small class="jp-field-hint">0 = la leçon est validée dès qu’un passage est terminé. La note affichée reste la moyenne.</small></div>'
-      + '<button type="button" class="jp-btn jp-btn-primary" id="jpExamSave">Enregistrer l’examen</button>'
-      + '</section>';
+      + '<button type="button" class="jp-btn jp-btn-primary" id="jpExamSave">Enregistrer l’examen</button>';
+  }
+
+  function examStructureHtml() {
+    if (!lessonIsExam()) return '';
+    return '<article class="jp-block-card jp-block-row jp-block-exam">'
+      + '<header>'
+      + '<span class="jp-block-type">Examen</span>'
+      + '<span class="jp-block-title-ro">Épreuves, poids, note</span>'
+      + '<button type="button" class="jp-btn jp-btn-ghost jp-block-open" data-open-exam>Ouvrir</button>'
+      + '</header></article>';
+  }
+
+  function bindExamOpen(root) {
+    root.querySelector('[data-open-exam]')?.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      selectBloc(EXAM_BLOC_ID, { toContenu: true, inspectorTab: 'lecon' });
+    });
   }
 
   function bindExamAdmin() {
@@ -3087,28 +3138,29 @@
     syncViewModeToggle();
     const list = document.getElementById('blocksList');
     if (!list) return;
-    const examHtml = examAdminHtml(selectedModule());
     const all = state.blocs;
     const shown = visibleBlocs();
-    if (!all.length) {
-      list.innerHTML = examHtml + '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
-      bindExamAdmin();
-      updateStatus();
-      return;
-    }
-    if (!shown.length) {
-      list.innerHTML = examHtml + '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
-      bindExamAdmin();
+    const examOn = lessonIsExam();
+    if (state.selectedBlocId === EXAM_BLOC_ID && !examOn) state.selectedBlocId = null;
+    if (!shown.length && !examOn) {
+      list.innerHTML = '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>';
       updateStatus();
       return;
     }
 
     if (state.viewMode === 'contenu') {
       let b = shown.find((x) => x.id === state.selectedBlocId) || null;
-      if (!b) {
+      if (state.selectedBlocId !== EXAM_BLOC_ID && !b) {
         b = shown.find((x) => x.type_bloc !== 'section') || shown[0];
-        state.selectedBlocId = b ? b.id : null;
+        state.selectedBlocId = b ? b.id : (examOn ? EXAM_BLOC_ID : null);
       }
+      const examItem = examOn
+        ? '<button type="button" class="jp-outline-item is-exam'
+          + (state.selectedBlocId === EXAM_BLOC_ID ? ' is-active' : '')
+          + '" data-outline="' + EXAM_BLOC_ID + '">'
+          + '<span class="jp-outline-type">Examen</span>'
+          + '<span class="jp-outline-title">Poids et note</span></button>'
+        : '';
       const outline = shown.map((x) => {
         const on = x.id === state.selectedBlocId ? ' is-active' : '';
         const sec = x.type_bloc === 'section' ? ' is-section' : '';
@@ -3116,26 +3168,26 @@
         return '<button type="button" class="jp-outline-item' + on + sec + '" data-outline="' + x.id + '">'
           + '<span class="jp-outline-type">' + esc(TYPE_LABELS[x.type_bloc] || x.type_bloc) + '</span>'
           + '<span class="jp-outline-title">' + esc(effTitre(x) || 'Sans titre') + '</span>'
+          + examCoeffBadge(x)
           + plageBadge(x.niveau_min, x.niveau_max)
           + (vc ? '<span class="jp-outline-var" title="Variantes">+' + vc + '</span>' : '')
           + '</button>';
       }).join('');
-      list.innerHTML = examHtml + '<div class="jp-contenu-layout">'
-        + '<nav class="jp-outline" aria-label="Blocs de la leçon">' + outline + '</nav>'
+      list.innerHTML = '<div class="jp-contenu-layout">'
+        + '<nav class="jp-outline" aria-label="Blocs de la leçon">' + examItem + outline + '</nav>'
         + '<div class="jp-contenu-editor"></div></div>';
       list.querySelectorAll('[data-outline]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const nid = btn.getAttribute('data-outline');
           if (nid === state.selectedBlocId) return;
-          selectBloc(nid, { inspectorTab: 'bloc' });
+          selectBloc(nid, { inspectorTab: nid === EXAM_BLOC_ID ? 'lecon' : 'bloc' });
         });
       });
       paintContenuEditorOnly();
       ensureOutlineVisible(state.selectedBlocId);
-      bindExamAdmin();
     } else {
       // Structure : lignes compactes + sections en bandeau
-      list.innerHTML = examHtml + shown.map((b) => {
+      list.innerHTML = examStructureHtml() + (shown.length ? '' : '<p class="jp-muted jp-studio-empty">Aucun bloc — utilisez « Ajouter » ci-dessus.</p>') + shown.map((b) => {
         const i = all.findIndex((x) => x.id === b.id);
         const tag = hasPending(b)
           ? '<span class="jp-bloc-tag">' + (isHidden(b) ? 'nouveau' : 'brouillon') + '</span>'
@@ -3161,7 +3213,7 @@
           + '<span class="jp-block-type">' + esc(TYPE_LABELS[b.type_bloc] || b.type_bloc) + '</span>'
           + '<span class="jp-block-title-ro">' + esc(effTitre(b) || 'Sans titre') + '</span>'
           + '</button>'
-          + tag + plageBadge(b.niveau_min, b.niveau_max)
+          + tag + examCoeffBadge(b) + plageBadge(b.niveau_min, b.niveau_max)
           + (vc ? '<span class="jp-outline-var">+' + vc + ' var.</span>' : '')
           + '<button type="button" class="jp-btn jp-btn-ghost jp-block-open" data-open="' + b.id + '">Écrire</button>'
           + '<button type="button" class="jp-block-del" data-del="' + b.id + '" title="Supprimer" aria-label="Supprimer">×</button>'
@@ -3185,6 +3237,7 @@
         });
       });
       bindBlockReorder(list);
+      bindExamOpen(list);
     }
 
     if (state.focusBlocId) {
@@ -3197,7 +3250,6 @@
       if (m) void renderInspector(m);
       return;
     }
-    if (state.viewMode !== 'contenu') bindExamAdmin();
     updateStatus();
     });
   }
@@ -3923,7 +3975,7 @@
     body.innerHTML = inspFold('Leçon',
       '<label class="jp-quiz-admin-champ"><input type="checkbox" id="metaExamen"'
       + (examOn ? ' checked' : '') + '> Examen</label>'
-      + '<p class="jp-muted jp-field-hint">Affiche un bloc Examen en haut de la leçon : épreuves, poids, et une seule note (moyenne des passages).</p>'
+      + '<p class="jp-muted jp-field-hint">Ajoute un bloc Examen en tête de la liste. Ouvrez-le pour régler les poids et la note. Les autres blocs restent compacts.</p>'
       + '<div class="jp-field"><label for="metaTitreLecon">Titre</label>'
       + '<input id="metaTitreLecon" value="' + esc(m.titre || '') + '" placeholder="Titre de la leçon"></div>'
       + '<div class="jp-field"><label for="metaResumeLecon">Résumé</label>'
@@ -3965,6 +4017,7 @@
       try {
         const row = await rpc('v2_upsert_module', { p_payload: { id: m.id, criteres_json: crit } });
         m.criteres_json = row.criteres_json || crit;
+        if (!on && state.selectedBlocId === EXAM_BLOC_ID) state.selectedBlocId = null;
         paintBlocks();
         global.JpToast?.ok?.(on ? 'Examen activé' : 'Examen désactivé');
       } catch (e) {

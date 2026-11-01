@@ -31,25 +31,126 @@ Object.assign(BH, {
 
     showResteInfo(accId) { this.showResteDetail(accId); },
 
+    // Clé `apportRecu_<userId>` : part d'un autre membre notée arrivée ici,
+    // dans paid_incomes du mois DU COMPTE PARTAGÉ. Distincte de `apport_<compteCible>`
+    // (virement sortant, mois du compte principal de celui qui vire).
+    inboundApportId(userId) {
+      return 'apportRecu_' + userId;
+    },
+    inboundApportRecord(accId, userId, mKey) {
+      if (!userId) return null;
+      return (this.state.monthsIncomes?.[accId + '_' + mKey] || {})[this.inboundApportId(userId)] || null;
+    },
+    ownOutboundApportRecord(accId, mKey) {
+      const mainAccId = this.state.profile?.main_account_id;
+      if (!mainAccId || typeof this.apportExpenseId !== 'function') return null;
+      return (this.state.months?.[mainAccId + '_' + mKey] || {})[this.apportExpenseId(accId)] || null;
+    },
+    // Pour soi : la note d'arrivée sur ce compte, sinon le virement sortant — jamais les deux.
+    // Pour un autre : seulement la note d'arrivée sur ce compte.
+    arrivedApport(accId, userId, mKey) {
+      const inbound = this.inboundApportRecord(accId, userId, mKey);
+      if (this.user && userId === this.user.id) return inbound || this.ownOutboundApportRecord(accId, mKey);
+      return inbound;
+    },
+    fairSharesForAccount(accId) {
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const mems = (this.state.members || []).filter(m => m.account_id === accId);
+      if (!acc) return { acc: null, mems, shares: {}, isMain: false };
+      let tExp = 0, tInc = 0;
+      (this.state.expenses || []).forEach(e => {
+        if (e.account_id === accId && this.isExpenseActive(e)) tExp += Number(e.amount) || 0;
+      });
+      (this.state.incomes || []).forEach(i => {
+        if (i.account_id === accId) tInc += Number(i.amount) || 0;
+      });
+      return {
+        acc, mems,
+        shares: this.computeFairShares(acc, mems, tExp, tInc),
+        isMain: accId === this.state.profile?.main_account_id
+      };
+    },
+    theoApportRows(accId) {
+      const { mems, shares, isMain } = this.fairSharesForAccount(accId);
+      if (isMain || mems.length < 2) return '';
+      const mKey = this.comptesMKey();
+      let rows = '';
+      mems.forEach(m => {
+        const share = Number(shares[m.user_id]) || 0;
+        const inbound = this.inboundApportRecord(accId, m.user_id, mKey);
+        const arrived = this.arrivedApport(accId, m.user_id, mKey);
+        if (!(share > 0.004) && !arrived) return;
+        const name = this.esc((m.profiles && m.profiles.display_name) || 'Membre');
+        const mine = !!(this.user && m.user_id === this.user.id);
+        const shown = share > 0.004 ? share : (Number(arrived && arrived.amount) || 0);
+        let action = '';
+        if (!mine && /^[0-9a-f-]{36}$/i.test(String(m.user_id)) && /^[0-9a-f-]{36}$/i.test(String(accId))) {
+          const uid = this.esc(m.user_id);
+          const aid = this.esc(accId);
+          if (inbound) {
+            action = `<button type="button" class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px; flex:0 0 auto;" onclick="BH.unmarkInboundApport('${aid}','${uid}')">Annuler</button>`;
+          } else if (share > 0.004) {
+            action = `<button type="button" class="bh-btn bh-btn-primary" style="padding:7px 10px; font-size:12px; flex:0 0 auto;" onclick="BH.markInboundApport('${aid}','${uid}')">Validé</button>`;
+          }
+        }
+        const status = (mine ? !!arrived : !!inbound) ? 'déjà validé' : (mine ? "à valider dans Aujourd'hui" : '');
+        rows += `<div class="bh-info-row"><span>Apport · ${name}${mine ? ' · moi' : ''}${status ? ` <span class="bh-detail-meta">${status}</span>` : ''}</span><span style="display:flex; align-items:center; gap:8px;"><span class="num">${this.fmt(shown)}</span>${action}</span></div>`;
+      });
+      return rows;
+    },
+    async markInboundApport(accId, userId) {
+      if (!this.user || String(userId) === String(this.user.id)) return;
+      const { mems, shares, isMain } = this.fairSharesForAccount(accId);
+      if (isMain || !mems.some(m => m.user_id === this.user.id) || !mems.some(m => String(m.user_id) === String(userId))) return;
+      const share = Math.round((Number(shares[userId]) || 0) * 100) / 100;
+      if (!(share > 0)) return;
+      const mKey = this.comptesMKey();
+      const res = await this.commit(
+        'validation de l\'apport reçu',
+        () => this.setPaid('income', this.inboundApportId(userId), accId, mKey, share),
+        'Apport validé'
+      );
+      if (res) this.showIncomesList(accId);
+    },
+    async unmarkInboundApport(accId, userId) {
+      if (!this.user || String(userId) === String(this.user.id)) return;
+      const mKey = this.comptesMKey();
+      const res = await this.commit(
+        'annulation de l\'apport reçu',
+        () => this.clearPaid('income', this.inboundApportId(userId), accId, mKey),
+        'Validation annulée'
+      );
+      if (res) this.showIncomesList(accId);
+    },
+
     showIncomesList(accId) {
       const info = this.acctIncomesList && this.acctIncomesList[accId];
-      if (!info || !info.incs.length) {
-        this.openInfo('Revenus / Remboursements', `<div style="font-size:13px; color:var(--ink-soft);">Aucun revenu saisi pour ce compte.</div>`);
-        return;
-      }
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const accName = (info && info.accName) || (acc && acc.name) || 'Compte';
+      const incs = info ? info.incs : (this.state.incomes || []).filter(i => i.account_id === accId);
       const mKey = this.comptesMKey();
       const paid = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
-      const rows = info.incs.map(i => {
-        const rec = paid[i.id];
-        const tag = rec ? ` <span class="bh-detail-meta">encaissé ${this.fmt(Number(rec.amount) || 0)}</span>` : ' <span class="bh-detail-meta">prévu</span>';
-        return `
+      let rows = '';
+      if (incs.length) {
+        rows = incs.map(i => {
+          const rec = paid[i.id];
+          const tag = rec ? ` <span class="bh-detail-meta">encaissé ${this.fmt(Number(rec.amount) || 0)}</span>` : ' <span class="bh-detail-meta">prévu</span>';
+          return `
         <div class="bh-info-row">
           <span>${this.esc(i.description || 'Revenu')}${tag}</span>
           <span class="num">${this.fmt(Number(i.amount))}</span>
         </div>`;
-      }).join('');
-      const total = info.incs.reduce((s,i)=>s+Number(i.amount),0);
-      this.openInfo(`${info.accName} — revenus saisis`, rows + `<div class="bh-info-row" style="margin-top:4px;"><span>Total</span><span class="num">${this.fmt(total)}</span></div>`);
+        }).join('');
+        const total = incs.reduce((s, i) => s + Number(i.amount), 0);
+        rows += `<div class="bh-info-row" style="margin-top:4px;"><span>Total</span><span class="num">${this.fmt(total)}</span></div>`;
+      }
+      const apportRows = this.theoApportRows(accId);
+      if (!rows && !apportRows) {
+        this.openInfo('Revenus / Remboursements', `<div style="font-size:13px; color:var(--ink-soft);">Aucun revenu saisi pour ce compte.</div>`);
+        return;
+      }
+      if (apportRows) rows += `<div class="bh-section-label">Apports</div>${apportRows}`;
+      this.openInfo(apportRows ? `${accName} — revenus et apports` : `${accName} — revenus saisis`, rows);
     },
 
     showResteTheoInfo(accId) {
@@ -388,9 +489,11 @@ Object.assign(BH, {
           : (tExp + walletApportsOutMonth);
         const apportIn = isMain ? 0 : totalAllocated;
         let apportValide = 0;
-        if (!isMain && mainAccId) {
-          const paidApport = this.state.months[mainAccId + '_' + mKey]?.[this.apportExpenseId(acc.id)];
-          if (paidApport) apportValide = Number(paidApport.amount) || 0;
+        if (!isMain) {
+          mems.forEach(m => {
+            const rec = this.arrivedApport(acc.id, m.user_id, mKey);
+            if (rec) apportValide += Number(rec.amount) || 0;
+          });
         }
         let apportReste = 0;
         if (isMain) {
@@ -819,13 +922,38 @@ Object.assign(BH, {
           pending += this.detailLine(label, amt);
         }
       });
-      if (v && v.apportValide > 0) {
-        totalOk += v.apportValide;
-        validated += this.detailLine('Apport validé', v.apportValide);
-      }
-      if (v && v.apportReste > 0) {
-        totalWait += v.apportReste;
-        pending += this.detailLine('Apport pas encore validé', v.apportReste);
+      const shareInfo = this.fairSharesForAccount(accId);
+      if (v && !shareInfo.isMain && shareInfo.mems.length > 1) {
+        let listedOk = 0, listedWait = 0;
+        shareInfo.mems.forEach(m => {
+          const share = Number(shareInfo.shares[m.user_id]) || 0;
+          const rec = this.arrivedApport(accId, m.user_id, mKey);
+          const amtPaid = rec ? (Number(rec.amount) || 0) : 0;
+          const name = this.esc((m.profiles && m.profiles.display_name) || 'Membre');
+          const me = this.user && m.user_id === this.user.id ? ' · moi' : '';
+          if (amtPaid > 0.004) {
+            listedOk += amtPaid;
+            validated += this.detailLine('Apport · ' + name + me, amtPaid);
+          } else if (share > 0.004) {
+            listedWait += share;
+            pending += this.detailLine('Apport · ' + name + me, share);
+          }
+        });
+        const okGap = (v.apportValide || 0) - listedOk;
+        const waitGap = (v.apportReste || 0) - listedWait;
+        if (okGap > 0.004) validated += this.detailLine('Apport validé', okGap);
+        if (waitGap > 0.004) pending += this.detailLine('Apport pas encore validé', waitGap);
+        totalOk += v.apportValide || 0;
+        totalWait += v.apportReste || 0;
+      } else {
+        if (v && v.apportValide > 0) {
+          totalOk += v.apportValide;
+          validated += this.detailLine('Apport validé', v.apportValide);
+        }
+        if (v && v.apportReste > 0) {
+          totalWait += v.apportReste;
+          pending += this.detailLine('Apport pas encore validé', v.apportReste);
+        }
       }
       if (!validated) validated = `<div class="bh-info-row"><span>Rien de validé</span><span class="num">${this.fmt(0)}</span></div>`;
       else validated += this.detailLine('<strong>Total validé</strong>', totalOk);

@@ -932,7 +932,7 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   padding: 0.35rem 0.2rem;
   color: var(--jp-text-muted, #4a5c56);
 }
-.jp-examen-steps li span {
+.jp-examen-steps li .jp-examen-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -943,9 +943,21 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   color: var(--jp-accent, #0f6b5c);
   font-weight: 700;
   font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.jp-examen-step-title { flex: 1; min-width: 0; }
+.jp-examen-coeff {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(180, 83, 9, 0.12);
+  color: #9a3412;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 .jp-examen-steps li.is-current { color: var(--jp-text, #14201c); font-weight: 650; }
-.jp-examen-steps li.is-done span { background: var(--jp-accent, #0f6b5c); color: #fff; }
+.jp-examen-steps li.is-done .jp-examen-num { background: var(--jp-accent, #0f6b5c); color: #fff; }
 .jp-examen-status { margin: 0; font-weight: 600; }
 .jp-examen-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .jp-examen-history h2 { font-size: 1rem; margin: 0.2rem 0; }

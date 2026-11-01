@@ -258,8 +258,11 @@
     const embed = !!o.embed;
     const lessonId = (req && !req.groupe && req.moduleId) || ctx.moduleId;
     const pid = (req && req.parcoursId) || ctx.parcoursId;
-    let html = '<button type="button" class="jp-btn jp-btn-primary" id="btnReplay">'
-      + (embed ? 'Nouvelle tentative' : 'Rejouer') + '</button>';
+    let html = '';
+    if (!(embed && o.singleAttempt)) {
+      html += '<button type="button" class="jp-btn jp-btn-primary" id="btnReplay">'
+        + (embed ? 'Nouvelle tentative' : 'Rejouer') + '</button>';
+    }
     if (!embed && lessonId) {
       html += '<a class="jp-btn jp-btn-ghost" href="../lecon.html?module=' + encodeURIComponent(lessonId) + '">← Retour à la leçon</a>';
     }
@@ -292,7 +295,8 @@
         else location.reload();
       });
     }
-    actions.innerHTML = scoreActions(ctx, null, Object.assign({}, o, { embed: embed }));
+    const singleAttempt = !!(o.singleAttempt || pOpts.singleAttempt);
+    actions.innerHTML = scoreActions(ctx, null, Object.assign({}, o, { embed: embed, singleAttempt: singleAttempt }));
     wire();
     if (o.saved) { try { await o.saved; } catch (_) { return; } }
     const req = await findRequirement(modele, ctx);
@@ -314,7 +318,7 @@
       reqEl.textContent = 'Score minimum requis : ' + PU.sur10(req.min) + ' pour valider ' + cible + '. Rejouez pour progresser.';
     }
     reqEl.hidden = false;
-    actions.innerHTML = scoreActions(ctx, req, Object.assign({}, o, { embed: embed }));
+    actions.innerHTML = scoreActions(ctx, req, Object.assign({}, o, { embed: embed, singleAttempt: singleAttempt }));
     wire();
   }
 

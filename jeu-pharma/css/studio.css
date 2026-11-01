@@ -2237,14 +2237,33 @@
   font-size: 0.78rem;
   font-weight: 650;
 }
-.jp-exam-admin {
-  margin: 0 0 0.9rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--jp-line, #d5e0db);
-  border-radius: 12px;
-  background: var(--jp-paper, #fff);
+.jp-block-card.jp-block-exam {
+  border-left: 4px solid #b45309;
+  background: linear-gradient(90deg, rgba(180, 83, 9, 0.12), rgba(255, 255, 255, 0.94));
 }
-.jp-exam-admin h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
+.jp-block-card.jp-block-exam > header {
+  background: linear-gradient(180deg, rgba(180, 83, 9, 0.16), rgba(180, 83, 9, 0.05));
+}
+.jp-block-card.jp-block-exam .jp-block-type {
+  background: #b45309;
+  color: #fff;
+}
+.jp-outline-item.is-exam .jp-outline-type { color: #b45309; font-weight: 700; }
+.jp-outline-item.is-exam.is-active {
+  border-color: #b45309;
+  background: rgba(180, 83, 9, 0.1);
+}
+.jp-exam-coeff {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(180, 83, 9, 0.14);
+  color: #9a3412;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .jp-exam-admin-list { list-style: none; margin: 0.4rem 0 0.7rem; padding: 0; }
 .jp-exam-admin-row {
   display: flex;

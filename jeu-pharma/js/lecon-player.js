@@ -691,15 +691,25 @@
 
   /* ——— Examen : plusieurs jeux, une note, reprises illimitées ——— */
 
+  function coeffLabel(poids) {
+    const n = Number(poids) > 0 ? Number(poids) : 1;
+    return String(n).replace('.', ',');
+  }
+
   function examShellHtml(games) {
     const steps = (games || []).map(function (g, i) {
-      return '<li data-exam-step="' + i + '"><span>' + (i + 1) + '</span> ' + esc(g.titre || 'Épreuve') + '</li>';
+      return '<li data-exam-step="' + i + '">'
+        + '<span class="jp-examen-num">' + (i + 1) + '</span>'
+        + '<span class="jp-examen-step-title">' + esc(g.titre || 'Épreuve') + '</span>'
+        + '<span class="jp-examen-coeff">coeff. ' + esc(coeffLabel(g.poids)) + '</span>'
+        + '</li>';
     }).join('');
     return '<section class="jp-examen" id="jpExamen">'
       + '<h2 class="jp-examen-title">Examen</h2>'
       + '<p class="jp-examen-lead">' + (games || []).length
       + ' épreuves, dans l’ordre. La note d’un passage est la moyenne pondérée des épreuves. '
-      + 'Votre note est la moyenne de tous vos passages. Vous pouvez repasser l’examen.</p>'
+      + 'Votre note est la moyenne de tous vos passages. '
+      + 'Au premier passage, chaque épreuve ne se joue qu’une fois. Ensuite, vous pouvez repasser l’examen.</p>'
       + '<p class="jp-examen-moyenne" id="jpExamenMoyenne"></p>'
       + '<ol class="jp-examen-steps">' + steps + '</ol>'
       + '<p class="jp-examen-status" id="jpExamenStatus"></p>'
@@ -720,6 +730,7 @@
     let passage = null;
     let index = 0;
     let busy = false;
+    let uneSeule = true;
 
     function paintSteps() {
       const done = (passage && passage.detail) || [];
@@ -743,6 +754,7 @@
       const rows = data || [];
       const open = rows.find((r) => !r.termine_at) || null;
       const closed = rows.filter((r) => r.termine_at && Array.isArray(r.detail) && r.detail.length >= games.length);
+      uneSeule = closed.length === 0;
       const moyEl = host.querySelector('#jpExamenMoyenne');
       if (moyEl) {
         if (closed.length) {
@@ -857,7 +869,8 @@
       if (!game || !game.code) throw new Error('Épreuve sans jeu');
       mountEl.hidden = false;
       mountEl.innerHTML = '<p class="jp-muted">Préparation de l’épreuve ' + (index + 1) + ' / ' + games.length + '…</p>';
-      setStatus('Épreuve ' + (index + 1) + ' / ' + games.length + ' — ' + (game.titre || ''));
+      setStatus('Épreuve ' + (index + 1) + ' / ' + games.length + ' — ' + (game.titre || '')
+        + (uneSeule ? ' — une seule tentative' : ''));
       showActions([]);
       paintSteps();
       await global.JpJeuxPlay.boot(mountEl, game.code, {
@@ -865,7 +878,8 @@
         moduleId: module.id,
         parcoursId: module.parcours_id,
         passageId: passage && passage.id ? passage.id : null,
-        onReplay: function () { void mountStation(); },
+        singleAttempt: uneSeule,
+        onReplay: uneSeule ? null : function () { void mountStation(); },
         onFinished: function (res) { void onStationFinished(res); },
       });
     }
@@ -928,13 +942,15 @@
       if (open) {
         passage = open;
         passage.detail = Array.isArray(open.detail) ? open.detail : [];
-        setStatus('Examen en cours — ' + passage.detail.length + ' / ' + games.length + ' épreuves enregistrées.');
-        showActions([
-          { id: 'resume', label: 'Reprendre', primary: true },
-          { id: 'restart', label: 'Recommencer' },
-        ]);
+        setStatus('Examen en cours — ' + passage.detail.length + ' / ' + games.length + ' épreuves enregistrées.'
+          + (uneSeule ? ' Une seule tentative par épreuve pour ce premier passage.' : ''));
+        const acts = [{ id: 'resume', label: 'Reprendre', primary: true }];
+        if (!uneSeule) acts.push({ id: 'restart', label: 'Recommencer' });
+        showActions(acts);
       } else {
-        setStatus(games.length + ' épreuves. La note du passage est la moyenne pondérée. Votre note est la moyenne de tous vos passages.');
+        setStatus(uneSeule
+          ? games.length + ' épreuves. Une seule tentative par épreuve pour ce premier passage.'
+          : games.length + ' épreuves. La note du passage est la moyenne pondérée. Votre note est la moyenne de tous vos passages.');
         showActions([{ id: 'start', label: 'Commencer l’examen', primary: true }]);
       }
       paintSteps();
