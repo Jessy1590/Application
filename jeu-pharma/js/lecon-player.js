@@ -673,6 +673,232 @@
     (carousels || []).forEach((c) => c.fit());
   }
 
+  /* ——— Examen : plusieurs jeux, une note, reprises illimitées ——— */
+
+  function examShellHtml(games) {
+    const steps = (games || []).map(function (g, i) {
+      return '<li data-exam-step="' + i + '"><span>' + (i + 1) + '</span> ' + esc(g.titre || 'Épreuve') + '</li>';
+    }).join('');
+    return '<section class="jp-examen" id="jpExamen">'
+      + '<p class="jp-examen-lead">' + (games || []).length
+      + ' épreuves, dans l’ordre. La note est la moyenne des épreuves. Vous pouvez repasser l’examen.</p>'
+      + '<ol class="jp-examen-steps">' + steps + '</ol>'
+      + '<p class="jp-examen-status" id="jpExamenStatus"></p>'
+      + '<div class="jp-examen-actions" id="jpExamenActions"></div>'
+      + '<div class="jp-examen-mount" id="jpExamenMount" hidden></div>'
+      + '<div class="jp-examen-history" id="jpExamenHistory"></div>'
+      + '</section>';
+  }
+
+  async function startExamen(root, module, games, preview, onProgress) {
+    const host = root.querySelector('#jpExamen');
+    if (!host || !games.length) return;
+    const statusEl = host.querySelector('#jpExamenStatus');
+    const actionsEl = host.querySelector('#jpExamenActions');
+    const mountEl = host.querySelector('#jpExamenMount');
+    const historyEl = host.querySelector('#jpExamenHistory');
+    const steps = Array.from(host.querySelectorAll('[data-exam-step]'));
+    let passage = null;
+    let index = 0;
+    let busy = false;
+
+    function paintSteps() {
+      const done = (passage && passage.detail) || [];
+      const closed = !!(passage && passage.termine_at);
+      steps.forEach(function (li, i) {
+        li.classList.toggle('is-done', closed || i < done.length);
+        li.classList.toggle('is-current', !closed && !mountEl.hidden && i === index);
+      });
+    }
+
+    function setStatus(text) { statusEl.textContent = text || ''; }
+
+    async function loadHistory() {
+      const { data, error } = await sb()
+        .from('passages_examen')
+        .select('id, started_at, termine_at, note_pct, detail')
+        .eq('module_id', module.id)
+        .order('started_at', { ascending: false })
+        .limit(12);
+      if (error) throw error;
+      const rows = data || [];
+      const open = rows.find((r) => !r.termine_at) || null;
+      const closed = rows.filter((r) => r.termine_at && Array.isArray(r.detail) && r.detail.length >= games.length);
+      historyEl.innerHTML = closed.length
+        ? '<h2>Notes enregistrées</h2><ul>' + closed.map(function (r) {
+          const when = global.JpParcoursUi.fmtDate(r.termine_at || r.started_at);
+          return '<li>' + esc(when) + ' — <strong>' + esc(global.JpParcoursUi.sur10(r.note_pct)) + '</strong></li>';
+        }).join('') + '</ul>'
+        : '';
+      return open;
+    }
+
+    async function ensurePassage(reset) {
+      if (preview) {
+        if (!passage || passage.termine_at || reset) {
+          passage = { id: null, detail: [], termine_at: null, note_pct: null };
+        }
+        return passage;
+      }
+      const user = await global.JpApp.getUser();
+      if (!user) throw new Error('Non connecté');
+      if (passage && !passage.termine_at && !reset) return passage;
+      if (reset && passage && !passage.termine_at) {
+        const { error } = await sb().from('passages_examen').update({
+          detail: [],
+          started_at: new Date().toISOString(),
+        }).eq('id', passage.id);
+        if (error) throw error;
+        passage.detail = [];
+        return passage;
+      }
+      const { data, error } = await sb().from('passages_examen').insert({
+        user_id: user.id,
+        module_id: module.id,
+        detail: [],
+      }).select('id, detail, termine_at, note_pct').single();
+      if (error) throw error;
+      passage = data;
+      passage.detail = passage.detail || [];
+      return passage;
+    }
+
+    function showActions(btns) {
+      actionsEl.innerHTML = btns.map(function (b) {
+        return '<button type="button" class="jp-btn ' + (b.primary ? 'jp-btn-primary' : 'jp-btn-ghost')
+          + ' jp-btn-touch" data-exam-act="' + esc(b.id) + '">' + esc(b.label) + '</button>';
+      }).join('');
+      actionsEl.querySelectorAll('[data-exam-act]').forEach(function (btn) {
+        btn.addEventListener('click', function () { void onAct(btn.getAttribute('data-exam-act')); });
+      });
+    }
+
+    async function persistDetail() {
+      if (preview || !passage || !passage.id) return;
+      const { error } = await sb().from('passages_examen').update({
+        detail: passage.detail,
+      }).eq('id', passage.id);
+      if (error) throw error;
+    }
+
+    async function closePassage() {
+      const detail = passage.detail || [];
+      const pcts = detail.map(function (d) { return Number(d.pct) || 0; });
+      const note = pcts.length ? pcts.reduce(function (a, b) { return a + b; }, 0) / pcts.length : 0;
+      const obtenu = detail.reduce(function (a, d) { return a + (Number(d.obtenu) || 0); }, 0);
+      const max = detail.reduce(function (a, d) { return a + (Number(d.max) || 0); }, 0);
+      if (!preview && passage.id) {
+        const { error } = await sb().from('passages_examen').update({
+          detail: detail,
+          termine_at: new Date().toISOString(),
+          note_pct: Math.round(note * 10) / 10,
+          score_obtenu: obtenu,
+          score_max: max,
+        }).eq('id', passage.id);
+        if (error) throw error;
+      }
+      passage.termine_at = new Date().toISOString();
+      passage.note_pct = note;
+      mountEl.hidden = true;
+      mountEl.innerHTML = '';
+      setStatus('Note de l’examen : ' + global.JpParcoursUi.sur10(note));
+      showActions([{ id: 'restart', label: 'Repasser l’examen', primary: true }]);
+      paintSteps();
+      await loadHistory();
+      if (typeof onProgress === 'function') await onProgress();
+    }
+
+    async function mountStation() {
+      const game = games[index];
+      if (!game || !game.code) throw new Error('Épreuve sans jeu');
+      mountEl.hidden = false;
+      mountEl.innerHTML = '<p class="jp-muted">Préparation de l’épreuve ' + (index + 1) + ' / ' + games.length + '…</p>';
+      setStatus('Épreuve ' + (index + 1) + ' / ' + games.length + ' — ' + (game.titre || ''));
+      showActions([]);
+      paintSteps();
+      await global.JpJeuxPlay.boot(mountEl, game.code, {
+        embed: true,
+        moduleId: module.id,
+        parcoursId: module.parcours_id,
+        passageId: passage && passage.id ? passage.id : null,
+        onReplay: function () { void mountStation(); },
+        onFinished: function (res) { void onStationFinished(res); },
+      });
+    }
+
+    async function onStationFinished(res) {
+      const game = games[index];
+      const obtenu = Number(res && res.obtenu);
+      const max = Number(res && res.max);
+      const pct = max > 0 ? (obtenu / max) * 100 : 0;
+      const entry = {
+        code: game.code,
+        titre: game.titre,
+        obtenu: obtenu,
+        max: max,
+        pct: pct,
+      };
+      const detail = passage.detail || (passage.detail = []);
+      if (detail.length && detail[detail.length - 1].code === game.code) detail[detail.length - 1] = entry;
+      else detail.push(entry);
+      await persistDetail();
+      paintSteps();
+      if (index >= games.length - 1 && detail.length >= games.length) {
+        showActions([{ id: 'close', label: 'Voir la note', primary: true }]);
+      } else {
+        showActions([{ id: 'next', label: 'Épreuve suivante', primary: true }]);
+      }
+    }
+
+    async function onAct(id) {
+      if (busy) return;
+      busy = true;
+      try {
+        if (id === 'start' || id === 'restart') {
+          await ensurePassage(id === 'restart');
+          index = 0;
+          await mountStation();
+        } else if (id === 'resume') {
+          if ((passage.detail || []).length >= games.length) {
+            showActions([{ id: 'close', label: 'Voir la note', primary: true }]);
+          } else {
+            index = (passage.detail || []).length;
+            await mountStation();
+          }
+        } else if (id === 'next') {
+          index += 1;
+          await mountStation();
+        } else if (id === 'close') {
+          await closePassage();
+        }
+      } catch (e) {
+        global.JpToast?.fromError?.(e);
+      } finally {
+        busy = false;
+      }
+    }
+
+    try {
+      const open = preview ? null : await loadHistory();
+      if (open) {
+        passage = open;
+        passage.detail = Array.isArray(open.detail) ? open.detail : [];
+        setStatus('Examen en cours — ' + passage.detail.length + ' / ' + games.length + ' épreuves enregistrées.');
+        showActions([
+          { id: 'resume', label: 'Reprendre', primary: true },
+          { id: 'restart', label: 'Recommencer' },
+        ]);
+      } else {
+        setStatus(games.length + ' épreuves. Le quiz en tire 10 à chaque passage. Le tableau à trous en tire 4 molécules.');
+        showActions([{ id: 'start', label: 'Commencer l’examen', primary: true }]);
+      }
+      paintSteps();
+    } catch (e) {
+      global.JpToast?.fromError?.(e);
+      setStatus('Impossible de charger les notes de l’examen.');
+    }
+  }
+
   /* ——— Rendu principal ——— */
 
   async function boot(root, moduleId, preview, previewNiveau) {
@@ -702,6 +928,8 @@
     if (back && module.parcours_id) back.setAttribute('href', 'espace.html?parcours=' + encodeURIComponent(module.parcours_id));
 
     const detail = data.detail || null;
+    const examMode = !!(module.criteres_json && module.criteres_json.examen);
+    const examJeux = [];
     const jeuxDetail = {};
     ((detail && detail.jeux) || []).forEach((j) => { jeuxDetail[j.modele_id] = j; });
     const maj = PU().majLabel(module.maj_at || module.contenu_maj_at || module.updated_at);
@@ -738,6 +966,13 @@
         const plan = moleculeSlidePlan(p);
         if (!plan.shown.length) continue;
         inner = carouselHtml(plan.shown, plan.hidden);
+      } else if (b.type_bloc === 'jeu' && examMode) {
+        examJeux.push({
+          titre: b.titre || 'Épreuve',
+          code: p.code_unique || '',
+          type: p.type_jeu || '',
+        });
+        continue;
       } else if (b.type_bloc === 'jeu') {
         const code = p.code_unique || '';
         const href = jeuHref(code, p.type_jeu, module.id, module.parcours_id);
@@ -796,11 +1031,18 @@
         + head
         + '<div class="jp-bloc-body">' + inner + '</div></article>';
     }
+    if (examMode) html += examShellHtml(examJeux);
     html += '<div id="jpReadEnd" aria-hidden="true"></div><footer class="jp-lecon-foot" id="leconFoot"></footer>';
     root.innerHTML = html;
     global.JpBlocPhoto.hydrate(root);
 
     const ctx = { module, detail, preview: !!preview, footer: document.getElementById('leconFoot') };
+    if (examMode) {
+      void startExamen(root, module, examJeux, !!preview, async function () {
+        await refreshNavFromProgression(ctx);
+        await renderFooter(ctx.footer, ctx);
+      });
+    }
     const carousels = Array.from(root.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
 
     // Jeux inline : mount JpJeuxPlay dans chaque bloc

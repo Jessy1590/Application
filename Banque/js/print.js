@@ -373,8 +373,7 @@ Object.assign(BH, {
           else amt = Number(myMem.contribution_target) || 0;
           if (amt > 0) {
              const plan = this.splitApportForAdvances(acc.id, mKey, amt);
-             if (plan.transfer > 0) salaryItems.push({ label: acc.name + ' · à virer', value: plan.transfer });
-             if (plan.advances > 0) salaryItems.push({ label: acc.name + ' · carte', value: plan.advances });
+             if (plan.transfer > 0) salaryItems.push({ label: acc.name, value: plan.transfer });
           }
        });
        const salaryPie = salaryItems.length

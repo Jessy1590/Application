@@ -208,14 +208,17 @@
     }
     if (cur.module_suivant_id) {
       const next = list.find((x) => x.id === cur.module_suivant_id) || null;
-      const nextIdx = next ? leaves.findIndex((x) => x.id === next.id) : -1;
-      const goPrev = nextIdx >= 0 && idx >= 0 && nextIdx < idx;
-      return {
-        idx,
-        next,
-        direction: goPrev ? 'prev' : 'next',
-        label: customLabel || (next ? next.titre : null),
-      };
+      // Cible hors plage ★ (absente de la liste) : on prend la feuille suivante disponible.
+      if (next) {
+        const nextIdx = leaves.findIndex((x) => x.id === next.id);
+        const goPrev = nextIdx >= 0 && idx >= 0 && nextIdx < idx;
+        return {
+          idx,
+          next,
+          direction: goPrev ? 'prev' : 'next',
+          label: customLabel || next.titre,
+        };
+      }
     }
     const next = idx >= 0 ? (leaves[idx + 1] || null) : null;
     return {

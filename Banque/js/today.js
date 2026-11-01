@@ -162,8 +162,7 @@ Object.assign(BH, {
                   <div class="bh-due-desc">${this.esc(exp.description)}</div>
                   <div class="bh-due-meta">
                     <span class="bh-pill ${cls}">${lbl}</span>
-                    ${exp.is_apport ? `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Apport${exp.advances > 0 ? ' · à virer' : ''}</span>` : ''}
-                    ${exp.is_apport && exp.advances > 0 ? `<span class="bh-pill" style="background:var(--amber-pale); color:var(--amber);">Carte ${this.fmt(exp.advances)}</span>` : ''}
+                    ${exp.is_apport ? `<span class="bh-pill" style="background:var(--sage-pale); color:var(--sage-deep);">Apport</span>` : ''}
                     ${item.cardAdvance ? `<span class="bh-pill" style="background:var(--amber-pale); color:var(--amber);">Carte · ${this.esc(item.originAcc.name)}</span>` : ''}
                     <span class="bh-pill bh-pill-account">${this.esc(acc.name)}</span>
                     ${this.isExpired(exp) ? `<span class="bh-pill" style="background:var(--clay-pale); color:var(--clay);">⚠️ Expirée le ${this.fmtDate(exp.end_date)}</span>` : ''}

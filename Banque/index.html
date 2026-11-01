@@ -581,7 +581,10 @@
 <div class="bh-sheet-overlay" id="bh-settings-overlay" onclick="if(event.target===this) BH.closeSettings()">
   <div class="bh-sheet">
     <div class="bh-sheet-handle"></div>
-    <h3 class="bh-sheet-title">⚙️ Réglages & Partage</h3>
+    <div class="bh-sheet-head">
+      <h3 class="bh-sheet-title">Réglages et partage</h3>
+      <button type="button" class="bh-sheet-close" onclick="BH.closeSettings()" aria-label="Fermer">✕</button>
+    </div>
     
     <div class="bh-section-label">Mon Profil</div>
     <div class="bh-card" style="padding:12px;">

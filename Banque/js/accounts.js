@@ -303,7 +303,12 @@ Object.assign(BH, {
           if (e.is_wallet) paidSum += this.walletOwnSpent(acc.id, e.id, mKey);
           else if (this.isExpenseActive(e) && paidMap[e.id]) paidSum += Number(paidMap[e.id].amount);
         });
-        incs.forEach(i => { tInc += Number(i.amount) || 0; });
+        let paidInc = 0;
+        const incPaidMap = this.state.monthsIncomes?.[acc.id + '_' + mKey] || {};
+        incs.forEach(i => {
+          tInc += Number(i.amount) || 0;
+          if (incPaidMap[i.id]) paidInc += Number(incPaidMap[i.id].amount) || 0;
+        });
         // Dépenses exceptionnelles : comptées dans le déjà réglé (effectif), pas dans le budget théorique
         const exceptionalPaid = this.exceptionalAmountForAccount(acc.id, mKey);
         paidSum += exceptionalPaid;
@@ -330,6 +335,7 @@ Object.assign(BH, {
         let alertHtml = '';
         let settleHtml = '';
         let chartsHtml = '';
+        let myMem = null, mesAvances = 0, myFairShare = 0, resteAVirer = 0;
 
         const catTotals = {};
         exps.forEach(e => {
@@ -383,11 +389,11 @@ Object.assign(BH, {
             }
 
             // Affichage Compte Partagé avec Apport
-            const myMem = mems.find(m => m.user_id === this.user.id);
+            myMem = mems.find(m => m.user_id === this.user.id);
             if (myMem) {
-                const mesAvances = exps.filter(e => e.payer_id === this.user.id).reduce((s,e)=> s+Number(e.amount), 0);
-                const myFairShare = shares[this.user.id] || 0;
-                const resteAVirer = Math.max(0, myFairShare - mesAvances);
+                mesAvances = exps.filter(e => e.payer_id === this.user.id).reduce((s,e)=> s+Number(e.amount), 0);
+                myFairShare = shares[this.user.id] || 0;
+                resteAVirer = Math.max(0, myFairShare - mesAvances);
                 contribHtml = this.apportEditorHtml(acc, myMem, { myFairShare, mesAvances, resteAVirer, tExp });
             }
         }
@@ -416,20 +422,24 @@ Object.assign(BH, {
           accName: acc.name, isMain, resteDate, selDay, mKey, paidSum, expsToDate, resteEnDate,
           tInc, totalOutboundContributions, totalApportsRecus, hasWallet, walletApportsOut
         };
-        const resteEnDateColor = resteEnDate >= 0 ? 'var(--sage-deep)' : 'var(--clay)';
-        const resteEnDateHtml = `<div class="bh-reste-date">
-          <div class="bh-reste-date-row">
-            <span style="font-size:12px; font-weight:600;">Reste en date du <button type="button" class="bh-info-btn" onclick="BH.showResteInfo('${acc.id}')" title="Détail du calcul">?</button></span>
-            <input type="date" class="bh-input bh-reste-date-input" value="${resteDate}" onchange="BH.setResteDate('${acc.id}', this.value)">
-          </div>
-          <div class="bh-mini-metrics bh-mini-metrics-3">
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showPaidDetail('${acc.id}')" title="Voir le détail"><div class="bh-mini-label">Déjà réglé</div><div class="bh-mini-value num">${this.fmt(paidSum)}</div></div>
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showSpentToDate('${acc.id}')" title="Voir le détail"><div class="bh-mini-label">Dépenses à date</div><div class="bh-mini-value num">${this.fmt(expsToDate)}</div></div>
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showResteInfo('${acc.id}')" title="Voir le détail"><div class="bh-mini-label">Reste à date</div><div class="bh-mini-value num" style="color:${resteEnDateColor};">${this.fmt(resteEnDate)}</div></div>
-          </div>
-        </div>`;
+        let upcoming = 0;
+        exps.forEach(e => {
+          if (!this.isExpenseActive(e)) return;
+          if (e.is_wallet) upcoming += Math.max(0, Number(e.amount) - this.walletOwnSpent(acc.id, e.id, mKey));
+          else if (!paidMap[e.id]) upcoming += Number(e.amount) || 0;
+        });
+        if (isMain) {
+          this.listOutboundApportDues({ mKey }).forEach(ap => {
+            if (!paidMap[ap.id]) upcoming += Number(ap.amount) || 0;
+          });
+        }
+        const theoIn = isMain ? tInc : (totalAllocated + tInc);
+        const theoOut = isMain
+          ? (tExp + totalOutboundContributions + walletApportsOutMonth)
+          : (tExp + walletApportsOutMonth);
+        const apportIn = isMain ? 0 : totalAllocated;
+        const effIn = paidInc + apportIn;
 
-        // Stocke la liste des dépenses / revenus saisis pour ce compte (popups au clic sur les cartes du haut)
         if (!this.acctExpensesList) this.acctExpensesList = {};
         this.acctExpensesList[acc.id] = { accName: acc.name, exps: exps.slice().sort((a,b)=>Number(a.day)-Number(b.day)) };
         if (!this.acctIncomesList) this.acctIncomesList = {};
@@ -439,6 +449,46 @@ Object.assign(BH, {
           accName: acc.name, isMain, tInc, tExp, totalOutboundContributions, totalAllocated, resteTheorique, hasWallet,
           walletApportsOut: walletApportsOutMonth
         };
+        if (!this.acctView) this.acctView = {};
+        this.acctView[acc.id] = {
+          accName: acc.name, isMain, theoIn, theoOut, paidInc, paidSum, apportIn, effIn,
+          upcoming, resteTheorique, resteEnDate, selDay
+        };
+
+        const others = mems.filter(m => m.user_id !== this.user.id);
+        const shareBtn = others.length
+          ? `<button type="button" class="bh-acct-share" onclick="BH.showAccountMembers('${acc.id}')">Partagé avec ${others.length} personne${others.length > 1 ? 's' : ''}</button>`
+          : '';
+        const bar = (spent, pool) => {
+          const s = Math.max(0, Number(spent) || 0);
+          const p = Math.max(0, Number(pool) || 0);
+          const delta = p - s;
+          if (s <= 0 && p <= 0) return { exp: 0, rest: 0, delta };
+          if (p <= 0 || s >= p) return { exp: 100, rest: 0, delta };
+          const exp = s / p * 100;
+          return { exp, rest: 100 - exp, delta };
+        };
+        const theoBar = bar(theoOut, theoIn);
+        const effBar = bar(paidSum, paidInc);
+        const cell = (label, value, click, extra) => `<button type="button" class="bh-acct-cell${extra || ''}" onclick="${click}"><span class="bh-acct-cell-label">${label}</span><span class="bh-acct-cell-value num">${value}</span></button>`;
+        const flag = (amount, click) => {
+          const ok = amount > 0;
+          return cell(ok ? 'Excédent financier' : 'Risque financier', this.fmt(amount), click, ok ? ' ok' : ' risk');
+        };
+        let apportCell;
+        if (!isMain && myMem) {
+          const myMode = myMem.contribution_mode || 'fixed';
+          const myContrib = Number(myMem.contribution_target) || 0;
+          const shown = myMode === 'prorata' ? this.fmt(myFairShare) : (myMode === 'percent' ? (myContrib + ' %') : this.fmt(myContrib));
+          apportCell = cell('Apport', shown, `BH.toggleApportEdit('${acc.id}')`, this.apportEdit === acc.id ? ' active' : '');
+        } else if (isMain) {
+          apportCell = cell('Apports versés', this.fmt(totalOutboundContributions), `BH.showOutboundApports()`);
+        } else {
+          apportCell = `<div class="bh-acct-cell is-static"><span class="bh-acct-cell-label">Apport</span><span class="bh-acct-cell-value">—</span></div>`;
+        }
+        const advanceNote = mesAvances > 0
+          ? `<div class="bh-apport-note">J'ai avancé avec ma carte : ${this.fmt(mesAvances)} (reste à virer : ${this.fmt(resteAVirer)})</div>`
+          : '';
 
         html += `<div class="bh-card bh-acct-card">
           <div class="bh-acct-head">
@@ -447,18 +497,46 @@ Object.assign(BH, {
                 <button class="bh-order-btn" onclick="BH.moveAccount('${acc.id}', -1)" ${accIdx===0?'disabled':''} title="Monter">▲</button>
                 <button class="bh-order-btn" onclick="BH.moveAccount('${acc.id}', 1)" ${accIdx===orderedAccounts.length-1?'disabled':''} title="Descendre">▼</button>
               </div>
-              <div class="bh-acct-name">${this.esc(acc.name)} ${isMain ? '⭐' : ''}</div>
+              <div class="bh-acct-name">${this.esc(acc.name)}${isMain ? ' <span class="bh-acct-star" title="Compte principal">⭐</span>' : ''}</div>
             </div>
+            ${shareBtn}
           </div>
-          ${alertHtml}
-          <div class="bh-progress-track"><div class="bh-progress-fill" style="width:${Math.min(100, (paidSum / (tExp || 1)) * 100 || 0)}%"></div></div>
-          <div class="bh-mini-metrics bh-mini-metrics-3">
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showExpensesList('${acc.id}')" title="Voir le détail des dépenses"><div class="bh-mini-label">Dépenses</div><div class="bh-mini-value num">${this.fmt(tExp)}</div></div>
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showIncomesList('${acc.id}')" title="Voir le détail des revenus"><div class="bh-mini-label">Revenus/Remb.</div><div class="bh-mini-value num">${this.fmt(tInc)}</div></div>
-            <div class="bh-mini" style="cursor:pointer;" onclick="BH.showResteTheoInfo('${acc.id}')" title="Voir le détail du calcul"><div class="bh-mini-label">Reste théorique</div><div class="bh-mini-value num" style="color:${resteTheorique >= 0 ? 'var(--sage-deep)' : 'var(--clay)'};">${this.fmt(resteTheorique)}</div></div>
+          <button type="button" class="bh-split-btn" onclick="BH.showTheoBar('${acc.id}')">
+            <div class="bh-split theo${theoBar.delta < 0 ? ' neg' : ''}"><span class="exp" style="width:${theoBar.exp}%"></span><span class="rest" style="width:${theoBar.rest}%"></span></div>
+            <div class="bh-split-legend">
+              <span><i class="dot exp"></i> Dépenses théoriques ${this.fmt(theoOut)}</span>
+              <span><i class="dot rest"></i> ${theoBar.delta < 0 ? 'Dépassement' : 'Revenu restant'} ${this.fmt(theoBar.delta)}</span>
+            </div>
+          </button>
+          <button type="button" class="bh-split-btn" onclick="BH.showEffBar('${acc.id}')">
+            <div class="bh-split eff${effBar.delta < 0 ? ' neg' : ''}">${effBar.delta < 0 && paidSum > 0
+              ? `<span class="inc" style="width:${Math.max(0, paidInc) / paidSum * 100}%"></span><span class="over" style="width:${(paidSum - Math.max(0, paidInc)) / paidSum * 100}%"></span>`
+              : `<span class="exp" style="width:${effBar.exp}%"></span><span class="rest" style="width:${effBar.rest}%"></span>`}</div>
+            <div class="bh-split-legend">
+              <span><i class="dot inc"></i> Revenus validés ${this.fmt(paidInc)}</span>
+              <span><i class="dot exp"></i> Dépenses validées ${this.fmt(paidSum)}</span>
+              <span><i class="dot rest"></i> ${effBar.delta < 0 ? 'Delta' : 'Reste'} ${this.fmt(effBar.delta)}</span>
+            </div>
+          </button>
+          <div class="bh-acct-kicker">Théorique</div>
+          <div class="bh-acct-cells">
+            ${cell('Dépenses théoriques', this.fmt(tExp), `BH.showTheoExpenses('${acc.id}')`)}
+            ${cell('Revenus / remb.', this.fmt(tInc), `BH.showIncomesList('${acc.id}')`)}
+            ${apportCell}
+            ${flag(resteTheorique, `BH.showResteTheoInfo('${acc.id}')`)}
           </div>
-          ${contribHtml}
-          ${resteEnDateHtml}
+          ${!isMain && myMem && this.apportEdit === acc.id ? contribHtml : ''}
+          <div class="bh-acct-kicker">
+            <span>Effectif</span>
+            <input type="date" class="bh-input bh-reste-date-input" value="${resteDate}" onchange="BH.setResteDate('${acc.id}', this.value)" aria-label="Date du reste effectif">
+          </div>
+          <div class="bh-acct-cells">
+            ${cell('Dépenses effectives', this.fmt(paidSum), `BH.showPaidDetail('${acc.id}')`)}
+            ${cell('Revenus / apport', this.fmt(effIn), `BH.showEffInflows('${acc.id}')`)}
+            ${cell('Dépenses à venir', this.fmt(upcoming), `BH.showUpcoming('${acc.id}')`)}
+            ${flag(resteEnDate, `BH.showResteInfo('${acc.id}')`)}
+          </div>
+          ${advanceNote}
           ${settleHtml}
           ${chartsHtml}
         </div>`;
@@ -574,7 +652,6 @@ Object.assign(BH, {
             <button type="button" class="bh-btn bh-btn-primary" onclick="BH.commitApport('${acc.id}')">Enregistrer</button>
           </div>
         </div>
-        ${ctx.mesAvances > 0 ? `<div class="bh-apport-note">J'ai avancé avec ma carte : ${this.fmt(ctx.mesAvances)} (reste à virer : ${this.fmt(ctx.resteAVirer)})</div>` : ''}
       </div>`;
     },
     toggleApportEdit(accId) {
@@ -674,9 +751,8 @@ Object.assign(BH, {
       rows += this.detailLine('<strong>Total théorique</strong>', total);
       this.openInfo((acc ? acc.name : 'Compte') + ' — dépenses théoriques', rows);
     },
-    showPaidDetail(accId) {
+    paidExpenseRows(accId) {
       const mKey = this.comptesMKey();
-      const acc = (this.state.accounts || []).find(a => a.id === accId);
       const exps = (this.state.expenses || []).filter(e => e.account_id === accId);
       const paidMap = this.state.months[accId + '_' + mKey] || {};
       let total = 0, rows = '';
@@ -708,9 +784,128 @@ Object.assign(BH, {
           rows += this.detailLine(this.esc(ap.description || 'Apport'), amt);
         });
       }
-      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Rien de payé sur ce mois.</div>`;
-      else rows += this.detailLine('<strong>Total déjà payé</strong>', total);
+      return { rows, total };
+    },
+    showPaidDetail(accId) {
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const built = this.paidExpenseRows(accId);
+      const rows = built.rows
+        ? built.rows + this.detailLine('<strong>Total déjà payé</strong>', built.total)
+        : `<div style="font-size:13px; color:var(--ink-soft);">Rien de payé sur ce mois.</div>`;
       this.openInfo((acc ? acc.name : 'Compte') + ' — déjà payé', rows);
+    },
+    showAccountMembers(accId) {
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const mems = (this.state.members || []).filter(m => m.account_id === accId);
+      const rows = mems.length ? mems.map(m => {
+        const name = (m.profiles && m.profiles.display_name) || 'Membre';
+        const me = m.user_id === this.user.id ? ' · moi' : '';
+        return `<div class="bh-info-row"><span>${this.esc(name)}${me}</span></div>`;
+      }).join('') : `<div style="font-size:13px; color:var(--ink-soft);">Aucun membre.</div>`;
+      this.openInfo((acc ? acc.name : 'Compte') + ' — personnes', rows);
+    },
+    showTheoBar(accId) {
+      const v = this.acctView && this.acctView[accId];
+      if (!v) return;
+      const delta = v.theoIn - v.theoOut;
+      const rows = this.detailLine('Dépenses théoriques', v.theoOut)
+        + this.detailLine(v.isMain ? 'Revenus' : 'Revenus + apports', v.theoIn)
+        + this.detailLine(delta < 0 ? 'Dépassement' : 'Revenu restant', delta);
+      this.openInfo(v.accName + ' — barre théorique', rows);
+    },
+    showEffBar(accId) {
+      const v = this.acctView && this.acctView[accId];
+      if (!v) return;
+      const mKey = this.comptesMKey();
+      const paid = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
+      let rows = '';
+      (this.state.incomes || []).filter(i => i.account_id === accId && paid[i.id]).forEach(i => {
+        const kind = i.income_type === 'remboursement' ? 'Revenu validé · remb.' : 'Revenu validé';
+        rows += this.detailLine(kind + ' · ' + this.esc(i.description || 'Revenu'), Number(paid[i.id].amount) || 0);
+      });
+      if (!rows) rows = `<div class="bh-info-row"><span>Aucun revenu validé</span><span class="num">${this.fmt(0)}</span></div>`;
+      const spent = this.paidExpenseRows(accId);
+      rows += spent.rows || `<div class="bh-info-row"><span>Aucune dépense validée</span><span class="num">${this.fmt(0)}</span></div>`;
+      const delta = v.paidInc - v.paidSum;
+      rows += this.detailLine(delta < 0 ? '<strong>Delta</strong>' : '<strong>Reste sur les revenus</strong>', delta);
+      this.openInfo(v.accName + ' — barre validée', rows);
+    },
+    showEffInflows(accId) {
+      const v = this.acctView && this.acctView[accId];
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const mKey = this.comptesMKey();
+      const paid = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
+      let total = 0, rows = '';
+      (this.state.incomes || []).filter(i => i.account_id === accId && paid[i.id]).forEach(i => {
+        const amt = Number(paid[i.id].amount) || 0;
+        total += amt;
+        const kind = i.income_type === 'remboursement' ? 'Remboursement encaissé' : 'Revenu encaissé';
+        rows += this.detailLine(kind + ' · ' + this.esc(i.description || 'Revenu'), amt);
+      });
+      if (v && v.apportIn > 0) {
+        total += v.apportIn;
+        rows += this.detailLine('Apport du mois', v.apportIn);
+      }
+      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Aucun revenu encaissé, aucun apport.</div>`;
+      else rows += this.detailLine('<strong>Total</strong>', total);
+      this.openInfo((acc ? acc.name : 'Compte') + ' — revenus et apport', rows);
+    },
+    showUpcoming(accId) {
+      const mKey = this.comptesMKey();
+      const acc = (this.state.accounts || []).find(a => a.id === accId);
+      const paidMap = this.state.months[accId + '_' + mKey] || {};
+      const exps = (this.state.expenses || []).filter(e => e.account_id === accId);
+      let total = 0, rows = '';
+      exps.forEach(e => {
+        if (!this.isExpenseActive(e)) return;
+        if (e.is_wallet) {
+          const left = Math.max(0, Number(e.amount) - this.walletOwnSpent(accId, e.id, mKey));
+          if (left > 0.004) {
+            total += left;
+            rows += this.detailLine('👛 ' + this.esc(e.description || 'Portefeuille') + ' · pas encore sorti', left);
+          }
+        } else if (!paidMap[e.id]) {
+          const amt = Number(e.amount) || 0;
+          total += amt;
+          rows += this.detailLine(this.esc(e.description || 'Dépense') + (e.day ? (' · le ' + e.day) : '') + ' · pas encore validé', amt);
+        }
+      });
+      if (accId === this.state.profile?.main_account_id) {
+        this.listOutboundApportDues({ mKey }).forEach(ap => {
+          if (paidMap[ap.id]) return;
+          const amt = Number(ap.amount) || 0;
+          total += amt;
+          rows += this.detailLine(this.esc(ap.description || 'Apport') + ' · pas encore validé', amt);
+        });
+      }
+      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Tout est déjà validé.</div>`;
+      else rows += this.detailLine('<strong>Reste à venir</strong>', total);
+      this.openInfo((acc ? acc.name : 'Compte') + ' — dépenses à venir', rows);
+    },
+    showOutboundApports() {
+      const mKey = this.comptesMKey();
+      const mainId = this.state.profile?.main_account_id;
+      let total = 0, rows = '';
+      (this.state.accounts || []).forEach(acc => {
+        if (acc.id === mainId) return;
+        const mems = (this.state.members || []).filter(m => m.account_id === acc.id);
+        if (!mems.some(m => m.user_id === this.user.id)) return;
+        const exps = (this.state.expenses || []).filter(e => e.account_id === acc.id && this.isExpenseActive(e));
+        const incs = (this.state.incomes || []).filter(i => i.account_id === acc.id);
+        const tExp = exps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+        const tInc = incs.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+        const gross = (this.computeFairShares(acc, mems, tExp, tInc)[this.user.id]) || 0;
+        if (!(gross > 0)) return;
+        total += gross;
+        rows += this.detailLine(this.esc(acc.name), gross);
+        const plan = this.splitApportForAdvances(acc.id, mKey, gross);
+        if (plan.advances > 0) {
+          rows += this.detailSub('à virer', plan.transfer);
+        }
+      });
+      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Aucun apport vers un autre compte.</div>`;
+      else rows += this.detailLine('<strong>Total</strong>', total);
+      this.openInfo('Apports versés', rows);
     },
     showSpentToDate(accId) {
       const mKey = this.comptesMKey();

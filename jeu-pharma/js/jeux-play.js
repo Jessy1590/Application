@@ -185,7 +185,9 @@
         modele_id: modele.id,
         utilisateur_id: user.id,
         mode: modele.mode || 'entrainement',
-        snapshot_json: snapshot || {},
+        snapshot_json: Object.assign({}, snapshot || {}, (playCtx(modele).passageId
+          ? { passage_id: playCtx(modele).passageId }
+          : {})),
         reponses_json: reponses || {},
         score_obtenu: scoreObtenu,
         score_max: scoreMax,

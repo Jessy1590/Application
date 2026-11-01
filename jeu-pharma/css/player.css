@@ -903,3 +903,49 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   opacity: 0.7;
 }
 .jp-me-charts { margin-top: 0; }
+
+/* Examen : une suite d’épreuves, une note */
+.jp-examen {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1.2rem 0 0.4rem;
+  padding: 1rem 1rem 1.1rem;
+  background: #fff;
+  border: 1px solid rgba(15, 107, 92, 0.28);
+  border-left: 5px solid var(--jp-accent, #0f6b5c);
+  border-radius: 12px;
+}
+.jp-examen-lead { margin: 0; }
+.jp-examen-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.jp-examen-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.2rem;
+  color: var(--jp-text-muted, #4a5c56);
+}
+.jp-examen-steps li span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(15, 107, 92, 0.1);
+  color: var(--jp-accent, #0f6b5c);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+.jp-examen-steps li.is-current { color: var(--jp-text, #14201c); font-weight: 650; }
+.jp-examen-steps li.is-done span { background: var(--jp-accent, #0f6b5c); color: #fff; }
+.jp-examen-status { margin: 0; font-weight: 600; }
+.jp-examen-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.jp-examen-history h2 { font-size: 1rem; margin: 0.2rem 0; }
+.jp-examen-history ul { margin: 0; padding-left: 1.1rem; }
+.jp-examen-history li { margin: 0.2rem 0; }

@@ -49,6 +49,10 @@
       p_parcours: parcoursId || null,
     });
     if (error) throw error;
+    if (data && Array.isArray(data.modules)) {
+      // Leçon hors plage ★ : absente (pas de bandeau « Hors niveau d’accès »).
+      data.modules = data.modules.filter((m) => !(m && m.bloque_par && m.bloque_par.type === 'niveau'));
+    }
     return data;
   }
 
