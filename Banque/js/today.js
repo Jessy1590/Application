@@ -64,7 +64,8 @@ Object.assign(BH, {
         const expiredCls = this.isExpired(exp) ? ' bh-expired' : '';
 
         if (paidRec) {
-          totalPaid += Number(paidRec.amount);
+          // Ligne d'apport conservée ; le montant n'entre pas dans « Déjà réglé ».
+          if (!exp.is_apport) totalPaid += Number(paidRec.amount);
           paidExpHtml += `
             <div class="bh-due${expiredCls}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
               <div style="min-width:0;">
@@ -77,7 +78,8 @@ Object.assign(BH, {
               </div>
             </div>`;
         } else {
-          totalDue += Number(exp.amount);
+          // Ligne d'apport conservée ; le montant n'entre pas dans « Reste à valider ».
+          if (!exp.is_apport) totalDue += Number(exp.amount);
           const diff = Math.min(Number(exp.day) || 1, dim) - refDay;
           const item = { kind: 'expense', exp, acc, originAcc, cardAdvance, payAccId, diff };
           if (!isCurrentMonth) late.push(item);
@@ -197,11 +199,11 @@ Object.assign(BH, {
         const acc = this.state.accounts.find(a => a.id === exp.account_id);
         if (!acc) return null;
         const txs = this.getWalletTx(acc.id, exp.id, mKey);
-        // Solde enveloppe : crédits d'apports externes inclus
+        // Carte enveloppe : crédits d'apports externes inclus dans le restant affiché
         const spent = this.walletSpent(acc.id, exp.id, mKey);
-        // Stats haut de page : seules les sorties du compte propriétaire
+        // Cases du haut : dépenses saisies de ce compte, hors apports d'un autre compte
         const ownSpent = this.walletOwnSpent(acc.id, exp.id, mKey);
-        totalDue += Math.max(0, Number(exp.amount) - spent);
+        totalDue += Math.max(0, Number(exp.amount) - ownSpent);
         totalPaid += Math.max(0, Math.min(ownSpent, Number(exp.amount)));
         return { exp, acc, txs, spent };
       }).filter(Boolean);

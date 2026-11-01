@@ -103,9 +103,20 @@ Object.assign(BH, {
     },
     isIncomeRefund(inc, mKey) {
       if (!inc) return false;
-      if (/^remb\.?\s/i.test(inc.description || '')) return true;
+      if (inc.income_type === 'remboursement' || /^remb\.?\s/i.test(inc.description || '')) return true;
       const paid = this.state.monthsIncomes?.[inc.account_id + '_' + mKey]?.[inc.id];
       return !!(paid && paid.refund_of);
+    },
+    // Remboursement créé depuis le relevé : ponctuel, sauf s'il est encaissé ce mois-ci.
+    verifIncomeBelongsToMonth(inc, mKey) {
+      if (!inc) return false;
+      const paid = !!(this.state.monthsIncomes?.[inc.account_id + '_' + mKey] || {})[inc.id];
+      const typedRefund = inc.income_type === 'remboursement' || /^remb\.?\s/i.test(inc.description || '');
+      if (!typedRefund) return true;
+      if (paid) return true;
+      const created = String(inc.created_at || '').slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(created)) return true;
+      return created === mKey;
     },
     patchLocalBankVerif(row) {
       this._localMutAt = Date.now();
@@ -414,7 +425,7 @@ Object.assign(BH, {
       });
 
       (this.state.incomes || []).forEach(i => {
-        if (!accIds.includes(i.account_id)) return;
+        if (!accIds.includes(i.account_id) || !this.verifIncomeBelongsToMonth(i, mKey)) return;
         const isRefund = this.isIncomeRefund(i, mKey);
         const paid = !!(this.state.monthsIncomes?.[i.account_id + '_' + mKey] || {})[i.id];
         const verified = isRefund
@@ -454,8 +465,25 @@ Object.assign(BH, {
         });
       });
 
+      this.listExceptionalExpenses(null, mKey).forEach(exc => {
+        if (!accIds.includes(exc.account_id)) return;
+        rows.push({
+          kind: 'exceptional',
+          group: 'Exceptionnelles',
+          id: exc.id,
+          label: exc.description,
+          amount: Number(exc.amount) || 0,
+          day: Number(exc.day) || 1,
+          category: exc.category || '',
+          accId: exc.account_id,
+          accName: accName(exc.account_id),
+          paid: true,
+          verified: sets.expense.has(String(exc.id))
+        });
+      });
+
       rows.forEach(r => { r.manual = r.verified && sets.manual.has(this.verifLinkKey(r.kind, r.id)); });
-      const order = { Dépenses: 0, Apports: 1, Portefeuille: 2, Revenus: 3, Remboursements: 4 };
+      const order = { Dépenses: 0, Apports: 1, Portefeuille: 2, Revenus: 3, Remboursements: 4, Exceptionnelles: 5 };
       return rows.sort((a, b) =>
         (order[a.group] - order[b.group]) ||
         a.day - b.day ||
@@ -588,7 +616,7 @@ Object.assign(BH, {
         const badge = r.verified ? (r.manual ? 'Vérifié (manuel)' : 'Vérifié') : 'Non vérifié';
         const paidLbl = r.kind === 'wallet'
           ? (r.walletSign === 'refund' ? 'crédit enveloppe' : 'dépense enveloppe')
-          : (r.kind === 'expense' || r.kind === 'apport'
+          : (r.kind === 'expense' || r.kind === 'apport' || r.kind === 'exceptional'
             ? (r.paid ? 'payé' : 'non payé')
             : (r.paid ? 'encaissé' : 'non encaissé'));
         const isIn = r.kind === 'income' || r.kind === 'refund';
@@ -757,8 +785,6 @@ Object.assign(BH, {
       const mKey = this.verif.mKey || document.getElementById('verif-month')?.value || this.monthKey(new Date());
       const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
       const ignoredApp = this.loadVerifAppGapIgnored(mKey);
-      const sets = this.verifiedLinkedSets(mKey);
-      const accName = (id) => (this.state.accounts.find(a => a.id === id) || {}).name || '';
 
       const appGaps = [];
       this.listBudgetStatusRows(mKey, accId || null).forEach(r => {
@@ -778,26 +804,6 @@ Object.assign(BH, {
           accName: r.accName,
           paid: !!r.paid,
           walletExpId: r.walletExpId || null
-        });
-      });
-
-      this.listExceptionalExpenses(accId || null, mKey).forEach(exc => {
-        if (sets.expense.has(String(exc.id))) return;
-        const key = this.appGapKey('exceptional', exc.id);
-        if (ignoredApp.has(key)) return;
-        appGaps.push({
-          side: 'app',
-          kind: 'exceptional',
-          group: 'Exceptionnelles',
-          id: exc.id,
-          label: exc.description,
-          amount: Number(exc.amount) || 0,
-          day: exc.day,
-          category: exc.category || '',
-          accId: exc.account_id,
-          accName: accName(exc.account_id),
-          paid: true,
-          walletExpId: null
         });
       });
 
@@ -1683,7 +1689,6 @@ Object.assign(BH, {
     finishVerifImport(mKey, opts = {}) {
       const ops = this.verif.allOps || [];
       if (!ops.length) return;
-      const ignoredLocal = this.loadVerifIgnored();
       const mSel = mKey || document.getElementById('verif-month')?.value || this.verif.mKey || this.monthKey(new Date());
       this.syncVerifMonthUi(mSel);
       this._verifMonthHandled = mSel;
@@ -1696,7 +1701,7 @@ Object.assign(BH, {
         const saved = dbByFp.get(fp);
         return {
           ...o,
-          ignored: ignoredLocal.has(fp) || saved?.status === 'ignored',
+          ignored: saved?.status === 'ignored',
           savedStatus: saved?.status || null,
           match: null,
           matchCleared: false
@@ -1780,11 +1785,9 @@ Object.assign(BH, {
     },
     onVerifAccountChange() {
       this.verif.accId = document.getElementById('verif-account').value;
+      if ((this.verif.ops || []).length) this.rematchVerif();
+      else this.renderUnverifiedExpenses();
       if (this.verif.pane === 'status') this.renderVerifStatus();
-      else {
-        this.rematchVerif();
-        this.renderUnverifiedExpenses();
-      }
     },
     syncVerifMonthUi(mKey) {
       const key = mKey || this.verif.mKey || this.monthKey(new Date());
@@ -1825,14 +1828,7 @@ Object.assign(BH, {
       this._verifMonthHandled = mKey;
       this.syncVerifMonthUi(mKey);
 
-      // Toujours rafraîchir le statut budget pour le mois choisi
-      this.renderUnverifiedExpenses();
-
-      if (this.verif.pane === 'status') {
-        this.renderVerifStatus();
-        return;
-      }
-      // Relevé encore en mémoire → refiltre les lignes banque sur ce mois
+      // Le relevé en mémoire suit le mois, même depuis l’onglet Vérification
       if (this.verif.allOps?.length) {
         this.finishVerifImport(mKey, { quiet: true });
       } else if (this.verif.ops.length) {
@@ -1840,6 +1836,7 @@ Object.assign(BH, {
       } else {
         this.renderVerifTable();
       }
+      if (this.verif.pane === 'status') this.renderVerifStatus();
     },
 
     buildVerifCandidates(accIdOrNull, mKey) {
@@ -1893,7 +1890,7 @@ Object.assign(BH, {
             });
           });
         }
-        (this.state.incomes || []).filter(i => i.account_id === accId).forEach(i => {
+        (this.state.incomes || []).filter(i => i.account_id === accId && this.verifIncomeBelongsToMonth(i, mKey)).forEach(i => {
           const day = Math.min(Number(i.day) || 1, dim);
           const date = `${mKey}-${String(day).padStart(2, '0')}`;
           const paidRec = paidInc[i.id];
