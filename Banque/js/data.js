@@ -311,6 +311,17 @@ Object.assign(BH, {
       const bucket = { ...(this.state.walletTx?.[accId + '_' + mKey] || {}), [walletId]: list };
       await this.upsertMonthRecord(accId, mKey, { wallet_transactions: bucket });
     },
+    async updateWalletTx(accId, mKey, walletId, txId, patch) {
+      let found = false;
+      const list = this.walletList(accId, mKey, walletId).map(t => {
+        if (String(t.id) !== String(txId)) return t;
+        found = true;
+        return { ...t, ...patch };
+      });
+      if (!found) throw new Error('Mouvement portefeuille introuvable');
+      const bucket = { ...(this.state.walletTx?.[accId + '_' + mKey] || {}), [walletId]: list };
+      await this.upsertMonthRecord(accId, mKey, { wallet_transactions: bucket });
+    },
     // Action utilisateur : un seul essai/erreur, un seul message, affichage mis à jour depuis le cache local
     async commit(label, fn, okMsg) {
       const res = await withRetry(fn, label);

@@ -767,9 +767,29 @@
   </div>
 </div>
 
+<!-- VÉRIF : montant à retenir sur un écart -->
+<div class="bh-sheet-overlay" id="bh-verif-decide-overlay" onclick="if(event.target===this) BH.closeVerifDecide()">
+  <div class="bh-sheet" style="max-width:480px;">
+    <div class="bh-sheet-handle"></div>
+    <h3 class="bh-sheet-title" style="margin-bottom:4px;" id="verif-decide-title">Vérifier</h3>
+    <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="verif-decide-desc"></p>
+    <div class="bh-field-label">Montant (€)</div>
+    <input type="number" step="0.01" min="0" inputmode="decimal" id="verif-decide-amount" class="bh-input" placeholder="0.00">
+    <div id="verif-decide-modes" style="display:none; gap:8px; margin-bottom:6px;">
+      <button type="button" class="bh-btn bh-btn-outline" id="verif-decide-temp" style="flex:1;" onclick="BH.setVerifDecideMode('temp')">Ponctuel (ce mois-ci)</button>
+      <button type="button" class="bh-btn bh-btn-outline" id="verif-decide-perm" style="flex:1;" onclick="BH.setVerifDecideMode('perm')">Durable</button>
+    </div>
+    <p style="font-size:11.5px; color:var(--ink-faint); margin:6px 2px 0;" id="verif-decide-explain"></p>
+    <div class="bh-sheet-actions" style="margin-top:16px;">
+      <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.closeVerifDecide()">Annuler</button>
+      <button type="button" class="bh-btn bh-btn-primary" id="verif-decide-go" onclick="BH.confirmVerifDecide()">Vérifier</button>
+    </div>
+  </div>
+</div>
+
 <!-- VÉRIF : récapitulatif des écarts après Enregistrer -->
 <div class="bh-sheet-overlay" id="bh-verif-gaps-overlay" onclick="if(event.target===this) BH.closeVerifGapsSheet()">
-  <div class="bh-sheet" style="max-width:640px;">
+  <div class="bh-sheet">
     <div class="bh-sheet-handle"></div>
     <h3 class="bh-sheet-title" style="margin-bottom:4px;" id="verif-gaps-title">Écarts de rapprochement</h3>
     <p style="font-size:12.5px; color:var(--ink-soft); margin:0 0 14px;" id="verif-gaps-desc">

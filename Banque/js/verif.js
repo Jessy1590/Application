@@ -875,7 +875,8 @@ Object.assign(BH, {
           accId: r.accId,
           accName: r.accName,
           paid: !!r.paid,
-          walletExpId: r.walletExpId || null
+          walletExpId: r.walletExpId || null,
+          walletSign: r.walletSign || null
         });
       });
 
@@ -963,7 +964,7 @@ Object.assign(BH, {
       if (title) title.textContent = 'Écarts de rapprochement';
       if (desc) {
         desc.textContent = nApp || nBank
-          ? `Encore ${nApp} saisie(s) hors relevé et ${nBank} ligne(s) banque hors appli. Oublier · Lier · Vérifier / Exceptionnelle / Saisie.`
+          ? `Encore ${nApp} saisie(s) hors relevé et ${nBank} ligne(s) banque hors appli.`
           : 'Tout est rapproché pour ce mois.';
       }
 
@@ -984,9 +985,10 @@ Object.assign(BH, {
             </div>
             <span class="num">${this.fmt(g.amount)}</span>
             <div class="bh-verif-gap-actions">
-              <button type="button" class="bh-btn bh-btn-ghost" title="Ne plus proposer cet écart" onclick="event.stopPropagation(); BH.ignoreVerifAppGap('${kid}','${id}')">Oublier</button>
+              <button type="button" class="bh-btn bh-btn-ghost" title="Laisser cette saisie de côté, sans changer le montant" onclick="event.stopPropagation(); BH.ignoreVerifAppGap('${kid}','${id}')">Oublié</button>
               <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une ligne du relevé" onclick="event.stopPropagation(); BH.startVerifGapLinkApp('${kid}','${id}','${acc}')">Lier</button>
-              <button type="button" class="bh-btn bh-btn-primary" title="${g.paid ? 'Déjà saisi : confirmer comme vérifié' : 'Valider le montant et marquer vérifié'}" onclick="event.stopPropagation(); BH.saisieVerifAppGap('${kid}','${id}','${acc}',${Number(g.amount) || 0})">${g.paid ? 'Vérifier' : 'Valider'}</button>
+              <button type="button" class="bh-btn bh-btn-primary" title="Valider avec le montant écrit ou un autre, ponctuel ou durable" onclick="event.stopPropagation(); BH.openVerifGapVerify('${kid}','${id}','${acc}')">Vérifié</button>
+              <button type="button" class="bh-btn bh-btn-danger" title="Pas payé ce mois-ci : 0 €. Un mouvement de portefeuille est retiré." onclick="event.stopPropagation(); BH.cancelVerifAppGap('${kid}','${id}','${acc}')">Annulé</button>
             </div>
           </div>`;
         }).join('')
@@ -997,9 +999,6 @@ Object.assign(BH, {
           const dateLbl = g.date ? new Date(g.date + 'T00:00:00').toLocaleDateString('fr-FR') : '—';
           const amtColor = g.amount < 0 ? 'var(--clay)' : 'var(--sage-deep)';
           const weak = g.weakMatch ? ` · score faible ${g.score}%` : '';
-          const excBtn = Number(g.amount) < 0
-            ? `<button type="button" class="bh-btn bh-btn-outline" title="Enregistrer cette sortie comme dépense exceptionnelle (ponctuelle) et la lier à cette ligne" onclick="event.stopPropagation(); BH.saisieVerifBankGap('${g.opId}')">Exceptionnelle</button>`
-            : '';
           return `<div class="bh-verif-gaps-row bank">
             <div class="bh-verif-gaps-main">
               <div><strong>${this.esc(g.label)}</strong></div>
@@ -1007,10 +1006,9 @@ Object.assign(BH, {
             </div>
             <span class="num" style="color:${amtColor};">${this.fmt(g.amount)}</span>
             <div class="bh-verif-gap-actions">
-              <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne banque" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublier</button>
-              <button type="button" class="bh-btn bh-btn-outline" title="Lier à une saisie existante" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
-              ${excBtn}
-              <button type="button" class="bh-btn bh-btn-primary" title="Créer une dépense ou un revenu durable prérempli" onclick="event.stopPropagation(); BH.verifAddAsEntry('${g.opId}')">Saisie</button>
+              <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer cette ligne du relevé" onclick="event.stopPropagation(); BH.ignoreVerifBankGap('${g.opId}')">Oublié</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Lier à une dépense ou un montant de portefeuille" onclick="event.stopPropagation(); BH.linkVerifBankGap('${g.opId}')">Lier</button>
+              <button type="button" class="bh-btn bh-btn-primary" title="Retenir le montant du relevé ou un autre, en ponctuel ou durable" onclick="event.stopPropagation(); BH.openVerifBankVerify('${g.opId}')">Vérifié</button>
             </div>
           </div>`;
         }).join('')
@@ -1019,10 +1017,12 @@ Object.assign(BH, {
       body.innerHTML = `
         <div class="bh-verif-gaps-section">
           <h4>Sur l’appli, pas dans le relevé <span class="cnt">${nApp}</span></h4>
+          <p class="bh-verif-gaps-hint">Oublié laisse la saisie telle quelle. Lier rattache une ligne du relevé. Vérifié retient le montant écrit ou un autre, en ponctuel ou durable. Annulé met 0 € ce mois-ci, ou retire la ligne si elle est dans un portefeuille.</p>
           ${appHtml}
         </div>
         <div class="bh-verif-gaps-section">
           <h4>Sur le relevé, pas dans l’appli <span class="cnt">${nBank}</span></h4>
+          <p class="bh-verif-gaps-hint">Oublié ignore la ligne. Lier la rattache à une dépense ou un montant de portefeuille. Vérifié crée la saisie avec le montant du relevé ou un autre, en ponctuel ou durable.</p>
           ${bankHtml}
         </div>`;
     },
@@ -1147,6 +1147,235 @@ Object.assign(BH, {
       } else {
         this.verifAddAsEntry(opId);
       }
+    },
+    verifGapRow(kind, id) {
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const accId = this.verif.accId || document.getElementById('verif-account')?.value || '';
+      return this.listBudgetStatusRows(mKey, accId || null)
+        .find(r => r.kind === kind && String(r.id) === String(id)) || null;
+    },
+    openVerifGapVerify(kind, id, accId) {
+      const row = this.verifGapRow(kind, id);
+      if (!row) { toast('Saisie introuvable.'); return; }
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const amount = Math.abs(Number(row.amount) || 0);
+      if (kind === 'wallet' || kind === 'exceptional') {
+        this.openVerifDecide({
+          side: 'app', kind, id, accId: accId || row.accId, label: row.label, amount,
+          walletExpId: row.walletExpId || null, walletSign: row.walletSign || null,
+          showModes: false
+        });
+        return;
+      }
+      if (this.isVerifPayableKind(kind)) {
+        const daKind = (kind === 'income' || kind === 'refund') ? 'income' : 'expense';
+        const item = daKind === 'income'
+          ? (this.state.incomes || []).find(i => String(i.id) === String(id))
+          : this.findExpenseLike(id, mKey);
+        if (item) {
+          this.openDifferentAmount(id, accId || row.accId, daKind, {
+            amount, mKey, linkKind: kind, markVerified: true, title: 'Vérifier'
+          });
+          return;
+        }
+      }
+      this.openVerifDecide({
+        side: 'app', kind, id, accId: accId || row.accId, label: row.label, amount, showModes: false
+      });
+    },
+    openVerifBankVerify(opId) {
+      const op = this.findVerifOp(opId);
+      if (!op) return;
+      this.openVerifDecide({
+        side: 'bank',
+        opId,
+        label: op.label || 'Ligne',
+        amount: Math.abs(Number(op.amount) || 0),
+        bankAmount: Number(op.amount) || 0,
+        showModes: true,
+        mode: 'temp'
+      });
+    },
+    openVerifDecide(opts) {
+      const o = opts || {};
+      this.verif.decide = {
+        side: o.side || 'app',
+        kind: o.kind || null,
+        id: o.id != null ? o.id : null,
+        accId: o.accId || null,
+        opId: o.opId || null,
+        label: o.label || '',
+        amount: Number(o.amount) || 0,
+        bankAmount: o.bankAmount != null ? Number(o.bankAmount) : null,
+        walletExpId: o.walletExpId || null,
+        walletSign: o.walletSign || null,
+        showModes: !!o.showModes,
+        mode: o.mode === 'perm' ? 'perm' : 'temp'
+      };
+      const title = document.getElementById('verif-decide-title');
+      const desc = document.getElementById('verif-decide-desc');
+      const amountEl = document.getElementById('verif-decide-amount');
+      const modes = document.getElementById('verif-decide-modes');
+      const go = document.getElementById('verif-decide-go');
+      if (title) title.textContent = o.side === 'bank' ? 'Vérifier la ligne' : 'Vérifier';
+      if (desc) desc.textContent = `${o.label || 'Saisie'} · montant écrit ${this.fmt(o.amount)}`;
+      if (amountEl) amountEl.value = String(Math.round((Number(o.amount) || 0) * 100) / 100);
+      if (modes) modes.style.display = o.showModes ? 'flex' : 'none';
+      if (go) go.textContent = o.side === 'bank' ? 'Continuer' : 'Vérifier';
+      this.setVerifDecideMode(this.verif.decide.mode);
+      this.presentOverlay('bh-verif-decide-overlay');
+    },
+    closeVerifDecide() {
+      document.getElementById('bh-verif-decide-overlay')?.classList.remove('open', 'front');
+      this.verif.decide = null;
+    },
+    setVerifDecideMode(mode) {
+      const d = this.verif.decide;
+      if (!d) return;
+      d.mode = mode === 'perm' ? 'perm' : 'temp';
+      document.getElementById('verif-decide-temp')?.classList.toggle('active', d.mode === 'temp');
+      document.getElementById('verif-decide-perm')?.classList.toggle('active', d.mode === 'perm');
+      const explain = document.getElementById('verif-decide-explain');
+      if (!explain) return;
+      if (!d.showModes) {
+        explain.textContent = d.kind === 'wallet'
+          ? 'Tu peux garder le montant écrit ou le corriger. S’il n’a pas eu lieu, Annulé retire la ligne du portefeuille.'
+          : (d.kind === 'exceptional'
+            ? 'Ponctuel : seul ce mois. Garde le montant écrit ou indique-en un autre.'
+            : 'Montant retenu pour ce mois. Le montant habituel ne change pas.');
+        return;
+      }
+      const out = Number(d.bankAmount) < 0;
+      explain.textContent = d.mode === 'perm'
+        ? (out
+          ? 'Durable : crée une dépense habituelle avec ce montant, liée à la ligne.'
+          : 'Durable : crée un revenu habituel avec ce montant, lié à la ligne.')
+        : (out
+          ? 'Ponctuel : dépense exceptionnelle de ce mois seulement, liée à la ligne.'
+          : 'Ponctuel : encaissement de ce mois seulement, lié à la ligne. Il ne revient pas les mois suivants.');
+    },
+    async confirmVerifDecide() {
+      const d = this.verif.decide;
+      if (!d) return;
+      const raw = document.getElementById('verif-decide-amount')?.value;
+      if (raw === '' || raw == null) { toast('Indique un montant.'); return; }
+      const amount = Number(raw);
+      if (!Number.isFinite(amount) || amount < 0) { toast('Le montant doit être un nombre positif ou zéro.'); return; }
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+
+      if (d.side === 'bank') {
+        const op = this.findVerifOp(d.opId);
+        if (!op) { toast('Ligne introuvable.'); return; }
+        const out = Number(d.bankAmount) < 0;
+        const mode = d.mode === 'perm' ? 'perm' : 'temp';
+        this.closeVerifDecide();
+        if (mode === 'temp' && out) {
+          this.openExceptionalSheet({
+            desc: op.label || '',
+            amount,
+            date: op.date || null,
+            accId: this.verif.accId || '',
+            mKey: this.verif.mKey || (op.date || '').slice(0, 7),
+            pendingOpId: d.opId
+          });
+          return;
+        }
+        this.verifAddAsEntry(d.opId, { amount, oneOff: mode === 'temp' && !out, fromVerify: true });
+        return;
+      }
+
+      if (d.kind === 'wallet') {
+        if (!(amount > 0)) { toast('Pour retirer le mouvement, utilise Annulé.'); return; }
+        if (!d.walletExpId) { toast('Portefeuille introuvable.'); return; }
+        const signed = d.walletSign === 'refund' ? -Math.abs(amount) : Math.abs(amount);
+        const ok = await this.runVerif('vérification du portefeuille', async () => {
+          if (Math.abs(Math.abs(signed) - Math.abs(Number(d.amount) || 0)) > 0.004) {
+            await this.updateWalletTx(d.accId, mKey, d.walletExpId, d.id, { amount: signed });
+          }
+          await this.markManualVerified({
+            kind: 'wallet', id: d.id, accId: d.accId, mKey,
+            amount: Math.abs(signed), label: d.label
+          });
+          return true;
+        });
+        if (!ok) return;
+        this.closeVerifDecide();
+        toast('Mouvement vérifié');
+        return;
+      }
+
+      if (d.kind === 'exceptional') {
+        if (!(amount > 0)) { toast('Pour supprimer cette dépense, utilise Annulé.'); return; }
+        const ok = await this.runVerif('vérification', async () => {
+          await this.setPaid('expense', d.id, d.accId, mKey, amount, { exceptional: true });
+          await this.markManualVerified({
+            kind: 'exceptional', id: d.id, accId: d.accId, mKey, amount, label: d.label
+          });
+          return true;
+        });
+        if (!ok) return;
+        this.closeVerifDecide();
+        toast('Vérifié');
+        return;
+      }
+
+      if ((d.kind === 'income' || d.kind === 'refund') && !(amount > 0)) {
+        toast('Pour un encaissement à 0 €, utilise Annulé.');
+        return;
+      }
+      const ok = await this.runVerif('vérification', async () => {
+        await this.verifWritePaid(d.kind, d.id, d.accId, mKey, amount);
+        await this.markManualVerified({
+          kind: d.kind, id: d.id, accId: d.accId, mKey, amount, label: d.label
+        });
+        return true;
+      });
+      if (!ok) return;
+      this.closeVerifDecide();
+      toast('Vérifié');
+    },
+    async cancelVerifAppGap(kind, id, accId) {
+      const row = this.verifGapRow(kind, id);
+      if (!row) { toast('Saisie introuvable.'); return; }
+      const mKey = this.verif.mKey || this.monthKey(new Date());
+      const useAcc = accId || row.accId;
+      const label = row.label || 'Cette saisie';
+
+      if (kind === 'wallet') {
+        const walletExpId = row.walletExpId;
+        if (!walletExpId) { toast('Portefeuille introuvable.'); return; }
+        if (!confirm(`Annuler « ${label} » ?\n\nCe mouvement n’a pas eu lieu : il sera retiré du portefeuille.`)) return;
+        const ok = await this.runVerif('annulation', async () => {
+          await this.deleteBankVerificationsForLink('wallet', id);
+          await this.removeWalletTx(useAcc, mKey, walletExpId, id);
+          return true;
+        });
+        if (ok) toast('Mouvement retiré du portefeuille');
+        return;
+      }
+
+      if (kind === 'exceptional') {
+        if (!confirm(`Annuler « ${label} » ?\n\nCette dépense exceptionnelle sera supprimée (0 € ce mois-ci).`)) return;
+        const ok = await this.runVerif('annulation', async () => {
+          await this.deleteBankVerificationsForLink('expense', id);
+          await this.clearPaid('expense', id, useAcc, mKey, { force: true });
+          return true;
+        });
+        if (ok) toast('Dépense exceptionnelle annulée');
+        return;
+      }
+
+      if (!this.isVerifPayableKind(kind)) { toast('Annulation non disponible pour ce type.'); return; }
+      if (!confirm(`Annuler « ${label} » pour ce mois ?\n\nLe paiement passe à 0 €. Le montant habituel ne change pas.`)) return;
+      const ok = await this.runVerif('annulation', async () => {
+        await this.verifWritePaid(kind, id, useAcc, mKey, 0);
+        if (kind === 'apport' || this.isApportExpenseId(id)) {
+          if (typeof this.clearOwnApportReceived === 'function') await this.clearOwnApportReceived(id, mKey);
+        }
+        await this.markManualVerified({ kind, id, accId: useAcc, mKey, amount: 0, label });
+        return true;
+      });
+      if (ok) toast('Annulé · 0 € ce mois-ci');
     },
     parseAmountFR(raw) {
       if (raw == null) return NaN;
@@ -2487,7 +2716,7 @@ Object.assign(BH, {
         <div style="font-size:13px; line-height:1.45; color:var(--ink);">
           <p style="margin:0 0 12px;"><strong>Valider / Déjà validé</strong> — Ouvre le même formulaire qu’Aujourd’hui : montant réel + ponctuel (ce mois) ou durable (montant habituel). Vert pâle = déjà fait ce mois-ci.</p>
           <p style="margin:0 0 12px;"><strong>Lien budget</strong> — Compte, Détecté (suggestion) ou Lié (déjà rattaché), libellé, portefeuille avec 👛, montant, jour et catégorie. Si le montant validé diffère du budget, le budget est rappelé. Si plusieurs propositions ont un score proche (±5 pts), elles sont listées : clique pour choisir.</p>
-          <p style="margin:0 0 12px;"><strong>Lier</strong> — Saisie de ce compte, pour le mois du relevé. Le lien valide le paiement et l’enregistre.</p>
+          <p style="margin:0 0 12px;"><strong>Lier</strong> — Saisie de ce compte, pour le mois du relevé : dépense, revenu, apport ou montant déjà saisi dans un portefeuille. Le filtre Portefeuilles propose aussi les enveloppes pour y ajouter le mouvement. Le lien valide le paiement et l’enregistre.</p>
           <p style="margin:0 0 12px;"><strong>Autre compte</strong> — Saisie d’un autre compte, même mois (dépense couple, apport, revenu). Le paiement s’écrit sur ce compte.</p>
           <p style="margin:0 0 12px;"><strong>Autre mois</strong> — Rattrapage (mois passé) ou Anticipé (mois à venir). Le paiement s’écrit sur ce mois-là, le rapprochement reste sur le relevé.</p>
           <p style="margin:0 0 12px;"><strong>Délier</strong> — Sur une suggestion : la retire. Sur un lien enregistré : supprime le lien, et propose d’annuler aussi la validation du mois.</p>
@@ -2498,7 +2727,8 @@ Object.assign(BH, {
           <p style="margin:0 0 12px;"><strong>Oublier</strong> — Ignore la ligne (enregistré en base). Sur une ligne déjà liée, propose d’annuler aussi la validation.</p>
           <p style="margin:0 0 12px;"><strong>Réafficher</strong> — Remet une ligne oubliée dans la liste.</p>
           <p style="margin:0 0 12px;"><strong>Vérifier</strong> (onglet Statut et écarts) — Pour une saisie déjà validée sans ligne de relevé : une confirmation la marque « Vérifié (manuel) ». « Retirer » annule ce marquage.</p>
-          <p style="margin:0;"><strong>Enregistrer</strong> — Valide et lie en une fois toutes les correspondances solides (≥ 70 %) et les lignes oubliées, puis ouvre le récap des écarts. Si tout colle : message « tout est rapproché ».</p>
+          <p style="margin:0 0 12px;"><strong>Enregistrer</strong> — Valide et lie en une fois toutes les correspondances solides (≥ 70 %) et les lignes oubliées, puis ouvre le récap des écarts. Si tout colle : message « tout est rapproché ».</p>
+          <p style="margin:0;"><strong>Écarts</strong> — Oublié (laisser de côté) · Lier · Vérifié (montant écrit ou un autre, ponctuel ou durable) · Annulé (0 € ce mois-ci ; une ligne de portefeuille ajoutée sans raison est retirée).</p>
         </div>
       `);
     },
@@ -2703,7 +2933,7 @@ Object.assign(BH, {
       if (title) {
         title.textContent = linkMode === 'compte'
           ? 'Autre compte'
-          : (linkMode === 'mois' ? 'Rattrapage ou anticipé' : 'Lier à une saisie');
+          : (linkMode === 'mois' ? 'Rattrapage ou anticipé' : 'Lier à une dépense ou un portefeuille');
       }
       if (monthBox) monthBox.style.display = linkMode === 'mois' ? 'flex' : 'none';
       if (linkMode === 'compte') {
@@ -2812,7 +3042,6 @@ Object.assign(BH, {
       const mKey = this.verif.linkPayMonth || statementKey;
       const linkMode = this.verif.linkMode || 'lien';
       let cands = this.buildVerifCandidates(accFilter || null, mKey)
-        .filter(c => c.kind !== 'wallet' && c.kind !== 'wallet-budget')
         .filter(c => !this.isVerifCandidateAlreadyLinked(c, mKey, this.verif.linkOpId))
         .filter(c => mKey === statementKey || !this.isVerifCandidateAlreadyLinked(c, statementKey, this.verif.linkOpId));
       if (linkMode === 'compte') {
@@ -2831,6 +3060,8 @@ Object.assign(BH, {
         cands = cands.filter(c => c.kind === 'income');
       } else if (kindFilter === 'apport') {
         cands = cands.filter(c => c.kind === 'apport');
+      } else {
+        cands = cands.filter(c => c.kind !== 'wallet-budget');
       }
 
       if (q) {
@@ -2852,7 +3083,9 @@ Object.assign(BH, {
           </div>`).join('')
         : `<div class="bh-empty">${kindFilter === 'apport'
             ? 'Aucun apport non lié (compte principal + contribution vers un compte partagé).'
-            : 'Aucune saisie non liée pour ce mois.'}</div>`;
+            : (kindFilter === 'wallet'
+              ? 'Aucun montant de portefeuille non lié. Choisis une enveloppe pour en ajouter un.'
+              : 'Aucune saisie non liée pour ce mois.')}</div>`;
     },
     closeVerifLink() {
       document.getElementById('bh-verif-link-overlay').classList.remove('open', 'front');
@@ -3030,22 +3263,39 @@ Object.assign(BH, {
       this.renderVerifTable();
     },
 
-    verifAddAsEntry(opId) {
+    verifAddAsEntry(opId, opts = {}) {
       const op = this.findVerifOp(opId);
       if (!op) return;
       const isIncome = Number(op.amount) > 0;
+      const amt = opts.amount != null && Number.isFinite(Number(opts.amount))
+        ? Math.abs(Number(opts.amount))
+        : Math.abs(Number(op.amount));
       this.openAddSheet();
       this.verif.pendingEntryOpId = opId;
       document.getElementById('f-type').value = isIncome ? 'income' : 'expense';
       this.updateSheetForm();
       document.getElementById('f-desc').value = op.label;
-      document.getElementById('f-amount').value = Math.abs(Number(op.amount)).toFixed(2);
+      document.getElementById('f-amount').value = amt.toFixed(2);
       if (op.date) {
         const day = Number(op.date.slice(8, 10));
         document.getElementById('f-day').value = day;
       }
+      if (isIncome && opts.oneOff) {
+        const refund = document.getElementById('f-refund');
+        if (refund) refund.checked = true;
+      }
+      if (opts.fromVerify) {
+        const title = document.getElementById('bh-sheet-title');
+        if (title) {
+          title.textContent = opts.oneOff
+            ? 'Encaissement ponctuel'
+            : (isIncome ? 'Revenu durable' : 'Dépense durable');
+        }
+      }
       this.populateSheetSelects(this.verif.accId, '');
-      toast('Formulaire prérempli — enregistre pour créer et valider la saisie');
+      toast(opts.oneOff
+        ? 'Montant prérempli. La case remboursement reste cochée pour que ce crédit ne revienne pas les mois suivants.'
+        : 'Formulaire prérempli — enregistre pour créer et valider la saisie');
     },
 
     openVerifWallet(opId) {

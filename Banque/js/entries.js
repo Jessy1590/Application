@@ -1212,7 +1212,7 @@ Object.assign(BH, {
         budgetAmount: Number(amount),
         score: 100
       };
-      await this.verifCommitLink(op, match, { markPaid: true, paidAmount: Math.abs(Number(op.amount)) });
+      await this.verifCommitLink(op, match, { markPaid: true, paidAmount: Math.abs(Number(amount)) });
       return true;
     },
 
