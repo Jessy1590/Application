@@ -354,7 +354,7 @@ Object.assign(BH, {
                 <div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <span style="font-size:12px; font-weight:600;">Mon mode de répartition</span>
-                        <select style="width:auto; margin:0; padding:5px 8px; font-size:12px;" onchange="BH.saveContributionMode('${acc.id}', this.value)">
+                        <select style="width:auto; margin:0;" onchange="BH.saveContributionMode('${acc.id}', this.value)">
                           <option value="fixed" ${myMode==='fixed'?'selected':''}>Montant fixe (€)</option>
                           <option value="percent" ${myMode==='percent'?'selected':''}>Pourcentage (%)</option>
                           <option value="prorata" ${myMode==='prorata'?'selected':''}>Prorata des revenus</option>

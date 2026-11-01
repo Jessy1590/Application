@@ -46,13 +46,15 @@
   /* Vérification relevé */
   .bh-verif-toolbar{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
   .bh-verif-drop{
-    border:1.5px dashed var(--line); border-radius:14px; background:var(--card);
-    padding:18px 16px; text-align:center; cursor:pointer; color:var(--ink-soft);
+    border:1.5px dashed var(--line); border-radius:12px; background:#fff;
+    height:44px; min-height:44px; padding:0 14px; box-sizing:border-box;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    text-align:center; cursor:pointer; color:var(--ink-soft);
     transition: border-color .15s, background .15s;
   }
   .bh-verif-drop:hover, .bh-verif-drop.drag{ border-color:var(--sage); background:var(--sage-pale); color:var(--sage-deep); }
-  .bh-verif-drop strong{ display:block; color:var(--ink); font-size:14px; margin-bottom:4px; }
-  .bh-verif-drop span{ font-size:12px; }
+  .bh-verif-drop strong{ color:var(--ink); font-size:14px; font-weight:600; white-space:nowrap; }
+  .bh-verif-drop span{ font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .bh-verif-stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:12px; }
   @media (min-width: 700px){ .bh-verif-stats{ grid-template-columns:repeat(5,1fr); } }
   .bh-verif-stat{ background:var(--card); border:1px solid var(--line-soft); border-radius:12px; padding:10px 12px; }
@@ -497,12 +499,15 @@
       flex-direction:row; align-items:stretch;
       max-width:none; width:100%; margin:0;
       min-height:100vh; height:100vh;
+      min-height:100dvh; height:100dvh;
       border:none; border-radius:0; overflow:hidden;
       background:var(--paper); box-shadow:none;
     }
     .bh-tabbar{
       position:sticky; top:0; left:auto; bottom:auto; transform:none;
-      width:220px; max-width:none; height:100vh; min-height:100vh;
+      width:220px; max-width:none;
+      height:100vh; min-height:100vh;
+      height:100dvh; min-height:100dvh;
       flex-direction:column; justify-content:flex-start; align-items:stretch; gap:4px;
       border-radius:0; border:none; border-right:1px solid var(--line-soft);
       padding:22px 14px; box-shadow:none; background:var(--card); flex-shrink:0; z-index:40;
@@ -520,14 +525,24 @@
     .bh-tab svg{ width:18px; height:18px; }
     .bh-main{
       flex:1; min-width:0; width:100%; background:var(--paper);
-      height:100vh; max-height:100vh; overflow-y:auto;
+      display:flex; flex-direction:column;
+      height:100vh; max-height:100vh; min-height:100vh;
+      height:100dvh; max-height:100dvh; min-height:100dvh;
+      overflow:hidden;
     }
     .bh-topbar{
-      padding:20px 32px 14px; position:sticky; top:0;
+      padding:20px 32px 14px; position:sticky; top:0; flex-shrink:0;
       background:rgba(243,246,243,0.92); backdrop-filter:blur(8px);
     }
-    .bh-view{ padding:12px 32px 40px; }
-    .bh-view.active{ min-height:calc(100vh - 100px); }
+    .bh-view{
+      padding:12px 32px 40px;
+      flex:1; min-height:0; min-width:0; width:100%;
+      overflow-y:auto; overflow-x:hidden;
+    }
+    .bh-view.active{
+      min-height:calc(100vh - 88px);
+      min-height:calc(100dvh - 88px);
+    }
 
     /* Aujourd'hui : 2 colonnes qui s'étirent */
     #view-today.active{
@@ -564,12 +579,21 @@
     /* Vérification : desktop uniquement, plein écran */
     .bh-tab[data-tab="verif"]{ display:flex !important; }
     #view-verif{ display:none !important; }
-    #view-verif.active{ display:flex !important; flex-direction:column; gap:14px; }
-    .bh-verif-filters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; max-width:480px; }
+    #view-verif.active{
+      display:flex !important; flex-direction:column; gap:14px;
+      flex:1; min-height:0;
+    }
+    .bh-verif-filters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; }
     .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1.4fr auto; gap:10px; align-items:end; }
-    .bh-verif-drop{ min-height:88px; }
-    .bh-verif-table-wrap{ flex:1; min-height:0; overflow:auto; max-height:calc(100vh - 320px); }
-    .bh-verif-status-wrap{ max-height:calc(100vh - 280px); }
+    .bh-verif-table-wrap{
+      flex:1; min-height:0; overflow:auto;
+      max-height:calc(100vh - 300px);
+      max-height:calc(100dvh - 300px);
+    }
+    .bh-verif-status-wrap{
+      max-height:calc(100vh - 260px);
+      max-height:calc(100dvh - 260px);
+    }
     .bh-verif-table{ table-layout:auto; width:max-content; min-width:100%; }
     .bh-verif-table td{ vertical-align:top; }
     .bh-verif-table th:nth-child(1), .bh-verif-table td:nth-child(1){ width:1%; }
@@ -615,6 +639,8 @@
       animation:bhSheetIn 0.2s ease;
     }
     .bh-sheet-handle{ display:none; }
+    .bh-due{ cursor:pointer; transition:border-color .15s; }
+    .bh-due:hover{ border-color:var(--sage); }
     @keyframes bhSheetIn{
       from{ transform:translateY(10px) scale(0.98); opacity:0.5; }
       to{ transform:translateY(0) scale(1); opacity:1; }
@@ -623,9 +649,525 @@
 
   @media (min-width: 1400px){
     #view-today.active{ grid-template-columns:minmax(0,1.6fr) minmax(360px,1fr); gap:16px 40px; }
-    #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); }
+    #bh-accounts-list{ grid-template-columns:repeat(auto-fill, minmax(400px, 1fr)); }
     .bh-view{ padding:16px 40px 48px; }
     .bh-topbar{ padding:22px 40px 14px; }
     .bh-verif-table th:nth-child(5), .bh-verif-table td:nth-child(5){ min-width:380px; }
+  }
+
+  @media (min-width: 1600px){
+    #view-today.active{
+      grid-template-columns:minmax(0,2fr) minmax(340px,1fr);
+      gap:16px 48px;
+    }
+    #bh-wallets-section{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+      gap:12px;
+      align-items:start;
+    }
+    #bh-wallets-section > .bh-section-label{
+      grid-column:1 / -1;
+      margin-bottom:0;
+    }
+    #bh-wallets-section > .bh-card{
+      margin-bottom:0 !important;
+      height:100%;
+    }
+    #bh-due-section{
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+      gap:10px;
+      align-items:start;
+    }
+    #bh-due-section > .bh-section-label{
+      grid-column:1 / -1;
+    }
+    #bh-due-section > .bh-empty{
+      grid-column:1 / -1;
+    }
+    #bh-due-section > .bh-due{
+      margin-bottom:0;
+    }
+    #bh-accounts-list{
+      grid-template-columns:repeat(auto-fill, minmax(360px, 1fr));
+    }
+  }
+
+  /* ===== Responsive PC / mobile ===== */
+  html{
+    overflow-x:clip;
+    -webkit-text-size-adjust:100%;
+  }
+  body{
+    overflow-x:clip;
+    min-height:100dvh;
+  }
+  #budget-root{
+    min-height:100dvh;
+    min-width:0;
+  }
+
+  /* Zones tactiles, entrées iOS, défilement */
+  .bh-btn,
+  .bh-tab,
+  .bh-icon-btn,
+  .bh-fab,
+  .bh-verif-subnav button,
+  .bh-verif-stat.clickable,
+  .bh-manage-row,
+  .chart-filter-btn,
+  .bilan-toggle-btn,
+  .bh-due-check,
+  .bh-delete-acct-btn,
+  .bh-order-btn,
+  .bh-info-btn{
+    touch-action:manipulation;
+  }
+  @media (max-width: 959px){
+    .bh-input,
+    .bh-sheet input,
+    .bh-sheet select,
+    .bh-reste-date-input{
+      font-size:16px;
+    }
+    .bh-tab{
+      min-height:44px;
+      min-width:44px;
+      padding-top:8px;
+      padding-bottom:8px;
+    }
+    .bh-icon-btn{
+      min-width:44px;
+      min-height:44px;
+    }
+    .bh-btn{
+      min-height:44px;
+    }
+    .bh-due-check{
+      width:28px;
+      height:28px;
+      min-width:44px;
+      min-height:44px;
+      box-sizing:content-box;
+      padding:8px;
+      margin:-8px 0 -8px -8px;
+    }
+    .bh-month-nav .bh-icon-btn,
+    .bh-today-month-nav .bh-icon-btn,
+    .bh-verif-month-nav .bh-icon-btn{
+      width:44px !important;
+      height:44px !important;
+    }
+    .filter-check input,
+    .bh-sheet input[type="checkbox"],
+    .bh-sheet input[type="radio"]{
+      min-width:20px;
+      min-height:20px;
+      width:20px;
+      height:20px;
+    }
+    label:has(> input[type="checkbox"]),
+    label:has(> input[type="radio"]){
+      min-height:44px;
+      align-items:center;
+    }
+    .bh-verif-subnav button{
+      min-height:44px;
+      padding-left:18px;
+      padding-right:18px;
+    }
+
+    /* Safe areas */
+    .bh-topbar{
+      padding-top:calc(18px + env(safe-area-inset-top, 0px));
+      padding-left:calc(18px + env(safe-area-inset-left, 0px));
+      padding-right:calc(18px + env(safe-area-inset-right, 0px));
+    }
+    .bh-view{
+      padding-left:calc(16px + env(safe-area-inset-left, 0px));
+      padding-right:calc(16px + env(safe-area-inset-right, 0px));
+      padding-bottom:calc(74px + env(safe-area-inset-bottom, 0px));
+    }
+    .bh-tabbar{
+      left:max(10px, env(safe-area-inset-left, 0px));
+      right:max(10px, env(safe-area-inset-right, 0px));
+      width:auto;
+      max-width:min(340px, calc(100% - 20px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+      transform:none;
+      margin-left:auto;
+      margin-right:auto;
+      bottom:max(10px, env(safe-area-inset-bottom, 0px));
+    }
+    .bh-sheet-overlay{
+      padding:env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    }
+    .bh-fab{
+      right:max(14px, calc(14px + env(safe-area-inset-right, 0px)));
+      bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+    }
+    .bh-group-bar{
+      bottom:calc(76px + env(safe-area-inset-bottom, 0px));
+      width:min(520px, calc(100% - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    }
+    .bh-toast{
+      bottom:calc(110px + env(safe-area-inset-bottom, 0px));
+    }
+  }
+
+  /* Feuilles / modales : hauteur dynamique, pied fixe */
+  .bh-sheet{
+    max-height:min(92dvh, 920px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    display:flex;
+    flex-direction:column;
+  }
+  .bh-sheet-actions{
+    position:sticky;
+    bottom:0;
+    z-index:3;
+    flex-shrink:0;
+    margin-top:auto;
+    padding-top:12px;
+    padding-bottom:env(safe-area-inset-bottom, 0px);
+    background:linear-gradient(to top, var(--paper) 78%, transparent);
+  }
+  .bh-sheet > .bh-btn.bh-btn-block:last-child{
+    position:sticky;
+    bottom:0;
+    z-index:2;
+    margin-bottom:env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Débordements & libellés longs */
+  .bh-due-desc,
+  .bh-manage-row-desc,
+  .bh-acct-name,
+  .chart-legend-label,
+  .bh-verif-status-row > div:first-child{
+    overflow-wrap:anywhere;
+    word-break:break-word;
+  }
+  .bh-due-top,
+  .bh-manage-row,
+  .bh-acct-head,
+  .bh-group-bar-info{
+    min-width:0;
+  }
+
+  /* Tableaux Vérif / Stats : scroll horizontal contenu */
+  .bh-verif-table-wrap,
+  .bh-verif-status-wrap{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    -webkit-overflow-scrolling:touch;
+    max-width:100%;
+  }
+  #stat-comparison,
+  #chart-savings-stack,
+  #chart-categories,
+  #chart-salary-split{
+    overflow-x:auto;
+    overscroll-behavior-x:contain;
+    max-width:100%;
+  }
+
+  /* Portefeuilles : 2 colonnes (tablette uniquement) */
+  @media (min-width: 540px) and (max-width: 959px){
+    #bh-wallets-section{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:10px;
+      align-items:start;
+    }
+    #bh-wallets-section > .bh-section-label{
+      grid-column:1 / -1;
+      margin-bottom:0;
+    }
+    #bh-wallets-section > .bh-card{
+      margin-bottom:0 !important;
+      height:100%;
+    }
+  }
+
+  /* PC confortable ≥ 900px : modales centrées, focus / survol */
+  @media (min-width: 900px){
+    .bh-sheet-overlay{
+      align-items:center;
+      padding:max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+    }
+    .bh-sheet{
+      border-radius:18px;
+      max-width:560px;
+      max-height:min(86dvh, 820px);
+      animation:bhSheetIn 0.2s ease;
+    }
+    .bh-sheet-handle{ display:none; }
+    .bh-verif-subnav button:hover:not(.active){
+      background:var(--line-soft);
+      color:var(--ink);
+    }
+    .bh-manage-row:hover,
+    .bh-due:hover{
+      border-color:var(--sage);
+    }
+    .bh-tab:focus-visible,
+    .bh-btn:focus-visible,
+    .bh-icon-btn:focus-visible{
+      outline:2px solid var(--sage);
+      outline-offset:2px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .bh-sheet,
+    .bh-toast,
+    .bh-btn,
+    .bh-tab,
+    .bh-verif-stat.clickable,
+    .bh-verif-drop{
+      animation:none !important;
+      transition:none !important;
+    }
+    .bh-btn:active{
+      transform:none;
+    }
+  }
+
+  /* ===== Champs unifiés ===== */
+  #budget-root input[type="text"],
+  #budget-root input[type="number"],
+  #budget-root input[type="date"],
+  #budget-root input[type="month"],
+  #budget-root input[type="email"],
+  #budget-root input[type="search"],
+  #budget-root input[type="password"],
+  #budget-root input[type="tel"],
+  #budget-root select,
+  #budget-root textarea,
+  #budget-root .bh-input,
+  .bh-sheet input[type="text"],
+  .bh-sheet input[type="number"],
+  .bh-sheet input[type="date"],
+  .bh-sheet input[type="month"],
+  .bh-sheet input[type="email"],
+  .bh-sheet input[type="search"],
+  .bh-sheet input[type="password"],
+  .bh-sheet input[type="tel"],
+  .bh-sheet select,
+  .bh-sheet textarea,
+  .bh-sheet .bh-input{
+    box-sizing:border-box;
+    width:100%;
+    margin-bottom:10px;
+    padding:0 14px !important;
+    font-family:'Inter',sans-serif;
+    font-size:15px !important;
+    line-height:1.4;
+    color:var(--ink);
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:12px;
+    -webkit-appearance:none;
+    appearance:none;
+  }
+  #budget-root input[type="text"],
+  #budget-root input[type="number"],
+  #budget-root input[type="date"],
+  #budget-root input[type="month"],
+  #budget-root input[type="email"],
+  #budget-root input[type="search"],
+  #budget-root input[type="password"],
+  #budget-root input[type="tel"],
+  #budget-root select,
+  #budget-root input.bh-input,
+  #budget-root select.bh-input,
+  .bh-sheet input[type="text"],
+  .bh-sheet input[type="number"],
+  .bh-sheet input[type="date"],
+  .bh-sheet input[type="month"],
+  .bh-sheet input[type="email"],
+  .bh-sheet input[type="search"],
+  .bh-sheet input[type="password"],
+  .bh-sheet input[type="tel"],
+  .bh-sheet select,
+  .bh-sheet input.bh-input,
+  .bh-sheet select.bh-input{
+    height:44px;
+    min-height:44px;
+  }
+  #budget-root textarea,
+  .bh-sheet textarea,
+  #budget-root textarea.bh-input,
+  .bh-sheet textarea.bh-input{
+    height:auto;
+    min-height:88px;
+    padding-top:10px !important;
+    padding-bottom:10px !important;
+    resize:vertical;
+  }
+  #budget-root select,
+  .bh-sheet select{
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%233E6B57' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5 6 8 9 4.5'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 12px center;
+    padding-right:36px !important;
+    cursor:pointer;
+  }
+  #budget-root input::placeholder,
+  #budget-root textarea::placeholder,
+  .bh-sheet input::placeholder,
+  .bh-sheet textarea::placeholder{
+    color:var(--ink-faint);
+    opacity:1;
+  }
+  #budget-root input[type="text"]:focus,
+  #budget-root input[type="number"]:focus,
+  #budget-root input[type="date"]:focus,
+  #budget-root input[type="month"]:focus,
+  #budget-root input[type="email"]:focus,
+  #budget-root input[type="search"]:focus,
+  #budget-root input[type="password"]:focus,
+  #budget-root input[type="tel"]:focus,
+  #budget-root select:focus,
+  #budget-root textarea:focus,
+  #budget-root .bh-input:focus,
+  .bh-sheet input[type="text"]:focus,
+  .bh-sheet input[type="number"]:focus,
+  .bh-sheet input[type="date"]:focus,
+  .bh-sheet input[type="month"]:focus,
+  .bh-sheet input[type="email"]:focus,
+  .bh-sheet input[type="search"]:focus,
+  .bh-sheet input[type="password"]:focus,
+  .bh-sheet input[type="tel"]:focus,
+  .bh-sheet select:focus,
+  .bh-sheet textarea:focus,
+  .bh-sheet .bh-input:focus{
+    outline:none;
+    border-color:var(--sage);
+    box-shadow:0 0 0 3px var(--sage-pale);
+  }
+  .bh-saisies-filters input[type="text"],
+  .bh-saisies-filters input[type="number"],
+  .bh-saisies-filters input[type="date"],
+  .bh-saisies-filters input[type="month"],
+  .bh-saisies-filters input[type="email"],
+  .bh-saisies-filters input[type="search"],
+  .bh-saisies-filters input[type="password"],
+  .bh-saisies-filters input[type="tel"],
+  .bh-saisies-filters select,
+  .bh-saisies-filters textarea,
+  .bh-saisies-filters .bh-input,
+  .bh-verif-toolbar input[type="text"],
+  .bh-verif-toolbar input[type="number"],
+  .bh-verif-toolbar input[type="date"],
+  .bh-verif-toolbar input[type="month"],
+  .bh-verif-toolbar input[type="email"],
+  .bh-verif-toolbar input[type="search"],
+  .bh-verif-toolbar input[type="password"],
+  .bh-verif-toolbar input[type="tel"],
+  .bh-verif-toolbar select,
+  .bh-verif-toolbar textarea,
+  .bh-verif-toolbar .bh-input,
+  .bh-verif-filters input[type="text"],
+  .bh-verif-filters input[type="number"],
+  .bh-verif-filters input[type="date"],
+  .bh-verif-filters input[type="month"],
+  .bh-verif-filters input[type="email"],
+  .bh-verif-filters input[type="search"],
+  .bh-verif-filters input[type="password"],
+  .bh-verif-filters input[type="tel"],
+  .bh-verif-filters select,
+  .bh-verif-filters textarea,
+  .bh-verif-filters .bh-input,
+  .contrib-input-wrap input[type="text"],
+  .contrib-input-wrap input[type="number"],
+  .contrib-input-wrap input[type="date"],
+  .contrib-input-wrap input[type="month"],
+  .contrib-input-wrap input[type="email"],
+  .contrib-input-wrap input[type="search"],
+  .contrib-input-wrap input[type="password"],
+  .contrib-input-wrap input[type="tel"],
+  .contrib-input-wrap select,
+  .contrib-input-wrap textarea,
+  .contrib-input-wrap .bh-input,
+  .bh-two-col input[type="text"],
+  .bh-two-col input[type="number"],
+  .bh-two-col input[type="date"],
+  .bh-two-col input[type="month"],
+  .bh-two-col input[type="email"],
+  .bh-two-col input[type="search"],
+  .bh-two-col input[type="password"],
+  .bh-two-col input[type="tel"],
+  .bh-two-col select,
+  .bh-two-col textarea,
+  .bh-two-col .bh-input{
+    margin-bottom:0;
+  }
+  .contrib-input-wrap input[type="number"]{
+    width:110px !important;
+    flex:0 0 auto;
+    text-align:right;
+  }
+  .bh-reste-date-input{
+    width:auto;
+    max-width:100%;
+    margin-bottom:0 !important;
+  }
+  #budget-root .bh-btn:not(.bh-tab):not(.bh-fab):not(.bh-info-btn):not(.bh-icon-btn),
+  .bh-sheet .bh-btn:not(.bh-tab):not(.bh-fab):not(.bh-info-btn):not(.bh-icon-btn){
+    min-height:44px;
+    padding:0 16px;
+    border-radius:12px;
+    font-size:14px;
+    align-items:center;
+    justify-content:center;
+  }
+  .bh-verif-actions .bh-btn{
+    min-height:unset;
+    padding:9px 12px;
+    font-size:13px;
+    border-radius:9px;
+  }
+  @media (max-width: 959px){
+    #budget-root input[type="text"],
+    #budget-root input[type="number"],
+    #budget-root input[type="date"],
+    #budget-root input[type="month"],
+    #budget-root input[type="email"],
+    #budget-root input[type="search"],
+    #budget-root input[type="password"],
+    #budget-root input[type="tel"],
+    #budget-root select,
+    #budget-root textarea,
+    #budget-root .bh-input,
+    .bh-sheet input[type="text"],
+    .bh-sheet input[type="number"],
+    .bh-sheet input[type="date"],
+    .bh-sheet input[type="month"],
+    .bh-sheet input[type="email"],
+    .bh-sheet input[type="search"],
+    .bh-sheet input[type="password"],
+    .bh-sheet input[type="tel"],
+    .bh-sheet select,
+    .bh-sheet textarea,
+    .bh-sheet .bh-input{
+      font-size:16px !important;
+    }
+  }
+  /* La règle générale (#budget-root …) est plus spécifique : on la reprend ici */
+  #budget-root .bh-saisies-filters .bh-input,
+  #budget-root .bh-verif-toolbar .bh-input,
+  #budget-root .bh-verif-filters .bh-input,
+  #budget-root .contrib-input-wrap input,
+  #budget-root .bh-two-col .bh-input,
+  .bh-sheet .bh-two-col .bh-input{
+    margin-bottom:0;
+  }
+  #budget-root .bh-saisies-add{
+    height:44px;
+    align-self:center;
   }
 
