@@ -515,6 +515,15 @@
     }).filter(Boolean);
   }
 
+  /** Questions auto : le pool de fiches n’est chargé que si le tirage en a besoin. */
+  function quizAutoEnabled(cfg) {
+    if (!cfg || cfg.manuel_seul === true) return false;
+    if (cfg.nb_auto_max != null && cfg.nb_auto_max !== '' && Number(cfg.nb_auto_max) <= 0) {
+      return false;
+    }
+    return true;
+  }
+
   async function buildQuizQuestions(modele, pool) {
     const cfg = modele.configuration_json || {};
     const nbWanted = Math.max(1, Number(cfg.nb_questions) || 8);
@@ -990,8 +999,6 @@
     let current = null;
     let revealed = false;
 
-    await preloadFiches(modele, fullPool.map((p) => p.id));
-
     function paintEmptyMastered() {
       root.innerHTML = '<div class="jp-v2-empty jp-fiche-mastered">'
         + '<p class="jp-title" style="font-size:1.15rem">Toutes les molécules du répertoire sont maîtrisées</p>'
@@ -1125,22 +1132,28 @@
     if (!pool.length) throw new Error('Aucune molécule pour ce tableau à trous');
     if (!tp.colonnes.length) throw new Error('Aucune colonne configurée');
 
-    await preloadFiches(modele, pool.map(function (m) { return m.id; }));
+    const shuffled = shuffle(pool);
     const eligible = [];
-    for (const med of pool) {
-      const f = await fiche(modele, med.id);
-      if (!f) continue;
-      const cells = {};
-      let any = false;
-      tp.colonnes.forEach(function (code) {
-        const vals = valeursChamp(f, code);
-        cells[code] = vals;
-        if (vals.length && tp.toujours.indexOf(code) < 0) any = true;
-      });
-      if (any) eligible.push({ fiche: f, med: med, cells: cells });
+    const batch = Math.max(tp.nbLignes, 4);
+    for (let i = 0; i < shuffled.length && eligible.length < tp.nbLignes; i += batch) {
+      const slice = shuffled.slice(i, i + batch);
+      await preloadFiches(modele, slice.map(function (m) { return m.id; }));
+      for (let j = 0; j < slice.length && eligible.length < tp.nbLignes; j++) {
+        const med = slice[j];
+        const f = await fiche(modele, med.id);
+        if (!f) continue;
+        const cells = {};
+        let any = false;
+        tp.colonnes.forEach(function (code) {
+          const vals = valeursChamp(f, code);
+          cells[code] = vals;
+          if (vals.length && tp.toujours.indexOf(code) < 0) any = true;
+        });
+        if (any) eligible.push({ fiche: f, med: med, cells: cells });
+      }
     }
     if (!eligible.length) throw new Error('Aucune molécule pour ce tableau à trous');
-    const rows = shuffle(eligible).slice(0, Math.min(tp.nbLignes, eligible.length));
+    const rows = eligible;
     const holeKeys = []; // { row, col } — uniquement une valeur publiée
 
     rows.forEach(function (row) {
@@ -1323,7 +1336,7 @@
       root.innerHTML = '<p class="jp-muted">Préparation du quiz…</p>';
       const cfg = modele.configuration_json || {};
       const hasManuelles = Array.isArray(cfg.questions_manuelles) && cfg.questions_manuelles.length;
-      const pool = await poolMedicaments(modele);
+      const pool = quizAutoEnabled(cfg) ? await poolMedicaments(modele) : [];
       if (!pool.length && !hasManuelles) {
         throw new Error('Aucune molécule publiée dans les modules de ce quiz, et aucune question manuelle.');
       }
