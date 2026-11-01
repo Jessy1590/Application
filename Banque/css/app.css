@@ -1418,10 +1418,20 @@
       z-index:40;
       background:var(--paper);
       padding-top:12px;
+      padding-bottom:8px;
       padding-left:max(16px, env(safe-area-inset-left, 0px));
       padding-right:max(16px, env(safe-area-inset-right, 0px));
+      min-height:108px;
+    }
+    .bh-topbar-row{ align-items:flex-start; }
+    .bh-topbar .bh-sub{
+      margin-top:2px;
+      max-width:calc(100% - 104px);
     }
     .bh-topbar .bh-icon-btn{
+      position:absolute;
+      top:12px;
+      right:0;
       width:88px;
       height:88px;
       min-width:88px;

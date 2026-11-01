@@ -70,6 +70,25 @@
     return fixed.length ? 'selection' : 'lecon';
   }
 
+  /**
+   * Leçons publiées du parcours (feuilles).
+   * Il faut une liste explicite : null est relu comme « module_ids du modèle »
+   * (souvent la seule leçon d’examen, sans publication).
+   */
+  async function resolveParcoursModuleIds(parcoursId) {
+    if (!parcoursId) return null;
+    const { data, error } = await sb()
+      .from('modules_cours')
+      .select('id, est_groupe')
+      .eq('parcours_id', parcoursId)
+      .eq('publie', true);
+    if (error) throw error;
+    const leaves = (data || [])
+      .filter(function (m) { return !m.est_groupe; })
+      .map(function (m) { return m.id; });
+    return leaves.length ? leaves : null;
+  }
+
   /** Étend module_ids au chapitre parent (toutes les leçons feuilles). */
   async function resolveChapitreModuleIds(moduleIds) {
     const seeds = (moduleIds || []).filter(Boolean);
@@ -109,7 +128,7 @@
     const cfg = modele.configuration_json || {};
     const mode = repertoireMode(cfg);
     const base = (modele.module_ids && modele.module_ids.length) ? modele.module_ids.slice() : [];
-    if (mode === 'parcours') return null;
+    if (mode === 'parcours') return resolveParcoursModuleIds(modele.parcours_id);
     if (mode === 'chapitre') return resolveChapitreModuleIds(base);
     return base.length ? base : null;
   }
@@ -1103,31 +1122,34 @@
     const cfg = modele.configuration_json || {};
     const pool = await poolMedicaments(modele);
     const tp = trousParams(cfg);
-    const nb = Math.min(tp.nbLignes, pool.length);
-    if (!nb) throw new Error('Aucune molécule pour ce tableau à trous');
+    if (!pool.length) throw new Error('Aucune molécule pour ce tableau à trous');
     if (!tp.colonnes.length) throw new Error('Aucune colonne configurée');
 
-    const selected = shuffle(pool).slice(0, nb);
-    await preloadFiches(modele, selected.map((m) => m.id));
-    const rows = [];
-    const holeKeys = []; // { row, col } éligibles
-
-    for (const med of selected) {
+    await preloadFiches(modele, pool.map(function (m) { return m.id; }));
+    const eligible = [];
+    for (const med of pool) {
       const f = await fiche(modele, med.id);
       if (!f) continue;
       const cells = {};
+      let any = false;
       tp.colonnes.forEach(function (code) {
         const vals = valeursChamp(f, code);
-        cells[code] = vals.length ? vals.join(' · ') : '';
+        cells[code] = vals;
+        if (vals.length && tp.toujours.indexOf(code) < 0) any = true;
       });
-      const row = { fiche: f, med: med, cells: cells };
-      rows.push(row);
+      if (any) eligible.push({ fiche: f, med: med, cells: cells });
+    }
+    if (!eligible.length) throw new Error('Aucune molécule pour ce tableau à trous');
+    const rows = shuffle(eligible).slice(0, Math.min(tp.nbLignes, eligible.length));
+    const holeKeys = []; // { row, col } — uniquement une valeur publiée
+
+    rows.forEach(function (row) {
       tp.colonnes.forEach(function (code) {
         if (tp.toujours.indexOf(code) >= 0) return;
-        if (!cells[code]) return;
+        if (!row.cells[code] || !row.cells[code].length) return;
         holeKeys.push({ row: row, col: code });
       });
-    }
+    });
 
     const nHoles = Math.round(holeKeys.length * (tp.taux / 100));
     const holes = new Set(
@@ -1158,10 +1180,17 @@
         tp.colonnes.forEach(function (c) {
           const key = String(r.fiche.id) + ':' + c;
           const isHole = holes.has(key);
-          const val = r.cells[c] || '—';
-          html += '<td class="' + (isHole ? 'jp-trou' : '') + '">'
-            + (revealed || !isHole ? esc(val) : '<em>???</em>')
-            + '</td>';
+          const list = Array.isArray(r.cells[c]) ? r.cells[c] : [];
+          let inner;
+          if (isHole && !revealed) inner = '<em>???</em>';
+          else if (!list.length) inner = '<span class="jp-muted">—</span>';
+          else if (list.length === 1) inner = esc(list[0]);
+          else {
+            inner = '<ul class="jp-trous-vals">' + list.map(function (v) {
+              return '<li>' + esc(v) + '</li>';
+            }).join('') + '</ul>';
+          }
+          html += '<td class="' + (isHole ? 'jp-trou' : '') + '">' + inner + '</td>';
         });
         html += '</tr>';
       });

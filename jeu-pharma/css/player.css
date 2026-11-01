@@ -563,6 +563,19 @@ a.jp-pc.is-open:active { transform: scale(0.99); }
   text-align: left;
   white-space: nowrap;
 }
+.jp-trous-grid td {
+  max-width: 14rem;
+  white-space: normal;
+}
+.jp-trous-vals {
+  margin: 0;
+  padding-left: 1.05rem;
+  max-height: 8.5rem;
+  overflow: auto;
+}
+.jp-trous-vals li + li {
+  margin-top: 0.2rem;
+}
 /* Classe dédiée : éviter la collision avec .jp-jeu-type (admin) dans app.css */
 .jp-jeu-cta-type {
   display: inline-block;
