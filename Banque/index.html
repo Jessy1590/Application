@@ -237,7 +237,9 @@
 
         <div class="bh-verif-score-filter">
           <div>
-            <div class="bh-field-label" style="margin-top:0;">Filtrer par score</div>
+            <div class="bh-field-label" style="margin-top:0;">Filtrer par score
+              <button type="button" class="bh-info-btn" title="Aide des actions" onclick="BH.showVerifActionsHelp()" aria-label="Aide des actions">?</button>
+            </div>
             <select id="verif-score-filter" class="bh-input" onchange="BH.onVerifScoreFilterChange()">
               <option value="">Tous les scores</option>
               <option value="none">Sans correspondance</option>
@@ -249,27 +251,8 @@
           </div>
         </div>
 
-        <div class="bh-verif-table-wrap">
-          <table class="bh-verif-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Mouvement</th>
-                <th style="text-align:right;">Montant</th>
-                <th style="text-align:right;">Score</th>
-                <th>Lien budget</th>
-                <th>
-                  <span class="bh-verif-th-help">
-                    Actions
-                    <button type="button" class="bh-info-btn" title="Aide des actions" onclick="BH.showVerifActionsHelp()" aria-label="Aide des actions">?</button>
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody id="verif-tbody">
-              <tr><td colspan="6" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>
-            </tbody>
-          </table>
+        <div class="bh-verif-lines" id="verif-tbody">
+          <div class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</div>
         </div>
       </div>
 

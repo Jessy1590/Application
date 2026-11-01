@@ -80,7 +80,32 @@
   }
   .bh-verif-score-filter{ display:flex; align-items:end; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
   .bh-verif-score-filter .bh-input{ margin:0; min-width:140px; width:auto; }
-  .bh-verif-table-wrap{ overflow:auto; border:1px solid var(--line-soft); border-radius:14px; background:var(--card); width:100%; }
+  .bh-verif-lines{ display:flex; flex-direction:column; gap:8px; width:100%; }
+  .bh-verif-line{
+    background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:12px;
+  }
+  .bh-verif-line.done{ background:rgba(228,238,232,.55); border-color:var(--sage); }
+  .bh-verif-line.ignored{ opacity:.55; }
+  .bh-verif-line-top{ display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+  .bh-verif-line-top strong{ font-size:15px; line-height:1.3; }
+  .bh-verif-split{ display:grid; grid-template-columns:1fr; gap:10px; margin-top:10px; }
+  @media (min-width:640px){ .bh-verif-split{ grid-template-columns:1fr 1fr; } }
+  .bh-verif-zone{ border-radius:12px; padding:10px 12px; min-width:0; }
+  .bh-verif-zone.read{ background:var(--paper); border:1px solid var(--line-soft); }
+  .bh-verif-zone.prop{ background:var(--amber-pale); }
+  .bh-verif-zone.kept{ background:var(--sage-pale); }
+  .bh-verif-zone .k{
+    font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    color:var(--ink-faint); margin-bottom:4px;
+  }
+  .bh-verif-zone.prop .k{ color:var(--amber); }
+  .bh-verif-zone.kept .k{ color:var(--sage-deep); }
+  .bh-verif-zone .meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .bh-verif-line .bh-verif-actions{ margin-top:10px; }
+  .bh-verif-empty{
+    padding:28px 16px; text-align:center; color:var(--ink-soft);
+    background:var(--card); border:1px dashed var(--line); border-radius:14px;
+  }
   .bh-verif-table{ width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
   .bh-verif-table th{
     text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
@@ -629,7 +654,7 @@
     }
     .bh-verif-filters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:end; }
     .bh-verif-toolbar{ display:grid; grid-template-columns:1fr 1.4fr auto; gap:10px; align-items:end; }
-    .bh-verif-table-wrap{
+    .bh-verif-lines{
       flex:1; min-height:0; overflow:auto;
       max-height:calc(100vh - 300px);
       max-height:calc(100dvh - 300px);
@@ -763,6 +788,7 @@
   .bh-view,
   .bh-main,
   .bh-verif-gaps-body,
+  .bh-verif-lines,
   .bh-verif-table-wrap,
   .bh-verif-status-wrap,
   .bh-sheet{
@@ -905,6 +931,7 @@
   }
 
   /* Tableaux Vérif / Stats : scroll horizontal contenu */
+  .bh-verif-lines,
   .bh-verif-table-wrap,
   .bh-verif-status-wrap{
     overflow-x:auto;

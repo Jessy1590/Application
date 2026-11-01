@@ -2366,7 +2366,7 @@ Object.assign(BH, {
       this.syncVerifFilterUi();
 
       if (!ops.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</td></tr>';
+        tbody.innerHTML = '<div class="bh-verif-empty">Importe un relevé pour comparer avec tes saisies.</div>';
         return;
       }
 
@@ -2421,7 +2421,7 @@ Object.assign(BH, {
 
       const visible = ops.filter(op => this.verifOpPassesFilters(op));
       if (!visible.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="bh-verif-empty">Aucune ligne pour ce filtre.</td></tr>';
+        tbody.innerHTML = '<div class="bh-verif-empty">Aucune ligne pour ce filtre.</div>';
         return;
       }
 
@@ -2435,7 +2435,6 @@ Object.assign(BH, {
         else if (op.matchOptions && op.matchOptions.length > 1) matchHtml = formatVerifMatchOptions(op);
         else if (op.match) matchHtml = formatVerifMatchDest(op.match);
         const multiNear = !!(op.matchOptions && op.matchOptions.length > 1);
-        const scoreCls = !op.match || op.ignored ? 'lo' : (score >= 70 ? 'hi' : (score >= 55 ? 'mid' : 'lo'));
         const scoreHtml = op.ignored
           ? '—'
           : (op.match
@@ -2469,10 +2468,10 @@ Object.assign(BH, {
             ? `<button type="button" class="bh-btn bh-btn-ghost" title="Supprimer le lien enregistré (et éventuellement la validation)" onclick="BH.unlinkVerifOp('${op.id}')">Délier</button>`
             : `<button type="button" class="bh-btn bh-btn-ghost" title="Retirer cette suggestion" onclick="BH.clearVerifMatch('${op.id}')">Délier</button>`;
         const actions = op.ignored
-          ? `<button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button>`
+          ? `<div class="bh-verif-actions"><button type="button" class="bh-btn bh-btn-ghost" title="Remettre cette ligne dans la liste à traiter" onclick="BH.unignoreVerifOp('${op.id}')">Réafficher</button></div>`
           : `<div class="bh-verif-actions">
               ${validateBtn}
-              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie de ce compte, pour août" onclick="BH.openVerifLink('${op.id}')">Lier</button>
+              <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie de ce compte, pour le mois du relevé" onclick="BH.openVerifLink('${op.id}')">Lier</button>
               <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un autre compte" onclick="BH.openVerifLink('${op.id}','compte')">Autre compte</button>
               <button type="button" class="bh-btn bh-btn-outline" title="Rattacher une saisie d’un mois passé ou à venir" onclick="BH.openVerifLink('${op.id}','mois')">Autre mois</button>
               ${unlinkBtn}
@@ -2482,14 +2481,33 @@ Object.assign(BH, {
               ${walletBtn}
               <button type="button" class="bh-btn bh-btn-ghost" title="Ignorer ce mouvement (frais, doublon, hors budget…)" onclick="BH.ignoreVerifOp('${op.id}')">Oublier</button>
             </div>`;
-        return `<tr class="${cls}">
-          <td>${dateLbl}</td>
-          <td title="${this.esc(op.labelRaw || op.label)}">${this.esc(op.label)}</td>
-          <td class="num" style="text-align:right;color:${amtColor};">${this.fmt(op.amount)}</td>
-          <td class="num bh-verif-score-cell ${scoreCls}" style="text-align:right;">${scoreHtml}</td>
-          <td>${matchHtml}</td>
-          <td>${actions}</td>
-        </tr>`;
+        const kept = savedLink;
+        const zoneClass = kept ? 'kept' : 'prop';
+        const zoneTitle = op.ignored ? 'Ignoré' : (kept ? 'Déjà écrit' : 'Proposé par l’appli');
+        const proposal = op.ignored
+          ? '<span style="color:var(--ink-faint);">Ligne oubliée</span>'
+          : (op.match || (op.matchOptions && op.matchOptions.length) ? matchHtml : '<span style="color:var(--ink-soft);">Aucune saisie proche.</span>');
+        const scoreNote = (!op.ignored && op.match) ? `<div class="meta">${scoreHtml.replace(/&nbsp;/g, ' ')}</div>` : '';
+        const lineCls = op.ignored ? 'ignored' : (kept ? 'done' : (cls === 'matched' ? 'done' : ''));
+        return `<article class="bh-verif-line ${lineCls}">
+          <div class="bh-verif-line-top">
+            <strong title="${this.esc(op.labelRaw || op.label)}">${this.esc(op.label)}</strong>
+            <span class="num" style="color:${amtColor};">${this.fmt(op.amount)}</span>
+          </div>
+          <div class="bh-verif-split">
+            <div class="bh-verif-zone read">
+              <div class="k">Lu dans le CSV</div>
+              <div>${this.esc(op.label)}</div>
+              <div class="meta">${dateLbl} · ${this.fmt(op.amount)}</div>
+            </div>
+            <div class="bh-verif-zone ${zoneClass}">
+              <div class="k">${zoneTitle}</div>
+              <div>${proposal}</div>
+              ${scoreNote}
+            </div>
+          </div>
+          ${actions}
+        </article>`;
       }).join('');
     },
 
