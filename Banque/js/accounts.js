@@ -70,33 +70,128 @@ Object.assign(BH, {
         isMain: accId === this.state.profile?.main_account_id
       };
     },
-    theoApportRows(accId) {
-      const { mems, shares, isMain } = this.fairSharesForAccount(accId);
-      if (isMain || mems.length < 2) return '';
-      const mKey = this.comptesMKey();
-      let rows = '';
-      mems.forEach(m => {
-        const share = Number(shares[m.user_id]) || 0;
-        const inbound = this.inboundApportRecord(accId, m.user_id, mKey);
-        const arrived = this.arrivedApport(accId, m.user_id, mKey);
-        if (!(share > 0.004) && !arrived) return;
-        const name = this.esc((m.profiles && m.profiles.display_name) || 'Membre');
-        const mine = !!(this.user && m.user_id === this.user.id);
-        const shown = share > 0.004 ? share : (Number(arrived && arrived.amount) || 0);
-        let action = '';
-        if (!mine && /^[0-9a-f-]{36}$/i.test(String(m.user_id)) && /^[0-9a-f-]{36}$/i.test(String(accId))) {
-          const uid = this.esc(m.user_id);
-          const aid = this.esc(accId);
-          if (inbound) {
-            action = `<button type="button" class="bh-btn bh-btn-ghost" style="padding:7px 10px; font-size:12px; flex:0 0 auto;" onclick="BH.unmarkInboundApport('${aid}','${uid}')">Annuler</button>`;
-          } else if (share > 0.004) {
-            action = `<button type="button" class="bh-btn bh-btn-primary" style="padding:7px 10px; font-size:12px; flex:0 0 auto;" onclick="BH.markInboundApport('${aid}','${uid}')">Validé</button>`;
-          }
-        }
-        const status = (mine ? !!arrived : !!inbound) ? 'déjà validé' : (mine ? "à valider dans Aujourd'hui" : '');
-        rows += `<div class="bh-info-row"><span>Apport · ${name}${mine ? ' · moi' : ''}${status ? ` <span class="bh-detail-meta">${status}</span>` : ''}</span><span style="display:flex; align-items:center; gap:8px;"><span class="num">${this.fmt(shown)}</span>${action}</span></div>`;
+    memberMainAccountId(userId) {
+      const row = (this.state.members || []).find(m => String(m.user_id) === String(userId) && m.profiles && m.profiles.main_account_id);
+      return row ? row.profiles.main_account_id : null;
+    },
+    canWriteAccount(accId) {
+      return !!(accId && (this.state.accounts || []).some(a => a.id === accId));
+    },
+    // L'autre membre ne peut souvent pas écrire sur le compte principal du payeur.
+    // On le fait ici si on y a accès ; sinon le payeur recopie la validation à l'ouverture.
+    async mirrorPayerOutbound(userId, sharedAccId, mKey, amount) {
+      if (!this.user || !userId || String(userId) === String(this.user.id)) return;
+      if (typeof this.apportExpenseId !== 'function') return;
+      const mainId = this.memberMainAccountId(userId);
+      if (!mainId || mainId === sharedAccId || !this.canWriteAccount(mainId)) return;
+      const expId = this.apportExpenseId(sharedAccId);
+      const existing = (this.state.months?.[mainId + '_' + mKey] || {})[expId];
+      if (existing && !existing.mirrored) return;
+      const amt = Math.round((Number(amount) || 0) * 100) / 100;
+      if (!(amt > 0)) return;
+      if (existing && Math.abs((Number(existing.amount) || 0) - amt) < 0.005) return;
+      await this.setPaid('expense', expId, mainId, mKey, amt, { mirrored: true });
+    },
+    async clearMirroredPayerOutbound(userId, sharedAccId, mKey) {
+      if (!this.user || !userId || String(userId) === String(this.user.id)) return;
+      if (typeof this.apportExpenseId !== 'function') return;
+      const mainId = this.memberMainAccountId(userId);
+      if (!mainId || !this.canWriteAccount(mainId)) return;
+      const expId = this.apportExpenseId(sharedAccId);
+      const existing = (this.state.months?.[mainId + '_' + mKey] || {})[expId];
+      if (!existing || !existing.mirrored) return;
+      await this.clearPaid('expense', expId, mainId, mKey);
+    },
+    async writeInboundApport(accId, userId, mKey, amount) {
+      const amt = Math.round((Number(amount) || 0) * 100) / 100;
+      if (!(amt > 0)) return;
+      await this.setPaid('income', this.inboundApportId(userId), accId, mKey, amt, { by: this.user.id });
+      await this.mirrorPayerOutbound(userId, accId, mKey, amt);
+    },
+    async clearInboundApportWrite(accId, userId, mKey) {
+      await this.clearPaid('income', this.inboundApportId(userId), accId, mKey);
+      await this.clearMirroredPayerOutbound(userId, accId, mKey);
+    },
+    // Ma validation d'apport (Aujourd'hui / Vérif) est aussi notée reçue sur le compte partagé.
+    async noteOwnApportReceived(expId, mKey, amount) {
+      if (!this.user || typeof this.isApportExpenseId !== 'function' || !this.isApportExpenseId(expId)) return;
+      const targetId = expId.slice('apport_'.length);
+      if (!/^[0-9a-f-]{36}$/i.test(targetId)) return;
+      const amt = Math.round((Number(amount) || 0) * 100) / 100;
+      if (!(amt > 0)) return;
+      const existing = this.inboundApportRecord(targetId, this.user.id, mKey);
+      if (existing && existing.by && String(existing.by) !== String(this.user.id)) return;
+      await this.setPaid('income', this.inboundApportId(this.user.id), targetId, mKey, amt, { by: this.user.id });
+    },
+    async clearOwnApportReceived(expId, mKey) {
+      if (!this.user || typeof this.isApportExpenseId !== 'function' || !this.isApportExpenseId(expId)) return;
+      const targetId = expId.slice('apport_'.length);
+      if (!/^[0-9a-f-]{36}$/i.test(targetId)) return;
+      await this.clearPaid('income', this.inboundApportId(this.user.id), targetId, mKey);
+    },
+    // Recopie sur MON compte principal les apports qu'un autre membre a validés pour moi.
+    async reconcileMyMirroredApports() {
+      if (this._apportMirrorRunning || !this.user || typeof this.apportExpenseId !== 'function') return;
+      const mainId = this.state.profile?.main_account_id;
+      if (!this.canWriteAccount(mainId)) return;
+      const inboundId = this.inboundApportId(this.user.id);
+      const wanted = new Map();
+      Object.entries(this.state.monthsIncomes || {}).forEach(([key, map]) => {
+        const rec = map && map[inboundId];
+        if (!rec) return;
+        const cut = key.lastIndexOf('_');
+        if (cut < 0) return;
+        const accId = key.slice(0, cut);
+        const mKey = key.slice(cut + 1);
+        if (accId === mainId || !/^\d{4}-\d{2}$/.test(mKey)) return;
+        const amount = Math.round((Number(rec.amount) || 0) * 100) / 100;
+        if (!(amount > 0)) return;
+        wanted.set(key, amount);
       });
-      return rows;
+      const writes = [];
+      wanted.forEach((amount, key) => {
+        const cut = key.lastIndexOf('_');
+        const accId = key.slice(0, cut);
+        const mKey = key.slice(cut + 1);
+        const expId = this.apportExpenseId(accId);
+        const existing = (this.state.months?.[mainId + '_' + mKey] || {})[expId];
+        if (existing && !existing.mirrored) return;
+        if (existing && Math.abs((Number(existing.amount) || 0) - amount) < 0.005) return;
+        writes.push({ expId, mKey, amount });
+      });
+      const clears = [];
+      const prefix = mainId + '_';
+      Object.entries(this.state.months || {}).forEach(([key, map]) => {
+        if (!key.startsWith(prefix)) return;
+        const mKey = key.slice(prefix.length);
+        if (!/^\d{4}-\d{2}$/.test(mKey)) return;
+        Object.entries(map || {}).forEach(([id, rec]) => {
+          if (!rec || !rec.mirrored || !this.isApportExpenseId(id)) return;
+          const target = id.slice('apport_'.length);
+          if (!wanted.has(target + '_' + mKey)) clears.push({ expId: id, mKey });
+        });
+      });
+      if (!writes.length && !clears.length) return;
+      this._apportMirrorRunning = true;
+      try {
+        await this.commit('synchronisation des apports', async () => {
+          for (const w of writes) await this.setPaid('expense', w.expId, mainId, w.mKey, w.amount, { mirrored: true });
+          for (const c of clears) await this.clearPaid('expense', c.expId, mainId, c.mKey);
+        });
+      } finally {
+        this._apportMirrorRunning = false;
+      }
+    },
+    apportValidateHtml(label, amount, mode, accId, userId) {
+      const line = this.detailLine(label, amount);
+      if (mode !== 'pay' && mode !== 'cancel') return line;
+      const aid = this.esc(accId);
+      const uid = this.esc(userId);
+      const actions = mode === 'pay'
+        ? `<button type="button" class="bh-btn bh-btn-primary" onclick="BH.markInboundApport('${aid}','${uid}')">Valider ${this.fmt(amount)}</button>
+           <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.openInboundApportAmount('${aid}','${uid}')">Montant différent</button>`
+        : `<button type="button" class="bh-btn bh-btn-ghost" onclick="BH.unmarkInboundApport('${aid}','${uid}')">Annuler</button>`;
+      return `<div class="bh-apport-validate">${line}<div class="bh-due-actions">${actions}</div></div>`;
     },
     async markInboundApport(accId, userId) {
       if (!this.user || String(userId) === String(this.user.id)) return;
@@ -107,20 +202,55 @@ Object.assign(BH, {
       const mKey = this.comptesMKey();
       const res = await this.commit(
         'validation de l\'apport reçu',
-        () => this.setPaid('income', this.inboundApportId(userId), accId, mKey, share),
+        () => this.writeInboundApport(accId, userId, mKey, share),
         'Apport validé'
       );
-      if (res) this.showIncomesList(accId);
+      if (res) this.showEffInflows(accId);
     },
     async unmarkInboundApport(accId, userId) {
       if (!this.user || String(userId) === String(this.user.id)) return;
       const mKey = this.comptesMKey();
       const res = await this.commit(
         'annulation de l\'apport reçu',
-        () => this.clearPaid('income', this.inboundApportId(userId), accId, mKey),
+        () => this.clearInboundApportWrite(accId, userId, mKey),
         'Validation annulée'
       );
-      if (res) this.showIncomesList(accId);
+      if (res) this.showEffInflows(accId);
+    },
+    openInboundApportAmount(accId, userId) {
+      if (!this.user || String(userId) === String(this.user.id)) return;
+      const { acc, mems, shares, isMain } = this.fairSharesForAccount(accId);
+      if (!acc || isMain || !mems.some(m => m.user_id === this.user.id)) return;
+      const mem = mems.find(m => String(m.user_id) === String(userId));
+      if (!mem) return;
+      const share = Math.round((Number(shares[userId]) || 0) * 100) / 100;
+      const name = (mem.profiles && mem.profiles.display_name) || 'Membre';
+      this.diffAmount = {
+        kind: 'inbound-apport',
+        expId: this.inboundApportId(userId),
+        accId,
+        payerId: userId,
+        baseAmount: share,
+        mode: 'temp',
+        isApport: true,
+        mKey: this.comptesMKey(),
+        opId: null,
+        linkKind: null,
+        score: null,
+        markVerified: false
+      };
+      const titleEl = document.querySelector('#bh-diffamount-overlay .bh-sheet-title');
+      if (titleEl) titleEl.textContent = 'Montant différent';
+      const desc = document.getElementById('da-desc');
+      if (desc) desc.textContent = `Apport de ${name} — ${acc.name} · prévu ${this.fmt(share)}`;
+      const amountEl = document.getElementById('da-amount');
+      if (amountEl) amountEl.value = share > 0 ? share : '';
+      const amountLabel = document.querySelector('#bh-diffamount-overlay .bh-field-label');
+      if (amountLabel) amountLabel.textContent = 'Montant réellement reçu (€)';
+      const permBtn = document.getElementById('da-mode-perm');
+      if (permBtn) permBtn.style.display = 'none';
+      this.setDiffAmountMode('temp');
+      this.presentOverlay('bh-diffamount-overlay');
     },
 
     showIncomesList(accId) {
@@ -144,13 +274,11 @@ Object.assign(BH, {
         const total = incs.reduce((s, i) => s + Number(i.amount), 0);
         rows += `<div class="bh-info-row" style="margin-top:4px;"><span>Total</span><span class="num">${this.fmt(total)}</span></div>`;
       }
-      const apportRows = this.theoApportRows(accId);
-      if (!rows && !apportRows) {
+      if (!rows) {
         this.openInfo('Revenus / Remboursements', `<div style="font-size:13px; color:var(--ink-soft);">Aucun revenu saisi pour ce compte.</div>`);
         return;
       }
-      if (apportRows) rows += `<div class="bh-section-label">Apports</div>${apportRows}`;
-      this.openInfo(apportRows ? `${accName} — revenus et apports` : `${accName} — revenus saisis`, rows);
+      this.openInfo(`${accName} — revenus saisis`, rows);
     },
 
     showResteTheoInfo(accId) {
@@ -930,13 +1058,16 @@ Object.assign(BH, {
           const rec = this.arrivedApport(accId, m.user_id, mKey);
           const amtPaid = rec ? (Number(rec.amount) || 0) : 0;
           const name = this.esc((m.profiles && m.profiles.display_name) || 'Membre');
-          const me = this.user && m.user_id === this.user.id ? ' · moi' : '';
+          const mine = !!(this.user && m.user_id === this.user.id);
+          const me = mine ? ' · moi' : '';
+          const canAct = !mine && /^[0-9a-f-]{36}$/i.test(String(m.user_id)) && /^[0-9a-f-]{36}$/i.test(String(accId));
+          const ownHint = mine && !(amtPaid > 0.004) ? ' <span class="bh-detail-meta">à valider dans Aujourd\'hui</span>' : '';
           if (amtPaid > 0.004) {
             listedOk += amtPaid;
-            validated += this.detailLine('Apport · ' + name + me, amtPaid);
+            validated += this.apportValidateHtml('Apport · ' + name + me, amtPaid, canAct ? 'cancel' : '', accId, m.user_id);
           } else if (share > 0.004) {
             listedWait += share;
-            pending += this.detailLine('Apport · ' + name + me, share);
+            pending += this.apportValidateHtml('Apport · ' + name + me + ownHint, share, canAct ? 'pay' : '', accId, m.user_id);
           }
         });
         const okGap = (v.apportValide || 0) - listedOk;

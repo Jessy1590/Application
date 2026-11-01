@@ -181,10 +181,16 @@ Object.assign(BH, {
     async verifWritePaid(kind, id, accId, mKey, amount) {
       if (!this.isVerifPayableKind(kind)) return;
       await this.setPaid(kind, id, accId, mKey, amount);
+      if ((kind === 'apport' || this.isApportExpenseId(id)) && typeof this.noteOwnApportReceived === 'function') {
+        await this.noteOwnApportReceived(id, mKey, amount);
+      }
     },
     async verifRemovePaid(kind, id, accId, mKey) {
       if (!this.isVerifPayableKind(kind)) return;
       await this.clearPaid(kind, id, accId, mKey);
+      if ((kind === 'apport' || this.isApportExpenseId(id)) && typeof this.clearOwnApportReceived === 'function') {
+        await this.clearOwnApportReceived(id, mKey);
+      }
     },
 
     // Lie une ligne banque à une saisie (valide la saisie si demandé). Lève une erreur en cas d’échec.
@@ -691,6 +697,11 @@ Object.assign(BH, {
           for (const [accId, b] of paidByAcc) {
             await this.setPaidMany('expense', accId, mKey, asEntries(b.exp));
             await this.setPaidMany('income', accId, mKey, asEntries(b.inc));
+            if (typeof this.noteOwnApportReceived === 'function') {
+              for (const [id, amount] of Object.entries(b.exp)) {
+                if (this.isApportExpenseId(id)) await this.noteOwnApportReceived(id, mKey, amount);
+              }
+            }
           }
           await this.sendBankVerifRows(rows);
           applied.forEach(({ op, status, m }) => {

@@ -321,11 +321,17 @@ Object.assign(BH, {
 
     markPaid(expId, amount, accId, mKeyOpt) {
       const mKey = mKeyOpt || this.todayViewKey();
-      return this.commit('validation du paiement', () => this.setPaid('expense', expId, accId, mKey, amount), 'Validé');
+      return this.commit('validation du paiement', async () => {
+        await this.setPaid('expense', expId, accId, mKey, amount);
+        if (typeof this.noteOwnApportReceived === 'function') await this.noteOwnApportReceived(expId, mKey, amount);
+      }, 'Validé');
     },
     unmarkPaid(expId, accId, mKeyOpt) {
       const mKey = mKeyOpt || this.todayViewKey();
-      return this.commit('annulation', () => this.clearPaid('expense', expId, accId, mKey), 'Validation annulée');
+      return this.commit('annulation', async () => {
+        await this.clearPaid('expense', expId, accId, mKey);
+        if (typeof this.clearOwnApportReceived === 'function') await this.clearOwnApportReceived(expId, mKey);
+      }, 'Validation annulée');
     },
     markIncome(incId, amount, accId, mKeyOpt) {
       const mKey = mKeyOpt || this.todayViewKey();
@@ -404,7 +410,10 @@ Object.assign(BH, {
       document.getElementById('da-mode-perm').classList.toggle('active', mode === 'perm');
       const kind = this.diffAmount.kind || 'expense';
       const isApport = !!this.diffAmount.isApport;
-      document.getElementById('da-mode-explain').textContent = mode === 'temp'
+      const inbound = (this.diffAmount.kind === 'inbound-apport');
+      document.getElementById('da-mode-explain').textContent = inbound
+        ? "Ponctuel : seul l'apport reçu ce mois-ci change. Le montant prévu ne bouge pas."
+        : mode === 'temp'
         ? (kind === 'income'
           ? "Ponctuel : seul ce mois est modifié, le montant habituel reprendra le mois prochain. Utile si le salaire varie ce mois-ci."
           : isApport
@@ -423,6 +432,22 @@ Object.assign(BH, {
       if (rawAmount === '' || rawAmount == null) { toast('Indique un montant.'); return; }
       const newAmount = Number(rawAmount);
       if (!Number.isFinite(newAmount)) { toast('Le montant doit être un nombre.'); return; }
+      if (kind === 'inbound-apport') {
+        if (!(newAmount > 0)) { toast('Le montant doit être un nombre positif.'); return; }
+        const sharedAccId = this.diffAmount.accId;
+        const payerId = this.diffAmount.payerId;
+        const mKeyIn = this.diffAmount.mKey || this.comptesMKey();
+        const res = await this.commit(
+          'validation de l\'apport reçu',
+          () => this.writeInboundApport(sharedAccId, payerId, mKeyIn, newAmount),
+          'Apport validé'
+        );
+        if (res) {
+          this.closeDifferentAmount();
+          this.showEffInflows(sharedAccId);
+        }
+        return;
+      }
       if (kind === 'income') {
         if (newAmount <= 0) { toast('Le montant doit être un nombre positif.'); return; }
       } else if (newAmount < 0) {
@@ -474,6 +499,7 @@ Object.assign(BH, {
           toast(mode === 'perm' ? "Montant mis à jour durablement et encaissé" : "Encaissé avec le montant ponctuel");
         } else {
           await this.setPaid('expense', expId, accId, mKey, newAmount);
+          if (isApport && typeof this.noteOwnApportReceived === 'function') await this.noteOwnApportReceived(expId, mKey, newAmount);
           if (mode === 'perm' && !isApport) {
             await this.upsertMonthRecord(accId, mKey, { theoretical_expenses: this.buildTheoreticalSnapshot(accId, mKey) });
           }
@@ -665,6 +691,11 @@ Object.assign(BH, {
 
       await this.commit('validation groupée', async () => {
         await this.setPaidMany('expense', accId, mKey, entries);
+        if (typeof this.noteOwnApportReceived === 'function') {
+          for (const [id, fields] of Object.entries(entries)) {
+            if (this.isApportExpenseId(id)) await this.noteOwnApportReceived(id, mKey, fields.amount);
+          }
+        }
         this.groupSelect = {};
         this.groupValidateItems = [];
         this.closeGroupValidate();

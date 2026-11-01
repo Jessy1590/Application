@@ -200,7 +200,8 @@
           return acc;
         }, {})
       };
-      
+
+      if (typeof this.reconcileMyMirroredApports === 'function') await this.reconcileMyMirroredApports();
       this.render();
       this.syncFab();
       this.checkDueNotifications();

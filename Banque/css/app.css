@@ -330,6 +330,10 @@
   .bh-info-btn:hover{ background:var(--sage-pale); color:var(--sage-deep); border-color:var(--sage); }
   .bh-info-row{ display:flex; justify-content:space-between; gap:10px; font-size:13px; padding:7px 0; border-bottom:1px solid var(--line-soft); }
   .bh-info-row:last-child{ border-bottom:none; font-weight:700; }
+  .bh-apport-validate{ margin:2px 0 8px; }
+  .bh-apport-validate .bh-info-row{ font-weight:500; border-bottom:none; padding-bottom:2px; }
+  .bh-apport-validate .bh-due-actions{ margin-top:4px; }
+  .bh-apport-validate .bh-due-actions .bh-btn{ min-height:44px; }
   .bh-delete-acct-btn{ width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:var(--card); color:var(--ink-faint); font-size:13px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:0; flex-shrink:0; }
   .bh-delete-acct-btn:hover{ background:var(--clay-pale); color:var(--clay); border-color:var(--clay); }
   .bh-expired{ background:var(--clay-pale) !important; border-color:var(--clay) !important; }
