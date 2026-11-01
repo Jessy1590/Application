@@ -115,6 +115,42 @@ Object.assign(BH, {
     closeExportPDF() {
        document.getElementById('bh-pdf-overlay')?.classList.remove('open');
     },
+    useInAppReport() {
+       const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+       const phone = window.matchMedia('(max-width: 959px)').matches;
+       return !!(standalone || phone);
+    },
+    openReportFrame(html) {
+       const overlay = document.getElementById('bh-report-overlay');
+       const frame = document.getElementById('bh-report-frame');
+       if (!overlay || !frame) { toast('Impossible d’afficher le rapport'); return; }
+       if (this._reportUrl) URL.revokeObjectURL(this._reportUrl);
+       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+       this._reportUrl = URL.createObjectURL(blob);
+       frame.src = this._reportUrl;
+       overlay.classList.add('open');
+       document.body.classList.add('bh-report-open');
+    },
+    closeReportFrame() {
+       const overlay = document.getElementById('bh-report-overlay');
+       const frame = document.getElementById('bh-report-frame');
+       if (overlay) overlay.classList.remove('open');
+       if (frame) frame.removeAttribute('src');
+       document.body.classList.remove('bh-report-open');
+       if (this._reportUrl) {
+          URL.revokeObjectURL(this._reportUrl);
+          this._reportUrl = null;
+       }
+    },
+    printReportFrame() {
+       const frame = document.getElementById('bh-report-frame');
+       try {
+          frame.contentWindow.focus();
+          frame.contentWindow.print();
+       } catch (e) {
+          toast('Utilise la croix pour revenir à Budget');
+       }
+    },
     syncPdfPeriodUi() {
        const mode = document.querySelector('input[name="pdf-period"]:checked')?.value || 'current';
        const single = document.getElementById('pdf-month');
@@ -403,10 +439,7 @@ Object.assign(BH, {
              </div>`
           : '';
 
-       const win = window.open('', '_blank');
-       if (!win) { toast('Autorisez les pop-ups pour générer le rapport'); return; }
-
-       win.document.write(`<!DOCTYPE html><html lang="fr"><head>
+       const reportHtml = `<!DOCTYPE html><html lang="fr"><head>
          <meta charset="UTF-8">
          <title>Rapport Budget — ${this.esc(monthTitle)}</title>
          <style>
@@ -531,7 +564,15 @@ Object.assign(BH, {
          ${walletTxSection}`}
 
          <div class="footer">Budget Partagé · Rapport non contractuel · ${this.esc(isMulti ? (opts.fromKey + ' → ' + opts.toKey) : mKey)}</div>
-       </body></html>`);
+       </body></html>`;
+       if (this.useInAppReport()) {
+          this.openReportFrame(reportHtml);
+          toast('Rapport ouvert. La croix ramène à Budget.');
+          return;
+       }
+       const win = window.open('', '_blank');
+       if (!win) { toast('Autorisez les pop-ups pour générer le rapport'); return; }
+       win.document.write(reportHtml);
        win.document.close();
        setTimeout(() => { try { win.focus(); win.print(); } catch (e) {} }, 500);
        toast('Rapport prêt à imprimer / enregistrer en PDF');

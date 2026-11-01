@@ -2,10 +2,12 @@
   "name": "Budget Partagé",
   "short_name": "Budget",
   "description": "Application de gestion de budget multi-utilisateurs",
+  "id": "./",
+  "scope": "./",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F3F6F3",
-  "theme_color": "#3E6B57",
+  "theme_color": "#F3F6F3",
   "orientation": "portrait",
   "icons": [
     {

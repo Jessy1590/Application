@@ -4,12 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Budget Partagé</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob: https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob: https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; frame-src 'self' blob:;">
 <meta http-equiv="X-Frame-Options" content="DENY">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Budget">
 <meta name="theme-color" content="#F3F6F3">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 
@@ -785,6 +787,15 @@
 </div>
 
 <div class="bh-toast" id="bh-toast"></div>
+
+<div id="bh-report-overlay" class="bh-report-overlay" role="dialog" aria-modal="true" aria-label="Rapport">
+  <div class="bh-report-bar">
+    <button type="button" class="bh-report-close" onclick="BH.closeReportFrame()" aria-label="Fermer et revenir">✕</button>
+    <div class="bh-report-bar-title">Rapport</div>
+    <button type="button" class="bh-btn bh-btn-primary bh-report-print" onclick="BH.printReportFrame()">Imprimer / PDF</button>
+  </div>
+  <iframe id="bh-report-frame" title="Rapport budget"></iframe>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>

@@ -149,7 +149,7 @@ Object.assign(BH, {
         return `
           <div class="bh-due${expiredCls}${selected ? ' selected' : ''}">
             <div class="bh-due-top">
-              <div style="display:flex; gap:10px; min-width:0; flex:1;">
+              <div class="bh-due-main">
                 <button type="button" class="bh-due-check" onclick="BH.toggleGroupSelect('${exp.id}','${acc.id}')" aria-label="Sélectionner pour validation groupée" title="Sélectionner pour valider ensemble">${selected ? '✓' : ''}</button>
                 <div style="min-width:0;">
                   <div class="bh-due-desc">${this.esc(exp.description)}</div>

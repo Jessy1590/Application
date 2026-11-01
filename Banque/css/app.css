@@ -1249,4 +1249,135 @@
   .bh-detail-meta{ color:var(--ink-faint); font-weight:500; }
   .bh-detail-subnote{ font-size:12px; color:var(--ink-faint); padding:0 0 6px 16px; }
 
+  .bh-due-main{
+    display:flex; align-items:center; gap:10px; min-width:0; flex:1;
+  }
+
+  /* Rapport PDF dans l’app (téléphone / PWA) : la croix revient à Budget */
+  .bh-report-overlay{
+    display:none; position:fixed; inset:0; z-index:10050;
+    flex-direction:column; background:#fff;
+    padding-top:env(safe-area-inset-top, 0px);
+    padding-bottom:env(safe-area-inset-bottom, 0px);
+  }
+  .bh-report-overlay.open{ display:flex; }
+  .bh-report-bar{
+    display:flex; align-items:center; gap:10px; flex-shrink:0;
+    padding:8px 12px; background:var(--paper); border-bottom:1px solid var(--line);
+  }
+  .bh-report-bar-title{
+    flex:1; font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--sage-deep);
+  }
+  .bh-report-close{
+    width:44px; height:44px; border-radius:12px; border:1px solid var(--line);
+    background:#fff; color:var(--ink); font-size:20px; line-height:1; cursor:pointer;
+  }
+  .bh-report-print{ flex:0 0 auto; width:auto; min-height:44px; }
+  .bh-report-overlay iframe{
+    flex:1; width:100%; border:0; background:#fff; min-height:0;
+  }
+  body.bh-report-open{ overflow:hidden; }
+  body.bh-report-open a[title="Retour au portail"]{ display:none !important; }
+
+  /* Téléphone : plein écran, barre collée en bas, feuilles jusqu’au bord */
+  @media (max-width: 959px){
+    html, body{
+      background:var(--paper);
+      width:100%;
+      min-height:100vh;
+      min-height:100dvh;
+    }
+    #budget-root{
+      max-width:none;
+      width:100%;
+      margin:0;
+      border:none;
+      min-height:100vh;
+      min-height:100dvh;
+      box-shadow:none;
+    }
+    .bh-main{ width:100%; min-width:0; }
+    .bh-view{
+      padding-bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+    }
+    .bh-tabbar{
+      left:0;
+      right:0;
+      bottom:0;
+      width:100%;
+      max-width:none;
+      transform:none;
+      margin:0;
+      border-radius:0;
+      border-left:none;
+      border-right:none;
+      border-bottom:none;
+      border-top:1px solid var(--line);
+      box-shadow:none;
+      padding:4px 2px calc(6px + env(safe-area-inset-bottom, 0px));
+      background:var(--card);
+    }
+    .bh-due-check{
+      width:18px;
+      height:18px;
+      min-width:18px;
+      min-height:18px;
+      margin:0;
+      padding:0;
+      border-radius:4px;
+      border:1.5px solid var(--ink-soft);
+      box-sizing:border-box;
+      align-self:center;
+      font-size:12px;
+    }
+    .bh-sheet-overlay{
+      align-items:flex-end;
+      justify-content:center;
+      padding:0;
+      padding-top:env(safe-area-inset-top, 0px);
+    }
+    .bh-sheet{
+      width:100% !important;
+      max-width:none !important;
+      margin:0;
+      border-radius:18px 18px 0 0;
+      max-height:calc(100dvh - env(safe-area-inset-top, 0px) - 8px);
+      padding:8px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+      animation:bhSheetUp 0.22s ease;
+    }
+    .bh-sheet-handle{ display:block; }
+    .bh-sheet-actions{
+      position:static;
+      padding-bottom:0;
+      background:transparent;
+    }
+    .bh-sheet > .bh-btn.bh-btn-block:last-child{
+      position:static;
+      margin-bottom:0;
+    }
+    .bh-fab{
+      right:max(14px, env(safe-area-inset-right, 0px));
+      bottom:calc(128px + env(safe-area-inset-bottom, 0px));
+    }
+    .bh-group-bar{
+      left:12px;
+      right:12px;
+      transform:none;
+      width:auto;
+      bottom:calc(78px + env(safe-area-inset-bottom, 0px));
+    }
+    .bh-toast{
+      bottom:calc(132px + env(safe-area-inset-bottom, 0px));
+    }
+    a[title="Retour au portail"]{
+      width:46px !important;
+      height:46px !important;
+      right:max(14px, env(safe-area-inset-right, 0px)) !important;
+      bottom:calc(74px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+    body:has(.bh-sheet-overlay.open) a[title="Retour au portail"]{
+      visibility:hidden !important;
+    }
+  }
+
 
