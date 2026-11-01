@@ -57,11 +57,14 @@
   .zone{border-radius:12px; padding:10px 12px; min-width:0;}
   .zone.read{background:var(--paper); border:1px solid var(--line-soft);}
   .zone.prop{background:var(--amber-pale); border:1px solid transparent;}
+  .zone.kept{background:var(--sage-pale); border:1px solid transparent;}
   .zone .k{font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px;}
   .zone.prop .k{color:var(--amber);}
+  .zone.kept .k{color:var(--sage-deep);}
   .meta{font-size:12px; color:var(--ink-soft); margin-top:3px;}
   .amt.out{color:var(--clay);} .amt.in{color:var(--sage-deep);}
-  .status{margin-top:8px; font-size:13px; color:var(--sage-deep);}
+  .status-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+  .status{font-size:13px; color:var(--sage-deep); flex:1; min-width:0;}
   .amount-row{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;}
   .amount-row input{width:110px; margin:0;}
   .modes{display:flex; gap:6px;}
@@ -166,8 +169,12 @@ const DEMO_CSV = `Date;Libellé;Débit;Crédit
 12/08/2026;CARREFOUR CITY;64,30;
 02/08/2026;VIR SEPA SALAIRE;;2150,00
 20/08/2026;CB COURSES COUPLE;86,40;
+04/08/2026;PRLV NETFLIX;13,49;
+28/08/2026;PRLV LOYER;720,00;
 `;
 
+const MONTH = "2026-08";
+const MONTHS = { "2026-07": "juillet", "2026-08": "août", "2026-09": "septembre" };
 const BUDGET = [
   { id: "energie", kind: "expense", label: "Total Énergie", amount: 95, paid: true, day: 15 },
   { id: "orange", kind: "expense", label: "Orange", amount: 39.99, paid: false, day: 18 },
@@ -175,7 +182,12 @@ const BUDGET = [
   { id: "assurance", kind: "expense", label: "Assurance habitation", amount: 28, paid: true, day: 8 },
   { id: "boulangerie", kind: "wallet", label: "Courses · Boulangerie", amount: 4.2, wallet: "Courses", day: 9 },
   { id: "salaire", kind: "income", label: "Salaire", amount: 2150, paid: false, day: 2 },
-  { id: "courses-couple", kind: "expense", label: "Courses couple", amount: 86.4, paid: false, day: 20, account: "Couple", card: true }
+  { id: "courses-couple", kind: "expense", label: "Courses couple", amount: 86.4, paid: false, day: 20, account: "Couple", card: true },
+  { id: "netflix", kind: "expense", label: "Netflix", amount: 13.49, paid: false, day: 4, month: "2026-07" },
+  { id: "loyer", kind: "expense", label: "Loyer", amount: 720, paid: false, day: 1, month: "2026-09" }
+];
+const ALREADY = [
+  { label: "PRLV TOTAL ENERGIE", amount: -95, itemId: "energie", fact: "Total Énergie · 95,00 € · rapproché", text: "Déjà vérifié. Un nouvel import ne rajoute pas le paiement." }
 ];
 
 const euro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
@@ -184,16 +196,31 @@ let decisions = {};
 let picking = {};
 let drafts = {};
 let hints = {};
-const HINTS = {
-  lien: "Rattache cette ligne à une saisie déjà présente. Rien n’est écrit avant Enregistrer.",
-  durable: "Crée une dépense récurrente, la valide et la vérifie, seulement à Enregistrer.",
-  exceptionnelle: "Dépense de ce mois seulement. Le barème des mois suivants ne change pas.",
-  portefeuille: "Ajoute le mouvement dans une enveloppe déjà existante, à Enregistrer.",
-  oublier: "Ignore la ligne du CSV. Aucune saisie n’est créée.",
-  verifier: "Marque la saisie vérifiée, sans mouvement banque correspondant.",
-  retirer: "Retire le paiement d’août. La dépense théorique reste.",
-  supprimer: "Supprime ce mouvement. L’enveloppe reste."
-};
+function helpText(r) {
+  const draft = drafts[r.id];
+  if (draft && draft.choice === "portefeuille" && !draft.walletMode) {
+    return "Lier un mouvement rattache une dépense d’enveloppe déjà saisie. Créer ajoute un nouveau mouvement dans l’enveloppe choisie. Rien n’est écrit avant Enregistrer.";
+  }
+  if (r.source === "app" && r.item.kind === "wallet") {
+    return "Vérifier marque ce mouvement vérifié, sans ligne banque. Supprimer retire le mouvement. L’enveloppe reste. Rien n’est écrit avant Enregistrer.";
+  }
+  if (r.source === "app") {
+    return "Vérifier marque la saisie vérifiée. Retirer enlève le paiement du mois. La dépense théorique reste. Rien n’est écrit avant Enregistrer.";
+  }
+  if (r.already && !picking[r.id]) {
+    return "Cette ligne est déjà vérifiée. Un nouvel import ne crée pas un second paiement. Modifier seulement si le rapprochement est faux.";
+  }
+  if (r.source === "csv" && r.proposal && !picking[r.id]) {
+    const when = timing(r.proposal.item);
+    const where = when === "anticipé"
+      ? " La dépense est anticipée : le paiement s’écrit sur le mois prochain, pas une deuxième fois en août."
+      : when === "en retard"
+        ? " La dépense est en retard : le paiement s’écrit sur le mois précédent, pas une deuxième fois en août."
+        : "";
+    return "Confirmer retient la proposition. Invalider la remplace par d’autres traitements." + where + " Rien n’est écrit avant Enregistrer.";
+  }
+  return "Lier rattache une saisie déjà créée (dépense, revenu ou avance carte), pas un mouvement d’enveloppe. Saisie durable crée le barème. Exceptionnelle ne vaut que pour ce mois. Portefeuille permet de lier un mouvement déjà saisi, ou d’en créer un. Oublier ignore la ligne. Rien n’est écrit avant Enregistrer.";
+}
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -223,17 +250,29 @@ function similar(a, b) {
   ta.forEach((w) => { if (tb.has(w)) n++; });
   return n / Math.max(ta.size, tb.size);
 }
+function isCurrent(item) { return !item.month || item.month === MONTH; }
+function timing(item) {
+  if (!item || isCurrent(item)) return "";
+  return item.month > MONTH ? "anticipé" : "en retard";
+}
+function monthName(item) { return item && item.month ? (MONTHS[item.month] || item.month) : "août"; }
+function alreadyFor(op) {
+  return ALREADY.find((a) => norm(a.label) === norm(op.label) && Math.abs(a.amount - op.amount) < 0.02) || null;
+}
 function propose(op) {
+  const taken = new Set(ALREADY.map((a) => a.itemId));
   const bankAbs = Math.abs(op.amount);
   let best = null;
   BUDGET.forEach((item) => {
+    if (taken.has(item.id)) return;
     const signOk = op.amount < 0 ? item.kind !== "income" : item.kind === "income";
     if (!signOk && item.kind !== "wallet") return;
     let score = Math.round(similar(op.label, item.label) * 70);
     const diff = Math.abs(bankAbs - item.amount);
     if (diff <= 0.05) score += 30;
     else if (diff / Math.max(bankAbs, 1) <= 0.15) score += 12;
-    if (!best || score > best.score) best = { item, score };
+    if (!isCurrent(item) && score < 55) return;
+    if (!best || score > best.score || (score === best.score && isCurrent(item) && !isCurrent(best.item))) best = { item, score };
   });
   if (!best || best.score < 25) return null;
   return best;
@@ -247,13 +286,15 @@ function parseCsv(text) {
     const credit = parseAmount(cells[3]);
     const amount = credit > 0 ? credit : -Math.abs(debit);
     const op = { id: "csv-" + i, source: "csv", date: parseDate(cells[0]), label: (cells[1] || "").trim(), amount };
-    op.proposal = propose(op);
+    op.already = alreadyFor(op);
+    op.proposal = op.already ? null : propose(op);
     return op;
   }).filter((op) => op.label);
 }
 function unmatchedBudget(ops) {
   const used = new Set(ops.map((op) => op.proposal && op.proposal.score >= 55 ? op.proposal.item.id : null).filter(Boolean));
-  return BUDGET.filter((item) => !used.has(item.id) && (item.paid || item.kind === "wallet")).map((item) => ({
+  ALREADY.forEach((a) => used.add(a.itemId));
+  return BUDGET.filter((item) => isCurrent(item) && !used.has(item.id) && (item.paid || item.kind === "wallet")).map((item) => ({
     id: "app-" + item.id,
     source: "app",
     date: String(item.day).padStart(2, "0") + "/08",
@@ -271,56 +312,72 @@ function toast(msg) {
 }
 function kindFr(item) {
   if (!item) return "";
-  if (item.kind === "wallet") return "mouvement d’enveloppe";
-  if (item.card) return "dépense Couple, payée avec ma carte" + (item.paid ? ", déjà validée" : ", non validée");
-  if (item.kind === "income") return item.paid ? "déjà encaissé" : "revenu non encaissé";
-  return item.paid ? "déjà validé" : "non validé";
+  const when = timing(item);
+  const place = when ? when + ", " + monthName(item) + ", " : "";
+  if (item.kind === "wallet") return place + "mouvement d’enveloppe";
+  if (item.card) return place + "dépense Couple, payée avec ma carte" + (item.paid ? ", déjà validée" : ", non validée");
+  if (item.kind === "income") return place + (item.paid ? "déjà encaissé" : "revenu non encaissé");
+  return place + (item.paid ? "déjà validé" : "non validé");
+}
+function saisieOption(b) {
+  const when = timing(b);
+  const month = when ? " · " + monthName(b) + " · " + when : "";
+  const card = b.card ? " · Couple, ma carte" : "";
+  return esc(b.label) + card + month + " · " + money(b.amount);
 }
 
 function choiceBtn(id, key, label) {
-  return `<span class="choice-btn"><button type="button" class="btn btn-outline btn-sm" data-act="pick" data-choice="${key}" data-id="${id}">${label}</button><button type="button" class="info" data-act="info" data-hint="${key}" data-id="${id}" aria-label="Explication : ${esc(label)}">i</button></span>`;
+  return `<button type="button" class="btn btn-outline btn-sm" data-act="pick" data-choice="${key}" data-id="${id}">${label}</button>`;
+}
+function withInfo(id, inner) {
+  return `<div class="row-actions" style="margin-top:10px;">${inner}<button type="button" class="info" data-act="info" data-id="${id}" aria-label="Explication des actions">i</button></div>`;
 }
 function actionsHtml(r, hasProposal, showChoices) {
+  const draft = drafts[r.id];
+  if (decisions[r.id]) return "";
+  if (draft && draft.choice === "portefeuille" && !draft.walletMode) {
+    return withInfo(r.id, `
+      ${choiceBtn(r.id, "wallet-lier", "Lier un mouvement")}
+      ${choiceBtn(r.id, "wallet-creer", "Créer un mouvement")}`);
+  }
+  if (draft) return "";
   if (!showChoices) {
-    return `<div class="row-actions" style="margin-top:10px;">
+    return withInfo(r.id, `
       <button type="button" class="btn btn-primary btn-sm" data-act="confirm" data-id="${r.id}">Confirmer</button>
-      <button type="button" class="btn btn-outline btn-sm" data-act="invalidate" data-id="${r.id}">Invalider</button>
-    </div>`;
+      <button type="button" class="btn btn-outline btn-sm" data-act="invalidate" data-id="${r.id}">Invalider</button>`);
   }
   if (r.source === "app" && r.item.kind === "wallet") {
-    return `<div class="row-actions" style="margin-top:10px;">
-      ${choiceBtn(r.id, "verifier", "Vérifier")}
-      ${choiceBtn(r.id, "supprimer", "Supprimer le mouvement")}
-    </div>`;
+    return withInfo(r.id, `${choiceBtn(r.id, "verifier", "Vérifier")}${choiceBtn(r.id, "supprimer", "Supprimer le mouvement")}`);
   }
   if (r.source === "app") {
-    return `<div class="row-actions" style="margin-top:10px;">
-      ${choiceBtn(r.id, "verifier", "Vérifier")}
-      ${choiceBtn(r.id, "retirer", "Retirer la validation")}
-    </div>`;
+    return withInfo(r.id, `${choiceBtn(r.id, "verifier", "Vérifier")}${choiceBtn(r.id, "retirer", "Retirer la validation")}`);
   }
-  const back = hasProposal ? `<button type="button" class="btn btn-ghost btn-sm" data-act="back" data-id="${r.id}">Retour</button>` : "";
-  return `<div class="row-actions" style="margin-top:10px;">
+  const back = (hasProposal || r.already) ? `<button type="button" class="btn btn-ghost btn-sm" data-act="back" data-id="${r.id}">Retour</button>` : "";
+  return withInfo(r.id, `
     ${choiceBtn(r.id, "lien", "Lier")}
     ${choiceBtn(r.id, "durable", "Saisie durable")}
     ${choiceBtn(r.id, "exceptionnelle", "Exceptionnelle")}
     ${choiceBtn(r.id, "portefeuille", "Portefeuille")}
     ${choiceBtn(r.id, "oublier", "Oublier")}
-    ${back}
-  </div>`;
+    ${back}`);
 }
 function detailHtml(r) {
   const draft = drafts[r.id];
-  if (!draft) return "";
+  if (!draft || (draft.choice === "portefeuille" && !draft.walletMode)) return "";
   if (draft.choice === "lien") {
     const options = BUDGET.filter((b) => b.kind !== "wallet").map((b) =>
-      `<option value="${esc(b.id)}" ${draft.target === b.id ? "selected" : ""}>${esc(b.label)}${b.card ? " · Couple, ma carte" : ""} · ${money(b.amount)}</option>`).join("");
+      `<option value="${esc(b.id)}" ${draft.target === b.id ? "selected" : ""}>${saisieOption(b)}</option>`).join("");
     return `<div class="detail"><div class="label">Saisie existante</div><select class="input" data-field="target" data-id="${r.id}">${options}</select></div>`;
   }
   if (draft.choice === "durable" || draft.choice === "exceptionnelle") {
     return `<div class="detail"><div class="label">Libellé</div><input class="input" data-field="label" data-id="${r.id}" value="${esc(draft.label || r.label)}"></div>`;
   }
-  if (draft.choice === "portefeuille") {
+  if (draft.choice === "portefeuille" && draft.walletMode === "lier") {
+    const options = BUDGET.filter((b) => b.kind === "wallet").map((b) =>
+      `<option value="${esc(b.id)}" ${draft.target === b.id ? "selected" : ""}>${esc(b.label)} · ${money(b.amount)}</option>`).join("");
+    return `<div class="detail"><div class="label">Mouvement déjà saisi</div><select class="input" data-field="target" data-id="${r.id}">${options}</select></div>`;
+  }
+  if (draft.choice === "portefeuille" && draft.walletMode === "creer") {
     return `<div class="detail"><div class="label">Enveloppe</div><select class="input" data-field="wallet" data-id="${r.id}"><option ${draft.wallet === "Sorties" ? "" : "selected"}>Courses</option><option ${draft.wallet === "Sorties" ? "selected" : ""}>Sorties</option></select></div>`;
   }
   return "";
@@ -332,15 +389,27 @@ function applyDraft(id) {
   let text = "";
   if (draft.choice === "lien") {
     const item = BUDGET.find((b) => b.id === draft.target) || BUDGET.find((b) => b.kind !== "wallet");
-    text = "Lier à " + (item ? item.label : "") + ", puis vérifier à l’enregistrement.";
+    text = "Lier à la saisie « " + (item ? item.label : "") + " »" + whereOf(item) + ". Sera rapproché à l’enregistrement.";
   } else if (draft.choice === "durable") {
     text = "Créer la saisie durable « " + (draft.label || row.label) + " » à l’enregistrement.";
   } else if (draft.choice === "exceptionnelle") {
     text = "Créer l’exceptionnelle « " + (draft.label || row.label) + " » à l’enregistrement.";
-  } else if (draft.choice === "portefeuille") {
-    text = "Ajouter le mouvement dans " + (draft.wallet || "Courses") + " à l’enregistrement.";
-  }
-  decisions[id] = { text };
+  } else if (draft.choice === "portefeuille" && draft.walletMode === "lier") {
+    const item = BUDGET.find((b) => b.id === draft.target);
+    text = "Lier au mouvement « " + (item ? item.label : "") + " »" + whereOf(item) + ". Sera rapproché à l’enregistrement.";
+  } else if (draft.choice === "portefeuille" && draft.walletMode === "creer") {
+    text = "Créer le mouvement dans " + (draft.wallet || "Courses") + " à l’enregistrement.";
+  } else return;
+  decisions[id] = { text: withReplace(id, text) };
+}
+function whereOf(item) {
+  const when = timing(item);
+  if (!when) return "";
+  return " sur " + monthName(item) + " (" + when + ")";
+}
+function withReplace(id, text) {
+  const row = rows.find((r) => r.id === id);
+  return row && row.already ? "Remplace la vérification déjà écrite. " + text : text;
 }
 function render() {
   const list = document.getElementById("list");
@@ -367,7 +436,13 @@ function render() {
     const readLabel = r.source === "csv" ? r.label : "Absent du fichier";
     const readDate = r.source === "csv" ? r.date : "—";
     let prop = "Aucune saisie proche.";
-    if (r.source === "csv" && r.proposal) {
+    let zoneClass = "prop";
+    let zoneK = "Proposé par l’appli";
+    if (r.already) {
+      zoneClass = "kept";
+      zoneK = "Déjà écrit";
+      prop = esc(r.already.fact);
+    } else if (r.source === "csv" && r.proposal) {
       const it = r.proposal.item;
       prop = esc(it.label) + " · " + money(it.amount) + " · " + kindFr(it) + " · " + r.proposal.score + " %";
     } else if (r.source === "app") {
@@ -395,8 +470,8 @@ function render() {
           <div>${esc(readLabel)}</div>
           <div class="meta">${esc(readDate)}${r.source === "csv" ? " · " + money(amt) : ""}</div>
         </div>
-        <div class="zone prop">
-          <div class="k">Proposé par l’appli</div>
+        <div class="zone ${zoneClass}">
+          <div class="k">${zoneK}</div>
           <div>${prop}</div>
           ${amountBox}
         </div>
@@ -404,7 +479,7 @@ function render() {
       ${actionsHtml(r, hasProposal, showChoices)}
       ${hints[r.id] ? `<div class="hint">${esc(hints[r.id])}</div>` : ""}
       ${detailHtml(r)}
-      ${decided ? `<div class="status">${esc(decided.text)}</div>` : ""}
+      ${decided ? `<div class="status-row"><div class="status">${esc(decided.text)}</div><button type="button" class="btn btn-ghost btn-sm" data-act="${decided.kept ? "edit-kept" : "undo"}" data-id="${r.id}">${decided.kept ? "Modifier" : "Retour"}</button></div>` : ""}
     </article>`;
   }).join("");
 }
@@ -416,6 +491,9 @@ function loadText(text, name) {
   picking = {};
   drafts = {};
   hints = {};
+  rows.forEach((r) => {
+    if (r.already) decisions[r.id] = { text: r.already.text, kept: true };
+  });
   document.getElementById("drop-title").textContent = name;
   document.getElementById("drop-sub").textContent = ops.length + " lignes lues · rien n’est envoyé";
   render();
@@ -444,7 +522,12 @@ function confirmRow(id) {
       amount, mode
     };
   } else if (row.source === "csv" && row.proposal) {
-    decisions[id] = { text: "Rapprocher " + row.proposal.item.label + " et marquer vérifié." };
+    const it = row.proposal.item;
+    const when = timing(it);
+    const text = when
+      ? "Rapprocher " + it.label + " sur " + monthName(it) + " (" + when + "). Août ne reçoit pas une deuxième dépense."
+      : "Rapprocher " + it.label + " et marquer vérifié.";
+    decisions[id] = { text: withReplace(id, text) };
   } else if (row.item.kind === "wallet") {
     decisions[id] = { text: "Marquer le mouvement " + row.item.label + " vérifié." };
   } else {
@@ -545,13 +628,31 @@ document.getElementById("list").addEventListener("click", (event) => {
   if (!btn) return;
   const id = btn.dataset.id;
   if (btn.dataset.act === "info") {
-    hints[id] = hints[id] === HINTS[btn.dataset.hint] ? "" : HINTS[btn.dataset.hint];
+    const row = rows.find((r) => r.id === id);
+    const text = row ? helpText(row) : "";
+    hints[id] = hints[id] === text ? "" : text;
     render();
     return;
   }
   if (btn.dataset.act === "confirm") { confirmRow(id); return; }
-  if (btn.dataset.act === "invalidate") { picking[id] = true; render(); return; }
-  if (btn.dataset.act === "back") { delete picking[id]; delete drafts[id]; hints[id] = ""; render(); return; }
+  if (btn.dataset.act === "invalidate") { picking[id] = true; hints[id] = ""; render(); return; }
+  if (btn.dataset.act === "edit-kept") { picking[id] = true; delete decisions[id]; delete drafts[id]; hints[id] = ""; render(); return; }
+  if (btn.dataset.act === "back" || btn.dataset.act === "undo") {
+    const row = rows.find((r) => r.id === id);
+    delete drafts[id];
+    hints[id] = "";
+    if (row && row.already) {
+      delete picking[id];
+      decisions[id] = { text: row.already.text, kept: true };
+    } else if (btn.dataset.act === "undo") {
+      delete decisions[id];
+      delete picking[id];
+    } else {
+      delete picking[id];
+    }
+    render();
+    return;
+  }
   if (btn.dataset.act === "pick") pickChoice(id, btn.dataset.choice);
 });
 document.getElementById("list").addEventListener("change", (event) => {
@@ -587,10 +688,21 @@ function pickChoice(id, choice) {
     decisions[id] = { text: "Retirer la validation de " + money(row.item.amount) + " à l’enregistrement. La saisie reste." };
   } else if (choice === "supprimer") {
     decisions[id] = { text: "Supprimer le mouvement " + row.item.label + " à l’enregistrement. L’enveloppe reste." };
+  } else if (choice === "portefeuille") {
+    drafts[id] = { choice, walletMode: "" };
+    delete decisions[id];
+  } else if (choice === "wallet-lier") {
+    const first = BUDGET.find((b) => b.kind === "wallet");
+    drafts[id] = { choice: "portefeuille", walletMode: "lier", target: first ? first.id : "" };
+    applyDraft(id);
+  } else if (choice === "wallet-creer") {
+    drafts[id] = { choice: "portefeuille", walletMode: "creer", wallet: "Courses", label: row.label };
+    applyDraft(id);
   } else {
+    const firstSaisie = BUDGET.find((b) => b.kind !== "wallet");
     drafts[id] = {
       choice,
-      target: (BUDGET.find((b) => b.kind !== "wallet") || {}).id,
+      target: firstSaisie ? firstSaisie.id : "",
       label: row.label,
       wallet: "Courses"
     };
@@ -634,9 +746,9 @@ document.getElementById("save").onclick = () => {
   sheetFor = rows[0].id;
   sheetChoice = "result";
   document.getElementById("sheet-title").textContent = "Août serait mis à jour ainsi";
-  document.getElementById("sheet-lead").textContent = "Aperçu local. Aucune ligne n’est écrite dans une base.";
+  document.getElementById("sheet-lead").textContent = "Aperçu local. Une ligne déjà écrite n’est pas recréée. Aucune ligne n’est écrite dans une base.";
   document.getElementById("sheet-body").innerHTML = "<ul style=\"margin:0; padding-left:18px;\">" +
-    rows.map((r) => "<li style=\"margin:6px 0;\">" + esc(decisions[r.id].text) + "</li>").join("") + "</ul>";
+    rows.map((r) => "<li style=\"margin:6px 0;\">" + esc((decisions[r.id].kept ? "Inchangé. " : "") + decisions[r.id].text) + "</li>").join("") + "</ul>";
   document.getElementById("sheet-ok").textContent = "Fermer";
   document.getElementById("sheet-ok").onclick = () => {
     closeSheet();
