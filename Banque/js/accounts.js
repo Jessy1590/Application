@@ -154,38 +154,10 @@ Object.assign(BH, {
       }, 'suppression du compte');
     },
 
-    // --- "Reste en date du" : simulation par compte ---
+    // --- Totaux vérifiés d'un compte (relevé), sans date choisie dans Comptes ---
     _todayISO() {
       const t = new Date();
       return t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
-    },
-    getResteDay(accId, mKey) {
-      if (!this.resteDays) this.resteDays = {};
-      const key = accId + '_' + mKey;
-      if (this.resteDays[key] == null) {
-        const now = new Date();
-        const [y, mo] = mKey.split('-').map(Number);
-        const last = new Date(y, mo, 0).getDate();
-        this.resteDays[key] = mKey === this.monthKey(now) ? Math.min(now.getDate(), last) : last;
-      }
-      return this.resteDays[key];
-    },
-    setResteDay(accId, mKey, val) {
-      const [y, mo] = String(mKey).split('-').map(Number);
-      const last = new Date(y, mo, 0).getDate();
-      if (!this.resteDays) this.resteDays = {};
-      this.resteDays[accId + '_' + mKey] = Math.max(1, Math.min(last, Number(val) || 1));
-      this.renderComptes();
-    },
-    getResteDate(accId) {
-      if (!this.resteDates) this.resteDates = {};
-      if (!this.resteDates[accId]) this.resteDates[accId] = this._todayISO();
-      return this.resteDates[accId];
-    },
-    setResteDate(accId, val) {
-      if (!this.resteDates) this.resteDates = {};
-      this.resteDates[accId] = val;
-      this.renderComptes();
     },
     accountRealTotals(accId, mKey, maxDay) {
       let exp = 0, inc = 0;
@@ -303,11 +275,16 @@ Object.assign(BH, {
           if (e.is_wallet) paidSum += this.walletOwnSpent(acc.id, e.id, mKey);
           else if (this.isExpenseActive(e) && paidMap[e.id]) paidSum += Number(paidMap[e.id].amount);
         });
-        let paidInc = 0;
+        let paidInc = 0, paidRevenus = 0, paidRemb = 0;
         const incPaidMap = this.state.monthsIncomes?.[acc.id + '_' + mKey] || {};
         incs.forEach(i => {
           tInc += Number(i.amount) || 0;
-          if (incPaidMap[i.id]) paidInc += Number(incPaidMap[i.id].amount) || 0;
+          const rec = incPaidMap[i.id];
+          if (!rec) return;
+          const amt = Number(rec.amount) || 0;
+          paidInc += amt;
+          if (i.income_type === 'remboursement') paidRemb += amt;
+          else paidRevenus += amt;
         });
         // Dépenses exceptionnelles : comptées dans le déjà réglé (effectif), pas dans le budget théorique
         const exceptionalPaid = this.exceptionalAmountForAccount(acc.id, mKey);
@@ -398,47 +375,38 @@ Object.assign(BH, {
             }
         }
 
-        const resteDate = this.getResteDate(acc.id);
-        const selDay = Number((String(resteDate).split('-')[2]) || 31);
-        const expsToDate = exps.reduce((s, e) => {
-          if (e.is_wallet) {
-            return s + this.getWalletTx(acc.id, e.id, mKey)
-              .filter(t => Number(t.day) <= selDay && !this.isExternalWalletApport(t))
-              .reduce((a, t) => a + (Number(t.amount) || 0), 0);
-          }
-          return Number(e.day) <= selDay ? s + Number(e.amount) : s;
-        }, 0) + this.exceptionalAmountForAccount(acc.id, mKey, { maxDay: selDay });
-        const walletApportsOut = this.outboundWalletApports(acc.id, mKey, selDay);
-        let resteEnDate, totalApportsRecus = 0;
-        if (isMain) {
-          resteEnDate = tInc - expsToDate - totalOutboundContributions - walletApportsOut;
-        } else {
-          totalApportsRecus = totalAllocated;
-          resteEnDate = totalApportsRecus + tInc - expsToDate - walletApportsOut;
-        }
         const hasWallet = exps.some(e => e.is_wallet && this.isExpenseActive(e));
-        if (!this.resteInfo) this.resteInfo = {};
-        this.resteInfo[acc.id] = {
-          accName: acc.name, isMain, resteDate, selDay, mKey, paidSum, expsToDate, resteEnDate,
-          tInc, totalOutboundContributions, totalApportsRecus, hasWallet, walletApportsOut
-        };
         let upcoming = 0;
         exps.forEach(e => {
           if (!this.isExpenseActive(e)) return;
           if (e.is_wallet) upcoming += Math.max(0, Number(e.amount) - this.walletOwnSpent(acc.id, e.id, mKey));
           else if (!paidMap[e.id]) upcoming += Number(e.amount) || 0;
         });
-        if (isMain) {
-          this.listOutboundApportDues({ mKey }).forEach(ap => {
-            if (!paidMap[ap.id]) upcoming += Number(ap.amount) || 0;
-          });
-        }
         const theoIn = isMain ? tInc : (totalAllocated + tInc);
         const theoOut = isMain
           ? (tExp + totalOutboundContributions + walletApportsOutMonth)
           : (tExp + walletApportsOutMonth);
         const apportIn = isMain ? 0 : totalAllocated;
-        const effIn = paidInc + apportIn;
+        let apportValide = 0;
+        if (!isMain && mainAccId) {
+          const paidApport = this.state.months[mainAccId + '_' + mKey]?.[this.apportExpenseId(acc.id)];
+          if (paidApport) apportValide = Number(paidApport.amount) || 0;
+        }
+        let apportReste = 0;
+        if (isMain) {
+          this.listOutboundApportDues({ mKey }).forEach(ap => {
+            if (!paidMap[ap.id]) apportReste += Number(ap.amount) || 0;
+          });
+        } else {
+          apportReste = Math.max(0, apportIn - apportValide);
+        }
+        const effValide = paidInc + apportValide;
+        const resteEffectif = effValide - paidSum;
+        if (!this.resteInfo) this.resteInfo = {};
+        this.resteInfo[acc.id] = {
+          accName: acc.name, isMain, mKey, paidSum, paidInc, apportIn, apportValide, apportReste,
+          upcoming, resteEffectif, walletApportsOut: walletApportsOutMonth, hasWallet
+        };
 
         if (!this.acctExpensesList) this.acctExpensesList = {};
         this.acctExpensesList[acc.id] = { accName: acc.name, exps: exps.slice().sort((a,b)=>Number(a.day)-Number(b.day)) };
@@ -451,8 +419,9 @@ Object.assign(BH, {
         };
         if (!this.acctView) this.acctView = {};
         this.acctView[acc.id] = {
-          accName: acc.name, isMain, theoIn, theoOut, paidInc, paidSum, apportIn, effIn,
-          upcoming, resteTheorique, resteEnDate, selDay
+          accName: acc.name, isMain, theoIn, theoOut, paidInc, paidRevenus, paidRemb, paidSum,
+          apportIn, apportValide, apportReste, effValide,
+          upcoming, resteTheorique, resteEffectif
         };
 
         const others = mems.filter(m => m.user_id !== this.user.id);
@@ -469,7 +438,8 @@ Object.assign(BH, {
           return { exp, rest: 100 - exp, delta };
         };
         const theoBar = bar(theoOut, theoIn);
-        const effBar = bar(paidSum, paidInc);
+        const effPool = paidInc + apportValide;
+        const effBar = bar(paidSum, effPool);
         const cell = (label, value, click, extra) => `<button type="button" class="bh-acct-cell${extra || ''}" onclick="${click}"><span class="bh-acct-cell-label">${label}</span><span class="bh-acct-cell-value num">${value}</span></button>`;
         const flag = (amount, click) => {
           const ok = amount > 0;
@@ -510,10 +480,10 @@ Object.assign(BH, {
           </button>
           <button type="button" class="bh-split-btn" onclick="BH.showEffBar('${acc.id}')">
             <div class="bh-split eff${effBar.delta < 0 ? ' neg' : ''}">${effBar.delta < 0 && paidSum > 0
-              ? `<span class="inc" style="width:${Math.max(0, paidInc) / paidSum * 100}%"></span><span class="over" style="width:${(paidSum - Math.max(0, paidInc)) / paidSum * 100}%"></span>`
+              ? `<span class="inc" style="width:${Math.max(0, effPool) / paidSum * 100}%"></span><span class="over" style="width:${(paidSum - Math.max(0, effPool)) / paidSum * 100}%"></span>`
               : `<span class="exp" style="width:${effBar.exp}%"></span><span class="rest" style="width:${effBar.rest}%"></span>`}</div>
             <div class="bh-split-legend">
-              <span><i class="dot inc"></i> Revenus validés ${this.fmt(paidInc)}</span>
+              <span><i class="dot inc"></i> ${apportValide > 0 ? `Revenus + apport ${this.fmt(effPool)}` : `Revenus validés ${this.fmt(paidInc)}`}</span>
               <span><i class="dot exp"></i> Dépenses validées ${this.fmt(paidSum)}</span>
               <span><i class="dot rest"></i> ${effBar.delta < 0 ? 'Delta' : 'Reste'} ${this.fmt(effBar.delta)}</span>
             </div>
@@ -526,15 +496,12 @@ Object.assign(BH, {
             ${flag(resteTheorique, `BH.showResteTheoInfo('${acc.id}')`)}
           </div>
           ${!isMain && myMem && this.apportEdit === acc.id ? contribHtml : ''}
-          <div class="bh-acct-kicker">
-            <span>Effectif</span>
-            <input type="date" class="bh-input bh-reste-date-input" value="${resteDate}" onchange="BH.setResteDate('${acc.id}', this.value)" aria-label="Date du reste effectif">
-          </div>
+          <div class="bh-acct-kicker">Effectif</div>
           <div class="bh-acct-cells">
             ${cell('Dépenses effectives', this.fmt(paidSum), `BH.showPaidDetail('${acc.id}')`)}
-            ${cell('Revenus / apport', this.fmt(effIn), `BH.showEffInflows('${acc.id}')`)}
+            ${cell('Revenus / apport', this.fmt(effValide), `BH.showEffInflows('${acc.id}')`)}
             ${cell('Dépenses à venir', this.fmt(upcoming), `BH.showUpcoming('${acc.id}')`)}
-            ${flag(resteEnDate, `BH.showResteInfo('${acc.id}')`)}
+            ${flag(resteEffectif, `BH.showResteInfo('${acc.id}')`)}
           </div>
           ${advanceNote}
           ${settleHtml}
@@ -823,10 +790,11 @@ Object.assign(BH, {
         const kind = i.income_type === 'remboursement' ? 'Revenu validé · remb.' : 'Revenu validé';
         rows += this.detailLine(kind + ' · ' + this.esc(i.description || 'Revenu'), Number(paid[i.id].amount) || 0);
       });
+      if (v.apportValide > 0) rows += this.detailLine('Apport validé', v.apportValide);
       if (!rows) rows = `<div class="bh-info-row"><span>Aucun revenu validé</span><span class="num">${this.fmt(0)}</span></div>`;
       const spent = this.paidExpenseRows(accId);
       rows += spent.rows || `<div class="bh-info-row"><span>Aucune dépense validée</span><span class="num">${this.fmt(0)}</span></div>`;
-      const delta = v.paidInc - v.paidSum;
+      const delta = (v.paidInc + (v.apportValide || 0)) - v.paidSum;
       rows += this.detailLine(delta < 0 ? '<strong>Delta</strong>' : '<strong>Reste sur les revenus</strong>', delta);
       this.openInfo(v.accName + ' — barre validée', rows);
     },
@@ -835,19 +803,36 @@ Object.assign(BH, {
       const acc = (this.state.accounts || []).find(a => a.id === accId);
       const mKey = this.comptesMKey();
       const paid = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
-      let total = 0, rows = '';
-      (this.state.incomes || []).filter(i => i.account_id === accId && paid[i.id]).forEach(i => {
-        const amt = Number(paid[i.id].amount) || 0;
-        total += amt;
-        const kind = i.income_type === 'remboursement' ? 'Remboursement encaissé' : 'Revenu encaissé';
-        rows += this.detailLine(kind + ' · ' + this.esc(i.description || 'Revenu'), amt);
+      const incs = (this.state.incomes || []).filter(i => i.account_id === accId);
+      let validated = '', pending = '', totalOk = 0, totalWait = 0;
+      incs.forEach(i => {
+        const rec = paid[i.id];
+        const kind = i.income_type === 'remboursement' ? 'Remboursement' : 'Revenu';
+        const label = kind + ' · ' + this.esc(i.description || 'Revenu');
+        if (rec) {
+          const amt = Number(rec.amount) || 0;
+          totalOk += amt;
+          validated += this.detailLine(label, amt);
+        } else {
+          const amt = Number(i.amount) || 0;
+          totalWait += amt;
+          pending += this.detailLine(label, amt);
+        }
       });
-      if (v && v.apportIn > 0) {
-        total += v.apportIn;
-        rows += this.detailLine('Apport du mois', v.apportIn);
+      if (v && v.apportValide > 0) {
+        totalOk += v.apportValide;
+        validated += this.detailLine('Apport validé', v.apportValide);
       }
-      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Aucun revenu encaissé, aucun apport.</div>`;
-      else rows += this.detailLine('<strong>Total</strong>', total);
+      if (v && v.apportReste > 0) {
+        totalWait += v.apportReste;
+        pending += this.detailLine('Apport pas encore validé', v.apportReste);
+      }
+      if (!validated) validated = `<div class="bh-info-row"><span>Rien de validé</span><span class="num">${this.fmt(0)}</span></div>`;
+      else validated += this.detailLine('<strong>Total validé</strong>', totalOk);
+      if (!pending) pending = `<div class="bh-info-row"><span>Rien en attente</span><span class="num">${this.fmt(0)}</span></div>`;
+      else pending += this.detailLine('<strong>Total en attente</strong>', totalWait);
+      const rows = `<div class="bh-section-label" style="margin-top:0;">Déjà validé</div>${validated}`
+        + `<div class="bh-section-label">En attente de validation</div>${pending}`;
       this.openInfo((acc ? acc.name : 'Compte') + ' — revenus et apport', rows);
     },
     showUpcoming(accId) {
@@ -870,14 +855,6 @@ Object.assign(BH, {
           rows += this.detailLine(this.esc(e.description || 'Dépense') + (e.day ? (' · le ' + e.day) : '') + ' · pas encore validé', amt);
         }
       });
-      if (accId === this.state.profile?.main_account_id) {
-        this.listOutboundApportDues({ mKey }).forEach(ap => {
-          if (paidMap[ap.id]) return;
-          const amt = Number(ap.amount) || 0;
-          total += amt;
-          rows += this.detailLine(this.esc(ap.description || 'Apport') + ' · pas encore validé', amt);
-        });
-      }
       if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Tout est déjà validé.</div>`;
       else rows += this.detailLine('<strong>Reste à venir</strong>', total);
       this.openInfo((acc ? acc.name : 'Compte') + ' — dépenses à venir', rows);
@@ -907,85 +884,19 @@ Object.assign(BH, {
       else rows += this.detailLine('<strong>Total</strong>', total);
       this.openInfo('Apports versés', rows);
     },
-    showSpentToDate(accId) {
-      const mKey = this.comptesMKey();
-      const acc = (this.state.accounts || []).find(a => a.id === accId);
-      const info = this.resteInfo && this.resteInfo[accId];
-      const selDay = (info && info.selDay) || this.getResteDay(accId, mKey);
-      const paidMap = this.state.months[accId + '_' + mKey] || {};
-      const exps = (this.state.expenses || []).filter(e => e.account_id === accId);
-      let total = 0, rows = '';
-      exps.forEach(e => {
-        if (e.is_wallet) {
-          this.getWalletTx(accId, e.id, mKey)
-            .filter(t => Number(t.day) <= selDay && !this.isExternalWalletApport(t))
-            .forEach(t => {
-              const amt = Number(t.amount) || 0;
-              total += amt;
-              rows += this.detailLine('👛 ' + this.esc(e.description || 'Portefeuille') + ' · ' + this.esc(t.description || 'Mouvement') + (t.day ? (' · le ' + t.day) : ''), amt);
-            });
-        } else if (this.isExpenseActive(e) && paidMap[e.id] && Number(e.day) <= selDay) {
-          const amt = Number(paidMap[e.id].amount) || 0;
-          total += amt;
-          rows += this.detailLine(this.esc(e.description || 'Dépense') + ' · le ' + e.day, amt);
-        }
-      });
-      this.listExceptionalExpenses(accId, mKey).filter(e => Number(e.day) <= selDay).forEach(e => {
-        const amt = Number(e.amount) || 0;
-        total += amt;
-        rows += this.detailLine(this.esc(e.description || 'Exceptionnel') + ' · exceptionnel', amt);
-      });
-      if (accId === this.state.profile?.main_account_id && selDay >= 1) {
-        this.listOutboundApportDues({ mKey }).forEach(ap => {
-          const rec = paidMap[ap.id];
-          if (!rec) return;
-          const amt = Number(rec.amount) || 0;
-          total += amt;
-          rows += this.detailLine(this.esc(ap.description || 'Apport'), amt);
-        });
-      }
-      if (!rows) rows = `<div style="font-size:13px; color:var(--ink-soft);">Aucune dépense à cette date.</div>`;
-      else rows += this.detailLine('<strong>Total à date</strong>', total);
-      this.openInfo((acc ? acc.name : 'Compte') + ' — dépenses à date', rows);
-    },
     showResteDetail(accId) {
-      const info = this.resteInfo && this.resteInfo[accId];
-      if (!info) return;
-      const mKey = info.mKey || this.comptesMKey();
-      const selDay = info.selDay || 31;
-      const paidMap = this.state.months[accId + '_' + mKey] || {};
-      const incPaid = this.state.monthsIncomes?.[accId + '_' + mKey] || {};
-      let rows = '';
-      (this.state.incomes || []).filter(i => i.account_id === accId && incPaid[i.id] && Number(i.day) <= selDay).forEach(i => {
-        rows += this.detailLine('+ ' + this.esc(i.description || 'Revenu'), Number(incPaid[i.id].amount) || 0);
-      });
-      if (!info.isMain && info.totalApportsRecus) rows += this.detailLine('+ Apport validé reçu', info.totalApportsRecus);
-      if (info.isMain) {
-        this.listOutboundApportDues({ mKey }).forEach(ap => {
-          const rec = paidMap[ap.id];
-          if (!rec) return;
-          rows += this.detailLine('− ' + this.esc(ap.description || 'Apport'), Number(rec.amount) || 0);
-        });
-      }
-      (this.state.expenses || []).filter(e => e.account_id === accId).forEach(e => {
-        if (e.is_wallet) {
-          this.getWalletTx(accId, e.id, mKey)
-            .filter(t => Number(t.day) <= selDay && !this.isExternalWalletApport(t))
-            .forEach(t => {
-              rows += this.detailLine('− 👛 ' + this.esc(e.description || 'Portefeuille') + ' · ' + this.esc(t.description || 'Mouvement'), Number(t.amount) || 0);
-            });
-        } else if (this.isExpenseActive(e) && paidMap[e.id] && Number(e.day) <= selDay) {
-          rows += this.detailLine('− ' + this.esc(e.description || 'Dépense') + ' · le ' + e.day, Number(paidMap[e.id].amount) || 0);
-        }
-      });
-      this.listExceptionalExpenses(accId, mKey).filter(e => Number(e.day) <= selDay).forEach(e => {
-        rows += this.detailLine('− ' + this.esc(e.description || 'Exceptionnel'), Number(e.amount) || 0);
-      });
-      if (info.walletApportsOut > 0) {
-        rows += this.detailLine('− Apports vers des portefeuilles', info.walletApportsOut);
-      }
-      rows += this.detailLine('<strong>= Reste au jour ' + selDay + '</strong>', info.resteEnDate);
-      this.openInfo(info.accName + ' — reste au jour ' + selDay, rows);
+      const v = this.acctView && this.acctView[accId];
+      if (!v) return;
+      const nom = v.resteEffectif > 0 ? 'Excédent financier' : 'Risque financier';
+      const rows = this.detailLine('Revenus encaissés', v.paidRevenus)
+        + this.detailLine('Remboursements encaissés', v.paidRemb)
+        + this.detailLine('Apport validé', v.apportValide)
+        + this.detailLine('− Dépenses validées', v.paidSum)
+        + this.detailLine('<strong>= ' + nom + '</strong>', v.resteEffectif)
+        + `<div style="font-size:11.5px; color:var(--ink-faint); margin-top:14px; line-height:1.45;">Ces deux montants ne sont pas dans le calcul.</div>`
+        + this.detailLine('Reste à apporter', v.apportReste)
+        + this.detailLine('Reste à dépenser', v.upcoming);
+      this.openInfo(v.accName + ' — ' + nom, rows);
     },
     showRealDetail(accId, maxDay) {
       const mKey = this.comptesMKey();

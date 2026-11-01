@@ -1049,12 +1049,14 @@
       const tab = state.variantTab || 'base';
       const cur = effPayload(b);
       const layer = molLayerOf(cur, tab);
+      const prevIds = new Set((layer.matrice_ids || []).map(String));
       layer.matrice_ids = matIds;
       layer.masque_ids = (chips.getMasqueIds?.() || []).filter((id) => matIds.map(String).includes(String(id)));
-      // Retirer les valeurs des molécules absentes de cette couche
-      const keep = new Set(matIds.map(String));
+      // Une molécule retirée de la couche perd ses coches.
+      // Les clés des composants (héritage d’association, absentes des puces) restent.
+      const nextIds = new Set(matIds.map(String));
       Object.keys(layer.valeurs).forEach((k) => {
-        if (!keep.has(String(k))) delete layer.valeurs[k];
+        if (prevIds.has(String(k)) && !nextIds.has(String(k))) delete layer.valeurs[k];
       });
       writeMolPayload(id, setMolLayerOnPayload(cur, tab, layer));
     });
@@ -3360,10 +3362,22 @@
 
   /* ——— Actions blocs ——— */
 
+  /** Ids affichés en diapositive pour un onglet (base, ou base ∪ ★N), hors masque. */
+  function shownMolIds(payload, tab) {
+    const base = molLayerOf(payload, 'base');
+    if (!tab || tab === 'base') {
+      const hide = new Set((base.masque_ids || []).map(String));
+      return (base.matrice_ids || []).filter((id) => id && !hide.has(String(id)));
+    }
+    const add = molLayerOf(payload, tab);
+    const hide = new Set(unionIds(base.masque_ids, add.masque_ids).map(String));
+    return unionIds(base.matrice_ids, add.matrice_ids).filter((id) => !hide.has(String(id)));
+  }
+
   /**
-   * Coche dans le payload du bloc courant les connaissances déjà affichées
-   * (base + variantes ★) dans les blocs molécule des leçons précédentes
-   * (ordre arbre), pour les matrice_ids de ce bloc uniquement.
+   * Recopie, sur l’onglet courant, les connaissances déjà cochées dans le parcours
+   * pour les molécules séparées (composants des associations de ce bloc, et molécules
+   * individuelles du bloc). Un onglet ★N ne reprend que la couche ★N, pas les autres étoiles.
    */
   async function ajouterValeursDejaAffichees(blocId, btn) {
     const m = selectedModule();
@@ -3375,63 +3389,87 @@
       const tab = state.variantTab || 'base';
       const cur = effPayload(b);
       const layer = molLayerOf(cur, tab);
-      const baseLayer = molLayerOf(cur, 'base');
-      const myMats = new Set(
-        (tab === 'base'
-          ? layer.matrice_ids
-          : unionIds(baseLayer.matrice_ids, layer.matrice_ids)
-        ).map(String)
+      const present = shownMolIds(cur, tab).concat(
+        (tab === 'base' ? layer.masque_ids : unionIds(molLayerOf(cur, 'base').masque_ids, layer.masque_ids)) || []
       );
-      if (!myMats.size) {
+      const presentIds = [...new Set(present.filter(Boolean).map(String))];
+      if (!presentIds.length) {
         global.JpToast?.warn?.('Ajoutez d’abord des molécules à ce bloc');
         return;
       }
 
-      const lessonIds = lessonIdsInTreeOrder();
-      const myIdx = lessonIds.indexOf(m.id);
-      const prevIds = myIdx > 0 ? lessonIds.slice(0, myIdx) : [];
-      if (!prevIds.length) {
-        global.JpToast?.ok?.('Aucune leçon précédente dans ce parcours');
+      const links = await composantLinks(presentIds);
+      const assoIds = presentIds.filter((id) => (links[String(id)] || []).length >= 2);
+      const componentIds = [];
+      assoIds.forEach((aid) => {
+        (links[String(aid)] || []).forEach((row) => {
+          if (row && row.id) componentIds.push(String(row.id));
+        });
+      });
+      const monoIds = presentIds.filter((id) => (links[String(id)] || []).length < 2);
+      const candidateIds = [...new Set(componentIds.concat(monoIds))];
+      const compKind = await composantLinks(candidateIds);
+      const targets = new Set(
+        candidateIds.filter((id) => (compKind[String(id)] || []).length < 2)
+      );
+      if (!targets.size) {
+        global.JpToast?.ok?.('Aucune molécule individuelle dans ce bloc');
         return;
       }
 
-      const unionByMat = {};
-      for (let i = 0; i < prevIds.length; i++) {
-        const mid = prevIds[i];
+      const lessonIds = lessonIdsInTreeOrder();
+      const copied = {};
+      const copiedSeen = {};
+      for (let i = 0; i < lessonIds.length; i += 1) {
+        const mid = lessonIds[i];
         let blocs;
         if (mid === state.selectedModuleId) blocs = state.blocs;
         else {
           try { blocs = await loadBlocs(mid); } catch (_) { continue; }
         }
         (blocs || []).forEach((pb) => {
-          if (!pb || pb.type_bloc !== 'molecule') return;
+          if (!pb || pb.id === blocId || pb.type_bloc !== 'molecule') return;
           const pay = effPayload(pb);
-          const layers = [molLayerOf(pay, 'base')];
-          Object.keys(pay.variantes || {}).forEach((k) => {
-            layers.push(molLayerOf(pay, k));
-          });
-          layers.forEach((lay) => {
-            Object.keys(lay.valeurs || {}).forEach((matId) => {
-              if (!myMats.has(String(matId))) return;
-              const set = unionByMat[matId] || (unionByMat[matId] = new Set());
-              (lay.valeurs[matId] || []).forEach((cid) => {
-                if (cid) set.add(String(cid));
-              });
+          const srcLayer = molLayerOf(pay, tab);
+          const shown = new Set(shownMolIds(pay, tab).map(String));
+          targets.forEach((matId) => {
+            if (!shown.has(matId)) return;
+            const list = srcLayer.valeurs[matId] || srcLayer.valeurs[String(matId)] || [];
+            if (!copied[matId]) {
+              copied[matId] = [];
+              copiedSeen[matId] = new Set();
+            }
+            list.forEach((cid) => {
+              const key = cid ? String(cid) : '';
+              if (!key || copiedSeen[matId].has(key)) return;
+              copiedSeen[matId].add(key);
+              copied[matId].push(key);
             });
           });
         });
       }
 
+      const found = Object.keys(copied).filter((id) => copied[id].length);
+      if (!found.length) {
+        const ou = tab === 'base' ? 'la base' : ('★' + tab);
+        global.JpToast?.ok?.('Aucune valeur déjà affichée pour ' + ou + ' dans ce parcours');
+        return;
+      }
+
+      let mols = 0;
       let added = 0;
-      Object.keys(unionByMat).forEach((matId) => {
-        const curSet = new Set((layer.valeurs[matId] || []).map(String));
-        const before = curSet.size;
-        unionByMat[matId].forEach((cid) => curSet.add(cid));
-        added += curSet.size - before;
-        if (curSet.size) layer.valeurs[matId] = Array.from(curSet);
+      found.forEach((matId) => {
+        const next = copied[matId];
+        const prev = (layer.valeurs[matId] || []).map(String);
+        const same = prev.length === next.length && prev.every((cid, i) => cid === next[i]);
+        if (same) return;
+        const prevSet = new Set(prev);
+        next.forEach((cid) => { if (!prevSet.has(cid)) added += 1; });
+        layer.valeurs[matId] = next.slice();
+        mols += 1;
       });
 
-      if (!added) {
+      if (!mols) {
         global.JpToast?.ok?.('Rien à ajouter — déjà à jour');
         return;
       }
@@ -3447,8 +3485,11 @@
       }
       paintVariantCountBadge(blocId);
       updateStatus();
+      const ou = tab === 'base' ? 'la base' : ('★' + tab);
       global.JpToast?.ok?.(
-        added === 1 ? '1 valeur ajoutée' : (added + ' valeurs ajoutées')
+        mols + ' molécule' + (mols > 1 ? 's' : '')
+        + ' · ' + added + ' valeur' + (added > 1 ? 's' : '')
+        + ' reprise' + (added > 1 ? 's' : '') + ' (' + ou + ')'
       );
     } catch (e) {
       global.JpToast?.fromError?.(e);

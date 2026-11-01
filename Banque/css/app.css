@@ -586,7 +586,12 @@
     #view-today #bh-wallets-section > .bh-wallet-card{
       flex:1 1 220px; min-width:min(100%, 220px); max-width:100%; margin:0; overflow:hidden;
     }
-    #view-today #bh-due-section{ display:flex; flex-direction:column; gap:10px; min-width:0; }
+    #view-today #bh-due-section{
+      display:flex; flex-direction:column; align-items:stretch; gap:10px; min-width:0; width:100%;
+    }
+    #view-today #bh-due-section > .bh-due{
+      width:100%; max-width:none; align-self:stretch; box-sizing:border-box;
+    }
     .bh-today-secondary .bh-section-label:first-child{ margin-top:8px; }
     .bh-stat-grid{ grid-template-columns:1fr 1fr; gap:14px; }
     .bh-stat{ padding:16px 18px; }
@@ -707,21 +712,6 @@
     #bh-wallets-section > .bh-card{
       margin-bottom:0 !important;
       height:100%;
-    }
-    #bh-due-section{
-      display:grid;
-      grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
-      gap:10px;
-      align-items:start;
-    }
-    #bh-due-section > .bh-section-label{
-      grid-column:1 / -1;
-    }
-    #bh-due-section > .bh-empty{
-      grid-column:1 / -1;
-    }
-    #bh-due-section > .bh-due{
-      margin-bottom:0;
     }
     #bh-accounts-list{
       grid-template-columns:repeat(auto-fill, minmax(360px, 1fr));
