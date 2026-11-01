@@ -2602,11 +2602,24 @@ Object.assign(BH, {
       const proposalLine = (m, withScore) => {
         const f = this.verifMatchFacts(m);
         if (!f) return '';
-        const parts = [this.esc(f.subject), f.amountHtml];
+        const mark = (cls, text) => `<span class="${cls}">${text}</span>`;
+        const isWallet = m.kind === 'wallet' || m.kind === 'wallet-budget';
+        let subject = this.esc(f.subject);
+        if (f.logoOnSubject) subject = mark('bh-verif-wallet', '👛 ' + this.esc(f.subject));
+        const parts = [subject];
+        if (f.walletPill) parts.push(mark('bh-verif-wallet', '👛 ' + this.esc(f.walletPill)));
+        else if (isWallet && !f.logoOnSubject) parts.push(mark('bh-verif-wallet', '👛 Portefeuille'));
+        parts.push(f.amountHtml);
         if (f.kindLabel) parts.push(this.esc(f.kindLabel));
+        if (f.status === 'validé' || f.status === 'encaissé') {
+          parts.push(mark('bh-verif-paid', '✓ déjà ' + this.esc(f.status)));
+        } else if (f.status === 'saisi') {
+          parts.push('déjà saisi');
+        } else if (f.status && (f.status === 'à rattacher' || !withScore)) {
+          parts.push(this.esc(f.status));
+        }
         if (withScore) parts.push((Math.min(100, Number(m.score) || 0)) + ' %');
-        else if (f.status) parts.push(this.esc(f.status));
-        return parts.join(' · ');
+        return `<span class="bh-verif-prop-line">${parts.map((p, i) => `<span class="bh-verif-prop-bit">${p}${i < parts.length - 1 ? '<span class="bh-verif-prop-sep">·</span>' : ''}</span>`).join('')}</span>`;
       };
 
       const visible = ops.filter(op => this.verifOpPassesFilters(op));

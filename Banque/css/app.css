@@ -164,10 +164,15 @@
   .bh-verif-origin.linked{ background:var(--sage-pale); color:var(--sage-deep); }
   .bh-verif-origin.detected{ background:var(--amber-pale); color:var(--amber); }
   .bh-verif-match-l1 .alt-score{ margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums; color:var(--sage-deep); white-space:nowrap; }
-  .bh-verif-wallet{
+  .bh-verif-prop-line{ line-height:1.55; }
+  .bh-verif-prop-bit{ white-space:nowrap; }
+  .bh-verif-prop-sep{ margin:0 5px; color:var(--ink-faint); }
+  .bh-verif-wallet,
+  .bh-verif-paid{
     display:inline-flex; align-items:center; gap:3px;
     font-weight:650; color:var(--sage-deep); background:var(--sage-pale);
     border-radius:999px; padding:1px 8px 1px 6px; font-size:12px; line-height:1.3;
+    vertical-align:middle;
   }
   .bh-verif-match-alts{ display:flex; flex-direction:column; gap:4px; }
   .bh-verif-alts-hint{ font-size:10px; color:var(--ink-faint); margin-bottom:2px; font-weight:600; }
