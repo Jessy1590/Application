@@ -201,6 +201,7 @@
         }, {})
       };
 
+      if (typeof this.reconcileOwnApportReceived === 'function') await this.reconcileOwnApportReceived();
       if (typeof this.reconcileMyMirroredApports === 'function') await this.reconcileMyMirroredApports();
       this.render();
       this.syncFab();

@@ -123,6 +123,41 @@ Object.assign(BH, {
       if (existing && existing.by && String(existing.by) !== String(this.user.id)) return;
       await this.setPaid('income', this.inboundApportId(this.user.id), targetId, mKey, amt, { by: this.user.id });
     },
+    // Les validations déjà faites sur mon compte principal (avant la note partagée)
+    // sont recopiées sur le compte destinataire, pour que l'autre membre les voie.
+    async reconcileOwnApportReceived() {
+      if (this._apportNoteRunning || !this.user || typeof this.isApportExpenseId !== 'function') return;
+      const mainId = this.state.profile?.main_account_id;
+      if (!mainId) return;
+      const prefix = mainId + '_';
+      const writes = [];
+      Object.entries(this.state.months || {}).forEach(([key, map]) => {
+        if (!key.startsWith(prefix)) return;
+        const mKey = key.slice(prefix.length);
+        if (!/^\d{4}-\d{2}$/.test(mKey)) return;
+        Object.entries(map || {}).forEach(([id, rec]) => {
+          if (!rec || !this.isApportExpenseId(id)) return;
+          const targetId = id.slice('apport_'.length);
+          if (!/^[0-9a-f-]{36}$/i.test(targetId) || !this.canWriteAccount(targetId)) return;
+          const amount = Math.round((Number(rec.amount) || 0) * 100) / 100;
+          if (!(amount > 0)) return;
+          const existing = this.inboundApportRecord(targetId, this.user.id, mKey);
+          if (existing) return;
+          writes.push({ targetId, mKey, amount });
+        });
+      });
+      if (!writes.length) return;
+      this._apportNoteRunning = true;
+      try {
+        await this.commit('synchronisation des apports reçus', async () => {
+          for (const w of writes) {
+            await this.setPaid('income', this.inboundApportId(this.user.id), w.targetId, w.mKey, w.amount, { by: this.user.id });
+          }
+        });
+      } finally {
+        this._apportNoteRunning = false;
+      }
+    },
     async clearOwnApportReceived(expId, mKey) {
       if (!this.user || typeof this.isApportExpenseId !== 'function' || !this.isApportExpenseId(expId)) return;
       const targetId = expId.slice('apport_'.length);
