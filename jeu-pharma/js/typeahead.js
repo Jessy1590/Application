@@ -428,6 +428,13 @@
         if (!silent) fireChecked();
       },
       add: function (it) { sel.set(String(it.id), it); changed(); },
+      addMany: function (items) {
+        (items || []).forEach(function (it) {
+          if (!it || it.id == null) return;
+          sel.set(String(it.id), it);
+        });
+        changed();
+      },
       remove: function (id) {
         sel.delete(String(id));
         checked.delete(String(id));

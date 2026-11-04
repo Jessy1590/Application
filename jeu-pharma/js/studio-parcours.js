@@ -1962,8 +1962,10 @@
         + (tab === 'base' ? 'Molécules (base)' : 'Ajouts molécules ★' + tab)
         + '</label>'
         + '<div class="jp-mol-lines" data-mol-lines="' + b.id + '">'
-        + '<div class="jp-mol-line"><span class="jp-mol-line-lab">Molécules</span>'
-        + '<div data-mol-monos="' + b.id + '"></div></div>'
+        + '<div class="jp-mol-line"><div class="jp-mol-line-head">'
+        + '<span class="jp-mol-line-lab">Molécules</span>'
+        + '<button type="button" class="jp-btn jp-btn-ghost jp-mol-select-all" data-mol-select-all="' + b.id + '">Tout sélectionner</button>'
+        + '</div><div data-mol-monos="' + b.id + '"></div></div>'
         + '<div class="jp-mol-line"><span class="jp-mol-line-lab">Associations</span>'
         + '<div data-mol-assos="' + b.id + '"></div></div>'
         + '<div class="jp-mol-proposals" data-mol-proposals="' + b.id + '" hidden></div>'
@@ -1974,6 +1976,7 @@
         + (tab === 'base' ? '' : ' Uniquement les ajouts de cet onglet — la base est héritée.')
         + '</small></div>'
         + '<div class="jp-mol-bloc-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-import="' + b.id + '">Importer selon un filtre…</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-new="' + b.id + '">Nouvelle molécule</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-asso="' + b.id + '">Nouvelle association</button>'
         + '<button type="button" class="jp-btn jp-btn-ghost" data-mol-groupe="' + b.id + '" hidden>Éditer le groupe</button>'
@@ -2555,7 +2558,7 @@
     destroyMolEdit(id);
 
     const masque = new Set((layer.masque_ids || []).map(String));
-    let prompting = false;
+    let missingChain = Promise.resolve();
     let propSeq = 0;
     let mono;
     let asso;
@@ -2664,9 +2667,14 @@
       });
     }
 
-    async function ensureMissing(item) {
-      if (prompting || !item?.id || !global.JpMedicaments?.listComposants) return;
-      prompting = true;
+    function ensureMissing(item) {
+      const run = missingChain.then(() => ensureMissingOne(item));
+      missingChain = run.catch(() => {});
+      return run;
+    }
+
+    async function ensureMissingOne(item) {
+      if (!item?.id || !global.JpMedicaments?.listComposants) return;
       try {
         const comps = await global.JpMedicaments.listComposants(item.id);
         const missing = (comps || []).filter((c) => c && c.id && !hasId(mono, c.id));
@@ -2683,8 +2691,6 @@
         decorate(monoNow.querySelector('.jp-ta-chips'));
       } catch (e) {
         global.JpToast?.fromError?.(e);
-      } finally {
-        prompting = false;
       }
     }
 
@@ -2778,9 +2784,308 @@
         }
         if (!hasId(mono, item.id)) mono.add(item);
       },
+      addMany: (items) => {
+        const monos = [];
+        const assos = [];
+        (items || []).forEach((item) => {
+          if (!item?.id) return;
+          state.molLabels[item.id] = { label: item.label, sub: item.sub || '' };
+          if (item.kind === 'asso') {
+            if (!hasId(asso, item.id)) assos.push(item);
+          } else if (!hasId(mono, item.id)) monos.push(item);
+        });
+        if (monos.length && mono.addMany) mono.addMany(monos);
+        else monos.forEach((it) => mono.add(it));
+        assos.forEach((it) => asso.add(it));
+      },
+      selectAllMonos: () => {
+        const ids = mono.getIds();
+        mono.setCheckedIds(ids);
+        return ids.length;
+      },
     };
     updateMolGroupeBtn(card, b, []);
     void refreshProposals();
+  }
+
+  function champsImportables() {
+    const list = (typeof global.JpConstants?.champsActifs === 'function'
+      ? global.JpConstants.champsActifs()
+      : (global.JpConstants?.CHAMP_CODES || []).filter((c) => c.actif !== false));
+    return list.filter((c) => c && c.table && (c.liaison || c.fk));
+  }
+
+  async function pageAll(build) {
+    const page = 1000;
+    const out = [];
+    let from = 0;
+    while (from < 20000) {
+      const { data, error } = await build().range(from, from + page - 1);
+      if (error) throw error;
+      const rows = data || [];
+      out.push(...rows);
+      if (rows.length < page) break;
+      from += page;
+    }
+    return out;
+  }
+
+  /** Fiches liées à une valeur, jonction et/ou clé étrangère d’ordre 0. */
+  async function matriceIdsPourCritere(champ, entiteId) {
+    const ids = new Set();
+    if (champ.liaison && champ.liaisonFk) {
+      const rows = await pageAll(() => sb()
+        .from(champ.liaison)
+        .select('matrice_id')
+        .eq(champ.liaisonFk, entiteId)
+        .order('matrice_id'));
+      rows.forEach((r) => { if (r.matrice_id) ids.add(String(r.matrice_id)); });
+    }
+    if (champ.fk) {
+      const rows = await pageAll(() => sb()
+        .from('matrice_medicaments')
+        .select('id')
+        .eq(champ.fk, entiteId)
+        .neq('statut', 'archive')
+        .order('id'));
+      rows.forEach((r) => { if (r.id) ids.add(String(r.id)); });
+    }
+    return ids;
+  }
+
+  async function matricesActives(ids) {
+    const list = [...ids];
+    const keep = new Set();
+    for (let i = 0; i < list.length; i += 80) {
+      const chunk = list.slice(i, i + 80);
+      const { data, error } = await sb()
+        .from('matrice_medicaments')
+        .select('id')
+        .in('id', chunk)
+        .neq('statut', 'archive');
+      if (error) throw error;
+      (data || []).forEach((r) => { if (r.id) keep.add(String(r.id)); });
+    }
+    return keep;
+  }
+
+  /** Intersection des critères (chaque valeur doit être sur la fiche). */
+  async function chercherMoleculesFiltre(criteres) {
+    const champs = champsImportables();
+    let acc = null;
+    for (const c of criteres) {
+      const champ = champs.find((x) => x.code === c.code);
+      if (!champ || !c.id) continue;
+      const set = await matriceIdsPourCritere(champ, c.id);
+      acc = acc == null ? set : new Set([...acc].filter((id) => set.has(id)));
+      if (!acc.size) break;
+    }
+    if (!acc || !acc.size) return [];
+    const active = await matricesActives(acc);
+    const ids = [...active];
+    for (let i = 0; i < ids.length; i += 80) {
+      await describeMatrices(ids.slice(i, i + 80));
+    }
+    const links = {};
+    for (let i = 0; i < ids.length; i += 80) {
+      Object.assign(links, await composantLinks(ids.slice(i, i + 80)));
+    }
+    return ids.map((id) => {
+      const item = molItem(id);
+      const kind = (links[String(id)] || []).length >= 2 ? 'asso' : 'mono';
+      return { id, label: item.label, sub: item.sub || '', kind };
+    }).sort((a, b) => String(a.label).localeCompare(String(b.label), 'fr', { sensitivity: 'base' }));
+  }
+
+  function openImportMolecules(card, b) {
+    if (!global.JpTypeahead?.combo || !global.JpTypeahead?.entiteSource) {
+      global.JpToast?.warn?.('Recherche indisponible');
+      return;
+    }
+    const champs = champsImportables();
+    if (!champs.length) {
+      global.JpToast?.warn?.('Aucun champ disponible');
+      return;
+    }
+    const body = document.createElement('div');
+    body.innerHTML = '<p class="jp-muted" style="margin:0">Tous les champs du référentiel. Plusieurs critères : la fiche doit tous les satisfaire.</p>'
+      + '<div class="jp-mol-import-rows" data-rows></div>'
+      + '<button type="button" class="jp-btn jp-btn-ghost" data-add-crit style="margin-top:0.45rem">Ajouter un critère</button>'
+      + '<div class="jp-mol-import-preview" data-preview><p class="jp-muted">Choisissez au moins une valeur.</p></div>';
+    const rowsHost = body.querySelector('[data-rows]');
+    const preview = body.querySelector('[data-preview]');
+    const ctrls = [];
+    let seq = 0;
+    let timer = null;
+    let latest = [];
+
+    function defaultCode() {
+      const used = new Set([...rowsHost.querySelectorAll('select')].map((s) => s.value));
+      const prefer = ['classe_therapeutique', 'classe_pharmacologique', 'secteur_therapeutique', 'indications'];
+      const pick = prefer.map((code) => champs.find((c) => c.code === code)).find((c) => c && !used.has(c.code));
+      return (pick || champs.find((c) => !used.has(c.code)) || champs[0]).code;
+    }
+
+    function mountRow() {
+      const row = document.createElement('div');
+      row.className = 'jp-mol-import-row';
+      const sel = document.createElement('select');
+      sel.setAttribute('aria-label', 'Champ');
+      champs.forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c.code;
+        opt.textContent = c.libelle;
+        sel.appendChild(opt);
+      });
+      sel.value = defaultCode();
+      const host = document.createElement('div');
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'jp-btn jp-btn-ghost';
+      rm.setAttribute('aria-label', 'Retirer le critère');
+      rm.textContent = '×';
+      row.appendChild(sel);
+      row.appendChild(host);
+      row.appendChild(rm);
+      rowsHost.appendChild(row);
+
+      let combo = null;
+      function mountCombo() {
+        host.innerHTML = '';
+        const champ = champs.find((c) => c.code === sel.value) || champs[0];
+        combo = global.JpTypeahead.combo(host, {
+          search: global.JpTypeahead.entiteSource(champ.table, { limit: 15 }),
+          minChars: 0,
+          placeholder: (champ.libelle || 'Valeur') + '…',
+          ariaLabel: champ.libelle || 'Valeur',
+          hint: 'Tapez pour filtrer…',
+          emptyText: 'Aucune valeur',
+          onChange: () => schedulePreview(),
+        });
+      }
+      mountCombo();
+      sel.addEventListener('change', () => {
+        mountCombo();
+        schedulePreview();
+      });
+      rm.addEventListener('click', () => {
+        if (rowsHost.children.length <= 1) {
+          combo?.clear?.();
+          schedulePreview();
+          return;
+        }
+        row.remove();
+        schedulePreview();
+      });
+      ctrls.push({
+        row,
+        read: () => ({ code: sel.value, id: combo?.getId?.() || null }),
+      });
+    }
+
+    function readCriteres() {
+      return ctrls
+        .filter((c) => c.row.isConnected)
+        .map((c) => c.read())
+        .filter((c) => c.code && c.id);
+    }
+
+    function paintPreview(rows) {
+      if (!rows) {
+        latest = [];
+        preview.innerHTML = '<p class="jp-muted">Choisissez au moins une valeur.</p>';
+        return;
+      }
+      const present = new Set((state.molChips[b.id]?.getIds?.() || []).map(String));
+      const fresh = rows.filter((r) => !present.has(String(r.id)));
+      latest = fresh;
+      if (!rows.length) {
+        preview.innerHTML = '<p class="jp-muted">Aucune molécule pour ces critères.</p>';
+        return;
+      }
+      const skip = rows.length - fresh.length;
+      const nAsso = fresh.filter((r) => r.kind === 'asso').length;
+      let head = fresh.length + ' à ajouter';
+      if (skip) head += ' · ' + skip + ' déjà dans le bloc';
+      if (nAsso) head += ' · ' + nAsso + ' association' + (nAsso > 1 ? 's' : '');
+      const shown = fresh.slice(0, 80);
+      const more = fresh.length - shown.length;
+      preview.innerHTML = '<p class="jp-muted" style="margin:0">' + esc(head) + '</p><ul>'
+        + shown.map((r) => '<li><strong>' + esc(r.label || '—') + '</strong>'
+          + (r.kind === 'asso' ? ' <span class="jp-muted">association</span>' : '')
+          + (r.sub ? ' <span class="jp-muted">' + esc(r.sub) + '</span>' : '')
+          + '</li>').join('')
+        + (more ? '<li class="jp-muted">et ' + more + ' autre' + (more > 1 ? 's' : '') + '</li>' : '')
+        + '</ul>';
+    }
+
+    async function runPreview() {
+      const mine = ++seq;
+      if (!preview.isConnected) return;
+      const criteres = readCriteres();
+      if (!criteres.length) {
+        paintPreview(null);
+        return;
+      }
+      preview.innerHTML = '<p class="jp-muted">Recherche…</p>';
+      try {
+        const rows = await chercherMoleculesFiltre(criteres);
+        if (mine !== seq || !preview.isConnected) return;
+        paintPreview(rows);
+      } catch (e) {
+        if (mine !== seq || !preview.isConnected) return;
+        latest = [];
+        preview.innerHTML = '<p class="jp-muted">Recherche impossible.</p>';
+        global.JpToast?.fromError?.(e);
+      }
+    }
+
+    function schedulePreview() {
+      clearTimeout(timer);
+      timer = setTimeout(() => { void runPreview(); }, 280);
+    }
+
+    mountRow();
+    body.querySelector('[data-add-crit]').addEventListener('click', () => mountRow());
+
+    global.JpModal.open({
+      title: 'Importer des molécules',
+      body,
+      panelClass: 'jp-modal-wide',
+      confirmLabel: 'Ajouter au bloc',
+      cancelLabel: 'Fermer',
+      onCancel: () => { clearTimeout(timer); seq += 1; },
+      onConfirm: async () => {
+        const criteres = readCriteres();
+        if (!criteres.length) {
+          global.JpToast?.warn?.('Choisissez au moins une valeur');
+          return false;
+        }
+        let rows;
+        try {
+          const found = await chercherMoleculesFiltre(criteres);
+          const present = new Set((state.molChips[b.id]?.getIds?.() || []).map(String));
+          rows = found.filter((r) => !present.has(String(r.id)));
+        } catch (e) {
+          global.JpToast?.fromError?.(e);
+          return false;
+        }
+        if (!rows.length) {
+          global.JpToast?.warn?.('Aucune molécule à ajouter');
+          return false;
+        }
+        const chips = state.molChips[b.id];
+        if (!chips?.addMany) {
+          global.JpToast?.warn?.('Le bloc n’est pas prêt');
+          return false;
+        }
+        clearTimeout(timer);
+        seq += 1;
+        chips.addMany(rows);
+        const n = rows.length;
+        global.JpToast?.ok?.(n + ' molécule' + (n > 1 ? 's' : '') + ' ajoutée' + (n > 1 ? 's' : ''));
+      },
+    });
   }
 
   function bindMolBlocActions(card, b) {
@@ -2794,6 +3099,15 @@
       btn.addEventListener('click', () => {
         ensureMolEdit(card, b)?.openAsso?.();
       });
+    });
+    card.querySelectorAll('[data-mol-select-all="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const n = state.molChips[b.id]?.selectAllMonos?.() || 0;
+        if (!n) global.JpToast?.warn?.('Aucune molécule à sélectionner');
+      });
+    });
+    card.querySelectorAll('[data-mol-import="' + b.id + '"]').forEach((btn) => {
+      btn.addEventListener('click', () => void openImportMolecules(card, b));
     });
     card.querySelectorAll('[data-mol-groupe="' + b.id + '"]').forEach((btn) => {
       btn.addEventListener('click', () => {
