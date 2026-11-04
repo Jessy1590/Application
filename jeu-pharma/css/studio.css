@@ -1567,6 +1567,10 @@
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+.jp-grille-cell.is-trou {
+  font-weight: 600;
+  color: var(--jp-accent, #0F6B5C);
+}
 
 /* Dialog « Changer le jeu » (compact, sans collision avec .jp-studio-sheet) */
 .jp-jeu-change-sheet {

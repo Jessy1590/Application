@@ -150,13 +150,78 @@
     return Array.from(ids);
   }
 
-  async function resolvePoolMatriceIds(jeu) {
-    const pool = jeu.pool || {};
+  /** Parcours réel des modules (pas le lab du jeu) — pubs DEUST OK. */
+  async function modulesParcoursMap(moduleIds) {
+    const mids = Array.from(new Set((moduleIds || []).filter(Boolean).map(String)));
+    const map = {};
+    if (!mids.length) return map;
+    const { data, error } = await sb()
+      .from('modules_cours')
+      .select('id, parcours_id')
+      .in('id', mids);
+    if (error) throw error;
+    (data || []).forEach((m) => { map[String(m.id)] = m.parcours_id || null; });
+    return map;
+  }
+
+  async function listerMedicamentsParScope(moduleIds) {
+    const mids = Array.from(new Set((moduleIds || []).filter(Boolean).map(String)));
+    if (!mids.length) return [];
+    const pmap = await modulesParcoursMap(mids);
+    const byParcours = {};
+    mids.forEach((id) => {
+      const pid = pmap[id] || '_null';
+      if (!byParcours[pid]) byParcours[pid] = [];
+      byParcours[pid].push(id);
+    });
+    const out = new Map();
+    for (const pid of Object.keys(byParcours)) {
+      const rows = await global.JpV2Resolver.listerMedicaments({
+        parcoursId: pid === '_null' ? null : pid,
+        moduleIds: byParcours[pid],
+      });
+      (rows || []).forEach((r) => {
+        if (r && r.id) out.set(String(r.id), r);
+      });
+    }
+    return Array.from(out.values());
+  }
+
+  const ENTITE_PLAY = {
+    secteurs_therapeutiques: { liaison: 'matrice_secteurs_therapeutiques', fk: 'secteur_therapeutique_id' },
+    classes_therapeutiques: { liaison: 'matrice_classes_therapeutiques', fk: 'classe_therapeutique_id' },
+    classes_pharmacologiques: { liaison: 'matrice_classes_pharmacologiques', fk: 'classe_pharmacologique_id' },
+  };
+  const ENTITE_BY_MODE = {
+    secteur: 'secteurs_therapeutiques',
+    classe_thera: 'classes_therapeutiques',
+    classe_pharma: 'classes_pharmacologiques',
+  };
+
+  async function matriceIdsForEntite(table, entityIds) {
+    const meta = ENTITE_PLAY[table];
+    const uniq = Array.from(new Set((entityIds || []).filter(Boolean).map(String)));
+    if (!meta || !uniq.length) return [];
+    const { data, error } = await sb()
+      .from(meta.liaison)
+      .select('matrice_id, ' + meta.fk)
+      .in(meta.fk, uniq);
+    if (error) throw error;
+    const ids = [];
+    (data || []).forEach((row) => {
+      const mid = row.matrice_id != null ? String(row.matrice_id) : '';
+      if (mid && ids.indexOf(mid) < 0) ids.push(mid);
+    });
+    return ids;
+  }
+
+  async function resolvePoolMatriceIds(jeu, filtreOverride) {
+    const pool = filtreOverride || jeu.pool || {};
     const mode = String(pool.mode || 'lecons');
-    const parcoursId = jeu.parcours_id || null;
     const moduleIds = Array.isArray(pool.module_ids) ? pool.module_ids.filter(Boolean).map(String) : [];
     const blocIds = Array.isArray(pool.bloc_ids) ? pool.bloc_ids.filter(Boolean).map(String) : [];
     const matriceIds = Array.isArray(pool.matrice_ids) ? pool.matrice_ids.filter(Boolean).map(String) : [];
+    const entiteIds = Array.isArray(pool.entite_ids) ? pool.entite_ids.filter(Boolean).map(String) : [];
 
     if (mode === 'molecules') return matriceIds;
 
@@ -176,35 +241,63 @@
       return Array.from(ids);
     }
 
-    // lecons
+    if (mode === 'secteur' || mode === 'classe_thera' || mode === 'classe_pharma' || mode === 'entite') {
+      const table = pool.entite || ENTITE_BY_MODE[mode] || '';
+      return matriceIdsForEntite(table, entiteIds);
+    }
+
+    // lecons — scope = parcours des modules choisis (pas jeu.parcours_id lab)
     const mids = moduleIds.length
       ? moduleIds
-      : (Array.isArray(jeu.module_ids) ? jeu.module_ids.filter(Boolean).map(String) : []);
-    const rows = await global.JpV2Resolver.listerMedicaments({
-      parcoursId: parcoursId,
-      moduleIds: mids.length ? mids : null,
-    });
+      : (filtreOverride ? [] : (Array.isArray(jeu.module_ids) ? jeu.module_ids.filter(Boolean).map(String) : []));
+    if (!mids.length) return [];
+    const rows = await listerMedicamentsParScope(mids);
     return (rows || []).map((r) => String(r.id)).filter(Boolean);
+  }
+
+  async function resolveFichesScope(jeu) {
+    const pool = jeu.pool || {};
+    const mode = String(pool.mode || 'lecons');
+    let moduleIds = Array.isArray(pool.module_ids) ? pool.module_ids.filter(Boolean).map(String) : [];
+    if (mode === 'blocs' && Array.isArray(pool.bloc_ids) && pool.bloc_ids.length) {
+      const { data } = await sb()
+        .from('module_blocs')
+        .select('module_id')
+        .in('id', pool.bloc_ids);
+      moduleIds = Array.from(new Set((data || []).map((b) => b.module_id).filter(Boolean).map(String)));
+    }
+    if (!moduleIds.length && Array.isArray(jeu.module_ids)) {
+      moduleIds = jeu.module_ids.filter(Boolean).map(String);
+    }
+    if (!moduleIds.length) {
+      return { parcoursId: null, moduleIds: null };
+    }
+    const pmap = await modulesParcoursMap(moduleIds);
+    const parcoursIds = Array.from(new Set(Object.values(pmap).filter(Boolean)));
+    // Un seul parcours → le passer ; sinon null pour ne pas forcer le lab
+    return {
+      parcoursId: parcoursIds.length === 1 ? parcoursIds[0] : null,
+      moduleIds: moduleIds,
+    };
   }
 
   async function loadPoolFiches(jeu, matriceIds) {
     const ids = Array.from(new Set((matriceIds || []).filter(Boolean)));
     if (!ids.length) return [];
-    const moduleIds = Array.isArray(jeu.pool?.module_ids)
-      ? jeu.pool.module_ids.filter(Boolean).map(String)
-      : (Array.isArray(jeu.module_ids) ? jeu.module_ids.filter(Boolean).map(String) : null);
+    const scope = await resolveFichesScope(jeu);
     const map = await global.JpV2Resolver.fichesResolues(ids, {
-      parcoursId: jeu.parcours_id || null,
-      moduleIds: moduleIds && moduleIds.length ? moduleIds : null,
+      parcoursId: scope.parcoursId,
+      moduleIds: scope.moduleIds,
     });
     return ids.map((id) => {
-      const f = map[id];
+      const f = map[id] || map[String(id)];
       if (!f) return null;
       return {
         id: String(f.id || id),
         dci: f.dci || '',
         noms: (f.noms_commerciaux || []).map((n) => n.valeur).filter(Boolean).join(', '),
         fiche: f,
+        composants: Array.isArray(f.composants) ? f.composants : [],
       };
     }).filter(Boolean);
   }
@@ -695,28 +788,67 @@
     const colonnes = (Array.isArray(cfg?.colonnes) ? cfg.colonnes : [])
       .slice()
       .sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
-    const visibles = colonnes.filter((c) => c.role === 'visible').map((c) => c.champ_code);
+    const identity = new Set(['dci', 'nom_commercial']);
     const trouables = colonnes.filter((c) => c.role === 'trouable').map((c) => c.champ_code);
-    const cols = trouables.length ? trouables : colonnes.map((c) => c.champ_code).filter(Boolean);
-    const alwaysShow = visibles.length ? visibles : ['dci', 'nom_commercial'];
+    const cols = colonnes.map((c) => c.champ_code).filter((c) => c && !identity.has(c));
+    const holeColSet = new Set(trouables.filter((c) => cols.indexOf(c) >= 0));
+    const composition = String(cfg?.composition || 'auto');
+    const lignesMode = String(cfg?.lignes_mode || 'aleatoire');
     const nbLignes = Math.max(1, Number(cfg?.nb_lignes) || 5);
     const taux = Math.max(0, Math.min(100, Number(cfg?.taux_trous) || 40));
+    const grille = (cfg?.grille_json && typeof cfg.grille_json === 'object') ? cfg.grille_json : {};
 
     const ids = await resolvePoolMatriceIds(jeu);
-    const pool = shuffle(await loadPoolFiches(jeu, ids));
+    let pool = await loadPoolFiches(jeu, ids);
+    if (!pool.length && composition === 'grille' && Array.isArray(grille.lignes) && grille.lignes.length) {
+      pool = await loadPoolFiches(jeu, grille.lignes.map(String));
+    }
     if (!pool.length) throw new Error('Aucune molécule dans le pool');
-    const rows = pool.slice(0, nbLignes);
 
-    const holeKeys = [];
-    rows.forEach(function (r) {
-      cols.forEach(function (code) {
-        if (alwaysShow.indexOf(code) >= 0) return;
-        if (!valeursChamp(r.fiche, code).length) return;
-        holeKeys.push(r.id + ':' + code);
+    let rows;
+    if (composition === 'grille' || lignesMode === 'manuel') {
+      const order = Array.isArray(grille.lignes) && grille.lignes.length
+        ? grille.lignes.map(String)
+        : pool.map((p) => p.id);
+      const byId = {};
+      pool.forEach((p) => { byId[p.id] = p; });
+      // charger manquants de la grille
+      const missing = order.filter((id) => !byId[id]);
+      if (missing.length) {
+        (await loadPoolFiches(jeu, missing)).forEach((p) => { byId[p.id] = p; });
+      }
+      rows = order.map((id) => byId[id]).filter(Boolean);
+      if (lignesMode === 'aleatoire' && composition !== 'grille') {
+        rows = shuffle(rows).slice(0, nbLignes);
+      }
+    } else if (lignesMode === 'groupe') {
+      rows = shuffle(pool);
+    } else {
+      rows = shuffle(pool).slice(0, Math.min(nbLignes, pool.length));
+    }
+    if (!rows.length) throw new Error('Aucune ligne à afficher');
+
+    const holes = new Set();
+    if (composition === 'grille' || (lignesMode === 'manuel' && grille.trous)) {
+      const trousMap = (grille.trous && typeof grille.trous === 'object') ? grille.trous : {};
+      rows.forEach(function (r) {
+        const list = Array.isArray(trousMap[r.id]) ? trousMap[r.id] : [];
+        list.forEach(function (code) {
+          if (holeColSet.has(code)) holes.add(r.id + ':' + code);
+        });
       });
-    });
-    const nHoles = Math.max(1, Math.round(holeKeys.length * (taux / 100)));
-    const holes = new Set(shuffle(holeKeys).slice(0, nHoles));
+    } else {
+      const holeKeys = [];
+      rows.forEach(function (r) {
+        cols.forEach(function (code) {
+          if (!holeColSet.has(code)) return;
+          if (!valeursChamp(r.fiche, code).length) return;
+          holeKeys.push(r.id + ':' + code);
+        });
+      });
+      const nHoles = Math.round(holeKeys.length * (taux / 100));
+      shuffle(holeKeys).slice(0, nHoles).forEach((k) => holes.add(k));
+    }
 
     const snapRows = rows.map(function (r) {
       const cells = {};
@@ -790,13 +922,26 @@
         html += '<li>Note globale<br>' + scoreButtonsHtml('_global', 0) + '</li>';
       }
       html += '</ul><div class="jp-v2-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnRelire" title="Demander une relecture admin">+ Relecture</button>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnScore">Enregistrer</button></div>';
       root.innerHTML = html;
       wireGradeButtons(root, grades);
+      let askRelire = contexteOf(opts) === 'examen';
+      document.getElementById('btnRelire')?.addEventListener('click', function () {
+        askRelire = true;
+        global.JpToast?.ok?.('Relecture demandée');
+      });
       document.getElementById('btnScore')?.addEventListener('click', async function () {
         try {
           const s = sumGrades(grades);
-          const res = await soumettreDeclare(session.tentative_id, answers, s.obtenu, s.max || 1, [], opts);
+          const res = await rpc('jeu_soumettre_declare', {
+            p_tentative_id: session.tentative_id,
+            p_reponses: answers,
+            p_score_provisoire: s.obtenu,
+            p_score_max: s.max || 1,
+            p_details: [],
+            p_demander_relecture: askRelire,
+          });
           await showScore(root, jeu, Number(res.score_obtenu) || s.obtenu, Number(res.score_max) || s.max || 1, opts);
         } catch (e) {
           global.JpToast?.fromError?.(e);
@@ -807,18 +952,96 @@
     paintPlay();
   }
 
+  async function loadFicheExclusionCounts(jeuId, matriceIds, seuil) {
+    const ids = Array.from(new Set((matriceIds || []).filter(Boolean).map(String)));
+    const counts = {};
+    ids.forEach((id) => { counts[id] = 0; });
+    if (!ids.length || !jeuId) return counts;
+    const { data: sess } = await global.JpApp.sbPortail().auth.getUser();
+    const uid = sess?.user?.id;
+    if (!uid) return counts;
+    const { data, error } = await sb()
+      .from('jeux_tentatives')
+      .select('snapshot_json, score_obtenu, score_max, score_officiel, details_json')
+      .eq('jeu_id', jeuId)
+      .eq('utilisateur_id', uid)
+      .not('termine_at', 'is', null)
+      .limit(200);
+    if (error) throw error;
+    (data || []).forEach((t) => {
+      const max = Number(t.score_max) || 0;
+      const obtenu = Number(t.score_officiel != null ? t.score_officiel : t.score_obtenu) || 0;
+      const note10 = max > 0 ? (obtenu / max) * 10 : obtenu;
+      if (note10 < seuil) return;
+      const fiches = (t.snapshot_json && t.snapshot_json.fiches) || [];
+      const details = Array.isArray(t.details_json) ? t.details_json : [];
+      if (details.length && details.some((d) => d && d.matrice_id != null && d.note_10 != null)) {
+        details.forEach((d) => {
+          if (!d || d.matrice_id == null) return;
+          if (Number(d.note_10) >= seuil) {
+            const k = String(d.matrice_id);
+            if (counts[k] != null) counts[k] += 1;
+          }
+        });
+        return;
+      }
+      fiches.forEach((f) => {
+        const k = String(f.id || f.matrice_id || '');
+        if (k && counts[k] != null) counts[k] += 1;
+      });
+    });
+    return counts;
+  }
+
   async function runFiche(root, jeu, cfg, opts) {
     const mode = await chooseNotationMode(root, opts);
     const nb = Math.max(1, Number(cfg?.nb_fiches) || 5);
+    const composition = String(cfg?.composition || 'auto');
+    const fichesMode = String(cfg?.fiches_mode || 'aleatoire');
+    const seuil = Math.max(0, Number(cfg?.seuil_exclusion) || 8);
+    const nbNotes = Math.max(1, Number(cfg?.nb_notes_exclusion) || 3);
     const champsCfg = Array.isArray(cfg?.champs) ? cfg.champs : [];
     const restituer = champsCfg.filter((c) => c.role === 'restituer').map((c) => c.champ_code);
     const visibles = champsCfg.filter((c) => c.role === 'visible').map((c) => c.champ_code);
 
-    let ids = await resolvePoolMatriceIds(jeu);
-    const empl = Array.isArray(cfg?.emplacements) ? cfg.emplacements : [];
-    const fixed = empl.filter((e) => e.mode === 'fixe' && e.matrice_id).map((e) => String(e.matrice_id));
-    if (fixed.length) ids = fixed.concat(ids.filter((id) => fixed.indexOf(id) < 0));
-    const pool = shuffle(await loadPoolFiches(jeu, ids)).slice(0, nb);
+    const poolIds = await resolvePoolMatriceIds(jeu);
+    const fullById = {};
+    (await loadPoolFiches(jeu, poolIds)).forEach((p) => { fullById[p.id] = p; });
+    const empl = Array.isArray(cfg?.emplacements) ? cfg.emplacements.slice()
+      .sort((a, b) => (a.ordre || 0) - (b.ordre || 0)) : [];
+
+    let pool = [];
+    if (composition === 'manuel' && empl.length) {
+      const aleaPool = shuffle(Object.values(fullById));
+      let ai = 0;
+      for (const e of empl) {
+        if (e.mode === 'fixe' && e.matrice_id) {
+          const mid = String(e.matrice_id);
+          let med = fullById[mid];
+          if (!med) {
+            const loaded = await loadPoolFiches(jeu, [mid]);
+            med = loaded[0] || null;
+          }
+          if (med) pool.push(med);
+        } else {
+          const next = aleaPool[ai++];
+          if (next) pool.push(next);
+        }
+      }
+    } else {
+      let candidates = Object.values(fullById);
+      if (composition === 'auto' && fichesMode !== 'groupe') {
+        const counts = await loadFicheExclusionCounts(jeu.id, candidates.map((c) => c.id), seuil);
+        const eligible = candidates.filter((c) => (counts[c.id] || 0) < nbNotes);
+        if (eligible.length) candidates = eligible;
+        else {
+          // toutes maîtrisées → on garde le pool (rejouer possible)
+          global.JpToast?.ok?.('Pool maîtrisé — tirage sans exclusion');
+        }
+      }
+      candidates = shuffle(candidates);
+      pool = fichesMode === 'groupe' ? candidates : candidates.slice(0, Math.min(nb, candidates.length));
+    }
     if (!pool.length) throw new Error('Aucune fiche dans le pool');
 
     const session = await rpc('jeu_demarrer_declare', {
@@ -848,7 +1071,7 @@
       }
       const med = pool[idx];
       const codes = codesOf(med.fiche);
-      const showAlways = visibles.length ? visibles : [];
+      const showAlways = (visibles.length ? visibles : []).filter((c) => c !== 'dci' && c !== 'nom_commercial');
       let html = '<p class="jp-muted">Fiche ' + (idx + 1) + ' / ' + pool.length + '</p>'
         + '<article class="jp-v2-mol-card"><h3>' + esc(med.dci) + '</h3>'
         + '<p class="jp-muted">' + esc(med.noms) + '</p>';
@@ -912,7 +1135,21 @@
     async function finish() {
       try {
         const s = sumGrades(allGrades);
-        const res = await soumettreDeclare(session.tentative_id, allAnswers, s.obtenu, s.max || 1, [], opts);
+        const perFiche = pool.map(function (med) {
+          const keys = Object.keys(allGrades).filter((k) => k.indexOf(med.id + ':') === 0);
+          let o = 0;
+          let m = keys.length || 1;
+          keys.forEach((k) => { o += Number(allGrades[k]) || 0; });
+          return { matrice_id: med.id, note_10: (o / m) * 10 };
+        });
+        const res = await rpc('jeu_soumettre_declare', {
+          p_tentative_id: session.tentative_id,
+          p_reponses: allAnswers,
+          p_score_provisoire: s.obtenu,
+          p_score_max: s.max || 1,
+          p_details: perFiche,
+          p_demander_relecture: contexteOf(opts) === 'examen',
+        });
         await showScore(root, jeu, Number(res.score_obtenu) || s.obtenu, Number(res.score_max) || s.max || 1, opts);
       } catch (e) {
         global.JpToast?.fromError?.(e);
@@ -922,28 +1159,177 @@
     paint();
   }
 
+  async function loadAssoComposants(matriceIds) {
+    const ids = Array.from(new Set((matriceIds || []).filter(Boolean).map(String)));
+    if (!ids.length) return {};
+    const { data, error } = await sb()
+      .from('matrice_composants')
+      .select('matrice_id, composant_matrice_id, ordre')
+      .in('matrice_id', ids);
+    if (error) throw error;
+    const out = {};
+    (data || []).forEach((r) => {
+      const aid = String(r.matrice_id);
+      if (!out[aid]) out[aid] = [];
+      out[aid].push(String(r.composant_matrice_id));
+    });
+    return out;
+  }
+
+  async function findAssosCovering(componentIds) {
+    const comps = Array.from(new Set((componentIds || []).filter(Boolean).map(String)));
+    if (comps.length < 2) return [];
+    const { data, error } = await sb()
+      .from('matrice_composants')
+      .select('matrice_id, composant_matrice_id')
+      .in('composant_matrice_id', comps);
+    if (error) throw error;
+    const byAsso = {};
+    (data || []).forEach((r) => {
+      const aid = String(r.matrice_id);
+      if (!byAsso[aid]) byAsso[aid] = [];
+      byAsso[aid].push(String(r.composant_matrice_id));
+    });
+    const set = new Set(comps);
+    return Object.keys(byAsso)
+      .map((aid) => {
+        const list = Array.from(new Set(byAsso[aid]));
+        const covered = list.filter((c) => set.has(c));
+        return { id: aid, composants: list, covered };
+      })
+      .filter((a) => a.covered.length >= 2);
+  }
+
   async function runOrdonnance(root, jeu, cfg, opts) {
     const mode = await chooseNotationMode(root, opts);
     const champs = Array.isArray(cfg?.champs) ? cfg.champs.filter(Boolean) : ['indications', 'contre_indications'];
-    const besoins = Array.isArray(cfg?.besoins) ? cfg.besoins.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0)) : [];
+    const besoins = Array.isArray(cfg?.besoins)
+      ? cfg.besoins.slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
+      : [];
+    const assocOk = !!cfg?.associations_possibles;
 
-    let ids = await resolvePoolMatriceIds(jeu);
-    const fixed = besoins.filter((b) => b.mode === 'manuel' && b.matrice_id).map((b) => String(b.matrice_id));
-    const nNeed = besoins.length || Math.min(5, ids.length);
-    if (fixed.length) {
-      ids = fixed.concat(shuffle(ids.filter((id) => fixed.indexOf(id) < 0)));
-    } else {
-      ids = shuffle(ids);
+    const picked = [];
+    const used = new Set();
+
+    async function pickFromFiltre(filtre) {
+      const ids = await resolvePoolMatriceIds(jeu, filtre || {});
+      const avail = shuffle(ids.filter((id) => !used.has(String(id))));
+      return avail[0] || null;
     }
-    const pool = await loadPoolFiches(jeu, ids.slice(0, nNeed));
+
+    const scopeIds = new Set();
+    if (!besoins.length) throw new Error('Aucun besoin');
+    for (const b of besoins) {
+      const isAsso = !!(b.association_id || (b.filtre_json && b.filtre_json.kind === 'asso'));
+      if (b.mode === 'manuel' && (b.matrice_id || b.association_id)) {
+        const mid = String(b.association_id || b.matrice_id);
+        picked.push({ id: mid, kind: isAsso ? 'asso' : 'mono' });
+        used.add(mid);
+        scopeIds.add(mid);
+      } else {
+        const ids = await resolvePoolMatriceIds(jeu, b.filtre_json || {});
+        ids.forEach((id) => scopeIds.add(String(id)));
+        const mid = await pickFromFiltre(b.filtre_json);
+        if (mid) {
+          picked.push({ id: String(mid), kind: 'mono' });
+          used.add(String(mid));
+        }
+      }
+    }
+
+    const kindById = {};
+    picked.forEach((p) => { kindById[p.id] = p.kind; });
+    let pool = await loadPoolFiches(jeu, picked.map((p) => p.id));
+    pool.forEach((line) => { line.kind = kindById[line.id] || 'mono'; });
     if (!pool.length) throw new Error('Aucune molécule pour l’ordonnance');
+
+    async function attachAssoParts(line) {
+      if (line.kind !== 'asso' || (line.composantsPlay && line.composantsPlay.length)) return;
+      const map = await loadAssoComposants([line.id]);
+      line.composantsPlay = await loadPoolFiches(jeu, map[line.id] || []);
+    }
+    for (const line of pool) await attachAssoParts(line);
+
+    // Fusion : une asso du sélecteur peut couvrir 2+ lignes. Les autres → vigilance.
+    let vigilanceTips = [];
+    if (assocOk) {
+      const monoIds = pool.filter((p) => p.kind !== 'asso').map((p) => p.id);
+      const candidates = (await findAssosCovering(monoIds))
+        .filter((a) => scopeIds.has(a.id) && !pool.some((p) => p.id === a.id))
+        .sort((a, b) => b.covered.length - a.covered.length);
+      if (candidates.length) {
+        const chosen = candidates[0];
+        const assoFiches = await loadPoolFiches(jeu, [chosen.id]);
+        const asso = assoFiches[0];
+        if (asso) {
+          const cover = new Set(chosen.covered);
+          const rest = pool.filter((p) => p.kind === 'asso' || !cover.has(p.id));
+          const comps = await loadPoolFiches(jeu, chosen.covered);
+          const line = {
+            id: asso.id, dci: asso.dci, noms: asso.noms, fiche: asso.fiche,
+            kind: 'asso', composantsPlay: comps,
+          };
+          pool = [line].concat(rest);
+          scopeIds.add(asso.id);
+        }
+        const unused = candidates.slice(assoFiches && assoFiches[0] ? 1 : 0);
+        if (unused.length) {
+          const fiches = await loadPoolFiches(jeu, unused.slice(0, 3).map((a) => a.id));
+          fiches.forEach((f) => {
+            vigilanceTips.push('Privilégier la dispensation de : ' + (f.dci || f.noms || f.id));
+          });
+        }
+      }
+    }
+
+    // Lignes de restitution : asso → composants (aussi base des interactions)
+    const restLines = [];
+    pool.forEach(function (line) {
+      if (line.kind === 'asso' && Array.isArray(line.composantsPlay) && line.composantsPlay.length) {
+        line.composantsPlay.forEach(function (c) {
+          restLines.push(Object.assign({}, c, { parentAsso: line.dci }));
+        });
+      } else {
+        restLines.push(line);
+      }
+    });
+
+    // Interactions publiées entre lignes (composants si association)
+    const interactionTips = [];
+    for (let i = 0; i < restLines.length; i++) {
+      for (let j = i + 1; j < restLines.length; j++) {
+        const a = restLines[i];
+        const b = restLines[j];
+        const ia = valeursChamp(a.fiche, 'interactions');
+        const ib = valeursChamp(b.fiche, 'interactions');
+        const shared = ia.filter((x) => ib.indexOf(x) >= 0);
+        if (shared.length) {
+          interactionTips.push(
+            (a.dci || a.id) + ' ↔ ' + (b.dci || b.id) + ' : ' + shared.slice(0, 2).join(' · ')
+          );
+        } else {
+          const blobA = ia.join(' ').toLowerCase();
+          const blobB = ib.join(' ').toLowerCase();
+          const nameA = String(a.dci || '').toLowerCase();
+          const nameB = String(b.dci || '').toLowerCase();
+          if ((nameB && blobA.indexOf(nameB) >= 0) || (nameA && blobB.indexOf(nameA) >= 0)) {
+            const hit = ia.concat(ib).slice(0, 1);
+            if (hit.length) interactionTips.push((a.dci || '') + ' / ' + (b.dci || '') + ' : ' + hit[0]);
+          }
+        }
+      }
+    }
 
     const session = await rpc('jeu_demarrer_declare', {
       p_jeu_id: jeu.id,
       p_snapshot: {
         type: 'ordonnance',
-        molecules: pool.map((p, i) => ({ n: i + 1, id: p.id, dci: p.dci })),
+        molecules: pool.map((p, i) => ({
+          n: i + 1, id: p.id, dci: p.dci, kind: p.kind || 'mono',
+        })),
         champs: champs,
+        vigilance: vigilanceTips,
+        interactions: interactionTips,
       },
       p_contexte: contexteOf(opts),
       p_passage_id: opts && opts.passageId ? opts.passageId : null,
@@ -956,7 +1342,17 @@
       let html = '<ol class="jp-ordo-list">';
       pool.forEach(function (med, i) {
         html += '<li><strong>' + (i + 1) + '. ' + esc(med.dci) + '</strong>'
+          + (med.kind === 'asso' ? ' <span class="jp-badge">Association</span>' : '')
           + (med.noms ? ' <span class="jp-muted">(' + esc(med.noms) + ')</span>' : '');
+        if (med.kind === 'asso' && med.composantsPlay) {
+          html += '<p class="jp-muted">' + med.composantsPlay.map((c) => esc(c.dci)).join(' + ') + '</p>';
+        }
+        html += '</li>';
+      });
+      html += '</ol>';
+      restLines.forEach(function (med) {
+        html += '<div class="jp-ordo-rest"><strong>' + esc(med.dci) + '</strong>'
+          + (med.parentAsso ? ' <span class="jp-muted">(' + esc(med.parentAsso) + ')</span>' : '');
         champs.forEach(function (c) {
           const key = med.id + ':' + c;
           if (mode === 'detaille') {
@@ -966,9 +1362,9 @@
             html += '<p class="jp-muted">' + esc(champLibelle(c)) + ' : ???</p>';
           }
         });
-        html += '</li>';
+        html += '</div>';
       });
-      html += '</ol><div class="jp-v2-actions">'
+      html += '<div class="jp-v2-actions">'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnValider">Valider</button></div>';
       root.innerHTML = html;
       document.getElementById('btnValider')?.addEventListener('click', function () {
@@ -982,8 +1378,20 @@
     }
 
     function paintGrade() {
-      let html = '<p class="jp-muted">Notation</p><ul class="jp-v2-quiz-recap">';
-      pool.forEach(function (med) {
+      let html = '';
+      if (interactionTips.length || vigilanceTips.length) {
+        html += '<aside class="jp-ordo-vigilance" style="margin-bottom:1rem">'
+          + '<p class="jp-field-label">Vigilance</p>';
+        interactionTips.forEach(function (t) {
+          html += '<p class="jp-muted">' + esc(t) + '</p>';
+        });
+        vigilanceTips.forEach(function (t) {
+          html += '<p class="jp-muted">' + esc(t) + '</p>';
+        });
+        html += '</aside>';
+      }
+      html += '<p class="jp-muted">Notation</p><ul class="jp-v2-quiz-recap">';
+      restLines.forEach(function (med) {
         champs.forEach(function (c) {
           const key = med.id + ':' + c;
           const expect = valeursChamp(med.fiche, c).join(' · ') || '—';
@@ -995,13 +1403,26 @@
         });
       });
       html += '</ul><div class="jp-v2-actions">'
+        + '<button type="button" class="jp-btn jp-btn-ghost" id="btnRelire" title="Demander une relecture admin">+ Relecture</button>'
         + '<button type="button" class="jp-btn jp-btn-primary" id="btnScore">Enregistrer</button></div>';
       root.innerHTML = html;
       wireGradeButtons(root, grades);
+      let askRelire = contexteOf(opts) === 'examen';
+      document.getElementById('btnRelire')?.addEventListener('click', function () {
+        askRelire = true;
+        global.JpToast?.ok?.('Relecture demandée');
+      });
       document.getElementById('btnScore')?.addEventListener('click', async function () {
         try {
           const s = sumGrades(grades);
-          const res = await soumettreDeclare(session.tentative_id, answers, s.obtenu, s.max || 1, [], opts);
+          const res = await rpc('jeu_soumettre_declare', {
+            p_tentative_id: session.tentative_id,
+            p_reponses: answers,
+            p_score_provisoire: s.obtenu,
+            p_score_max: s.max || 1,
+            p_details: [],
+            p_demander_relecture: askRelire,
+          });
           await showScore(root, jeu, Number(res.score_obtenu) || s.obtenu, Number(res.score_max) || s.max || 1, opts);
         } catch (e) {
           global.JpToast?.fromError?.(e);
@@ -1051,8 +1472,15 @@
     throw new Error('Type de jeu non supporté : ' + jeu.type_jeu);
   }
 
+  /** Aperçu tirage quiz (wizard lab) — sans démarrer de tentative. */
+  async function previewQuizTirage(jeuLike, cfg) {
+    return buildQuizSnapshot(jeuLike || {}, cfg || {});
+  }
+
   global.JpJeuxPlayV3 = {
     boot,
     loadJeu,
+    previewQuizTirage,
+    resolvePoolMatriceIds,
   };
 })(window);

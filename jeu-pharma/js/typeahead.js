@@ -517,16 +517,21 @@
     return '';
   }
 
-  /** Molécules (1 fiche = 1 DCI) via RPC `v2_chercher_matrices`. */
+  /** Molécules (1 fiche = 1 DCI) via RPC `v2_chercher_matrices`.
+   *  Filtres optionnels : secteurNorm, classeTherNorm, classePharmaNorm, indicationNorm. */
   function matriceSource(o) {
     const limit = (o && o.limit) || 15;
+    const secteur = (o && o.secteurNorm) || null;
+    const indication = (o && o.indicationNorm) || null;
+    const classeTher = (o && o.classeTherNorm) || null;
+    const classePharma = (o && o.classePharmaNorm) || null;
     return async function (q) {
       const { data, error } = await sb().rpc('v2_chercher_matrices', {
         p_q: safeTerm(q) || null,
-        p_secteur_norm: null,
-        p_indication_norm: null,
-        p_classe_ther_norm: null,
-        p_classe_pharma_norm: null,
+        p_secteur_norm: secteur,
+        p_indication_norm: indication,
+        p_classe_ther_norm: classeTher,
+        p_classe_pharma_norm: classePharma,
         p_limit: limit,
       });
       if (error) throw error;
