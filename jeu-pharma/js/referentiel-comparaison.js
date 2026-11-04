@@ -272,7 +272,7 @@
   /* ——— Data loaders ——— */
   async function loadParcoursTree() {
     const [{ data: parcours, error: e1 }, { data: modules, error: e2 }] = await Promise.all([
-      sb().from('parcours_apprentissage').select('id, code, libelle, actif').eq('actif', true).order('libelle'),
+      sb().from('parcours_apprentissage').select('id, code, libelle, actif, est_laboratoire').eq('actif', true).eq('est_laboratoire', false).order('libelle'),
       sb().from('modules_cours')
         .select('id, parcours_id, parent_id, titre, code, est_groupe, ordre')
         .order('ordre'),

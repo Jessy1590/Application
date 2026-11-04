@@ -1307,9 +1307,17 @@
   /**
    * @param {HTMLElement} root
    * @param {string} code
-   * @param {{ embed?: boolean, moduleId?: string, parcoursId?: string, onReplay?: Function, onFinished?: Function }} [opts]
+   * @param {{ embed?: boolean, moduleId?: string, parcoursId?: string, passageId?: string, onReplay?: Function, onFinished?: Function }} [opts]
    */
   async function boot(root, code, opts) {
+    // V3 : table `jeux` + RPC jeu_* — tenter avant modeles_jeu
+    if (global.JpJeuxPlayV3) {
+      try {
+        await global.JpJeuxPlayV3.loadJeu(code);
+        return global.JpJeuxPlayV3.boot(root, code, opts);
+      } catch (_) { /* pas un jeu V3 → V2 */ }
+    }
+
     const modele = await loadModele(code);
     modele._playOpts = opts || {};
 

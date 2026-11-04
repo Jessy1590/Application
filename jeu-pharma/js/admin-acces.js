@@ -76,7 +76,7 @@
       fetchAll(() => sb().from('inscriptions_parcours')
         .select('id, user_id, parcours_id, statut, actif, niveau_parcours, demande_at, traite_at, debut_at')
         .order('demande_at', { ascending: false, nullsFirst: false }), 5000),
-      sb().from('parcours_apprentissage').select('id, code, libelle, actif'),
+      sb().from('parcours_apprentissage').select('id, code, libelle, actif, est_laboratoire').eq('est_laboratoire', false),
       sb().from('modules_cours').select('id, parcours_id, titre, est_groupe, publie, ordre'),
       sb().from('modeles_jeu').select('id, code_unique, titre, type_jeu, parcours_id, actif, en_pause'),
     ]);

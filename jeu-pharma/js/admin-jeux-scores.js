@@ -82,7 +82,7 @@
       sb().from('modeles_jeu')
         .select('id, code_unique, type_jeu, titre, mode, parcours_id, module_ids, en_pause, actif, created_at')
         .order('created_at', { ascending: false }),
-      sb().from('parcours_apprentissage').select('id, code, libelle, actif, ordre').order('ordre'),
+      sb().from('parcours_apprentissage').select('id, code, libelle, actif, ordre, est_laboratoire').eq('est_laboratoire', false).order('ordre'),
       sb().from('modules_cours').select('id, parcours_id, parent_id, titre, est_groupe'),
       sb().from('module_blocs').select('id, module_id, payload_json').eq('type_bloc', 'jeu'),
       sb().from('inscriptions_parcours').select('parcours_id, user_id, statut').eq('statut', 'accepte'),

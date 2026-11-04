@@ -977,6 +977,21 @@
       throw new Error('Aperçu réservé aux administrateurs portail');
     }
     const module = data.module || {};
+    // Lab sandbox : réservé admin portail
+    if (module.parcours_id) {
+      const { data: parc } = await sb()
+        .from('parcours_apprentissage')
+        .select('est_laboratoire')
+        .eq('id', module.parcours_id)
+        .maybeSingle();
+      if (parc && parc.est_laboratoire) {
+        const okAdmin = await global.JpApp.isAdmin();
+        if (!okAdmin) {
+          root.innerHTML = '<p class="jp-muted">Réservé admin</p>';
+          return;
+        }
+      }
+    }
     let blocs = data.blocs || [];
     if (!preview) {
       blocs = blocs.map((b) => Object.assign({}, b, { payload_json: publishedPayload(b.payload_json) }));
@@ -1037,11 +1052,14 @@
           titre: b.titre || 'Épreuve',
           code: p.code_unique || '',
           type: p.type_jeu || '',
-          poids: poidsParModele[p.modele_id] || 1,
+          jeu_id: p.jeu_id || null,
+          poids: poidsParModele[p.modele_id] || poidsParModele[p.jeu_id] || 1,
         });
         continue;
       } else if (b.type_bloc === 'jeu') {
+        // V2 modele ou V3 jeu — JpJeuxPlay.boot délègue à V3 si besoin
         const code = p.code_unique || '';
+        const jeuId = p.jeu_id || '';
         const href = jeuHref(code, p.type_jeu, module.id, module.parcours_id);
         const crit = (p.modele_id && jeuxDetail[p.modele_id])
           || ((detail && detail.jeux) || []).find((j) => code && j.code_unique === code) || null;
@@ -1061,8 +1079,10 @@
                 + (crit.fait ? ' · actuel : ' + esc(pctLab) : ''))
             + '</p>';
         }
+        const canPlay = !!(code || jeuId);
         inner = '<div class="jp-jeu-embed" data-jeu-bloc="' + esc(b.id) + '"'
           + ' data-code="' + esc(code) + '"'
+          + (jeuId ? ' data-jeu-id="' + esc(jeuId) + '"' : '')
           + ' data-type="' + esc(p.type_jeu || '') + '">'
           + '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
           + (p.type_jeu ? '<span class="jp-jeu-cta-type">' + esc(({
@@ -1073,7 +1093,7 @@
           + status + '</div>'
           + '<div class="jp-jeu-cta-actions">'
           + '<button type="button" class="jp-btn jp-btn-touch jp-jeu-play" data-jeu-retry'
-          + (code ? '' : ' disabled') + '>' + esc(p.libelle_cta || 'Nouvelle tentative') + '</button>'
+          + (canPlay ? '' : ' disabled') + '>' + esc(p.libelle_cta || 'Nouvelle tentative') + '</button>'
           + (code
             ? '<a class="jp-btn jp-btn-ghost jp-btn-touch" href="' + esc(href)
               + '" target="_blank" rel="noopener">Aller sur la page du jeu</a>'
@@ -1106,21 +1126,49 @@
 
     const ctx = { module, detail, preview: !!preview, footer: document.getElementById('leconFoot') };
     if (examMode) {
-      void startExamen(root, module, examJeux, !!preview, async function () {
-        await refreshNavFromProgression(ctx);
-        await renderFooter(ctx.footer, ctx);
-      });
+      void (async function () {
+        for (const g of examJeux) {
+          if (g.code || !g.jeu_id) continue;
+          try {
+            const { data: row } = await sb()
+              .from('jeux')
+              .select('code_unique')
+              .eq('id', g.jeu_id)
+              .maybeSingle();
+            if (row && row.code_unique) g.code = row.code_unique;
+          } catch (_) { /* ignore */ }
+        }
+        await startExamen(root, module, examJeux, !!preview, async function () {
+          await refreshNavFromProgression(ctx);
+          await renderFooter(ctx.footer, ctx);
+        });
+      })();
     }
     const carousels = Array.from(root.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
 
-    // Jeux inline : mount JpJeuxPlay dans chaque bloc
+    // Jeux inline : mount JpJeuxPlay dans chaque bloc (V2 ou V3 via délégation)
     Array.from(root.querySelectorAll('[data-jeu-bloc]')).forEach((wrap) => {
-      const code = wrap.getAttribute('data-code');
+      let code = wrap.getAttribute('data-code') || '';
+      const jeuIdAttr = wrap.getAttribute('data-jeu-id') || '';
       const typeJeu = wrap.getAttribute('data-type') || '';
       const mount = wrap.querySelector('.jp-jeu-mount');
-      if (!code || !mount || !global.JpJeuxPlay) return;
+      if ((!code && !jeuIdAttr) || !mount || !global.JpJeuxPlay) return;
       let busy = false;
       let autoRetryTimer = null;
+
+      async function resolveCode() {
+        if (code) return code;
+        if (!jeuIdAttr) return '';
+        const { data: row, error: je } = await sb()
+          .from('jeux')
+          .select('code_unique')
+          .eq('id', jeuIdAttr)
+          .maybeSingle();
+        if (je) throw je;
+        code = (row && row.code_unique) || '';
+        if (code) wrap.setAttribute('data-code', code);
+        return code;
+      }
 
       async function mountGame() {
         if (busy) return;
@@ -1131,7 +1179,9 @@
         }
         mount.innerHTML = '<p class="jp-muted">Préparation…</p>';
         try {
-          await global.JpJeuxPlay.boot(mount, code, {
+          const playCode = await resolveCode();
+          if (!playCode) throw new Error('Jeu sans code');
+          await global.JpJeuxPlay.boot(mount, playCode, {
             embed: true,
             moduleId: module.id,
             parcoursId: module.parcours_id,
@@ -1141,7 +1191,7 @@
               // Fiche : l’exclusion / next() gère déjà la suite — pas d’auto-retry score
               if (typeJeu === 'fiche_aleatoire') {
                 void (async function () {
-                  await refreshJeuStatus(wrap, code);
+                  await refreshJeuStatus(wrap, playCode);
                   await refreshNavFromProgression(ctx);
                   await renderFooter(ctx.footer, ctx);
                 })();
@@ -1154,7 +1204,7 @@
                 }, 1400);
               } else {
                 void (async function () {
-                  await refreshJeuStatus(wrap, code);
+                  await refreshJeuStatus(wrap, playCode);
                   // Invalide le cache nav : détail.valide + statut de la leçon suivante
                   await refreshNavFromProgression(ctx);
                   await renderFooter(ctx.footer, ctx);

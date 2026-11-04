@@ -311,7 +311,8 @@
   async function loadParcoursList() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle')
+      .select('id, code, libelle, est_laboratoire')
+      .eq('est_laboratoire', false)
       .order('libelle');
     if (error) throw error;
     return data || [];

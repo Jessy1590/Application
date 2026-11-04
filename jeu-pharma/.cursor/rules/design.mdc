@@ -27,6 +27,12 @@ alwaysApply: false
 - Page dédiée : 2–3 graphiques Chart.js **maximum** (pas une muraille de KPI).
 - Chart.js CDN **uniquement** sur pages admin — ne pas alourdir le hub joueur.
 
+## Copy
+- **Laconique** : labels + actions. Pas de pavés d’emploi ni de notices « cliquez ici ».
+- Comprendre un jeu / un champ → **tooltip** (`?` / `title`) ou **une phrase courte** max, pas un paragraphe.
+- « Déposer ici » OK comme libellé de zone vide, pas comme notice pédagogique.
+- Même règle wizard et player : n’afficher que ce qui sert le but du type.
+
 ## Impression
 - En-tête : code quiz + nom affiché + date.
 - Iframe same-document uniquement (`js/print.js`) — pas de `window.open`.

@@ -1,0 +1,11 @@
+---
+description: Chat agent Jeu Pharma — réponses courtes, faits, pas de récit
+alwaysApply: true
+---
+
+# Communication agent
+
+- Répondre en **français**, **court** : faits utiles, pas de récap du plan ni de la tâche.
+- Une phrase de verdict puis le détail minimal si besoin.
+- Pas de listes de « ce qui n’a pas changé », pas de paraphrases du cadrage produit.
+- En fin de build : fichiers touchés, SQL appliqué ou non, comment ouvrir, ce qui reste — sans roman.

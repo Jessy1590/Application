@@ -36,6 +36,7 @@
   const state = {
     parcoursId: null,
     parcours: null,
+    estLaboratoire: false,
     modules: [],
     selectedModuleId: null,
     blocs: [],
@@ -81,11 +82,28 @@
   async function loadParcoursList() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, description, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json')
+      .select('id, code, libelle, description, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json, est_laboratoire')
       .eq('actif', true)
+      .eq('est_laboratoire', false)
       .order('ordre');
     if (error) throw error;
     return data || [];
+  }
+
+  /** Charge un parcours par id (y compris laboratoire, exclu du combo). */
+  async function fetchParcoursById(id) {
+    if (!id) return null;
+    const { data, error } = await sb()
+      .from('parcours_apprentissage')
+      .select('id, code, libelle, description, mode_contenu, ordre, actif, prerequis_parcours_id, criteres_json, est_laboratoire')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  }
+
+  function isLabParcours() {
+    return !!(state.estLaboratoire || state.parcours?.est_laboratoire);
   }
 
   async function loadModules(parcoursId) {
@@ -1166,12 +1184,24 @@
       + '</div></div>';
 
     const list = await loadParcoursList();
+    state.parcoursList = list;
     const items = list.map((p) => ({ id: p.id, label: p.libelle, sub: p.code }));
     const qs = new URLSearchParams(location.search);
     const qId = qs.get('parcours');
     // Liens profonds depuis admin/jeux.html : ?parcours=…&module=…&bloc=…
     state.pending = { moduleId: qs.get('module'), blocId: qs.get('bloc') };
-    const initial = items.find((i) => i.id === qId) || items[0] || null;
+    let initial = items.find((i) => i.id === qId) || null;
+    if (qId && !initial) {
+      try {
+        const labRow = await fetchParcoursById(qId);
+        if (labRow) {
+          initial = { id: labRow.id, label: labRow.libelle, sub: labRow.code };
+          state.estLaboratoire = !!labRow.est_laboratoire;
+          state.parcours = labRow;
+        }
+      } catch (_) { /* ignore */ }
+    }
+    if (!initial) initial = items[0] || null;
 
     let current = initial;
     let parcoursItems = items;
@@ -1304,8 +1334,13 @@
     invalidateBlocsCache();
     invalidateProgCount();
     const list = await loadParcoursList();
-    state.parcours = list.find((p) => p.id === id) || null;
     state.parcoursList = list;
+    let parcours = list.find((p) => p.id === id) || null;
+    if (!parcours) {
+      try { parcours = await fetchParcoursById(id); } catch (_) { parcours = null; }
+    }
+    state.parcours = parcours;
+    state.estLaboratoire = !!parcours?.est_laboratoire;
     document.title = (state.parcours?.libelle ? state.parcours.libelle + ' — ' : '') + 'Modif parcours';
     const h1 = document.getElementById('studioTitle');
     if (h1) h1.textContent = state.parcours?.libelle || 'Modif parcours';
@@ -3254,7 +3289,8 @@
     const p = effPayload(b);
     const typeLab = p.type_jeu ? (TYPE_JEU_LABELS[p.type_jeu] || p.type_jeu) : '';
     const titre = o.showTitle ? effTitre(b) : '';
-    const empty = !p.modele_id && !(p.code_unique || '').trim();
+    const linkedId = p.jeu_id || p.modele_id || '';
+    const empty = !linkedId && !(p.code_unique || '').trim();
     let html = (o.bare ? '' : '<div class="jp-bloc-jeu">')
       + '<div class="jp-bloc-jeu-meta">'
       + (empty
@@ -3264,7 +3300,7 @@
       + (titre ? '<p class="jp-bloc-jeu-titre">' + esc(titre) + '</p>' : '')
       + '</div>'
       + '<div class="jp-bloc-jeu-actions">';
-    if (p.modele_id) {
+    if (linkedId) {
       html += '<button type="button" class="jp-btn jp-btn-primary" data-mod-jeu="' + b.id
         + '">Modifier les paramètres</button>';
     }
@@ -3280,8 +3316,9 @@
     if (!root || !b || b.type_bloc !== 'jeu') return;
     root.querySelectorAll('[data-mod-jeu]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const mid = effPayload(b).modele_id;
-        if (mid) void openJeuWizard({ modeleId: mid, blocId: b.id });
+        const p = effPayload(b);
+        const mid = p.jeu_id || p.modele_id;
+        if (mid) void openJeuWizard({ modeleId: mid, jeuId: mid, blocId: b.id });
       });
     });
     root.querySelectorAll('[data-new-jeu]').forEach((btn) => {
@@ -4381,13 +4418,24 @@
   async function refreshJeuxLies(m) {
     const box = document.getElementById('jeuxLies');
     if (!box) return;
-    const { data } = await sb()
-      .from('modeles_jeu')
-      .select('id, code_unique, type_jeu, titre, en_pause, actif')
-      .eq('parcours_id', state.parcoursId)
-      .eq('actif', true)
-      .contains('module_ids', [m.id]);
-    const rows = data || [];
+    let rows = [];
+    if (isLabParcours()) {
+      const { data } = await sb()
+        .from('jeux')
+        .select('id, code_unique, type_jeu, titre, statut, module_ids')
+        .eq('parcours_id', state.parcoursId)
+        .neq('statut', 'archive')
+        .contains('module_ids', [m.id]);
+      rows = data || [];
+    } else {
+      const { data } = await sb()
+        .from('modeles_jeu')
+        .select('id, code_unique, type_jeu, titre, en_pause, actif')
+        .eq('parcours_id', state.parcoursId)
+        .eq('actif', true)
+        .contains('module_ids', [m.id]);
+      rows = data || [];
+    }
     box.innerHTML = rows.length
       ? '<div class="jp-jeux-lies">' + rows.map((r) => {
         const typeLab = TYPE_JEU_LABELS[r.type_jeu] || r.type_jeu || '';
@@ -4400,17 +4448,23 @@
       : '<p class="jp-muted jp-jeux-lies-empty">Aucun jeu lié à cette leçon</p>';
   }
 
-  /** Lie un modèle de jeu au bloc (brouillon si déjà publié, sinon payload direct). */
+  /** Lie un modèle / jeu V3 au bloc (brouillon si déjà publié, sinon payload direct). */
   async function lierModeleAuBloc(blocId, modele) {
     const b = state.blocs.find((x) => x.id === blocId);
     if (!b || b.type_bloc !== 'jeu' || !modele?.id) return null;
     const prev = effPayload(b);
     const payload = Object.assign({}, prev, {
-      modele_id: modele.id,
       code_unique: modele.code_unique || '',
       type_jeu: modele.type_jeu || prev.type_jeu || '',
       libelle_cta: prev.libelle_cta || 'Jouer',
     });
+    if (isLabParcours() || modele._v3) {
+      payload.jeu_id = modele.id;
+      delete payload.modele_id;
+    } else {
+      payload.modele_id = modele.id;
+      delete payload.jeu_id;
+    }
     const titre = modele.titre || effTitre(b) || '';
     const pj = buildDraftPayloadJson(b, titre, payload);
     const hash = hashPayloadJson(pj);
@@ -4424,6 +4478,16 @@
   }
 
   async function listModelesParcours() {
+    if (isLabParcours()) {
+      const { data, error } = await sb()
+        .from('jeux')
+        .select('id, code_unique, type_jeu, titre, statut, module_ids')
+        .eq('parcours_id', state.parcoursId)
+        .neq('statut', 'archive')
+        .order('code_unique');
+      if (error) throw error;
+      return data || [];
+    }
     const { data, error } = await sb()
       .from('modeles_jeu')
       .select('id, code_unique, type_jeu, titre, en_pause, actif, module_ids')
@@ -4446,14 +4510,15 @@
       global.JpToast?.fromError?.(e);
       return;
     }
-    const curId = effPayload(b).modele_id || '';
+    const pay = effPayload(b);
+    const curId = (isLabParcours() ? pay.jeu_id : pay.modele_id) || pay.jeu_id || pay.modele_id || '';
     const items = rows.map((r) => ({
       id: r.id,
       label: (r.code_unique || 'JP-?????') + ' — ' + (r.titre || 'Sans titre'),
       sub: (TYPE_JEU_LABELS[r.type_jeu] || r.type_jeu || '')
-        + (r.en_pause ? ' · en pause' : '')
+        + (r.en_pause || r.statut === 'pause' ? ' · en pause' : '')
         + (r.id === curId ? ' · actuel' : ''),
-      modele: r,
+      modele: isLabParcours() ? Object.assign({}, r, { _v3: true }) : r,
     }));
 
     const overlay = document.createElement('div');
@@ -4509,20 +4574,30 @@
     });
   }
 
+  function blocLinkedToJeu(b, jeuId) {
+    if (!b || b.type_bloc !== 'jeu' || !jeuId) return false;
+    const p = effPayload(b);
+    return p.jeu_id === jeuId || p.modele_id === jeuId;
+  }
+
   async function openJeuWizard(extra) {
     const m = selectedModule();
     if (!m || m.est_groupe) return;
     await flushAll();
-    const editId = extra && extra.modeleId;
+    const editId = (extra && (extra.jeuId || extra.modeleId)) || null;
     const linkBlocId = (!editId && extra && extra.blocId) || null;
     const editBlocId = (editId && extra && extra.blocId) || null;
     const insertAfterId = (!editId && !linkBlocId) ? state.selectedBlocId : null;
-    await global.JpStudioJeuWizard.open({
+    const wizardApi = isLabParcours() && global.JpStudioJeuWizardV3
+      ? global.JpStudioJeuWizardV3
+      : global.JpStudioJeuWizard;
+    await wizardApi.open({
       parcoursId: state.parcoursId,
       moduleId: m.id,
       modules: state.modules,
       defaultTitre: 'Jeu — ' + m.titre,
       modeleId: editId || undefined,
+      jeuId: editId || undefined,
       blocId: linkBlocId || undefined,
       insertAfterBlocId: insertAfterId || undefined,
       onUpdated: async (res) => {
@@ -4530,8 +4605,7 @@
           const modele = res && res.modele;
           if (modele && modele.id) {
             const bloc = (editBlocId && state.blocs.find((x) => x.id === editBlocId))
-              || state.blocs.find((b) => b.type_bloc === 'jeu'
-                && effPayload(b).modele_id === modele.id);
+              || state.blocs.find((b) => blocLinkedToJeu(b, modele.id));
             if (bloc) await lierModeleAuBloc(bloc.id, modele);
           }
         } catch (e) {
@@ -4541,7 +4615,7 @@
         rememberBlocsCache(m.id, state.blocs);
         const focusId = editBlocId
           || (res?.modele?.id
-            && (state.blocs.find((b) => b.type_bloc === 'jeu' && effPayload(b).modele_id === res.modele.id)?.id));
+            && (state.blocs.find((b) => blocLinkedToJeu(b, res.modele.id))?.id));
         if (focusId) selectBloc(focusId, { inspectorTab: 'bloc' });
         else paintBlocks();
         await refreshJeuxLies(m);

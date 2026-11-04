@@ -70,8 +70,9 @@
   async function listParcours() {
     const { data, error } = await sb()
       .from('parcours_apprentissage')
-      .select('id, code, libelle, description, mode_contenu, ordre, actif')
+      .select('id, code, libelle, description, mode_contenu, ordre, actif, est_laboratoire')
       .eq('actif', true)
+      .eq('est_laboratoire', false)
       .order('ordre');
     if (error) throw error;
     return data || [];

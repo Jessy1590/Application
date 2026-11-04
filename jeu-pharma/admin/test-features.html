@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test features</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self' __SUPABASE_HTTP__ __SUPABASE_WSS__; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:;">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<script src="../../shared/supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase.js"></script>
+<style>body{display:none}</style>
+<script src="../../protect.js"></script>
+<script>initialiserSite(JpApp.SITE_ID, { requireAdmin: true });</script>
+<link rel="stylesheet" href="../css/app.css?v=059">
+<link rel="stylesheet" href="../css/v2.css?v=028">
+</head>
+<body>
+  <main class="jp-page">
+    <a class="jp-back" href="index.html">←</a>
+    <h1 class="jp-title">Test features</h1>
+    <p class="jp-muted" id="status">…</p>
+    <nav class="jp-hub-grid" aria-label="Test features">
+      <button type="button" class="jp-tile" id="btnPlay" disabled><h2>Parcours de Test</h2></button>
+      <button type="button" class="jp-tile" id="btnStudio" disabled><h2>Modif parcours Test</h2></button>
+    </nav>
+  </main>
+  <script src="../js/constants.js"></script>
+  <script src="../js/toast.js"></script>
+  <script src="../js/bugs.js?v=059"></script>
+  <script src="../js/fab.js?v=059"></script>
+  <script src="../js/ui.js?v=059"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async function () {
+      JpUi.bootPage({ module: 'admin-test', homeHref: 'index.html' });
+      const status = document.getElementById('status');
+      const btnPlay = document.getElementById('btnPlay');
+      const btnStudio = document.getElementById('btnStudio');
+      try {
+        const { data, error } = await JpApp.sbJeu().rpc('lab_jeux_ids');
+        if (error) throw error;
+        const parcoursId = data && data.parcours_id;
+        const moduleId = data && data.module_id;
+        if (!parcoursId || !moduleId) {
+          status.textContent = 'Lab introuvable — appliquer sql/098.';
+          return;
+        }
+        status.textContent = '';
+        btnPlay.disabled = false;
+        btnStudio.disabled = false;
+        btnPlay.addEventListener('click', function () {
+          location.href = '../lecon.html?module=' + encodeURIComponent(moduleId);
+        });
+        btnStudio.addEventListener('click', function () {
+          location.href = 'parcours.html?parcours=' + encodeURIComponent(parcoursId);
+        });
+      } catch (e) {
+        status.textContent = 'Erreur';
+        JpToast.fromError(e);
+      }
+    });
+  </script>
+</body>
+</html>
