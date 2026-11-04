@@ -977,7 +977,6 @@
       throw new Error('Aperçu réservé aux administrateurs portail');
     }
     const module = data.module || {};
-    // Lab sandbox : réservé admin portail
     if (module.parcours_id) {
       const { data: parc } = await sb()
         .from('parcours_apprentissage')
@@ -985,11 +984,8 @@
         .eq('id', module.parcours_id)
         .maybeSingle();
       if (parc && parc.est_laboratoire) {
-        const okAdmin = await global.JpApp.isAdmin();
-        if (!okAdmin) {
-          root.innerHTML = '<p class="jp-muted">Réservé admin</p>';
-          return;
-        }
+        root.innerHTML = '<p class="jp-muted">Leçon introuvable</p>';
+        return;
       }
     }
     let blocs = data.blocs || [];
@@ -1052,14 +1048,11 @@
           titre: b.titre || 'Épreuve',
           code: p.code_unique || '',
           type: p.type_jeu || '',
-          jeu_id: p.jeu_id || null,
-          poids: poidsParModele[p.modele_id] || poidsParModele[p.jeu_id] || 1,
+          poids: poidsParModele[p.modele_id] || 1,
         });
         continue;
       } else if (b.type_bloc === 'jeu') {
-        // V2 modele ou V3 jeu — JpJeuxPlay.boot délègue à V3 si besoin
         const code = p.code_unique || '';
-        const jeuId = p.jeu_id || '';
         const href = jeuHref(code, p.type_jeu, module.id, module.parcours_id);
         const crit = (p.modele_id && jeuxDetail[p.modele_id])
           || ((detail && detail.jeux) || []).find((j) => code && j.code_unique === code) || null;
@@ -1079,10 +1072,9 @@
                 + (crit.fait ? ' · actuel : ' + esc(pctLab) : ''))
             + '</p>';
         }
-        const canPlay = !!(code || jeuId);
+        const canPlay = !!code;
         inner = '<div class="jp-jeu-embed" data-jeu-bloc="' + esc(b.id) + '"'
           + ' data-code="' + esc(code) + '"'
-          + (jeuId ? ' data-jeu-id="' + esc(jeuId) + '"' : '')
           + ' data-type="' + esc(p.type_jeu || '') + '">'
           + '<div class="jp-jeu-cta"><div class="jp-jeu-cta-text">'
           + (p.type_jeu ? '<span class="jp-jeu-cta-type">' + esc(({
@@ -1126,49 +1118,20 @@
 
     const ctx = { module, detail, preview: !!preview, footer: document.getElementById('leconFoot') };
     if (examMode) {
-      void (async function () {
-        for (const g of examJeux) {
-          if (g.code || !g.jeu_id) continue;
-          try {
-            const { data: row } = await sb()
-              .from('jeux')
-              .select('code_unique')
-              .eq('id', g.jeu_id)
-              .maybeSingle();
-            if (row && row.code_unique) g.code = row.code_unique;
-          } catch (_) { /* ignore */ }
-        }
-        await startExamen(root, module, examJeux, !!preview, async function () {
-          await refreshNavFromProgression(ctx);
-          await renderFooter(ctx.footer, ctx);
-        });
-      })();
+      void startExamen(root, module, examJeux, !!preview, async function () {
+        await refreshNavFromProgression(ctx);
+        await renderFooter(ctx.footer, ctx);
+      });
     }
     const carousels = Array.from(root.querySelectorAll('.jp-carousel')).map((c) => initCarousel(c));
 
-    // Jeux inline : mount JpJeuxPlay dans chaque bloc (V2 ou V3 via délégation)
     Array.from(root.querySelectorAll('[data-jeu-bloc]')).forEach((wrap) => {
-      let code = wrap.getAttribute('data-code') || '';
-      const jeuIdAttr = wrap.getAttribute('data-jeu-id') || '';
+      const code = wrap.getAttribute('data-code') || '';
       const typeJeu = wrap.getAttribute('data-type') || '';
       const mount = wrap.querySelector('.jp-jeu-mount');
-      if ((!code && !jeuIdAttr) || !mount || !global.JpJeuxPlay) return;
+      if (!code || !mount || !global.JpJeuxPlay) return;
       let busy = false;
       let autoRetryTimer = null;
-
-      async function resolveCode() {
-        if (code) return code;
-        if (!jeuIdAttr) return '';
-        const { data: row, error: je } = await sb()
-          .from('jeux')
-          .select('code_unique')
-          .eq('id', jeuIdAttr)
-          .maybeSingle();
-        if (je) throw je;
-        code = (row && row.code_unique) || '';
-        if (code) wrap.setAttribute('data-code', code);
-        return code;
-      }
 
       async function mountGame() {
         if (busy) return;
@@ -1179,8 +1142,7 @@
         }
         mount.innerHTML = '<p class="jp-muted">Préparation…</p>';
         try {
-          const playCode = await resolveCode();
-          if (!playCode) throw new Error('Jeu sans code');
+          const playCode = code;
           await global.JpJeuxPlay.boot(mount, playCode, {
             embed: true,
             moduleId: module.id,
