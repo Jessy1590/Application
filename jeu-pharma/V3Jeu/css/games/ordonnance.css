@@ -1,0 +1,332 @@
+/* Ordonnance — préfixe .v3-ordo- */
+
+.v3-ordo-besoins-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.v3-ordo-besoins {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.v3-ordo-besoin {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.v3-ordo-besoin:focus-within {
+  z-index: 4;
+}
+
+.v3-ordo-besoin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.v3-ordo-besoin-n {
+  width: 28px;
+  height: var(--v3-ctrl);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--jp-accent-hover);
+}
+
+.v3-ordo-besoin-act {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.v3-ordo-besoin-act .v3-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 0.875rem;
+}
+
+.v3-ordo-besoin-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v3-ordo-sel {
+  min-width: 0;
+}
+
+.v3-ordo-besoin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--jp-text-muted);
+  min-height: 16px;
+}
+
+.v3-ordo-count {
+  font-weight: 600;
+  color: var(--jp-accent-hover);
+}
+
+.v3-ordo-cible {
+  min-height: 0;
+}
+
+.v3-ordo-from1 {
+  display: inline-flex;
+}
+
+.v3-ordo-tahead {
+  position: relative;
+}
+
+.v3-ordo-counts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 0.8125rem;
+  color: var(--jp-text-muted);
+}
+
+.v3-ordo-play {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Feuille */
+.v3-ordo-sheet {
+  background: #fff;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  padding: 28px 24px 32px;
+  box-shadow: 0 1px 0 rgba(20, 32, 28, 0.04);
+  max-width: 40rem;
+}
+
+.v3-ordo-head {
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--jp-line);
+}
+
+.v3-ordo-brand {
+  font-family: var(--jp-font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.v3-ordo-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 0;
+  border-bottom: 1px dashed var(--jp-line);
+}
+
+.v3-ordo-line:last-of-type {
+  border-bottom: 0;
+}
+
+.v3-ordo-line.is-asso {
+  background: linear-gradient(90deg, var(--jp-accent-soft), transparent 40%);
+  margin: 0 -12px;
+  padding-left: 12px;
+  padding-right: 12px;
+  border-radius: var(--jp-radius-sm);
+}
+
+.v3-ordo-id {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.v3-ordo-num {
+  font-family: var(--jp-font-display);
+  font-weight: 600;
+  color: var(--jp-accent-hover);
+  line-height: 1.4;
+}
+
+.v3-ordo-id-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.v3-ordo-dci {
+  font-family: var(--jp-font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.v3-ordo-noms {
+  color: var(--jp-text-muted);
+  font-size: 0.875rem;
+}
+
+.v3-ordo-rest {
+  margin: 0 0 0 2.5rem;
+  font-size: 0.8125rem;
+  color: var(--jp-text-muted);
+}
+
+.v3-ordo-champs {
+  margin: 0 0 0 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.v3-ordo-mol h4 {
+  font-size: 0.875rem;
+  margin: 0 0 6px;
+  color: var(--jp-accent-hover);
+}
+
+.v3-ordo-dl {
+  display: grid;
+  grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+}
+
+.v3-ordo-dl dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+  padding-top: 2px;
+}
+
+.v3-ordo-dl dd {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+.v3-ordo-vals {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.v3-ordo-vals li + li {
+  margin-top: 2px;
+}
+
+.v3-ordo-saisies {
+  margin: 0 0 0 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.v3-ordo-saie {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--jp-text-muted);
+}
+
+.v3-ordo-ta {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  resize: vertical;
+  font-size: 0.875rem;
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--jp-text);
+}
+
+.v3-ordo-ta:focus {
+  outline: none;
+  box-shadow: var(--jp-focus);
+}
+
+.v3-ordo-vigil {
+  padding: 16px;
+  border: 1px solid var(--jp-line);
+  border-left: 3px solid var(--jp-warn);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  max-width: 40rem;
+}
+
+.v3-ordo-vigil h3 {
+  font-size: 0.95rem;
+  margin: 0 0 8px;
+}
+
+.v3-ordo-vigil ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+}
+
+.v3-ordo-vigil li + li {
+  margin-top: 6px;
+}
+
+.v3-ordo-vigil .is-obs {
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .v3-ordo-sheet {
+    padding: 20px 16px 24px;
+  }
+
+  .v3-ordo-besoin-head {
+    align-items: stretch;
+  }
+
+  .v3-ordo-besoin-act {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .v3-ordo-champs,
+  .v3-ordo-rest,
+  .v3-ordo-saisies {
+    margin-left: 0;
+  }
+
+  .v3-ordo-dl {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
+  }
+
+  .v3-ordo-id {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,110 @@
+/* Socle joueur — progression, cartes, révélation, notation */
+
+.v3-play { display: flex; flex-direction: column; gap: 16px; }
+
+.v3-play-progress {
+  font-size: 0.8125rem;
+  color: var(--jp-text-muted);
+}
+
+.v3-play-q {
+  padding: 16px 0;
+  border-top: 1px solid var(--jp-line);
+}
+.v3-play-q h2 {
+  font-size: 1.25rem;
+  margin: 0 0 16px;
+}
+
+.v3-props { display: flex; flex-direction: column; gap: 8px; }
+.v3-prop {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: var(--v3-ctrl);
+  padding: 10px 16px;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  cursor: pointer;
+}
+.v3-prop:hover { border-color: var(--jp-accent); }
+.v3-prop.is-on { border-color: var(--jp-accent); box-shadow: var(--jp-focus); }
+.v3-prop.is-ok {
+  background: var(--jp-accent-soft);
+  border-color: var(--jp-ok);
+  color: var(--jp-accent-hover);
+}
+.v3-prop.is-bad {
+  background: #fdecea;
+  border-color: var(--jp-danger);
+  color: var(--jp-danger);
+}
+.v3-prop:disabled { cursor: default; }
+
+.v3-reveal {
+  padding: 16px;
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-accent-soft);
+}
+
+.v3-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.v3-note {
+  width: var(--v3-ctrl);
+  height: var(--v3-ctrl);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  cursor: pointer;
+}
+.v3-note.is-on {
+  background: var(--jp-accent-soft);
+  border-color: var(--jp-accent);
+  color: var(--jp-accent-hover);
+  font-weight: 600;
+}
+
+.v3-note-card {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--jp-line);
+}
+.v3-note-card h3 { font-size: 1rem; margin: 0 0 8px; }
+.v3-note-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: start;
+  padding: 8px 0;
+}
+.v3-note-attendu { color: var(--jp-text-muted); font-size: 0.875rem; }
+.v3-note-total {
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+
+.v3-score10 { display: flex; flex-wrap: wrap; gap: 8px; }
+.v3-score10 button {
+  width: var(--v3-ctrl);
+  height: var(--v3-ctrl);
+  border: 1px solid var(--jp-line);
+  border-radius: var(--jp-radius-sm);
+  background: var(--jp-bg-elevated);
+  cursor: pointer;
+}
+.v3-score10 button.is-on {
+  background: var(--jp-accent);
+  color: #fff;
+  border-color: var(--jp-accent);
+}
+
+.v3-fin { padding: 32px 0; }
+.v3-fin-score {
+  font-family: var(--jp-font-display);
+  font-size: 2rem;
+  margin: 0 0 24px;
+}
