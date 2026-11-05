@@ -118,6 +118,52 @@ Clés type : `quiz`, `trous`, `fiche`, `ordonnance`, `classement`, `appariement`
 
 Tentatives : `jeux_tentatives` (`contexte` classique | examen, `notation` serveur | declaree, `relecture`). Quiz / classement / appariement = score serveur. Trous / fiche / ordonnance = `jeu_demarrer_declare` + `jeu_soumettre_declare` (Rapide /10 ou Détaillé 0/½/1, relecture admin optionnelle, obligatoire en examen).
 
+## Révision R2 (retours admin) — prioritaire sur le reste
+
+### Étapes du wizard
+
+`STEPS = ['Molécules', 'Jeu', 'Paramètres', 'Personnalisation', 'Essai']`.
+
+- **3 Paramètres** = le choix initial, court (ex. quiz : Style · Questions · Propositions ; trous : Composition · Lignes · % ; fiche : Composition · Nb fiches ; ordonnance : Nb besoins · Associations ; classement / appariement : Consigne · disposition).
+- **4 Personnalisation** = le détail qui découle de l’étape 3 (quiz : banque de questions + réglages auto/mixte sens · difficulté · champs ; trous : colonnes / grille ; fiche : champs visibles / à restituer, emplacements ; ordonnance : besoins ; classement / appariement : zones + items).
+- **5 Essai** = `def.essai(el, ctx)` (optionnel, outils d’aperçu : « Tester un tirage », etc.) affiché **au-dessus** de `def.play(...)`. Aucun « Tester un tirage » en étape 3 ou 4.
+
+### Composant « ajout » semi-auto (`V3UI.adder`)
+
+Toute liste construite par l’admin (questions quiz, besoins ordonnance, emplacements fiche, items/zones classement-appariement, imports) suit le même schéma : **panneau d’ajout en haut**, **liste validée en dessous**.
+
+```js
+const ad = V3UI.adder({
+  title: 'Ajouter',                 // titre du panneau haut
+  draft(host, api) {},              // construit le formulaire / la sélection ; api.propose(list) affiche les propositions
+  propose: true,                    // true = propositions listées sous le formulaire, cochables, avant « Ajouter »
+  items: () => cfg.questions,       // tableau source de vérité (mutable)
+  renderItem(item, i, api) {},      // ligne de la liste validée (éditer, supprimer, monter/descendre via api)
+  onAdd(list) {},                   // reçoit les propositions cochées (ou le brouillon) → push dans items
+  onChange() {},                    // appelé après ajout / suppression / réordonnancement
+  empty: 'Aucune question',
+});
+el.appendChild(ad.el); ad.refresh();
+```
+
+Rien n’entre dans la liste validée sans clic **Ajouter**. Choisir une source (sélection, champ, etc.) **propose** ; l’admin coche / décoche ; **Ajouter** valide.
+
+### Données jouées = visibles joueur uniquement
+
+`V3Selection.resolve(sel, { niveau_min, niveau_max })` : valeurs = publications actives des leçons concernées dont la plage ★ croise celle du jeu (et module non hors plage). **Plus aucun repli `v_medicaments_complet`** pour les valeurs : une molécule sans publication visible n’a pas de valeurs (exclue des pools de jeu). `ctx.mols()` passe la plage ★ du jeu.
+
+### Visuel joueur = V2
+
+`play()` reproduit le markup / classes `jp-*` du joueur V2 (`../js/jeux-play.js`, `../css/v2.css`, `../css/player.css`, `ordonnances/`), mêmes scores. Seules évolutions joueur autorisées : disposition des zones classement (embed / page) et choix Rapide / Détaillé (+ relecture admin) pour trous, fiche, ordonnance.
+
+### Tooltips
+
+`V3UI.tip(text)` renvoie `null` si texte vide → ne jamais passer `tip: ''`. Toute option `segmented` avec `tip` doit avoir un texte réel.
+
+### Classement ↔ appariement
+
+Même éditeur `V3Zones` (`core/zones.js`) : colonnes = zones, lignes = items, ≥ 1 item par zone. Appariement = exactement 2 zones de **même nombre de lignes** (ligne i ↔ ligne i). Classement = sinon. Seul l’affichage joueur final diffère.
+
 ## Résumé produit par type
 
 - **Quiz** : styles manuel | auto | mixte. `nb_questions` (manuel/auto) ou `nb_manuelles` + `nb_auto` (mixte). `nb_propositions` 2–6. Sens auto mol→valeur (défaut) | valeur→mol | les deux. Difficulté = plafond de similarité N1 < 20 %, N2 < 50 %, N3 < 80 % (> 80 % toujours rejeté, question sautée si pas assez de distracteurs). Champs interrogés (auto/mixte, défaut = présents). Éditeur manuel : liste repliable + carte ouverte, radio bonne réponse, 2–6 propositions, dupliquer, réordonner, aperçu. « Tester un tirage ».

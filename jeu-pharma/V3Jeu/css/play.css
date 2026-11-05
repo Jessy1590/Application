@@ -1,6 +1,10 @@
 /* Socle joueur — progression, cartes, révélation, notation */
 
-.v3-play { display: flex; flex-direction: column; gap: 16px; }
+.v3-play { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 100%; overflow-x: auto; }
+.v3-essai-body .v3-play { padding: 0; }
+.v3-essai-body .jp-muted:empty { display: none; }
+.v3-essai-body .jp-table-wrap,
+.v3-play .jp-table-wrap { overflow-x: auto; max-width: 100%; }
 
 .v3-play-progress {
   font-size: 0.8125rem;

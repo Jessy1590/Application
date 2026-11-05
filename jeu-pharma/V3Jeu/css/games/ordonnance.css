@@ -1,106 +1,152 @@
-/* Ordonnance — préfixe .v3-ordo- */
+/* Ordonnance — wizard (params / perso) + joueur legacy (inchangé). */
 
-.v3-ordo-besoins-wrap {
+/* ——— Paramètres (étape 3) ——— */
+.v3-ordo-params {
+  gap: var(--v3-gap-lg);
+}
+.v3-ordo-params .v3-card-body > .v3-grid-2 {
+  align-items: start;
+}
+.v3-ordo-params .v3-toggle {
+  width: auto;
+}
+
+/* ——— Personnalisation (étape 4) ——— */
+.v3-ordo-perso {
+  gap: var(--v3-gap-lg);
+}
+.v3-ordo-perso .v3-adder-item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+}
+.v3-ordo-item-main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--v3-space-2);
+  min-width: 0;
 }
-
-.v3-ordo-besoins {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.v3-ordo-besoin {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--jp-line);
-}
-
-.v3-ordo-besoin:focus-within {
-  z-index: 4;
-}
-
-.v3-ordo-besoin-head {
+.v3-ordo-item-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--v3-gap);
+  min-width: 0;
 }
-
-.v3-ordo-besoin-n {
-  width: 28px;
-  height: var(--v3-ctrl);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  color: var(--jp-accent-hover);
-}
-
-.v3-ordo-besoin-act {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
-
-.v3-ordo-besoin-act .v3-btn {
-  min-width: 32px;
-  height: 32px;
-  padding: 0 8px;
+.v3-ordo-item-lab {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.875rem;
 }
-
+.v3-ordo-besoin-act {
+  display: flex;
+  gap: var(--v3-space-1);
+  align-items: center;
+}
+.v3-ordo-besoin-act .v3-btn {
+  min-width: 32px;
+  width: var(--v3-ctrl);
+  height: 32px;
+  padding: 0;
+  font-size: 0.875rem;
+}
+.v3-ordo-besoin-edit {
+  min-width: 0;
+}
+.v3-ordo-besoin-edit > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--jp-text-muted);
+  min-height: var(--v3-ctrl);
+  display: inline-flex;
+  align-items: center;
+}
+.v3-ordo-besoin-edit > summary::-webkit-details-marker {
+  display: none;
+}
+.v3-ordo-besoin-edit[open] > summary {
+  color: var(--jp-accent-hover);
+  font-weight: 600;
+}
+.v3-ordo-draft-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v3-gap-lg);
+}
+.v3-ordo-draft-body > .v3-field {
+  margin: 0;
+}
 .v3-ordo-besoin-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--v3-gap-lg);
+  min-width: 0;
 }
-
+.v3-ordo-besoin-body > .v3-field {
+  margin: 0;
+}
 .v3-ordo-sel {
   min-width: 0;
 }
-
 .v3-ordo-besoin-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--v3-gap);
   font-size: 0.8125rem;
   color: var(--jp-text-muted);
-  min-height: 16px;
+  min-height: 1rem;
 }
-
-.v3-ordo-count {
-  font-weight: 600;
-  color: var(--jp-accent-hover);
+.v3-ordo-candidats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--v3-gap);
+  min-width: 0;
 }
-
+.v3-ordo-candidats .v3-list-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: var(--v3-space-2) var(--v3-space-3);
+}
 .v3-ordo-cible {
   min-height: 0;
 }
-
-.v3-ordo-from1 {
-  display: inline-flex;
-}
-
 .v3-ordo-tahead {
   position: relative;
 }
+.v3-ordo-sel-filter { min-width: 0; }
 
-.v3-ordo-counts {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+@media (max-width: 640px) {
+  .v3-ordo-perso .v3-adder-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .v3-ordo-besoin-act {
+    justify-content: flex-end;
+  }
+}
+
+/* ——— Mode notation (joueur, inchangé) ——— */
+.v3-ordo-mode .v3-seg-btn .v3-tip {
+  pointer-events: none;
+}
+
+.v3-ordo-mols {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.v3-ordo-saisies-jp {
+  margin-top: 8px;
+}
+
+.v3-ordo-actions {
+  margin-top: 1.25rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  font-size: 0.8125rem;
-  color: var(--jp-text-muted);
+  gap: 8px;
+  align-items: flex-end;
 }
 
 .v3-ordo-play {
@@ -109,134 +155,7 @@
   gap: 16px;
 }
 
-/* Feuille */
-.v3-ordo-sheet {
-  background: #fff;
-  border: 1px solid var(--jp-line);
-  border-radius: var(--jp-radius-sm);
-  padding: 28px 24px 32px;
-  box-shadow: 0 1px 0 rgba(20, 32, 28, 0.04);
-  max-width: 40rem;
-}
-
-.v3-ordo-head {
-  margin: 0 0 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--jp-line);
-}
-
-.v3-ordo-brand {
-  font-family: var(--jp-font-display);
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.v3-ordo-line {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 0;
-  border-bottom: 1px dashed var(--jp-line);
-}
-
-.v3-ordo-line:last-of-type {
-  border-bottom: 0;
-}
-
-.v3-ordo-line.is-asso {
-  background: linear-gradient(90deg, var(--jp-accent-soft), transparent 40%);
-  margin: 0 -12px;
-  padding-left: 12px;
-  padding-right: 12px;
-  border-radius: var(--jp-radius-sm);
-}
-
-.v3-ordo-id {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-}
-
-.v3-ordo-num {
-  font-family: var(--jp-font-display);
-  font-weight: 600;
-  color: var(--jp-accent-hover);
-  line-height: 1.4;
-}
-
-.v3-ordo-id-txt {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.v3-ordo-dci {
-  font-family: var(--jp-font-display);
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.v3-ordo-noms {
-  color: var(--jp-text-muted);
-  font-size: 0.875rem;
-}
-
-.v3-ordo-rest {
-  margin: 0 0 0 2.5rem;
-  font-size: 0.8125rem;
-  color: var(--jp-text-muted);
-}
-
-.v3-ordo-champs {
-  margin: 0 0 0 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.v3-ordo-mol h4 {
-  font-size: 0.875rem;
-  margin: 0 0 6px;
-  color: var(--jp-accent-hover);
-}
-
-.v3-ordo-dl {
-  display: grid;
-  grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr);
-  gap: 6px 12px;
-  margin: 0;
-}
-
-.v3-ordo-dl dt {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--jp-text-muted);
-  padding-top: 2px;
-}
-
-.v3-ordo-dl dd {
-  margin: 0;
-  font-size: 0.9375rem;
-}
-
-.v3-ordo-vals {
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.v3-ordo-vals li + li {
-  margin-top: 2px;
-}
-
 .v3-ordo-saisies {
-  margin: 0 0 0 2.5rem;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -299,34 +218,4 @@
 
 .v3-ordo-vigil .is-obs {
   font-weight: 600;
-}
-
-@media (max-width: 640px) {
-  .v3-ordo-sheet {
-    padding: 20px 16px 24px;
-  }
-
-  .v3-ordo-besoin-head {
-    align-items: stretch;
-  }
-
-  .v3-ordo-besoin-act {
-    margin-left: 0;
-    width: 100%;
-  }
-
-  .v3-ordo-champs,
-  .v3-ordo-rest,
-  .v3-ordo-saisies {
-    margin-left: 0;
-  }
-
-  .v3-ordo-dl {
-    grid-template-columns: 1fr;
-    gap: 2px 0;
-  }
-
-  .v3-ordo-id {
-    grid-template-columns: 1.5rem minmax(0, 1fr);
-  }
 }

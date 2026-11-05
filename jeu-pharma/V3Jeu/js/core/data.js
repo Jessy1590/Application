@@ -1,9 +1,9 @@
 /* V3Data — lectures jeupharma (site de base, lecture seule) + auth. */
 (function (global) {
   let sbJeu = null;
-  let sbPortail = null;
   let cacheLessons = null;
   let cacheBlocks = null;
+  let cacheTree = null;
 
   const COMPLET = 'id, dci, nom_commercial, noms_commerciaux, indications, contre_indications, effets_indesirables, precautions_emploi, interactions, surveillances, voies_administration, detail_pharmacologie, posologie_generale, grossesse_allaitement, secteur_therapeutique, classe_therapeutique, classe_pharmacologique, conditions_prescription_delivrance, conseils_delivrance';
   const PAGE = 1000;
@@ -23,10 +23,7 @@
   }
 
   function portail() {
-    if (sbPortail) return sbPortail;
-    const c = cfg();
-    sbPortail = global.supabase.createClient(c.url, c.anonKey, { db: { schema: 'portail' } });
-    return sbPortail;
+    return jeu().schema('portail');
   }
 
   function norm(s) {
@@ -97,45 +94,33 @@
     return out;
   }
 
-  async function syncPortailSession(session) {
-    if (!session) return;
-    try {
-      await portail().auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-    } catch (_) { /* ignore */ }
-  }
-
   async function session() {
     const { data, error } = await jeu().auth.getSession();
     if (error) throw error;
     const s = data && data.session;
-    if (s) await syncPortailSession(s);
     return s || null;
   }
 
-  async function user() {
-    const s = await session();
+  async function user(fromSession) {
+    const s = fromSession !== undefined ? fromSession : await session();
     return (s && s.user) || null;
   }
 
   async function signIn(email, password) {
     const { data, error } = await jeu().auth.signInWithPassword({ email: email, password: password });
     if (error) throw error;
-    if (data.session) await syncPortailSession(data.session);
     return data.session;
   }
 
   async function signOut() {
     await jeu().auth.signOut();
-    try { await portail().auth.signOut(); } catch (_) { /* ignore */ }
     cacheLessons = null;
     cacheBlocks = null;
+    cacheTree = null;
   }
 
-  async function isAdmin() {
-    const u = await user();
+  async function isAdmin(fromSession) {
+    const u = await user(fromSession);
     if (!u) return false;
     const { data, error } = await portail()
       .from('profiles')
@@ -148,8 +133,7 @@
 
   function onAuth(cb) {
     return jeu().auth.onAuthStateChange(function (_e, s) {
-      if (s) syncPortailSession(s);
-      cb(s || null);
+      setTimeout(function () { cb(s || null); }, 0);
     });
   }
 
@@ -157,26 +141,84 @@
     return !!(pa && pa.est_laboratoire);
   }
 
-  async function lessons() {
-    if (cacheLessons) return cacheLessons;
+  async function modulesTree() {
+    if (cacheTree) return cacheTree;
     const { data, error } = await jeu()
       .from('modules_cours')
-      .select('id, titre, est_groupe, parcours_id, parcours_apprentissage(libelle, est_laboratoire)')
-      .eq('est_groupe', false)
+      .select('id, titre, parent_id, est_groupe, parcours_id, niveau_min, niveau_max, parcours_apprentissage(libelle, est_laboratoire)')
       .order('titre');
     if (error) throw error;
-    cacheLessons = (data || []).filter(function (m) {
+    cacheTree = (data || []).filter(function (m) {
       return !isLab(m.parcours_apprentissage);
     }).map(function (m) {
       return {
         id: m.id,
+        titre: m.titre || (m.est_groupe ? 'Chapitre' : 'Leçon'),
+        parent_id: m.parent_id || null,
+        est_groupe: !!m.est_groupe,
+        parcours_id: m.parcours_id,
+        parcours: (m.parcours_apprentissage && m.parcours_apprentissage.libelle) || '',
+        niveau_min: m.niveau_min,
+        niveau_max: m.niveau_max,
+      };
+    });
+    return cacheTree;
+  }
+
+  async function lessons() {
+    if (cacheLessons) return cacheLessons;
+    const tree = await modulesTree();
+    cacheLessons = tree.filter(function (m) { return !m.est_groupe; }).map(function (m) {
+      return {
+        id: m.id,
         kind: 'lecon',
         label: m.titre || 'Leçon',
-        sub: (m.parcours_apprentissage && m.parcours_apprentissage.libelle) || '',
+        sub: m.parcours || '',
+        parent_id: m.parent_id,
         parcours_id: m.parcours_id,
+        niveau_min: m.niveau_min,
+        niveau_max: m.niveau_max,
       };
     });
     return cacheLessons;
+  }
+
+  function leafLessonIds(tree, chapterId) {
+    const byParent = {};
+    tree.forEach(function (m) {
+      const p = m.parent_id || '';
+      (byParent[p] = byParent[p] || []).push(m);
+    });
+    const acc = [];
+    function walk(id) {
+      const kids = byParent[id] || [];
+      if (!kids.length) {
+        const self = tree.filter(function (x) { return x.id === id; })[0];
+        if (self && !self.est_groupe) acc.push(self.id);
+        return;
+      }
+      kids.forEach(function (k) {
+        if (k.est_groupe) walk(k.id);
+        else acc.push(k.id);
+      });
+    }
+    walk(chapterId);
+    return acc;
+  }
+
+  async function chapters() {
+    const tree = await modulesTree();
+    return tree.filter(function (m) { return m.est_groupe; }).map(function (m) {
+      return {
+        id: m.id,
+        kind: 'chapitre',
+        label: m.titre || 'Chapitre',
+        sub: m.parcours || '',
+        parent_id: m.parent_id,
+        parcours_id: m.parcours_id,
+        lessonIds: leafLessonIds(tree, m.id),
+      };
+    });
   }
 
   async function blocks() {
@@ -194,7 +236,7 @@
       return {
         id: b.id,
         kind: 'bloc',
-        label: b.titre || 'Bloc',
+        label: b.titre || (b.modules_cours && b.modules_cours.titre) || 'Bloc',
         sub: (b.modules_cours && b.modules_cours.titre) || '',
         moduleId: b.module_id,
         matriceIds: ids.matriceIds,
@@ -218,7 +260,13 @@
       p_limit: 20,
     });
     if (error) throw error;
-    const rows = Array.isArray(data) ? data : [];
+    let rows = Array.isArray(data) ? data : [];
+    const term = norm(q);
+    if (term) {
+      rows = rows.filter(function (r) {
+        return norm(r.dci).indexOf(term) >= 0 || norm(r.noms).indexOf(term) >= 0;
+      });
+    }
     return rows.map(function (r) {
       return {
         id: r.id,
@@ -261,7 +309,7 @@
   async function publications(moduleIds) {
     const rows = await inChunks(
       'publications_connaissances',
-      'id, module_id, connaissance_id, connaissances!inner(id, matrice_id, champ_code, texte, entite_id)',
+      'id, module_id, connaissance_id, niveau_min, niveau_max, connaissances!inner(id, matrice_id, champ_code, texte, entite_id)',
       'module_id',
       moduleIds,
       function (q) { return q.eq('actif', true); }
@@ -276,6 +324,8 @@
         champ_code: c.champ_code || '',
         texte: c.texte || '',
         entite_id: c.entite_id || null,
+        niveau_min: p.niveau_min,
+        niveau_max: p.niveau_max,
       };
     }).filter(function (p) { return p.matrice_id; });
   }
@@ -296,6 +346,8 @@
     isAdmin: isAdmin,
     onAuth: onAuth,
     lessons: lessons,
+    chapters: chapters,
+    modulesTree: modulesTree,
     blocks: blocks,
     searchMolecules: searchMolecules,
     secteurs: secteurs,

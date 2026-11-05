@@ -3,7 +3,7 @@
   const U = global.V3UI;
   const D = global.V3Data;
   const h = U.h;
-  const STEPS = ['Molécules', 'Jeu', 'Paramètres', 'Perso', 'Essai'];
+  const STEPS = ['Molécules', 'Jeu', 'Paramètres', 'Personnalisation', 'Essai'];
   const ICO = {
     quiz: 'Q',
     trous: 'T',
@@ -22,9 +22,17 @@
       cfg: cfg,
       meta: meta,
       mols: function () {
-        if (!molsP) molsP = global.V3Selection.resolve(meta.selection);
+        if (!molsP) {
+          molsP = global.V3Selection.resolve(meta.selection, {
+            niveau_min: meta.niveau_min,
+            niveau_max: meta.niveau_max,
+          });
+        }
         return molsP;
       },
+      /** Sélection brute (pool étape 1) — phase 2 : pré-remplir classement / appariement. */
+      poolSel: function () { return global.V3Selection.copy ? global.V3Selection.copy(meta.selection) : meta.selection; },
+      pool: function () { return ctx.mols(); },
       changed: function () {},
       ui: U,
       data: D,
@@ -38,14 +46,17 @@
 
   function poolOf(jeu) {
     const p = (jeu && jeu.pool) || {};
+    const f = p.filtres || {};
+    const chap = p.chapitre_ids || f.__chapitre_ids || [];
     return {
       module_ids: p.module_ids || [],
       bloc_ids: p.bloc_ids || [],
       matrice_ids: p.matrice_ids || [],
+      chapitre_ids: Array.isArray(chap) ? chap.slice() : [],
       filtres: {
-        secteur: (p.filtres && p.filtres.secteur) || [],
-        classe_ther: (p.filtres && p.filtres.classe_ther) || [],
-        classe_pharma: (p.filtres && p.filtres.classe_pharma) || [],
+        secteur: f.secteur || [],
+        classe_ther: f.classe_ther || [],
+        classe_pharma: f.classe_pharma || [],
       },
     };
   }
@@ -185,13 +196,15 @@
   function buildStep(state, step) {
     const pane = h('div', { class: 'v3-pane' });
     if (step === 1) {
-      const note = h('p', { class: 'v3-muted' }, 'Facultatif pour classement et appariement (import).');
       const mount = h('div');
-      pane.append(note, mount);
+      pane.append(
+        U.card('Pool de molécules', mount)
+      );
       selApi = global.V3Selection.mount(mount, {
         value: state.meta.selection,
         onChange: function (sel) {
           state.meta.selection = sel;
+          state.pool = sel;
           state.ctx.invalidateMols();
           state.dirty345 = true;
         },
@@ -207,36 +220,37 @@
       } else if (step === 4) {
         def.perso(pane, state.ctx);
       } else {
+        const essaiTools = h('div', { class: 'v3-essai-tools' });
+        const playPanel = U.essaiPanel({ title: 'Essai' });
         const playHost = h('div', { class: 'v3-play' });
         const finHost = h('div');
-        pane.append(playHost, finHost);
-        def.play(playHost, state.ctx, {
-          reel: false,
-          jeu: state.jeu,
-          rpc: function () { return Promise.reject(new Error('Essai')); },
-          fin: function (r) {
-            finHost.replaceChildren(
-              global.V3Notation.resultat(r.obtenu, r.max),
-              h('div', { class: 'v3-actions' },
-                U.button('Rejouer', {
-                  variant: 'primary',
-                  onClick: function () {
-                    finHost.replaceChildren();
-                    playHost.replaceChildren();
-                    def.play(playHost, state.ctx, {
-                      reel: false,
-                      jeu: state.jeu,
-                      rpc: function () { return Promise.reject(new Error('Essai')); },
-                      fin: function (r2) {
-                        finHost.replaceChildren(global.V3Notation.resultat(r2.obtenu, r2.max));
-                      },
-                    });
-                  },
-                })
-              )
-            );
-          },
-        });
+        playPanel.body.append(playHost, finHost);
+        function lancerEssai() {
+          playPanel.open();
+          finHost.replaceChildren();
+          playHost.replaceChildren();
+          def.play(playHost, state.ctx, {
+            reel: false,
+            jeu: state.jeu,
+            rpc: function () { return Promise.reject(new Error('Essai')); },
+            fin: function (r) {
+              const o = Number(r && r.obtenu);
+              const m = Number(r && r.max);
+              finHost.replaceChildren(
+                global.V3Notation.resultat(Number.isFinite(o) ? o : 0, Number.isFinite(m) ? m : 0),
+                h('div', { class: 'v3-actions' },
+                  U.button('Rejouer', { variant: 'primary', onClick: lancerEssai })
+                )
+              );
+            },
+          });
+        }
+        essaiTools.appendChild(U.button('Tester', {
+          variant: 'primary',
+          onClick: lancerEssai,
+        }));
+        pane.append(essaiTools, playPanel.el);
+        if (def.essai) def.essai(essaiTools, state.ctx);
       }
     }
     return pane;
@@ -290,13 +304,19 @@
     const vis = U.stars(state.meta.niveau_min, state.meta.niveau_max, function (a, b) {
       state.meta.niveau_min = a;
       state.meta.niveau_max = b;
+      state.ctx.invalidateMols();
+      state.dirty345 = true;
     });
 
     return h('div', { class: 'v3-stack' },
-      U.field('Type', tiles, { col: true }),
-      U.field('Titre', titre),
-      U.field('Leçon(s)', lecons, { tip: 'Liaison parcours, hors pool.' }),
-      U.field('Visibilité', vis, { tip: '★ min–max du jeu.' })
+      U.card('Jeu',
+        U.field('Type', tiles, { col: true }),
+        U.grid(2,
+          U.field('Titre', titre),
+          U.field('Visibilité', vis, { tip: '★ min–max du jeu.' })
+        ),
+        U.field('Leçon(s)', lecons, { tip: 'Liaison parcours, hors pool.' })
+      )
     );
   }
 
@@ -341,7 +361,14 @@
       module_ids: state.meta.module_ids || [],
       niveau_min: state.meta.niveau_min,
       niveau_max: state.meta.niveau_max,
-      pool: state.meta.selection,
+      pool: (function () {
+        const p = global.V3Selection.copy(state.meta.selection);
+        if ((p.chapitre_ids || []).length) {
+          p.filtres = p.filtres || {};
+          p.filtres.__chapitre_ids = p.chapitre_ids.slice();
+        }
+        return p;
+      })(),
     }, def.payload(state.ctx));
     try {
       if (state.jeuId) await global.V3Store.maj(state.jeuId, payload);
@@ -367,9 +394,10 @@
     opts = opts || {};
     destroy();
     const app = document.getElementById('app');
+    const moduleId = opts.moduleId || opts.lecon || opts.module || '';
     const meta = {
       titre: 'Quiz',
-      module_ids: [],
+      module_ids: moduleId ? [moduleId] : [],
       niveau_min: 1,
       niveau_max: 5,
       selection: global.V3Selection.empty(),
@@ -379,6 +407,7 @@
       maxStep: 1,
       type: 'quiz',
       meta: meta,
+      pool: meta.selection,
       jeuId: null,
       jeu: null,
       nomTouched: false,
@@ -408,6 +437,7 @@
         meta.niveau_min = jeu.niveau_min || 1;
         meta.niveau_max = jeu.niveau_max || 5;
         meta.selection = poolOf(jeu);
+        state.pool = meta.selection;
         const def = global.V3Games.get(state.type);
         state.ctx = makeCtx(meta, {});
         state.ctx.cfg = (def && def.fromConfig(raw)) || (def && def.defaults(state.ctx)) || {};
@@ -438,7 +468,24 @@
     paintStepper(state);
     showPane(state, 1);
     refreshValid(state);
+
+    if (moduleId && !opts.code) {
+      try {
+        const sel = await global.V3Selection.selectionFromLesson(moduleId);
+        meta.selection = sel;
+        state.pool = sel;
+        state.ctx.invalidateMols();
+        if (selApi && selApi.set) selApi.set(sel);
+      } catch (e) {
+        U.toast(e.message || 'Import leçon impossible', 'err');
+      }
+    }
   }
 
-  global.V3Wizard = { open: open, makeCtx: makeCtx, destroy: destroy };
+  global.V3Wizard = {
+    open: open,
+    makeCtx: makeCtx,
+    destroy: destroy,
+    pool: function () { return host && host.pool; },
+  };
 })(window);

@@ -9,13 +9,13 @@
       {
         value: 'rapide',
         label: 'Rapide',
-        tip: 'Une note /10 pour l’ensemble.',
+        tip: opts.tipRapide || 'Une note /10 pour l’ensemble.',
         disabled: !!opts.forceDetaille,
       },
       {
         value: 'detaille',
         label: 'Détaillé',
-        tip: '0 · ½ · 1 par valeur masquée.',
+        tip: opts.tipDetaille || '0 · ½ · 1 par valeur masquée.',
       },
     ], opts.forceDetaille ? 'detaille' : null, function (v) {
       if (opts.onPick) opts.onPick(v);
@@ -93,9 +93,10 @@
             },
           }, lab));
         });
+        const ctxLab = it.contexte && it.contexte !== g.groupe ? it.contexte : '';
         return h('div', { class: 'v3-note-item' },
           h('div', null,
-            it.contexte ? h('div', null, it.contexte) : null,
+            ctxLab ? h('div', null, ctxLab) : null,
             it.saisie ? h('div', null, it.saisie) : null,
             h('div', { class: 'v3-note-attendu' }, it.attendu || '')
           ),
@@ -106,11 +107,15 @@
     });
 
     tot();
-    el.replaceChildren(cards.length ? cards : U.empty('—'), totalEl);
+    el.replaceChildren.apply(el, (cards.length ? cards : [U.empty('—')]).concat([totalEl]));
   }
 
   function resultat(obtenu, max) {
-    return h('p', { class: 'v3-fin-score' }, String(obtenu) + ' / ' + String(max));
+    const o = Number(obtenu);
+    const m = Number(max);
+    return h('p', { class: 'v3-fin-score' },
+      (Number.isFinite(o) ? String(o) : '0') + ' / ' + (Number.isFinite(m) ? String(m) : '0')
+    );
   }
 
   global.V3Notation = {

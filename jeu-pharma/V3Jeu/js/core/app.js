@@ -50,9 +50,15 @@
     );
   }
 
-  function parts() {
+  function hashParts() {
     const raw = (location.hash || '#/').replace(/^#/, '');
-    return raw.split('/').filter(Boolean);
+    const qi = raw.indexOf('?');
+    const path = qi >= 0 ? raw.slice(0, qi) : raw;
+    const query = qi >= 0 ? raw.slice(qi + 1) : '';
+    return {
+      parts: path.split('/').filter(Boolean),
+      query: new URLSearchParams(query),
+    };
   }
 
   function ecranFin(host, r, replay, back) {
@@ -126,9 +132,15 @@
     if (global.V3Wizard && global.V3Wizard.destroy) global.V3Wizard.destroy();
     if (!currentUser) { login(); return; }
     if (!admin) { gate(); return; }
-    const p = parts();
+    const hp = hashParts();
+    const p = hp.parts;
     if (!p.length) { global.V3List.mount(app); return; }
-    if (p[0] === 'nouveau') { void global.V3Wizard.open({}); return; }
+    if (p[0] === 'nouveau') {
+      void global.V3Wizard.open({
+        moduleId: hp.query.get('lecon') || hp.query.get('module') || '',
+      });
+      return;
+    }
     if (p[0] === 'edit' && p[1]) { void global.V3Wizard.open({ code: p.slice(1).join('/') }); return; }
     if (p[0] === 'jouer' && p[1]) { void jouer(p.slice(1).join('/')); return; }
     location.hash = '#/';
@@ -141,7 +153,7 @@
     currentUser = session && session.user ? session.user : null;
     admin = false;
     if (currentUser) {
-      try { admin = await D.isAdmin(); } catch (_) { admin = false; }
+      try { admin = await D.isAdmin(session); } catch (_) { admin = false; }
     }
     bar();
     const uid = currentUser && currentUser.id;

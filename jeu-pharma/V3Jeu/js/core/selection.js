@@ -4,6 +4,7 @@
   const D = global.V3Data;
   const C = global.V3Champs;
   const h = U.h;
+  const txt = U.txt;
 
   const resolveCache = {};
   const nameCache = {};
@@ -15,6 +16,7 @@
       module_ids: [],
       bloc_ids: [],
       matrice_ids: [],
+      chapitre_ids: [],
       filtres: { secteur: [], classe_ther: [], classe_pharma: [] },
     };
   }
@@ -22,10 +24,12 @@
   function copy(sel) {
     const s = sel || empty();
     const f = s.filtres || {};
+    const chapFromFiltres = Array.isArray(f.__chapitre_ids) ? f.__chapitre_ids : [];
     return {
       module_ids: (s.module_ids || []).slice(),
       bloc_ids: (s.bloc_ids || []).slice(),
       matrice_ids: (s.matrice_ids || []).slice(),
+      chapitre_ids: (Array.isArray(s.chapitre_ids) ? s.chapitre_ids : chapFromFiltres).slice(),
       filtres: {
         secteur: (f.secteur || []).slice(),
         classe_ther: (f.classe_ther || []).slice(),
@@ -40,28 +44,101 @@
     return !(s.module_ids || []).length
       && !(s.bloc_ids || []).length
       && !(s.matrice_ids || []).length
+      && !(s.chapitre_ids || []).length
       && !(f.secteur || []).length
       && !(f.classe_ther || []).length
       && !(f.classe_pharma || []).length;
   }
 
-  function keyOf(sel) {
-    return JSON.stringify(copy(sel));
+  function keyOf(sel, opts) {
+    opts = opts || {};
+    return JSON.stringify(copy(sel)) + '|' + (Number(opts.niveau_min) || 1) + '|' + (Number(opts.niveau_max) || 5);
+  }
+
+  function starPair(min, max) {
+    let a = Math.min(5, Math.max(1, Number(min) || 1));
+    let b = Math.min(5, Math.max(1, Number(max) || 5));
+    if (a > b) b = a;
+    return [a, b];
+  }
+
+  function rangesCross(aMin, aMax, bMin, bMax) {
+    const pa = starPair(aMin, aMax);
+    const pb = starPair(bMin, bMax);
+    return pa[0] <= pb[1] && pb[0] <= pa[1];
   }
 
   function texts(v) {
     if (v == null || v === '') return [];
-    if (typeof v === 'string') return [v];
+    if (typeof v === 'string') {
+      const t = txt(v);
+      return t ? [t] : [];
+    }
     if (Array.isArray(v)) {
       return v.map(function (x) {
-        return typeof x === 'string' ? x : ((x && x.valeur) || '');
+        if (typeof x === 'string') return txt(x);
+        return txt((x && (x.valeur || x.label || x.texte)) || '');
       }).filter(Boolean);
     }
     return [];
   }
 
+  async function blocsOfLesson(moduleId) {
+    if (!moduleId) return [];
+    const list = await D.blocks();
+    return list.filter(function (b) { return String(b.moduleId) === String(moduleId); });
+  }
+
+  async function blocsOfChapter(chapterId) {
+    if (!chapterId) return [];
+    const chaps = await D.chapters();
+    const ch = chaps.filter(function (c) { return String(c.id) === String(chapterId); })[0];
+    if (!ch) return [];
+    const set = {};
+    (ch.lessonIds || []).forEach(function (id) { set[String(id)] = true; });
+    const list = await D.blocks();
+    return list.filter(function (b) { return set[String(b.moduleId)]; });
+  }
+
+  async function selectionFromLesson(moduleId) {
+    const sel = empty();
+    if (!moduleId) return sel;
+    sel.module_ids = [String(moduleId)];
+    const blocs = await blocsOfLesson(moduleId);
+    sel.bloc_ids = blocs.map(function (b) { return b.id; });
+    return sel;
+  }
+
+  async function selectionFromChapter(chapterId) {
+    const sel = empty();
+    if (!chapterId) return sel;
+    sel.chapitre_ids = [String(chapterId)];
+    return sel;
+  }
+
+  async function lessonIdsOfChapters(chapitreIds) {
+    const ids = (chapitreIds || []).filter(Boolean).map(String);
+    if (!ids.length) return [];
+    const chaps = await D.chapters();
+    const out = [];
+    const seen = {};
+    ids.forEach(function (cid) {
+      const ch = chaps.filter(function (c) { return String(c.id) === String(cid); })[0];
+      (ch && ch.lessonIds || []).forEach(function (id) {
+        const k = String(id);
+        if (seen[k]) return;
+        seen[k] = true;
+        out.push(k);
+      });
+    });
+    return out;
+  }
+
   function hasSource(sel) {
-    return (sel.module_ids || []).length + (sel.bloc_ids || []).length + (sel.matrice_ids || []).length > 0;
+    return (sel.module_ids || []).length
+      + (sel.bloc_ids || []).length
+      + (sel.matrice_ids || []).length
+      + (sel.chapitre_ids || []).length > 0;
   }
 
   function matchFiltres(fiche, filtres) {
@@ -82,11 +159,12 @@
     return (bloc.matriceIds || []).filter(function (id) { return !hide.has(String(id)); });
   }
 
-  async function resolve(sel) {
+  async function resolve(sel, opts) {
     const s = copy(sel);
-    const k = keyOf(s);
+    opts = opts || {};
+    const k = keyOf(s, opts);
     if (resolveCache[k]) return resolveCache[k];
-    const p = doResolve(s).catch(function (e) {
+    const p = doResolve(s, opts).catch(function (e) {
       delete resolveCache[k];
       throw e;
     });
@@ -94,7 +172,10 @@
     return p;
   }
 
-  async function doResolve(sel) {
+  async function doResolve(sel, opts) {
+    opts = opts || {};
+    const jeuMin = opts.niveau_min;
+    const jeuMax = opts.niveau_max;
     const [allLessons, allBlocks] = await Promise.all([D.lessons(), D.blocks()]);
     const lessonBy = {};
     allLessons.forEach(function (l) { lessonBy[l.id] = l; });
@@ -104,7 +185,8 @@
     const molSet = new Set();
     const origine = {};
     const masked = new Set();
-    const concerned = new Set((sel.module_ids || []).map(String));
+    const chapLessons = await lessonIdsOfChapters(sel.chapitre_ids);
+    const concerned = new Set((sel.module_ids || []).concat(chapLessons).map(String));
 
     function addOrig(id, kind, srcId, srcLabel) {
       const k = String(id);
@@ -112,13 +194,17 @@
       (origine[k] = origine[k] || []).push({ kind: kind, id: srcId, label: srcLabel });
     }
 
-    (sel.module_ids || []).forEach(function (lid) {
+    Array.from(concerned).forEach(function (lid) {
       const lecon = lessonBy[lid];
+      const fromChap = chapLessons.indexOf(String(lid)) >= 0 && (sel.module_ids || []).indexOf(lid) < 0
+        && (sel.module_ids || []).indexOf(String(lid)) < 0;
+      const kind = fromChap ? 'chapitre' : 'lecon';
+      const srcLabel = (lecon && lecon.label) || (fromChap ? 'Chapitre' : 'Leçon');
       allBlocks.forEach(function (b) {
         if (String(b.moduleId) !== String(lid)) return;
         (b.masqueIds || []).forEach(function (id) { masked.add(String(id)); });
         visibleIds(b).forEach(function (id) {
-          addOrig(id, 'lecon', lid, (lecon && lecon.label) || 'Leçon');
+          addOrig(id, kind, lid, srcLabel);
         });
       });
     });
@@ -150,6 +236,13 @@
         if (!molSet.has(id)) addOrig(id, 'lecon', p.module_id, (lessonBy[p.module_id] && lessonBy[p.module_id].label) || 'Leçon');
       });
     }
+
+    pubs = pubs.filter(function (p) {
+      if (!rangesCross(p.niveau_min, p.niveau_max, jeuMin, jeuMax)) return false;
+      const lec = lessonBy[p.module_id];
+      if (!lec) return true;
+      return rangesCross(lec.niveau_min, lec.niveau_max, jeuMin, jeuMax);
+    });
 
     const explicit = new Set((sel.matrice_ids || []).map(String));
     let ids = Array.from(molSet).filter(function (id) {
@@ -188,26 +281,38 @@
       const fromPub = pubVals && Object.keys(pubVals).length;
       const valeurs = {};
       C.list.forEach(function (c) {
-        if (fromPub) valeurs[c.code] = (pubVals && pubVals[c.code]) || [];
-        else valeurs[c.code] = fieldOf(row, c.code);
+        if (fromPub) {
+          valeurs[c.code] = (pubVals && pubVals[c.code]) || [];
+        } else if (c.identite || c.code === 'dci' || c.code === 'nom_commercial') {
+          valeurs[c.code] = fieldOf(row, c.code);
+        } else {
+          valeurs[c.code] = [];
+        }
       });
       const noms = texts(row.noms_commerciaux);
       if (!noms.length && row.nom_commercial) noms.push(row.nom_commercial);
       const comps = compsBy[id] || [];
       const orig = (origine[id] || []).map(function (o) {
-        if (o.kind === 'molecule' && !o.label) o.label = row.dci || noms[0] || id;
+        if (o.kind === 'molecule' && !o.label) o.label = txt(row.dci) || noms[0] || id;
         return o;
       });
       const mol = {
         id: id,
-        dci: row.dci || '',
+        dci: txt(row.dci),
         noms: noms,
         est_association: comps.length >= 2,
         composants: comps,
         valeurs: valeurs,
         origine: orig,
       };
-      if (!fromPub) mol.source = 'complet';
+      if (!fromPub) {
+        mol.source = 'complet';
+        const hasVal = C.list.some(function (c) {
+          if (c.identite || c.code === 'dci' || c.code === 'nom_commercial') return false;
+          return (valeurs[c.code] || []).length > 0;
+        });
+        if (!hasVal) mol.vide = true;
+      }
       return mol;
     });
   }
@@ -226,10 +331,13 @@
     const s = sel || empty();
     const bits = [];
     const nL = (s.module_ids || []).length;
+    const nC = (s.chapitre_ids || []).length;
     const nB = (s.bloc_ids || []).length;
     const nM = (s.matrice_ids || []).length;
     const f = s.filtres || {};
     const nF = (f.secteur || []).length + (f.classe_ther || []).length + (f.classe_pharma || []).length;
+    if (nC === 1) bits.push(nameCache['chapitre:' + s.chapitre_ids[0]] || '1 chapitre');
+    else if (nC) bits.push(nC + ' chapitres');
     if (nL === 1) bits.push(nameCache['lecon:' + s.module_ids[0]] || '1 leçon');
     else if (nL) bits.push(nL + ' leçons');
     if (nB) bits.push(nB + ' bloc' + (nB > 1 ? 's' : ''));
@@ -347,6 +455,7 @@
       filtOpen: false,
       countTimer: 0,
       destroyed: false,
+      _coveredLessons: {},
     };
     const compact = !!opts.compact;
     let uid = 'v3sel-' + Math.random().toString(36).slice(2, 8);
@@ -375,6 +484,7 @@
     const seg = U.segmented(
       [
         { value: 'lecon', label: 'Leçon' },
+        { value: 'chapitre', label: 'Chapitre' },
         { value: 'bloc', label: 'Bloc' },
         { value: 'molecule', label: 'Molécule' },
       ],
@@ -404,6 +514,9 @@
       if (kind === 'lecon') {
         if (state.sel.module_ids.indexOf(id) >= 0) return;
         state.sel.module_ids.push(id);
+      } else if (kind === 'chapitre') {
+        if (state.sel.chapitre_ids.indexOf(id) >= 0) return;
+        state.sel.chapitre_ids.push(id);
       } else if (kind === 'bloc') {
         if (state.sel.bloc_ids.indexOf(id) >= 0) return;
         state.sel.bloc_ids.push(id);
@@ -428,6 +541,7 @@
 
     function remove(kind, id, type, normVal) {
       if (kind === 'lecon') state.sel.module_ids = state.sel.module_ids.filter(function (x) { return x !== id; });
+      else if (kind === 'chapitre') state.sel.chapitre_ids = state.sel.chapitre_ids.filter(function (x) { return x !== id; });
       else if (kind === 'bloc') state.sel.bloc_ids = state.sel.bloc_ids.filter(function (x) { return x !== id; });
       else if (kind === 'molecule') state.sel.matrice_ids = state.sel.matrice_ids.filter(function (x) { return x !== id; });
       else if (kind === 'filtre') {
@@ -440,7 +554,13 @@
 
     function paintChips() {
       const nodes = [];
+      const covered = state._coveredLessons || {};
+      state.sel.chapitre_ids.forEach(function (id) {
+        const lab = state.labels['chapitre:' + id] || id.slice(0, 8);
+        nodes.push(U.chip(lab, { kind: 'chapitre', onRemove: function () { remove('chapitre', id); } }));
+      });
       state.sel.module_ids.forEach(function (id) {
+        if (covered[String(id)]) return;
         const lab = state.labels['lecon:' + id] || id.slice(0, 8);
         nodes.push(U.chip(lab, { kind: 'lecon', onRemove: function () { remove('lecon', id); } }));
       });
@@ -495,6 +615,21 @@
         return list.filter(function (l) {
           return !n || D.norm(l.label + ' ' + l.sub).indexOf(n) >= 0;
         }).slice(0, 12);
+      }
+      if (state.mode === 'chapitre') {
+        const list = await D.chapters();
+        return list.filter(function (c) {
+          if (!(c.lessonIds || []).length) return false;
+          return !n || D.norm((c.label || '') + ' ' + (c.sub || '')).indexOf(n) >= 0;
+        }).slice(0, 12).map(function (c) {
+          const nL = (c.lessonIds || []).length;
+          return {
+            id: c.id,
+            kind: 'chapitre',
+            label: txt(c.label) || 'Chapitre',
+            sub: (c.sub ? txt(c.sub) + ' · ' : '') + nL + ' leçon' + (nL > 1 ? 's' : ''),
+          };
+        });
       }
       if (state.mode === 'bloc') {
         const list = await D.blocks();
@@ -561,7 +696,7 @@
 
     async function hydrate() {
       try {
-        const [les, blo] = await Promise.all([D.lessons(), D.blocks()]);
+        const [les, blo, chaps] = await Promise.all([D.lessons(), D.blocks(), D.chapters()]);
         les.forEach(function (l) {
           state.labels['lecon:' + l.id] = l.label;
           nameCache['lecon:' + l.id] = l.label;
@@ -570,6 +705,16 @@
           state.labels['bloc:' + b.id] = b.label;
           nameCache['bloc:' + b.id] = b.label;
         });
+        const covered = {};
+        (chaps || []).forEach(function (c) {
+          state.labels['chapitre:' + c.id] = c.label;
+          nameCache['chapitre:' + c.id] = c.label;
+        });
+        (state.sel.chapitre_ids || []).forEach(function (cid) {
+          const ch = (chaps || []).filter(function (c) { return String(c.id) === String(cid); })[0];
+          (ch && ch.lessonIds || []).forEach(function (id) { covered[String(id)] = true; });
+        });
+        state._coveredLessons = covered;
         if (state.sel.matrice_ids.length) {
           const rows = await D.fiches(state.sel.matrice_ids);
           rows.forEach(function (r) { state.labels['molecule:' + r.id] = r.dci || r.nom_commercial || r.id; });
@@ -583,8 +728,12 @@
     syncFilt();
     void hydrate();
 
+    function getSel() { return copy(state.sel); }
+
     return {
-      get: function () { return copy(state.sel); },
+      get: getSel,
+      getPool: getSel,
+      pool: function () { return resolve(state.sel); },
       set: function (sel) {
         state.sel = copy(sel);
         void hydrate();
@@ -602,8 +751,15 @@
   global.V3Selection = {
     mount: mount,
     resolve: resolve,
+    pool: resolve,
     empty: empty,
+    copy: copy,
     isEmpty: isEmpty,
     label: label,
+    blocsOfLesson: blocsOfLesson,
+    blocsOfChapter: blocsOfChapter,
+    selectionFromLesson: selectionFromLesson,
+    selectionFromChapter: selectionFromChapter,
+    lessonIdsOfChapters: lessonIdsOfChapters,
   };
 })(window);

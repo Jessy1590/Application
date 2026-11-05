@@ -28,6 +28,11 @@
     return a;
   }
 
+  /** Molécules avec au moins une publication visible (hors `vide`). */
+  function molsJoueur(mols) {
+    return (mols || []).filter(function (m) { return !m.vide; });
+  }
+
   function includedCols(cfg) {
     return (cfg.colonnes || [])
       .filter(function (c) { return c.included; })
@@ -112,7 +117,7 @@
   }
 
   function pickLignes(cfg, mols) {
-    const pool = mols.slice();
+    const pool = molsJoueur(mols);
     const cols = includedCols(cfg);
     const trouCols = trouableCols(cfg);
     if (cfg.lignes_mode === 'groupe') {
@@ -216,7 +221,8 @@
   }
 
   function molLabel(mol) {
-    return mol.dci || '—';
+    const t = global.V3UI && global.V3UI.txt;
+    return (t ? t(mol && mol.dci) : (mol && mol.dci)) || '—';
   }
 
   function renderCellValues(vals, className) {
@@ -270,8 +276,8 @@
           const key = cellKey(mol.id, col.champ_code);
           const isHole = !!holeSet[key];
           const editable = opts.onCellClick && col.role === 'trouable' && vs.length;
-          const playHole = opts.play && isHole && !opts.revealed;
-          const playInput = opts.play && isHole && opts.revealed === false && opts.mode === 'detaille';
+          const playHole = opts.play && isHole && !opts.revealed && opts.mode !== 'detaille';
+          const playInput = opts.play && isHole && !opts.revealed && opts.mode === 'detaille';
 
           if (playInput) {
             const ta = h('textarea', {
@@ -329,6 +335,205 @@
         h('tbody', null, tbody)
       )
     );
+  }
+
+  /** Markup joueur V2 (`jp-trous-grid`). */
+  function renderJpPlayTable(tirage, opts) {
+    opts = opts || {};
+    const cols = tirage.colonnes || [];
+    const lignes = tirage.lignes || [];
+    const holeSet = {};
+    (tirage.trous || []).forEach(function (t) {
+      holeSet[cellKey(t.mol.id, t.code)] = true;
+    });
+    const saisies = opts.saisies || {};
+    const intro = h('p', { class: 'jp-muted' },
+      opts.mode === 'detaille'
+        ? 'Complétez les cases vides, puis révélez les réponses.'
+        : 'Complétez mentalement les cases « ??? ». Seules les infos du parcours sont présentes.'
+    );
+    const thead = h('tr', null,
+      h('th', null, 'Molécule'),
+      cols.map(function (col) {
+        const meta = C.list.find(function (x) { return x.code === col.champ_code; });
+        return h('th', null, meta ? (meta.court || meta.label) : col.champ_code);
+      })
+    );
+    const tbody = lignes.map(function (mol) {
+      const noms = (mol.noms || []).join(', ');
+      return h('tr', null,
+        h('th', { scope: 'row' },
+          h('strong', null, molLabel(mol)),
+          noms ? h('br', null) : null,
+          noms ? h('span', { class: 'jp-muted' }, noms) : null
+        ),
+        cols.map(function (col) {
+          const vs = valsMol(mol, col.champ_code);
+          const key = cellKey(mol.id, col.champ_code);
+          const isHole = !!holeSet[key];
+          let inner;
+          if (!vs.length) {
+            inner = h('span', { class: 'jp-muted' }, '—');
+          } else if (isHole && !opts.revealed && opts.mode === 'detaille') {
+            const ta = h('textarea', {
+              class: 'jp-trous-saisie',
+              rows: 2,
+              'aria-label': (C.label(col.champ_code) || col.champ_code) + ' · ' + molLabel(mol),
+            });
+            if (saisies[key]) ta.value = saisies[key];
+            ta.addEventListener('input', function () {
+              if (opts.onInput) opts.onInput(key, ta.value);
+            });
+            inner = ta;
+          } else if (isHole && !opts.revealed) {
+            inner = h('em', null, '???');
+          } else if (vs.length === 1) {
+            inner = h('span', null, vs[0]);
+          } else {
+            inner = h('ul', { class: 'jp-trous-vals' }, vs.map(function (v) { return h('li', null, v); }));
+          }
+          return h('td', { class: isHole ? 'jp-trou' : '' }, inner);
+        })
+      );
+    });
+    return h('div', null, intro,
+      h('div', { class: 'jp-table-wrap' },
+        h('table', { class: 'jp-table jp-trous-grid' },
+          h('thead', null, thead),
+          h('tbody', null, tbody)
+        )
+      )
+    );
+  }
+
+  function paintColonnesEditor(cfg, mols, ctx, host) {
+    ensureColonnes(cfg, mols);
+    if (!includedCols(cfg).length) bootstrapColonnes(cfg, mols);
+    host.replaceChildren();
+    const sorted = cfg.colonnes.slice().sort(function (a, b) { return a.ordre - b.ordre; });
+    sorted.forEach(function (col) {
+      const meta = C.list.find(function (x) { return x.code === col.champ_code; });
+      if (!meta) return;
+      const cb = h('input', { type: 'checkbox', checked: !!col.included });
+      cb.addEventListener('change', function () {
+        col.included = cb.checked;
+        ctx.changed();
+        paintColonnesEditor(cfg, mols, ctx, host);
+      });
+      const roleHost = h('div', { class: 'v3-trous-role', hidden: !col.included || meta.identite });
+      if (col.included && !meta.identite) {
+        roleHost.hidden = false;
+        roleHost.replaceChildren(U.segmented([
+          { value: 'visible', label: 'Visible', tip: 'Affichée telle quelle.' },
+          { value: 'trouable', label: 'Trouable', tip: 'Peut être masquée.' },
+        ], col.role, function (v) {
+          col.role = v;
+          ctx.changed();
+        }));
+      }
+      const idx = sorted.indexOf(col);
+      function moveCol(dir) {
+        const j = idx + dir;
+        if (j < 0 || j >= sorted.length) return;
+        const tmp = sorted[idx].ordre;
+        sorted[idx].ordre = sorted[j].ordre;
+        sorted[j].ordre = tmp;
+        reindexColonnes(cfg);
+        paintColonnesEditor(cfg, mols, ctx, host);
+      }
+      host.appendChild(h('div', { class: 'v3-trous-col-row' },
+        cb,
+        h('span', { class: 'v3-trous-col-lab' }, meta.label),
+        h('div', { class: 'v3-trous-col-ord' },
+          U.button('↑', { variant: 'ghost', disabled: idx <= 0, onClick: function () { moveCol(-1); } }),
+          U.button('↓', { variant: 'ghost', disabled: idx >= sorted.length - 1, onClick: function () { moveCol(1); } })
+        ),
+        roleHost
+      ));
+    });
+  }
+
+  function mountLignesManuelAdder(mols, cfg, ctx, host) {
+    if (!Array.isArray(cfg.lignes_manuelles)) cfg.lignes_manuelles = [];
+    let draftId = '';
+    const ad = U.adder({
+      title: 'Ligne',
+      propose: false,
+      items: function () { return cfg.lignes_manuelles.slice(); },
+      empty: 'Aucune ligne',
+      draft: function (draftHost, api) {
+        const input = h('input', {
+          type: 'search',
+          class: 'v3-ctrl',
+          placeholder: 'DCI',
+          autocomplete: 'off',
+          'aria-label': 'Molécule',
+        });
+        const drop = h('div', { class: 'v3-sel-drop', hidden: true });
+        const wrap = h('div', { class: 'v3-sel', style: { position: 'relative' } }, input, drop);
+        draftHost.appendChild(wrap);
+        function paintDrop(q) {
+          const n = global.V3Data.norm(q || '');
+          const used = {};
+          cfg.lignes_manuelles.forEach(function (id) { used[id] = true; });
+          const hits = mols.filter(function (m) {
+            if (used[m.id]) return false;
+            const hay = global.V3Data.norm(m.dci + ' ' + (m.noms || []).join(' '));
+            return !n || hay.indexOf(n) >= 0;
+          }).slice(0, 12);
+          drop.replaceChildren();
+          hits.forEach(function (m) {
+            drop.appendChild(h('button', {
+              type: 'button',
+              class: 'v3-sel-opt' + (String(m.id) === String(draftId) ? ' is-on' : ''),
+              onMousedown: function (ev) { ev.preventDefault(); },
+              onClick: function () {
+                draftId = m.id;
+                input.value = molLabel(m);
+                drop.hidden = true;
+                api.setDraftReady(true);
+              },
+            }, molLabel(m)));
+          });
+          if (!hits.length) drop.appendChild(h('div', { class: 'v3-sel-msg' }, '—'));
+          drop.hidden = false;
+        }
+        input.addEventListener('input', function () {
+          draftId = '';
+          api.setDraftReady(false);
+          paintDrop(input.value);
+        });
+        input.addEventListener('focus', function () { paintDrop(input.value); });
+        document.addEventListener('mousedown', function onDoc(ev) {
+          if (!wrap.isConnected) {
+            document.removeEventListener('mousedown', onDoc);
+            return;
+          }
+          if (!wrap.contains(ev.target)) drop.hidden = true;
+        });
+      },
+      onAdd: function () {
+        if (!draftId) return;
+        if (cfg.lignes_manuelles.indexOf(draftId) >= 0) return;
+        cfg.lignes_manuelles.push(draftId);
+        draftId = '';
+      },
+      renderItem: function (id, i, api) {
+        const mol = mols.find(function (m) { return String(m.id) === String(id); });
+        return h('div', { class: 'v3-trous-ligne-row' },
+          h('span', null, mol ? molLabel(mol) : String(id).slice(0, 8)),
+          h('div', { class: 'v3-trous-ligne-act' },
+            U.button('↑', { variant: 'ghost', disabled: i <= 0, onClick: function () { api.move(i, -1); } }),
+            U.button('↓', { variant: 'ghost', disabled: i >= cfg.lignes_manuelles.length - 1, onClick: function () { api.move(i, 1); } }),
+            U.button('Retirer', { variant: 'ghost', onClick: function () { api.remove(i); } })
+          )
+        );
+      },
+      onChange: function () { ctx.changed(); },
+    });
+    host.appendChild(ad.el);
+    ad.refresh();
+    return ad;
   }
 
   function defaults() {
@@ -402,7 +607,9 @@
     if (ctx._trousMolsP !== p) {
       ctx._trousMolsP = p;
       ctx._trousMols = null;
-      void p.then(function (m) { if (ctx._trousMolsP === p) rememberMols(ctx, m); });
+      void p.then(function (m) {
+        if (ctx._trousMolsP === p) rememberMols(ctx, molsJoueur(m));
+      });
     }
     const mols = ctx._trousMols;
     if (mols && !mols.length) msgs.push('Pool vide');
@@ -451,17 +658,16 @@
     const root = h('div', { class: 'v3-stack v3-trous-params' });
     el.replaceChildren(root);
 
-    void ctx.mols().then(function (mols) {
+    void ctx.mols().then(function (raw) {
+      const mols = molsJoueur(raw);
       rememberMols(ctx, mols);
       if (!mols.length) {
         root.replaceChildren(U.empty('Pool vide'));
         return;
       }
-      ensureColonnes(cfg, mols);
-      if (!includedCols(cfg).length) bootstrapColonnes(cfg, mols);
 
-      const colsHost = h('div', { class: 'v3-trous-cols' });
       const lignesExtra = h('div', { class: 'v3-trous-lignes-extra' });
+      const manuelHost = h('div');
       const tauxWrap = h('div', { class: 'v3-trous-taux', hidden: cfg.composition !== 'auto' });
       const tauxVal = h('span', { class: 'v3-trous-taux-val' }, String(cfg.taux_trous) + ' %');
       const tauxRange = h('input', {
@@ -480,120 +686,49 @@
       });
       tauxWrap.append(tauxVal, tauxRange);
 
-      function paintCols() {
-        colsHost.replaceChildren();
-        const sorted = cfg.colonnes.slice().sort(function (a, b) { return a.ordre - b.ordre; });
-        sorted.forEach(function (col) {
-          const meta = C.list.find(function (x) { return x.code === col.champ_code; });
-          if (!meta) return;
-          const cb = h('input', { type: 'checkbox', checked: !!col.included });
-          cb.addEventListener('change', function () {
-            col.included = cb.checked;
-            ctx.changed();
-            paintCols();
-            paintLignesExtra();
-          });
-          const roleHost = h('div', { class: 'v3-trous-role', hidden: !col.included || cfg.composition !== 'auto' || meta.identite });
-          if (col.included && cfg.composition === 'auto' && !meta.identite) {
-            roleHost.hidden = false;
-            roleHost.replaceChildren(U.segmented([
-              { value: 'visible', label: 'Visible' },
-              { value: 'trouable', label: 'Trouable' },
-            ], col.role, function (v) {
-              col.role = v;
-              ctx.changed();
-            }));
-          }
-          const idx = sorted.indexOf(col);
-          function moveCol(dir) {
-            const j = idx + dir;
-            if (j < 0 || j >= sorted.length) return;
-            const tmp = sorted[idx].ordre;
-            sorted[idx].ordre = sorted[j].ordre;
-            sorted[j].ordre = tmp;
-            reindexColonnes(cfg);
-            paintCols();
-            ctx.changed();
-          }
-          colsHost.appendChild(h('div', { class: 'v3-trous-col-row' },
-            cb,
-            h('span', { class: 'v3-trous-col-lab' }, meta.label),
-            h('div', { class: 'v3-trous-col-ord' },
-              U.button('↑', { variant: 'ghost', disabled: idx <= 0, onClick: function () { moveCol(-1); } }),
-              U.button('↓', { variant: 'ghost', disabled: idx >= sorted.length - 1, onClick: function () { moveCol(1); } })
-            ),
-            roleHost
-          ));
-        });
-      }
-
       function paintLignesExtra() {
         lignesExtra.replaceChildren();
+        manuelHost.replaceChildren();
         if (cfg.lignes_mode === 'aleatoire') {
           lignesExtra.appendChild(U.field('Nb lignes', U.number(cfg.nb_lignes, {
             min: 1, max: 50, step: 1,
             onChange: function (v) { cfg.nb_lignes = v; ctx.changed(); },
           })));
         } else if (cfg.lignes_mode === 'manuel') {
-          const sel = {};
-          (cfg.lignes_manuelles || []).forEach(function (id) { sel[id] = true; });
-          const chips = h('div', { class: 'v3-trous-mol-pick' });
-          mols.forEach(function (mol) {
-            const on = !!sel[mol.id];
-            chips.appendChild(h('button', {
-              type: 'button',
-              class: 'v3-chip v3-chip-molecule' + (on ? ' is-on' : ''),
-              'aria-pressed': on ? 'true' : 'false',
-              onClick: function () {
-                if (sel[mol.id]) {
-                  delete sel[mol.id];
-                  cfg.lignes_manuelles = cfg.lignes_manuelles.filter(function (x) { return x !== mol.id; });
-                } else {
-                  sel[mol.id] = true;
-                  cfg.lignes_manuelles.push(mol.id);
-                }
-                ctx.changed();
-                paintLignesExtra();
-              },
-            }, molLabel(mol)));
-          });
-          lignesExtra.appendChild(U.field('Molécules', chips, { col: true }));
+          mountLignesManuelAdder(mols, cfg, ctx, manuelHost);
+          lignesExtra.appendChild(manuelHost);
         }
       }
 
       const compSeg = U.segmented([
-        { value: 'auto', label: 'Auto', tip: 'Trous tirés à chaque partie.' },
+        { value: 'auto', label: 'Pool automatique', tip: 'Trous tirés à chaque partie.' },
         { value: 'grille', label: 'Grille', tip: 'Vous choisissez chaque case.' },
       ], cfg.composition, function (v) {
         cfg.composition = v;
         tauxWrap.hidden = v !== 'auto';
-        paintCols();
         ctx.changed();
       });
 
       const lignesSeg = U.segmented([
-        { value: 'aleatoire', label: 'Aléatoire' },
-        { value: 'groupe', label: 'Groupe' },
-        { value: 'manuel', label: 'Manuel' },
+        { value: 'aleatoire', label: 'Aléatoire', tip: 'N lignes tirées dans le pool.' },
+        { value: 'groupe', label: 'Pool complet', tip: 'Toutes les lignes éligibles.' },
+        { value: 'manuel', label: 'Pool personnalisé', tip: 'Liste fixe de molécules.' },
       ], cfg.lignes_mode, function (v) {
         cfg.lignes_mode = v;
-        if (v === 'manuel' && !(cfg.lignes_manuelles || []).length) {
-          cfg.lignes_manuelles = mols.slice(0, Math.min(5, mols.length)).map(function (m) { return m.id; });
-        }
         paintLignesExtra();
         ctx.changed();
       });
 
       root.replaceChildren(
-        U.section('Paramètres',
-          U.field('Composition', compSeg, { col: true }),
-          U.field('Colonnes', colsHost, { col: true, tip: 'Ordre d’affichage du tableau.' }),
-          U.field('Lignes', lignesSeg, { col: true }),
+        U.card('Paramètres',
+          U.grid(2,
+            U.field('Composition', compSeg),
+            U.field('Lignes', lignesSeg)
+          ),
           lignesExtra,
-          U.field('Cases vides', tauxWrap, { tip: 'Auto uniquement.', col: true })
+          U.field('Cases vides', tauxWrap, { tip: 'Pool automatique uniquement.', col: true })
         )
       );
-      paintCols();
       paintLignesExtra();
     });
   }
@@ -601,87 +736,115 @@
   function perso(el, ctx) {
     const cfg = cfgInit(ctx.cfg);
     el.replaceChildren(U.empty('Chargement…'));
-    void ctx.mols().then(function (mols) {
+    void ctx.mols().then(function (raw) {
+      const mols = molsJoueur(raw);
       rememberMols(ctx, mols);
       if (!mols.length) {
         el.replaceChildren(U.empty('Pool vide'));
         return;
       }
-      ensureColonnes(cfg, mols);
       if (cfg.composition === 'grille') syncGrilleLignes(cfg, mols);
+
+      const colsHost = h('div', { class: 'v3-trous-cols' });
+      paintColonnesEditor(cfg, mols, ctx, colsHost);
 
       let tirage = buildTirage(cfg, mols);
       const countEl = h('p', { class: 'v3-trous-count' });
       const tableHost = h('div');
-      const actions = h('div', { class: 'v3-actions' });
+      const gridBlock = h('div', { class: 'v3-stack', hidden: cfg.composition !== 'grille' });
 
       function refreshCount() {
         countEl.textContent = countTrouUnits(tirage) + ' valeurs à trouver';
       }
 
-      function paint() {
+      function paintGrille() {
         tableHost.replaceChildren();
-        if (cfg.composition === 'grille') {
-          tableHost.appendChild(renderTable({
-            tirage: tirage,
-            persoGrille: true,
-            onCellClick: function (molId, code) {
-              const hole = !isTrouGrille(cfg, molId, code);
-              setTrouGrille(cfg, molId, code, hole);
-              tirage = buildTirage(cfg, mols);
-              refreshCount();
-              paint();
-              ctx.changed();
-            },
-            colActions: {
-              all: function (code) {
-                tirage.lignes.forEach(function (mol) {
-                  if (valsMol(mol, code).length) setTrouGrille(cfg, mol.id, code, true);
-                });
-                tirage = buildTirage(cfg, mols);
-                refreshCount();
-                paint();
-                ctx.changed();
-              },
-              clear: function (code) {
-                tirage.lignes.forEach(function (mol) {
-                  setTrouGrille(cfg, mol.id, code, false);
-                });
-                tirage = buildTirage(cfg, mols);
-                refreshCount();
-                paint();
-                ctx.changed();
-              },
-            },
-          }));
-        } else {
-          tirage = buildTirage(cfg, mols);
-          tableHost.appendChild(renderTable({ tirage: tirage }));
-          refreshCount();
-        }
-      }
-
-      if (cfg.composition === 'auto') {
-        actions.appendChild(U.button('Nouveau tirage', {
-          variant: 'ghost',
-          onClick: function () {
+        if (cfg.composition !== 'grille') return;
+        tableHost.appendChild(renderTable({
+          tirage: tirage,
+          persoGrille: true,
+          onCellClick: function (molId, code) {
+            const hole = !isTrouGrille(cfg, molId, code);
+            setTrouGrille(cfg, molId, code, hole);
             tirage = buildTirage(cfg, mols);
             refreshCount();
-            paint();
+            paintGrille();
+            ctx.changed();
+          },
+          colActions: {
+            all: function (code) {
+              tirage.lignes.forEach(function (mol) {
+                if (valsMol(mol, code).length) setTrouGrille(cfg, mol.id, code, true);
+              });
+              tirage = buildTirage(cfg, mols);
+              refreshCount();
+              paintGrille();
+              ctx.changed();
+            },
+            clear: function (code) {
+              tirage.lignes.forEach(function (mol) {
+                setTrouGrille(cfg, mol.id, code, false);
+              });
+              tirage = buildTirage(cfg, mols);
+              refreshCount();
+              paintGrille();
+              ctx.changed();
+            },
           },
         }));
+        refreshCount();
       }
 
+      gridBlock.append(
+        U.field('Grille', tableHost, { col: true, tip: 'Cliquer une case trouable pour la masquer.' }),
+        countEl
+      );
       refreshCount();
-      paint();
+      paintGrille();
+
       el.replaceChildren(
         h('div', { class: 'v3-stack v3-trous-perso' },
-          countEl,
-          tableHost,
-          actions
+          U.card('Colonnes',
+            U.field('', colsHost, { col: true, tip: 'Ordre d’affichage et rôle visible / trouable.' })
+          ),
+          gridBlock
         )
       );
     });
+  }
+
+  function essai(el, ctx) {
+    const cfg = cfgInit(ctx.cfg);
+    const panel = U.essaiPanel({ title: 'Tirage' });
+    el.append(
+      U.button('Tester un tirage', {
+        variant: 'ghost',
+        onClick: function () { void run(); },
+      }),
+      panel.el
+    );
+    const countEl = h('p', { class: 'v3-trous-count' });
+    const tableHost = h('div');
+
+    async function run() {
+      panel.open();
+      panel.body.replaceChildren(U.empty('…'));
+      try {
+        const raw = await ctx.mols();
+        const mols = molsJoueur(raw);
+        if (!mols.length) {
+          panel.body.replaceChildren(U.empty('Pool vide'));
+          return;
+        }
+        ensureColonnes(cfg, mols);
+        const tirage = buildTirage(cfg, mols);
+        countEl.textContent = countTrouUnits(tirage) + ' valeurs à trouver';
+        tableHost.replaceChildren(renderTable({ tirage: tirage }));
+        panel.body.replaceChildren(countEl, tableHost);
+      } catch (e) {
+        panel.body.replaceChildren(U.empty(e.message || 'Erreur'));
+      }
+    }
   }
 
   function notationItems(tirage, saisies) {
@@ -711,46 +874,42 @@
 
   async function submitDeclare(session, tentativeId, mode, scoreData, saisies, demanderRelecture) {
     if (!session.reel) {
+      if (demanderRelecture) U.toast('Relecture demandée (essai)');
       session.fin(scoreData.fin);
       return;
     }
-    await session.rpc('jeu_soumettre_declare', {
-      p_tentative_id: tentativeId,
-      p_reponses: { mode: mode, saisies: saisies || {} },
-      p_score_provisoire: scoreData.rpc.obtenu,
-      p_score_max: scoreData.rpc.max,
-      p_details: scoreData.rpc.details || [],
-      p_demander_relecture: !!demanderRelecture,
-    });
-    session.fin(scoreData.fin);
-  }
-
-  function demarrerPartie(session, tirage) {
-    if (!session.reel) return Promise.resolve(null);
-    return session.rpc('jeu_demarrer_declare', {
-      p_jeu_id: session.jeu.id,
-      p_snapshot: snapshotTirage(tirage),
-      p_contexte: 'classique',
-    }).then(function (r) { return r.tentative_id; });
+    try {
+      await session.rpc('jeu_soumettre_declare', {
+        p_tentative_id: tentativeId,
+        p_reponses: { mode: mode, saisies: saisies || {} },
+        p_score_provisoire: scoreData.rpc.obtenu,
+        p_score_max: scoreData.rpc.max,
+        p_details: scoreData.rpc.details || [],
+        p_demander_relecture: !!demanderRelecture,
+      });
+      session.fin(scoreData.fin);
+    } catch (e) {
+      U.toast(e.message || 'Erreur', 'err');
+    }
   }
 
   function play(el, ctx, session) {
     const cfg = cfgInit(ctx.cfg);
-    el.replaceChildren();
     const modeHost = h('div');
     const main = h('div');
-    el.append(modeHost, main);
+    el.replaceChildren(modeHost, main);
 
-    void ctx.mols().then(function (mols) {
+    void ctx.mols().then(function (raw) {
+      const mols = molsJoueur(raw);
       rememberMols(ctx, mols);
       if (!mols.length) {
         el.replaceChildren(U.empty('Pool vide'));
         return;
       }
       ensureColonnes(cfg, mols);
+      if (!includedCols(cfg).length) bootstrapColonnes(cfg, mols);
 
       global.V3Notation.choixMode(modeHost, {
-        forceDetaille: false,
         onPick: function (mode) {
           modeHost.hidden = true;
           let tirage = buildTirage(cfg, mols);
@@ -759,107 +918,114 @@
             return;
           }
 
-          main.replaceChildren(U.empty('Chargement…'));
-          void demarrerPartie(session, tirage).then(function (tentativeId) {
-            let revealed = false;
-            const saisies = {};
-            let noteDetail = null;
-            const noteHost = h('div');
-            const actHost = h('div', { class: 'v3-actions' });
-            main.replaceChildren(noteHost, actHost);
+          let tentativeId = null;
+          let revealed = false;
+          const saisies = {};
+          const gridHost = h('div');
+          const noteHost = h('div');
+          const actHost = h('div', { class: 'jp-v2-actions' });
+          main.replaceChildren(gridHost, noteHost, actHost);
 
-            function paintPlay() {
-              noteHost.replaceChildren(renderTable({
-                tirage: tirage,
-                play: true,
-                mode: mode,
-                revealed: revealed,
-                onInput: function (key, val) { saisies[key] = val; },
-              }));
-              actHost.replaceChildren();
-              if (mode === 'rapide') {
-                if (!revealed) {
-                  actHost.appendChild(U.button('Révéler', {
-                    variant: 'primary',
-                    onClick: function () {
-                      revealed = true;
-                      paintPlay();
-                      global.V3Notation.rapide(actHost, {
-                        onScore: function (score) {
-                          actHost.replaceChildren();
-                          const fin = { obtenu: score, max: 10, details: [] };
-                          void submitDeclare(session, tentativeId, 'rapide', {
-                            fin: fin,
-                            rpc: { obtenu: score, max: 10, details: [] },
-                          }, saisies, false);
-                        },
-                      });
-                    },
-                  }));
-                }
-              } else if (!noteDetail) {
-                actHost.appendChild(U.button('Valider', {
-                  variant: 'primary',
-                  onClick: function () {
-                    const items = notationItems(tirage, saisies);
-                    if (!items.length) return;
-                    noteDetail = h('div', { class: 'v3-trous-note-panel' });
-                    noteHost.appendChild(noteDetail);
-                    global.V3Notation.detaille(noteDetail, items, {
-                      onChange: function (r) { noteDetail._last = r; },
-                    });
-                    actHost.replaceChildren(
-                      U.button('Valider', {
-                        variant: 'primary',
-                        onClick: function () { finDetail(false); },
-                      }),
-                      U.button('Valider + relecture admin', {
-                        variant: 'ghost',
-                        onClick: function () { finDetail(true); },
-                      })
-                    );
-                  },
-                }));
-              }
+          function paintAfterReveal() {
+            noteHost.replaceChildren();
+            actHost.replaceChildren();
+            if (mode === 'rapide') {
+              global.V3Notation.rapide(noteHost, {
+                onScore: function (score) {
+                  actHost.replaceChildren();
+                  void submitDeclare(session, tentativeId, 'rapide', {
+                    fin: { obtenu: score, max: 10, details: [] },
+                    rpc: { obtenu: score, max: 10, details: [] },
+                  }, saisies, false);
+                },
+              });
+              return;
             }
-
+            const items = notationItems(tirage, saisies);
+            if (!items.length) {
+              noteHost.replaceChildren(U.empty('Aucune valeur à noter'));
+              return;
+            }
+            let last = null;
+            global.V3Notation.detaille(noteHost, items, {
+              onChange: function (r) { last = r; },
+            });
             function finDetail(relecture) {
-              const last = noteDetail && noteDetail._last;
-              const items = notationItems(tirage, saisies);
               if (!last || last.remplis < items.length) {
                 U.toast('Noter chaque valeur', 'err');
                 return;
               }
-              const sum = last.obtenu;
-              const nb = last.max;
-              const sur10 = nb ? Math.round((sum / nb) * 100) / 10 : 0;
+              const sur10 = last.max ? Math.round((last.obtenu / last.max) * 100) / 10 : 0;
               void submitDeclare(session, tentativeId, 'detaille', {
                 fin: { obtenu: sur10, max: 10, details: last.notes },
-                rpc: { obtenu: sum, max: nb, details: last.notes },
+                rpc: { obtenu: last.obtenu, max: last.max, details: last.notes },
               }, saisies, relecture);
             }
+            actHost.replaceChildren(
+              U.button('Valider', {
+                variant: 'primary',
+                onClick: function () { finDetail(false); },
+              }),
+              U.button('Valider + relecture admin', {
+                variant: 'ghost',
+                onClick: function () { finDetail(true); },
+              })
+            );
+          }
 
-            paintPlay();
-          }).catch(function (e) {
-            U.toast(e.message || 'Erreur', 'err');
-            main.replaceChildren(U.empty(e.message || 'Erreur'));
-          });
+          function paint() {
+            gridHost.replaceChildren(renderJpPlayTable(tirage, {
+              mode: mode,
+              revealed: revealed,
+              saisies: saisies,
+              onInput: function (key, val) { saisies[key] = val; },
+            }));
+            if (!revealed) {
+              noteHost.replaceChildren();
+              actHost.replaceChildren(
+                U.button('Révéler', {
+                  variant: 'primary',
+                  onClick: function () {
+                    revealed = true;
+                    paint();
+                    paintAfterReveal();
+                  },
+                })
+              );
+            }
+          }
+
+          if (session.reel) {
+            session.rpc('jeu_demarrer_declare', {
+              p_jeu_id: session.jeu.id,
+              p_snapshot: snapshotTirage(tirage),
+              p_contexte: 'classique',
+            }).then(function (r) {
+              tentativeId = r && r.tentative_id;
+              paint();
+            }).catch(function (e) {
+              main.replaceChildren(U.empty(e.message || 'Erreur'));
+            });
+          } else {
+            paint();
+          }
         },
       });
     });
   }
 
   global.V3Games.register('trous', {
-    label: 'Trous',
-    tip: 'Tableau à trous, note Rapide ou Détaillé.',
+    label: 'Tableau à trous',
+    tip: 'Tableau à compléter, note Rapide ou Détaillé.',
     pool: true,
     defaults: defaults,
     fromConfig: fromConfig,
     params: params,
     perso: perso,
+    essai: essai,
     play: play,
     validate: validate,
     payload: payload,
   });
-})();
+})(window);
 
