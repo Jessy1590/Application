@@ -443,12 +443,12 @@
               item.innerHTML = '<span class="jp-mol-item-label">' + esc(it.label || '—') + '</span>'
                 + (nOn ? '<span class="jp-mol-heritage-flag">en leçon</span>' : '');
               item.addEventListener('click', () => {
-                void toggleHeritage(parts);
+                toggleHeritage(parts, item);
               });
               item.addEventListener('keydown', (ev) => {
                 if (ev.key !== 'Enter' && ev.key !== ' ') return;
                 ev.preventDefault();
-                void toggleHeritage(parts);
+                toggleHeritage(parts, item);
               });
               valsBox.appendChild(item);
             });
@@ -549,7 +549,27 @@
         return cidFor(connRows, champCode, entiteId);
       }
 
-      function toggleHeritage(parts) {
+      function paintHeritageItem(itemEl, list) {
+        if (!itemEl?.isConnected) return;
+        const nOn = list.filter((p) => p.on).length;
+        const on = list.length > 0 && nOn === list.length;
+        itemEl.classList.toggle('is-on', nOn > 0);
+        itemEl.setAttribute('aria-pressed', on ? 'true' : 'false');
+        const base = String(itemEl.title || '').split(' — ')[0];
+        itemEl.title = base
+          + (on ? ' — en leçon, clic pour masquer' : ' — clic pour afficher en leçon');
+        let flag = itemEl.querySelector('.jp-mol-heritage-flag');
+        if (nOn && !flag) {
+          flag = document.createElement('span');
+          flag.className = 'jp-mol-heritage-flag';
+          flag.textContent = 'en leçon';
+          itemEl.appendChild(flag);
+        } else if (!nOn && flag) {
+          flag.remove();
+        }
+      }
+
+      function toggleHeritage(parts, itemEl) {
         const list = (parts || []).filter((p) => p && p.compId);
         if (!list.length) return;
         const nextOn = !list.every((p) => p.on);
@@ -563,7 +583,10 @@
           return;
         }
         setVisibleMany(ops);
-        paint();
+        list.forEach((p) => {
+          if (p.cid) p.on = nextOn;
+        });
+        paintHeritageItem(itemEl, list);
       }
 
       async function toggleItemVisibility(champCode, entiteId, itemEl) {
