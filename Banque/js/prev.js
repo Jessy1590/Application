@@ -140,8 +140,40 @@ Object.assign(BH, {
     }
     return shares;
   },
-  prevSettlements(acc, mems, tExp, tInc, exps) {
+  prevApportRows(acc) {
+    const mainId = this.state.profile?.main_account_id;
+    if (!acc || acc.id === mainId) return [];
+    const mems = (this.state.members || []).filter(m => m.account_id === acc.id);
+    if (!mems.length) return [];
+    const tExp = this.prevSum(acc.id, 'expense');
+    const tInc = this.prevSum(acc.id, 'income');
     const shares = this.prevFairShares(acc, mems, tExp, tInc);
+    const amounts = this.prevBucket().amounts || {};
+    const me = this.user?.id;
+    return mems.slice().sort((a, b) => {
+      if (a.user_id === me) return -1;
+      if (b.user_id === me) return 1;
+      return String(a.profiles?.display_name || '').localeCompare(String(b.profiles?.display_name || ''), 'fr');
+    }).map(m => {
+      const key = 'a:' + acc.id + ':' + m.user_id;
+      const base = Math.round((Number(shares[m.user_id]) || 0) * 100) / 100;
+      const has = Object.prototype.hasOwnProperty.call(amounts, key);
+      const mode = m.contribution_mode || 'fixed';
+      const modeLabel = mode === 'percent'
+        ? ('Apport · ' + (Number(m.contribution_target) || 0) + ' %')
+        : (mode === 'prorata' ? 'Apport · prorata' : 'Apport · fixe');
+      return {
+        key, kind: 'apport', accountId: acc.id, id: m.user_id,
+        description: m.profiles?.display_name || 'Membre',
+        category: modeLabel, day: null,
+        amount: has ? (Number(amounts[key]) || 0) : base,
+        base, extra: false, ended: false, isWallet: false
+      };
+    });
+  },
+  prevSettlements(acc, mems, exps) {
+    const shares = {};
+    this.prevApportRows(acc).forEach(r => { shares[r.id] = r.amount; });
     const balances = mems.map(m => {
       const avances = exps.filter(e => e.payer_id === m.user_id).reduce((s, e) => s + Number(e.amount), 0);
       return { name: m.profiles?.display_name || 'Membre', balance: avances - (shares[m.user_id] || 0) };
@@ -160,24 +192,17 @@ Object.assign(BH, {
     }
     return txs;
   },
-  prevMyApport(acc, mems, tExp, tInc) {
+  prevMyApport(acc) {
     if (!this.user) return 0;
-    const myMem = mems.find(m => m.user_id === this.user.id);
-    if (!myMem) return 0;
-    const mode = myMem.contribution_mode || 'fixed';
-    const net = Math.max(0, tExp - tInc);
-    if (mode === 'prorata') return this.prevFairShares(acc, mems, tExp, tInc)[this.user.id] || 0;
-    if (mode === 'percent') return net * (Number(myMem.contribution_target) || 0) / 100;
-    return Number(myMem.contribution_target) || 0;
+    const row = this.prevApportRows(acc).find(r => r.id === this.user.id);
+    return row ? row.amount : 0;
   },
   prevOutboundTotal(mainId) {
     if (!mainId) return 0;
     let total = 0;
     (this.state.accounts || []).forEach(acc => {
       if (acc.id === mainId) return;
-      const mems = (this.state.members || []).filter(m => m.account_id === acc.id);
-      if (!mems.some(m => m.user_id === this.user?.id)) return;
-      total += this.prevMyApport(acc, mems, this.prevSum(acc.id, 'expense'), this.prevSum(acc.id, 'income'));
+      total += this.prevMyApport(acc);
     });
     return total;
   },
@@ -191,6 +216,12 @@ Object.assign(BH, {
       const id = String(key).slice(2);
       const ex = (bucket.extras || []).find(e => e.id === id);
       if (ex) ex.amount = rounded;
+    } else if (String(key).startsWith('a:')) {
+      const line = this.prevApportRows((this.state.accounts || []).find(a => key.indexOf('a:' + a.id + ':') === 0))
+        .find(r => r.key === key);
+      const base = line ? line.base : null;
+      if (base != null && Math.abs(rounded - base) < 0.001) delete bucket.amounts[key];
+      else bucket.amounts[key] = rounded;
     } else {
       const line = this.prevLines().find(l => l.key === key);
       const base = line ? line.base : null;
@@ -201,7 +232,9 @@ Object.assign(BH, {
     this.prevSave();
     const input = document.querySelector('#view-prev input[data-prev-key="' + CSS.escape(key) + '"]');
     if (input) {
-      const line = this.prevLines().find(l => l.key === key);
+      const line = String(key).startsWith('a:')
+        ? this.prevApportRows((this.state.accounts || []).find(a => key.indexOf('a:' + a.id + ':') === 0)).find(r => r.key === key)
+        : this.prevLines().find(l => l.key === key);
       const edited = !!(line && line.base != null && Math.abs(line.amount - line.base) >= 0.001);
       input.classList.toggle('is-edited', edited);
       input.classList.toggle('is-added', !!(line && line.extra));
@@ -313,15 +346,20 @@ Object.assign(BH, {
     const blocks = accounts.map(acc => {
       const exps = this.prevAccountLines(acc.id, 'expense').slice().sort((a, b) => (Number(a.day) || 99) - (Number(b.day) || 99));
       const incs = this.prevAccountLines(acc.id, 'income');
+      const apports = this.prevApportRows(acc);
       const head = `<div class="bh-prev-cols"><span></span><span>Avant</span><span>Actuel</span><span></span></div>`;
       const expHtml = exps.length ? head + exps.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 12px;">Aucune dépense.</div>';
       const incHtml = incs.length ? head + incs.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 12px;">Aucun revenu.</div>';
+      const appHtml = apports.length
+        ? `<div class="bh-section-label" style="margin-top:16px;">Apports</div>${head}${apports.map(l => this.prevLineHtml(l)).join('')}`
+        : '';
       return `<div class="bh-card">
         <div class="bh-prev-acc-name">${this.esc(acc.name)}</div>
         <div class="bh-section-label">Dépenses</div>
         ${expHtml}
         <div class="bh-section-label" style="margin-top:16px;">Revenus</div>
         ${incHtml}
+        ${appHtml}
       </div>`;
     }).join('');
     return addBtn + add + (blocks || '<div class="bh-empty">Aucun compte</div>');
@@ -329,8 +367,22 @@ Object.assign(BH, {
 
   prevShowLines(accId, kind) {
     const acc = (this.state.accounts || []).find(a => a.id === accId);
-    const lines = this.prevAccountLines(accId, kind);
-    const title = (acc ? acc.name : 'Compte') + (kind === 'income' ? ' — revenus' : kind === 'expense' ? ' — dépenses' : '');
+    const mainId = this.state.profile?.main_account_id;
+    let lines;
+    let titleSuffix = '';
+    if (kind === 'apport') {
+      lines = accId === mainId
+        ? (this.state.accounts || []).filter(a => a.id !== mainId).map(a => {
+            const mine = this.prevApportRows(a).find(r => r.id === this.user?.id);
+            return mine ? { ...mine, description: a.name } : null;
+          }).filter(Boolean)
+        : this.prevApportRows(acc);
+      titleSuffix = ' — apports';
+    } else {
+      lines = this.prevAccountLines(accId, kind);
+      titleSuffix = kind === 'income' ? ' — revenus' : kind === 'expense' ? ' — dépenses' : '';
+    }
+    const title = (acc ? acc.name : 'Compte') + titleSuffix;
     const rows = lines.map(l => `<div class="bh-info-row"><span>${this.esc(l.description || (l.kind === 'income' ? 'Revenu' : 'Dépense'))}${l.category ? ' <span style="color:var(--ink-faint);font-weight:400;">(' + this.esc(l.category) + ')</span>' : ''}</span><span class="num">${this.fmt(l.amount)}</span></div>`).join('')
       || '<div style="font-size:13px;color:var(--ink-soft);">Aucune ligne.</div>';
     const total = lines.reduce((s, l) => s + l.amount, 0);
@@ -347,9 +399,9 @@ Object.assign(BH, {
       const isMain = acc.id === mainId;
       const tExp = this.prevSum(acc.id, 'expense');
       const tInc = this.prevSum(acc.id, 'income');
-      const shares = mems.length ? this.prevFairShares(acc, mems, tExp, tInc) : {};
-      const totalAllocated = Object.values(shares).reduce((a, b) => a + Number(b || 0), 0);
-      const myApport = isMain ? outbound : this.prevMyApport(acc, mems, tExp, tInc);
+      const apportRows = isMain ? [] : this.prevApportRows(acc);
+      const totalAllocated = apportRows.reduce((s, r) => s + r.amount, 0);
+      const myApport = isMain ? outbound : (apportRows.find(r => r.id === this.user?.id)?.amount || 0);
       const reste = isMain ? (tInc - tExp - outbound) : (totalAllocated + tInc - tExp);
       const theoIn = isMain ? tInc : (totalAllocated + tInc);
       const theoOut = isMain ? (tExp + outbound) : tExp;
@@ -383,14 +435,14 @@ Object.assign(BH, {
         }
         if (mems.length > 1) {
           const fakeExps = exps.map(l => ({ payer_id: l.payerId, amount: l.amount }));
-          const txs = this.prevSettlements(acc, mems, tExp, tInc, fakeExps);
+          const txs = this.prevSettlements(acc, mems, fakeExps);
           if (txs.length) {
             settleHtml = `<div style="border-top:1px dashed var(--line); margin-top:12px; padding-top:12px;">
               <div style="font-size:12px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px;">Qui doit quoi</div>
               ${txs.map(t => `<div style="display:flex; justify-content:space-between; font-size:13px; padding:4px 0;"><span>${this.esc(t.from)} → ${this.esc(t.to)}</span><span class="num" style="color:var(--amber);">${this.fmt(t.amount)}</span></div>`).join('')}
             </div>`;
           }
-          const shareItems = mems.map(m => ({ label: m.profiles?.display_name || 'Membre', value: shares[m.user_id] || 0 }));
+          const shareItems = apportRows.map(r => ({ label: r.description, value: r.amount }));
           if (tInc > 0) shareItems.push({ label: 'Revenus du compte', value: tInc });
           chartsHtml += `<div class="bh-acct-chart-block"><div class="chart-title">Part de chacun</div>${this.pieChart(shareItems, { size: 120, centerSub: 'Part / mois' })}</div>`;
         }
@@ -410,7 +462,7 @@ Object.assign(BH, {
         <div class="bh-acct-cells">
           ${cell('Dépenses théoriques', this.fmt(tExp), `BH.prevShowLines('${acc.id}','expense')`)}
           ${cell('Revenus / remb.', this.fmt(tInc), `BH.prevShowLines('${acc.id}','income')`)}
-          <div class="bh-acct-cell is-static"><span class="bh-acct-cell-label">${apportLabel}</span><span class="bh-acct-cell-value num">${this.fmt(myApport)}</span></div>
+          ${cell(apportLabel, this.fmt(myApport), `BH.prevShowLines('${acc.id}','apport')`)}
           ${cell(ok ? 'Excédent financier' : 'Risque financier', this.fmt(reste), `BH.prevShowLines('${acc.id}')`, ok ? ' ok' : ' risk')}
         </div>
         ${settleHtml}
@@ -480,8 +532,7 @@ Object.assign(BH, {
     const salary = [];
     (this.state.accounts || []).forEach(acc => {
       if (acc.id === mainId) return;
-      const mems = (this.state.members || []).filter(m => m.account_id === acc.id);
-      const amt = this.prevMyApport(acc, mems, this.prevSum(acc.id, 'expense'), this.prevSum(acc.id, 'income'));
+      const amt = this.prevMyApport(acc);
       if (amt > 0) salary.push({ label: acc.name, value: amt });
     });
     const accFilter = this.prevCatAccount || '';
