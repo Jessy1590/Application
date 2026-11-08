@@ -277,10 +277,15 @@
     <!-- VUE 4 : STATISTIQUES -->
     <div class="bh-view" id="view-stats">
       <div class="bh-stats-hero">
-        <div class="bh-card" style="text-align:center; padding:24px 16px;">
-          <div style="font-size:12px; color:var(--ink-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Capacité d'épargne (Mensuelle) <button class="bh-info-btn" onclick="BH.showEpargneInfo()" title="Détail du calcul">?</button></div>
-          <div class="num" id="stat-epargne" style="font-size:32px; color:var(--sage-deep); margin:8px 0;">—</div>
-          <div style="font-size:13px; color:var(--ink-faint);" id="stat-epargne-rate">Taux d'épargne : —</div>
+        <div class="bh-card bh-stats-kpi">
+          <div class="bh-stats-kpi-label">Capacité d'épargne (Mensuelle) <button class="bh-info-btn" onclick="BH.showEpargneInfo()" title="Détail du calcul">?</button></div>
+          <div class="num" id="stat-epargne">—</div>
+          <div class="bh-stats-kpi-sub" id="stat-epargne-rate">Taux d'épargne : —</div>
+        </div>
+        <div class="bh-card bh-stats-kpi">
+          <div class="bh-stats-kpi-label">Capacité d'endettement (Mensuelle) <button class="bh-info-btn" onclick="BH.showEndettementInfo()" title="Détail du calcul">?</button></div>
+          <div class="num" id="stat-endettement">—</div>
+          <div class="bh-stats-kpi-sub" id="stat-endettement-rate">Taux d'endettement : —</div>
         </div>
       </div>
 

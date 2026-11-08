@@ -294,6 +294,8 @@ Object.assign(BH, {
           this.epargneInfo = null;
        }
 
+       this.renderEndettementStat();
+
        // Camembert : répartition de mon salaire vers mes comptes partagés
        const mainAccId = this.state.profile?.main_account_id;
        const salaryItems = [];
@@ -326,6 +328,57 @@ Object.assign(BH, {
           : `<div class="chart-empty">Aucun apport configuré vers un compte partagé. Réglez vos apports dans l'onglet Comptes.</div>`;
 
        this.renderCategoryStats();
+    },
+
+    // Libellé sans casse ni accent, pour le repérage des crédits.
+    foldLabel(s) {
+      return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    },
+    // Mot entier : crédit dans la catégorie ; prêt, emprunt, LOA, LLD, location, leasing dans le nom.
+    isPersonalCreditExpense(exp) {
+      if (!exp || exp.is_wallet || !this.isExpenseActive(exp)) return false;
+      if (/credits?/.test(this.foldLabel(exp.category))) return true;
+      const edge = '(^|[^a-z0-9])';
+      const end = '([^a-z0-9]|$)';
+      return new RegExp(edge + '(prets?|emprunts?|loa|lld|location|leasing)' + end).test(this.foldLabel(exp.description));
+    },
+    renderEndettementStat() {
+      const el = document.getElementById('stat-endettement');
+      const rateEl = document.getElementById('stat-endettement-rate');
+      if (!el || !rateEl) return;
+      const accId = this.state.profile?.main_account_id;
+      if (!accId) {
+        el.textContent = '—';
+        el.style.color = 'var(--sage-deep)';
+        rateEl.textContent = "Taux d'endettement : —";
+        this.endettementInfo = null;
+        return;
+      }
+      const mainAcc = (this.state.accounts || []).find(a => a.id === accId);
+      const revenus = (this.state.incomes || [])
+        .filter(i => i.account_id === accId)
+        .reduce((s, i) => s + Number(i.amount), 0);
+      const lines = (this.state.expenses || [])
+        .filter(e => e.account_id === accId && this.isPersonalCreditExpense(e))
+        .map(e => ({
+          description: e.description || '',
+          category: e.category || '',
+          amount: Number(e.amount) || 0
+        }));
+      const mensualites = lines.reduce((s, e) => s + e.amount, 0);
+      const plafond = revenus * 0.35;
+      const marge = Math.max(0, plafond - mensualites);
+      const taux = revenus > 0 ? (mensualites / revenus) * 100 : null;
+      const depasse = taux !== null && taux > 35;
+      el.textContent = this.fmt(marge);
+      el.style.color = depasse ? 'var(--clay)' : 'var(--sage-deep)';
+      rateEl.textContent = taux !== null
+        ? `Taux d'endettement : ${taux.toFixed(1)} % · mensualités ${this.fmt(mensualites)}`
+        : "Taux d'endettement : — (revenus du compte principal non renseignés)";
+      this.endettementInfo = {
+        mainAccName: mainAcc ? mainAcc.name : '—',
+        revenus, plafond, mensualites, marge, taux, lines
+      };
     },
 
     // Dépense active sur un mois donné (end_date avant le mois → inactive)

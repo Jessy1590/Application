@@ -29,6 +29,31 @@ Object.assign(BH, {
       this.openInfo('Capacité d\'épargne — détail', rows);
     },
 
+    showEndettementInfo() {
+      const info = this.endettementInfo;
+      if (!info) {
+        this.openInfo('Capacité d\'endettement', `<div style="font-size:13px; color:var(--ink-soft);">Définissez votre compte principal dans les Réglages pour calculer cette valeur.</div>`);
+        return;
+      }
+      const lines = info.lines.map(e => `
+        <div class="bh-info-row">
+          <span>${this.esc(e.description || e.category || 'Crédit')}${e.category ? ` <span style="color:var(--ink-faint); font-weight:400;">(${this.esc(e.category)})</span>` : ''}</span>
+          <span class="num">${this.fmt(e.amount)}</span>
+        </div>`).join('');
+      const rows = `
+        <div class="bh-info-row"><span>Compte principal</span><span>${this.esc(info.mainAccName)}</span></div>
+        <div class="bh-info-row"><span>Revenus (compte principal)</span><span class="num">${this.fmt(info.revenus)}</span></div>
+        <div class="bh-info-row"><span>Plafond 35 % des revenus</span><span class="num">${this.fmt(info.plafond)}</span></div>
+        <div class="bh-info-row"><span>− Mensualités actuelles</span><span class="num">${this.fmt(info.mensualites)}</span></div>
+        ${lines || '<div style="font-size:13px; color:var(--ink-soft); margin:8px 0;">Aucune mensualité reconnue.</div>'}
+        <div class="bh-info-row"><span>= Marge encore disponible</span><span class="num">${this.fmt(info.marge)}</span></div>
+        <div class="bh-info-row"><span>Taux d'endettement (mensualités / revenus)</span><span class="num">${info.taux !== null ? info.taux.toFixed(1) + ' %' : '—'}</span></div>
+        <div style="font-size:11.5px; color:var(--ink-faint); margin-top:12px; line-height:1.5;">
+          Plafond de 35 % des revenus du compte principal (norme HCSF, assurance comprise dans la mensualité). Une dépense compte si sa catégorie est « crédit », quel que soit son nom. Prêt, emprunt, LOA, LLD, location et leasing sont lus dans le nom. Les portefeuilles sont exclus. Le loyer et les charges courantes ne comptent que s'ils portent l'un de ces libellés.
+        </div>`;
+      this.openInfo('Capacité d\'endettement — détail', rows);
+    },
+
     showResteInfo(accId) { this.showResteDetail(accId); },
 
     // Clé `apportRecu_<userId>` : part d'un autre membre notée arrivée ici,

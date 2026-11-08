@@ -52,6 +52,15 @@
   .bh-saisies-filters .bh-input{ margin-bottom:8px; }
   .bh-saisies-filters .bh-input:last-child{ margin-bottom:0; }
   .bh-stats-grid{ display:contents; }
+  .bh-stats-hero{ display:grid; grid-template-columns:1fr; gap:12px; }
+  .bh-stats-hero .bh-card{ margin-bottom:0; }
+  .bh-stats-kpi{ text-align:center; padding:24px 16px; }
+  .bh-stats-kpi-label{
+    font-size:12px; color:var(--ink-soft); font-weight:600;
+    text-transform:uppercase; letter-spacing:0.05em;
+  }
+  .bh-stats-kpi .num{ font-size:32px; color:var(--sage-deep); margin:8px 0; }
+  .bh-stats-kpi-sub{ font-size:13px; color:var(--ink-faint); }
   .bh-sheet-actions{ display:flex; gap:8px; margin-top:16px; }
   .bh-sheet-actions .bh-btn{ flex:1; }
 
@@ -711,7 +720,7 @@
     /* Stats : grille large */
     .bh-topbar .bh-brand{ display:none; }
     .bh-topbar-row{ justify-content:flex-end; }
-    .bh-stats-hero{ margin-bottom:4px; }
+    .bh-stats-hero{ margin-bottom:4px; grid-template-columns:1fr 1fr; }
     .bh-stats-grid{
       display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; align-items:start;
     }
