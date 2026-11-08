@@ -352,7 +352,7 @@
 
         let body = '<p class="jp-mol-panel-hint">'
           + (comps.length >= 2
-            ? 'Valeurs colorées : amenées par les molécules séparées (en leçon si elles y sont affichées). Le reste se règle ici.'
+            ? 'Valeurs colorées : molécules séparées. Clic = en leçon, sans les ajouter au bloc. Le reste se règle ici.'
             : 'Clic = affichage leçon · Double-clic = modifier · × = retirer de la fiche')
           + '</p>';
         if (comps.length >= 2) {
@@ -384,6 +384,8 @@
                 id: it.id,
                 label: it.label,
                 index: src.index,
+                compId: src.comp.id,
+                cid: cid || null,
                 on,
               });
             });
@@ -423,15 +425,31 @@
             valsBox.innerHTML = '<p class="jp-mol-empty">Aucun élément</p>';
           } else {
             inherited.forEach((it) => {
+              const parts = (it.parts || []).filter((p) => p && p.compId);
+              const nOn = parts.filter((p) => p.on).length;
+              const on = parts.length > 0 && nOn === parts.length;
               const tones = global.JpConstants.assoTones(it.indexes, comps);
               const names = (it.indexes || []).map((i) => comps[i] && comps[i].dci).filter(Boolean);
               const item = document.createElement('div');
-              item.className = 'jp-mol-item jp-mol-heritage' + (it.on ? ' is-on' : '');
+              item.className = 'jp-mol-item jp-mol-heritage' + (nOn ? ' is-on' : '');
               item.style.cssText = global.JpConstants.assoStyle(tones);
+              item.setAttribute('tabindex', '0');
+              item.setAttribute('role', 'button');
+              item.setAttribute('aria-pressed', on ? 'true' : 'false');
               item.title = (names.join(' · ') || 'Molécule séparée')
-                + (it.on ? ' — affiché en leçon' : ' — présent sur la fiche, non affiché en leçon');
+                + (on
+                  ? ' — en leçon, clic pour masquer'
+                  : ' — clic pour afficher en leçon');
               item.innerHTML = '<span class="jp-mol-item-label">' + esc(it.label || '—') + '</span>'
-                + (it.on ? '<span class="jp-mol-heritage-flag">en leçon</span>' : '');
+                + (nOn ? '<span class="jp-mol-heritage-flag">en leçon</span>' : '');
+              item.addEventListener('click', () => {
+                void toggleHeritage(parts);
+              });
+              item.addEventListener('keydown', (ev) => {
+                if (ev.key !== 'Enter' && ev.key !== ' ') return;
+                ev.preventDefault();
+                void toggleHeritage(parts);
+              });
               valsBox.appendChild(item);
             });
             ownItems.forEach((it) => {
@@ -529,6 +547,23 @@
           return null;
         }
         return cidFor(connRows, champCode, entiteId);
+      }
+
+      function toggleHeritage(parts) {
+        const list = (parts || []).filter((p) => p && p.compId);
+        if (!list.length) return;
+        const nextOn = !list.every((p) => p.on);
+        const ops = [];
+        list.forEach((p) => {
+          if (!p.cid) return;
+          ops.push({ matriceId: p.compId, connaissanceId: p.cid, on: nextOn });
+        });
+        if (!ops.length) {
+          global.JpToast?.warn?.('Connaissance introuvable pour cet élément');
+          return;
+        }
+        setVisibleMany(ops);
+        paint();
       }
 
       async function toggleItemVisibility(champCode, entiteId, itemEl) {

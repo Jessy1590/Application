@@ -2254,7 +2254,7 @@
   margin: 0.45rem 0;
   font-size: 0.92rem;
 }
-.jp-mol-heritage { cursor: default; }
+.jp-mol-heritage { cursor: pointer; }
 .jp-mol-heritage-flag {
   flex: 0 0 auto;
   font-size: 0.68rem;

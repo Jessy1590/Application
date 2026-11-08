@@ -115,12 +115,19 @@
       const map = byChamp.get(e.champ);
       let row = map.get(key);
       if (!row) {
-        row = { id: e.id, label, indexes: [], own: false, on: false };
+        row = { id: e.id, label, indexes: [], own: false, on: false, parts: [] };
         map.set(key, row);
       }
       if (e.index != null && row.indexes.indexOf(e.index) < 0) row.indexes.push(e.index);
       if (e.own) row.own = true;
       if (e.on) row.on = true;
+      row.parts.push({
+        id: e.id || null,
+        index: e.index == null ? null : e.index,
+        compId: e.compId || null,
+        cid: e.cid || null,
+        on: !!e.on,
+      });
       if (label.length > String(row.label || '').length) row.label = label;
     });
     const out = {};
