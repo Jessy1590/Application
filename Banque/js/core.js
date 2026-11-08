@@ -215,7 +215,7 @@
     esc(s) { return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); },
     switchTab(tab) {
       // Vérif réservé au desktop
-      if (tab === 'verif' && window.matchMedia('(max-width: 959px)').matches) tab = 'today';
+      if ((tab === 'verif' || tab === 'prev') && window.matchMedia('(max-width: 959px)').matches) tab = 'today';
       this.activeTab = tab;
       document.querySelectorAll('.bh-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
       document.querySelectorAll('.bh-view').forEach(v => v.classList.remove('active'));
@@ -259,5 +259,6 @@
       if(this.activeTab === 'saisies') this.renderSaisies();
       if(this.activeTab === 'stats') this.renderStats();
       if(this.activeTab === 'verif') this.renderVerif();
+      if(this.activeTab === 'prev' && typeof this.renderPrev === 'function') this.renderPrev();
     },
   };

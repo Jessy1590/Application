@@ -69,6 +69,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
       Vérif
     </button>
+    <button class="bh-tab" data-tab="prev" onclick="BH.switchTab('prev')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-4 3 2 4-6"/></svg>
+      Prévisionnel
+    </button>
   </nav>
 
   <div class="bh-main">
@@ -272,6 +276,18 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- VUE : PRÉVISIONNEL (local, desktop) -->
+    <div class="bh-view" id="view-prev">
+      <div class="bh-prev-nav" role="tablist" aria-label="Étapes du prévisionnel">
+        <button type="button" data-prev-pane="saisie" class="active" onclick="BH.switchPrevPane('saisie')">1 · Saisie</button>
+        <button type="button" data-prev-pane="comptes" onclick="BH.switchPrevPane('comptes')">2 · Comptes</button>
+        <button type="button" data-prev-pane="stats" onclick="BH.switchPrevPane('stats')">3 · Statistiques</button>
+      </div>
+      <div class="bh-prev-pane active" id="prev-pane-saisie"></div>
+      <div class="bh-prev-pane" id="prev-pane-comptes"></div>
+      <div class="bh-prev-pane" id="prev-pane-stats"></div>
     </div>
 
     <!-- VUE 4 : STATISTIQUES -->
@@ -836,5 +852,6 @@
 <script src="js/verif.js"></script>
 <script src="js/print.js"></script>
 <script src="js/settings.js"></script>
+<script src="js/prev.js"></script>
 </body>
 </html>
