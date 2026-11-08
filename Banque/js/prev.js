@@ -12,6 +12,7 @@ Object.assign(BH, {
       this.prevStore = {};
     }
     if (!this.prevStore.byMonth) this.prevStore.byMonth = {};
+    if (!Array.isArray(this.prevStore.snapshots)) this.prevStore.snapshots = [];
     return this.prevStore;
   },
   prevSave() {
@@ -281,6 +282,121 @@ Object.assign(BH, {
     this.prevInvalidate();
     this.prevSave();
     this.renderPrev();
+  },
+
+  prevRecord() {
+    const bucket = this.prevBucket();
+    const store = this.prevEnsure();
+    const now = new Date();
+    store.snapshots.unshift({
+      id: (crypto.randomUUID ? crypto.randomUUID() : ('s' + now.getTime())),
+      savedAt: now.toISOString(),
+      month: this.prevMonthKey(),
+      amounts: JSON.parse(JSON.stringify(bucket.amounts || {})),
+      extras: JSON.parse(JSON.stringify(bucket.extras || []))
+    });
+    store.snapshots = store.snapshots.slice(0, 40);
+    this.prevSave();
+    if (typeof toast === 'function') toast('Prévisionnel enregistré');
+  },
+  prevSnapshotLabel(snap) {
+    const when = new Date(snap.savedAt);
+    const whenTxt = isNaN(when.getTime())
+      ? ''
+      : when.toLocaleString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    let monthTxt = snap.month || '';
+    if (/^\d{4}-\d{2}$/.test(snap.month || '')) {
+      const [y, m] = snap.month.split('-').map(Number);
+      monthTxt = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    }
+    return whenTxt + (monthTxt ? ' · ' + monthTxt : '');
+  },
+  prevOpenImport() {
+    const snaps = this.prevEnsure().snapshots || [];
+    if (!snaps.length) {
+      this.openInfo('Importer', '<div style="font-size:13px;color:var(--ink-soft);">Aucun prévisionnel enregistré pour le moment.</div>');
+      return;
+    }
+    const rows = snaps.map(s => `
+      <div class="bh-info-row" style="gap:12px;">
+        <span>${this.esc(this.prevSnapshotLabel(s))}</span>
+        <button type="button" class="bh-btn bh-btn-primary" style="min-height:36px;height:36px;padding:0 12px;flex:0 0 auto;" onclick="BH.prevRestore('${this.esc(s.id)}')">Reprendre</button>
+      </div>`).join('');
+    this.openInfo('Importer un enregistrement', rows);
+  },
+  prevRestore(id) {
+    const snap = (this.prevEnsure().snapshots || []).find(s => s.id === id);
+    if (!snap || !/^\d{4}-\d{2}$/.test(snap.month || '')) return;
+    const [y, m] = snap.month.split('-').map(Number);
+    this.prevMonth = new Date(y, m - 1, 1);
+    this.prevInvalidate();
+    const bucket = this.prevBucket();
+    bucket.amounts = JSON.parse(JSON.stringify(snap.amounts || {}));
+    bucket.extras = JSON.parse(JSON.stringify(snap.extras || []));
+    this.prevSave();
+    if (typeof this.closeInfo === 'function') this.closeInfo();
+    this.renderPrev();
+    if (typeof toast === 'function') toast('Enregistrement repris');
+  },
+  prevPrint() {
+    const month = this.prevMonthLabel();
+    const accounts = this.getOrderedAccounts();
+    const mainId = this.state.profile?.main_account_id;
+    const section = (title, lines) => {
+      if (!lines.length) return '';
+      const body = lines.map(l => {
+        const edited = l.base != null && Math.abs(l.amount - l.base) >= 0.001;
+        const tag = l.extra ? 'Ajouté' : (edited ? 'Modifié' : '');
+        const meta = [l.category, l.day ? 'le ' + l.day : '', l.ended ? 'Terminée' : ''].filter(Boolean).join(' · ');
+        return `<tr class="${l.extra ? 'add' : (edited ? 'edit' : '')}">
+          <td>${this.esc((l.isWallet ? 'Portefeuille · ' : '') + (l.description || 'Ligne'))}${meta ? `<div class="meta">${this.esc(meta)}</div>` : ''}</td>
+          <td class="num">${l.extra ? '—' : this.fmt(l.base)}</td>
+          <td class="num">${this.fmt(l.amount)}</td>
+          <td>${this.esc(tag)}</td>
+        </tr>`;
+      }).join('');
+      return `<h3>${this.esc(title)}</h3>
+        <table><thead><tr><th>Ligne</th><th>Avant</th><th>Actuel</th><th></th></tr></thead><tbody>${body}</tbody></table>`;
+    };
+    const accountsHtml = accounts.map(acc => {
+      const exps = this.prevAccountLines(acc.id, 'expense');
+      const incs = this.prevAccountLines(acc.id, 'income');
+      const apports = this.prevApportRows(acc);
+      return `<h2>${this.esc(acc.name)}</h2>
+        ${section('Dépenses', exps)}
+        ${section('Revenus', incs)}
+        ${section('Apports', apports)}`;
+    }).join('');
+    const s = this.prevPersonalStats();
+    const outbound = this.prevOutboundTotal(mainId);
+    const statsHtml = `<h2>Synthèse</h2>
+      <table>
+        <tr><td>Capacité d'épargne</td><td class="num">${mainId ? this.fmt(s.capacite) : '—'}</td></tr>
+        <tr><td>Capacité d'endettement restante</td><td class="num">${mainId ? this.fmt(s.marge) : '—'}</td></tr>
+        <tr><td>Taux d'endettement</td><td class="num">${s.tauxDette != null ? s.tauxDette.toFixed(1) + ' %' : '—'}</td></tr>
+        <tr><td>Apports versés depuis le compte principal</td><td class="num">${this.fmt(outbound)}</td></tr>
+      </table>`;
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Prévisionnel ${this.esc(month)}</title>
+      <style>
+        body{font-family:Inter,sans-serif;color:#152520;margin:24px;}
+        h1{font-size:22px;margin:0 0 4px;}
+        h2{font-size:16px;margin:22px 0 8px;}
+        h3{font-size:13px;margin:12px 0 6px;color:#5A6B62;}
+        .sub{color:#5A6B62;font-size:13px;margin:0 0 16px;}
+        table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;}
+        th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #E9EEEA;vertical-align:top;}
+        th{font-size:11px;text-transform:uppercase;color:#93A29A;}
+        .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+        .meta{color:#5A6B62;font-size:11px;margin-top:2px;}
+        tr.edit td{background:#F7EADA;}
+        tr.add td{background:#F5EDD6;}
+      </style></head><body>
+      <h1>Prévisionnel</h1>
+      <p class="sub">${this.esc(month)} — aperçu local, sans modification du budget.</p>
+      ${accountsHtml}
+      ${statsHtml}
+      </body></html>`;
+    this.openReportFrame(html);
   },
 
   prevLineMeta(line) {

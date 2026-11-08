@@ -286,6 +286,11 @@
           <button type="button" data-prev-pane="comptes" onclick="BH.switchPrevPane('comptes')">Comptes</button>
           <button type="button" data-prev-pane="stats" onclick="BH.switchPrevPane('stats')">Statistiques</button>
         </nav>
+        <div class="bh-prev-tools">
+          <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.prevPrint()">PDF</button>
+          <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.prevRecord()">Enregistrer</button>
+          <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.prevOpenImport()">Importer</button>
+        </div>
         <div class="bh-prev-month">
           <button type="button" class="bh-icon-btn" onclick="BH.prevShiftMonth(-1)" aria-label="Mois précédent">&larr;</button>
           <div id="prev-month-label">Mois</div>

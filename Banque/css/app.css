@@ -713,6 +713,8 @@
       content:''; position:absolute; left:14px; right:14px; bottom:0; height:3px;
       border-radius:3px 3px 0 0; background:var(--sage);
     }
+    .bh-prev-tools{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+    #view-prev .bh-prev-tools .bh-btn{ min-height:36px; height:36px; padding:0 12px; font-size:13px; }
     .bh-prev-month{
       display:flex; align-items:center; gap:8px; flex-shrink:0;
     }
