@@ -202,9 +202,14 @@ Object.assign(BH, {
     const input = document.querySelector('#view-prev input[data-prev-key="' + CSS.escape(key) + '"]');
     if (input) {
       const line = this.prevLines().find(l => l.key === key);
-      input.classList.toggle('is-edited', !!(line && line.base != null && Math.abs(line.amount - line.base) >= 0.001));
-      const meta = input.parentElement && input.parentElement.querySelector('.bh-prev-line-meta');
-      if (meta && line) meta.textContent = this.prevLineMeta(line);
+      const edited = !!(line && line.base != null && Math.abs(line.amount - line.base) >= 0.001);
+      input.classList.toggle('is-edited', edited);
+      input.classList.toggle('is-added', !!(line && line.extra));
+      const row = input.closest('.bh-prev-line');
+      if (row) {
+        row.classList.toggle('is-edited', edited);
+        row.classList.toggle('is-added', !!(line && line.extra));
+      }
     }
   },
   prevRemoveExtra(id) {
@@ -250,23 +255,25 @@ Object.assign(BH, {
     if (line.isWallet) bits.push('Portefeuille');
     if (line.category) bits.push(line.category);
     if (line.day) bits.push('le ' + line.day);
-    if (line.extra) bits.push('Saisie temporaire');
     if (line.ended) bits.push('Terminée');
-    if (line.base != null && Math.abs(line.amount - line.base) >= 0.001) bits.push('Budget ' + this.fmt(line.base));
     return bits.join(' · ');
   },
   prevLineHtml(line) {
     const edited = line.base != null && Math.abs(line.amount - line.base) >= 0.001;
+    const added = !!line.extra;
     const title = (line.isWallet ? '👛 ' : '') + (line.description || (line.kind === 'income' ? 'Revenu' : 'Dépense'));
-    const del = line.extra
-      ? `<button type="button" class="bh-icon-btn" onclick="BH.prevRemoveExtra('${this.esc(line.id)}')" aria-label="Retirer">✕</button>`
-      : '';
-    return `<div class="bh-prev-line${line.extra ? ' has-del' : ''}">
+    const before = added ? '—' : this.fmt(line.base);
+    const del = added
+      ? `<button type="button" class="bh-icon-btn" onclick="BH.prevRemoveExtra('${this.esc(line.id)}')" aria-label="Retirer la saisie ajoutée">✕</button>`
+      : '<span></span>';
+    const state = added ? ' is-added' : (edited ? ' is-edited' : '');
+    return `<div class="bh-prev-line${state}">
       <div>
         <div class="bh-prev-line-title">${this.esc(title)}</div>
-        <div class="bh-prev-line-meta">${this.esc(this.prevLineMeta(line))}</div>
+        <div class="bh-prev-line-meta">${this.esc(this.prevLineMeta(line)) || '—'}</div>
       </div>
-      <input class="bh-prev-amt${edited ? ' is-edited' : ''}" type="number" min="0" step="0.01" inputmode="decimal"
+      <div class="bh-prev-before num">${before}</div>
+      <input class="bh-prev-amt${state}" type="number" min="0" step="0.01" inputmode="decimal"
         data-prev-key="${this.esc(line.key)}" value="${line.amount}"
         onchange="BH.prevSetAmount('${this.esc(line.key)}', this.value)" aria-label="${this.esc(title)}">
       ${del}
@@ -276,13 +283,14 @@ Object.assign(BH, {
   renderPrevSaisie() {
     const accounts = this.getOrderedAccounts();
     const cats = [...new Set(this.prevLines().map(l => l.category).filter(Boolean))].sort();
-    const monthNav = `<div class="bh-month-nav" style="display:flex; justify-content:space-between; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; padding:8px;">
-      <button type="button" class="bh-icon-btn" onclick="BH.prevShiftMonth(-1)" aria-label="Mois précédent">&larr;</button>
-      <div style="font-family:'Space Grotesk'; font-weight:700; display:flex; align-items:center; text-transform:capitalize;">${this.esc(this.prevMonthLabel())}</div>
-      <button type="button" class="bh-icon-btn" onclick="BH.prevShiftMonth(1)" aria-label="Mois suivant">&rarr;</button>
-    </div>`;
     const addBtn = `<div class="bh-prev-head">
-      <p class="bh-prev-note">Les montants restent sur cet appareil. Le budget enregistré n'est pas modifié. Une ligne terminée avant ce mois part à 0.</p>
+      <div>
+        <p class="bh-prev-note">Avant = montant théorique du mois. Actuel = valeur utilisée pour les comptes et les statistiques. Rien n'est enregistré dans le budget.</p>
+        <div class="bh-prev-legend" style="margin-top:8px;">
+          <span class="is-edited"><i></i>Modifié</span>
+          <span class="is-added"><i></i>Ajouté</span>
+        </div>
+      </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" class="bh-btn bh-btn-ghost" onclick="BH.prevResetMonth()">Réinitialiser</button>
         <button type="button" class="bh-btn bh-btn-primary" onclick="BH.prevToggleAdd()">${this.prevAddOpen ? 'Fermer' : 'Ajouter une saisie'}</button>
@@ -305,17 +313,18 @@ Object.assign(BH, {
     const blocks = accounts.map(acc => {
       const exps = this.prevAccountLines(acc.id, 'expense').slice().sort((a, b) => (Number(a.day) || 99) - (Number(b.day) || 99));
       const incs = this.prevAccountLines(acc.id, 'income');
-      const expHtml = exps.length ? exps.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 0;">Aucune dépense.</div>';
-      const incHtml = incs.length ? incs.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 0;">Aucun revenu.</div>';
+      const head = `<div class="bh-prev-cols"><span></span><span>Avant</span><span>Actuel</span><span></span></div>`;
+      const expHtml = exps.length ? head + exps.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 12px;">Aucune dépense.</div>';
+      const incHtml = incs.length ? head + incs.map(l => this.prevLineHtml(l)).join('') : '<div class="bh-prev-line-meta" style="padding:8px 12px;">Aucun revenu.</div>';
       return `<div class="bh-card">
         <div class="bh-prev-acc-name">${this.esc(acc.name)}</div>
         <div class="bh-section-label">Dépenses</div>
         ${expHtml}
-        <div class="bh-section-label" style="margin-top:14px;">Revenus</div>
+        <div class="bh-section-label" style="margin-top:16px;">Revenus</div>
         ${incHtml}
       </div>`;
     }).join('');
-    return monthNav + addBtn + add + (blocks || '<div class="bh-empty">Aucun compte</div>');
+    return addBtn + add + (blocks || '<div class="bh-empty">Aucun compte</div>');
   },
 
   prevShowLines(accId, kind) {
@@ -548,6 +557,8 @@ Object.assign(BH, {
     if (!root || !this.state || !this.state.accounts) return;
     this.prevInvalidate();
     this.prevLines();
+    const monthLabel = document.getElementById('prev-month-label');
+    if (monthLabel) monthLabel.textContent = this.prevMonthLabel();
     root.querySelectorAll('.bh-prev-nav button').forEach(b => {
       b.classList.toggle('active', b.dataset.prevPane === this.prevPane);
     });
