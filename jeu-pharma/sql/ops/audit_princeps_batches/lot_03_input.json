@@ -1,0 +1,278 @@
+[
+  {
+    "matrice_id": "f005d8d6-fec4-44ec-ad4e-1e3feac930d6",
+    "dci_affichee": "Darbépoétine alfa",
+    "dci": "Darbépoétine alfa",
+    "noms_actuels": "Aranesp",
+    "n_comp": 0,
+    "composants_norm": [
+      "darbepoetine alfa"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "15dace8a-f7b8-4d7e-b388-8eb9a860fee1",
+    "dci_affichee": "Désirudine",
+    "dci": "Désirudine",
+    "noms_actuels": "Revasc",
+    "n_comp": 0,
+    "composants_norm": [
+      "desirudine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "7967614d-17db-4996-ae5c-44184c883f73",
+    "dci_affichee": "Digoxine",
+    "dci": "Digoxine",
+    "noms_actuels": "Digoxine nativelle",
+    "n_comp": 0,
+    "composants_norm": [
+      "digoxine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Digoxine Nativelle ; Hemigoxine Nativelle"
+  },
+  {
+    "matrice_id": "410b703a-131b-4074-9b38-40d43e41b282",
+    "dci_affichee": "Diltiazem",
+    "dci": "Diltiazem",
+    "noms_actuels": "Tildiem ; Monotildiem",
+    "n_comp": 0,
+    "composants_norm": [
+      "diltiazem"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Bi Tildiem ; Mono Tildiem ; Tildiem"
+  },
+  {
+    "matrice_id": "1a63c261-a0a3-4928-ae20-3a31a99de262",
+    "dci_affichee": "Diosmine",
+    "dci": "Diosmine",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "diosmine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Diovenor"
+  },
+  {
+    "matrice_id": "24debc6d-c894-41f7-bef7-d262de393aee",
+    "dci_affichee": "Dipyridamole",
+    "dci": "Dipyridamole",
+    "noms_actuels": "Persantine",
+    "n_comp": 0,
+    "composants_norm": [
+      "dipyridamole"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "cfa2225f-6403-4f61-8b1e-2fad485e2454",
+    "dci_affichee": "Disopyramide",
+    "dci": "Disopyramide",
+    "noms_actuels": "Rythmodan",
+    "n_comp": 0,
+    "composants_norm": [
+      "disopyramide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "9db76ac4-bfd6-4057-82f9-404efc891c01",
+    "dci_affichee": "Doxazosine",
+    "dci": "Doxazosine",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "doxazosine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "310b4ade-e272-43e4-9eba-a98717417853",
+    "dci_affichee": "Enalapril",
+    "dci": "Enalapril",
+    "noms_actuels": "Rénitec",
+    "n_comp": 0,
+    "composants_norm": [
+      "enalapril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Renitec"
+  },
+  {
+    "matrice_id": "0acc3e8c-c078-42ba-bf9b-65d271c6cca1",
+    "dci_affichee": "Enalapril + Hydrochlorothiazide",
+    "dci": "Énalapril + hydrochlorothiazide",
+    "noms_actuels": "",
+    "n_comp": 2,
+    "composants_norm": [
+      "enalapril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Co-Renitec"
+  },
+  {
+    "matrice_id": "43b571eb-f9bd-4290-87e9-89a747d0d10c",
+    "dci_affichee": "Enalapril + Lercanidipine",
+    "dci": "Énalapril + lercanidipine",
+    "noms_actuels": "Zanextra ; Lercapress",
+    "n_comp": 2,
+    "composants_norm": [
+      "enalapril",
+      "lercanidipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Lercapress ; Zanextra"
+  },
+  {
+    "matrice_id": "b6b1bcf8-63af-4882-8b5b-0078b271e1e6",
+    "dci_affichee": "Énoxaparine sodique",
+    "dci": "Énoxaparine sodique",
+    "noms_actuels": "Lovenox",
+    "n_comp": 0,
+    "composants_norm": [
+      "enoxaparine sodique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "3e959294-a112-4b57-8cdc-ff7479bbe8a1",
+    "dci_affichee": "Éplérénone",
+    "dci": "Éplérénone",
+    "noms_actuels": "Inspra",
+    "n_comp": 0,
+    "composants_norm": [
+      "eplerenone"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Inspra"
+  },
+  {
+    "matrice_id": "a3954933-3a62-45df-93a6-4d196a7f1c42",
+    "dci_affichee": "Epoétine alfa",
+    "dci": "Epoétine alfa",
+    "noms_actuels": "Binocrit ; Retacrit ; Eprex",
+    "n_comp": 0,
+    "composants_norm": [
+      "epoetine alfa"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "70364dd8-1f46-41cc-97ea-fd018d73470a",
+    "dci_affichee": "Epoétine bêta",
+    "dci": "Epoétine bêta",
+    "noms_actuels": "Néorécormon ; Mircera",
+    "n_comp": 0,
+    "composants_norm": [
+      "epoetine beta"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "9a9eb95a-70fd-4871-ae36-c7f69200895c",
+    "dci_affichee": "Éprosartan",
+    "dci": "Éprosartan",
+    "noms_actuels": "Teveten",
+    "n_comp": 0,
+    "composants_norm": [
+      "eprosartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "e7d5bef1-33c4-4698-af95-4d4a61b3495f",
+    "dci_affichee": "Esmolol",
+    "dci": "Esmolol",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "esmolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Brevibloc"
+  },
+  {
+    "matrice_id": "acb28a4c-6c2d-48a7-8390-2a3df62c6f74",
+    "dci_affichee": "Félodipine",
+    "dci": "Félodipine",
+    "noms_actuels": "Flodil ; Plendil",
+    "n_comp": 0,
+    "composants_norm": [
+      "felodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Flodil"
+  },
+  {
+    "matrice_id": "bb41ff4f-e19a-46dc-ab17-6f0ec5c3eaef",
+    "dci_affichee": "Félodipine + Métoprolol",
+    "dci": "Félodipine + métoprolol",
+    "noms_actuels": "Logimax",
+    "n_comp": 2,
+    "composants_norm": [
+      "felodipine",
+      "metoprolol"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "127f367d-29f2-44ce-8a9e-a74e82234a4f",
+    "dci_affichee": "Flécaïnide",
+    "dci": "Flécaïnide",
+    "noms_actuels": "Flécaïne",
+    "n_comp": 0,
+    "composants_norm": [
+      "flecainide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Flecaine ; Flecaïne"
+  },
+  {
+    "matrice_id": "114d3db2-b65c-4360-9a8c-a0a4bd7e749a",
+    "dci_affichee": "Fluindione",
+    "dci": "Fluindione",
+    "noms_actuels": "Préviscan",
+    "n_comp": 0,
+    "composants_norm": [
+      "fluindione"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  }
+]

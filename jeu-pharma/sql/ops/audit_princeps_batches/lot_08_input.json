@@ -1,0 +1,228 @@
+[
+  {
+    "matrice_id": "0689c0ed-3f24-4135-bc96-f5ee26f02579",
+    "dci_affichee": "Trandolapril",
+    "dci": "Trandolapril",
+    "noms_actuels": "Tarka",
+    "n_comp": 0,
+    "composants_norm": [
+      "trandolapril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Odrik"
+  },
+  {
+    "matrice_id": "06137bc1-d68d-4fa6-8c1b-94237e77adfa",
+    "dci_affichee": "Triamtérène",
+    "dci": "Triamtérène",
+    "noms_actuels": "Prestole",
+    "n_comp": 0,
+    "composants_norm": [
+      "triamterene"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "4d3accd4-e824-4c36-a643-fc9486969c94",
+    "dci_affichee": "Triamtérène + Hydrochlorothiazide",
+    "dci": "Triamtérène + hydrochlorothiazide",
+    "noms_actuels": "Isobar ; Prestole",
+    "n_comp": 2,
+    "composants_norm": [
+      "triamterene",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "694ce30c-89bd-47be-9434-acfc2fffa602",
+    "dci_affichee": "Triamtérène + méthyclothiazide",
+    "dci": "Triamtérène + méthyclothiazide",
+    "noms_actuels": "Isobar",
+    "n_comp": 1,
+    "composants_norm": [
+      "triamterene"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "93d94906-21f1-40d3-af72-639d5946b5bc",
+    "dci_affichee": "Trimétazidine",
+    "dci": "Trimétazidine",
+    "noms_actuels": "Vastarel",
+    "n_comp": 0,
+    "composants_norm": [
+      "trimetazidine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Vastarel"
+  },
+  {
+    "matrice_id": "2aa2b0b5-c35d-4b00-882e-1c59d6a06a24",
+    "dci_affichee": "Trinitrine",
+    "dci": "Trinitrine",
+    "noms_actuels": "Diafusor ; Discotrine ; Nitriderm ; Natispray ; Epinitril",
+    "n_comp": 0,
+    "composants_norm": [
+      "trinitrine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "266fde9e-bc6f-4e01-93e2-bf8bc6661ec9",
+    "dci_affichee": "Troxérutine",
+    "dci": "Troxérutine",
+    "noms_actuels": "Veinamitol",
+    "n_comp": 0,
+    "composants_norm": [
+      "troxerutine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Rheoflux ; Veinamitol"
+  },
+  {
+    "matrice_id": "30c3a4de-9fa3-4862-b349-cc6d0a832f84",
+    "dci_affichee": "Urapidil",
+    "dci": "Urapidil",
+    "noms_actuels": "Eupressyl ; Mediatensyl",
+    "n_comp": 0,
+    "composants_norm": [
+      "urapidil"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Eupressyl ; Mediatensyl"
+  },
+  {
+    "matrice_id": "8fe3ffdf-edf4-4213-8c85-d1ea3cc0a9b3",
+    "dci_affichee": "Urokinase",
+    "dci": "Urokinase",
+    "noms_actuels": "Actosolv",
+    "n_comp": 0,
+    "composants_norm": [
+      "urokinase"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "0130eef2-c8af-4d30-9370-5e61b8215d0d",
+    "dci_affichee": "Valsartan",
+    "dci": "Valsartan",
+    "noms_actuels": "Tareg ; Nisis",
+    "n_comp": 0,
+    "composants_norm": [
+      "valsartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Entresto ; Nisis ; Tareg"
+  },
+  {
+    "matrice_id": "935ca585-1df3-449a-8b3f-d1e9cd85d132",
+    "dci_affichee": "Valsartan + Amlodipine",
+    "dci": "Valsartan + amlodipine",
+    "noms_actuels": "Exforge",
+    "n_comp": 2,
+    "composants_norm": [
+      "valsartan",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Exforge ; Exforge Hct"
+  },
+  {
+    "matrice_id": "2799c3c2-f885-49ff-be34-4f9e094cf010",
+    "dci_affichee": "Valsartan + Hydrochlorothiazide",
+    "dci": "Valsartan + hydrochlorothiazide",
+    "noms_actuels": "Cotareg",
+    "n_comp": 2,
+    "composants_norm": [
+      "valsartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Cotareg ; Exforge Hct ; Nisisco"
+  },
+  {
+    "matrice_id": "49d55f27-4be4-43a2-a422-a15f3aa64df5",
+    "dci_affichee": "Vérapamil",
+    "dci": "Vérapamil",
+    "noms_actuels": "Isoptine",
+    "n_comp": 0,
+    "composants_norm": [
+      "verapamil"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Isoptine"
+  },
+  {
+    "matrice_id": "30bab9da-8cb5-45c1-88a3-af223b21eace",
+    "dci_affichee": "Vérapamil + Trandolapril",
+    "dci": "Vérapamil + trandolapril",
+    "noms_actuels": "Tarka",
+    "n_comp": 2,
+    "composants_norm": [
+      "verapamil",
+      "trandolapril"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "4a0382c1-76f8-4e60-8c8c-ea50a644f869",
+    "dci_affichee": "Warfarine",
+    "dci": "Warfarine",
+    "noms_actuels": "Coumadine",
+    "n_comp": 0,
+    "composants_norm": [
+      "warfarine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "d317ddfe-06da-415a-961e-4cb33603ee4f",
+    "dci_affichee": "Zofénopril",
+    "dci": "Zofénopril",
+    "noms_actuels": "Zofénil",
+    "n_comp": 0,
+    "composants_norm": [
+      "zofenopril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Zofenil"
+  },
+  {
+    "matrice_id": "1643b814-7c63-4b5f-977d-d5f44d323052",
+    "dci_affichee": "Zofénopril + Hydrochlorothiazide",
+    "dci": "Zofénopril + hydrochlorothiazide",
+    "noms_actuels": "Zofenilduo",
+    "n_comp": 2,
+    "composants_norm": [
+      "zofenopril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  }
+]

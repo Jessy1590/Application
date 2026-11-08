@@ -1,0 +1,149 @@
+[
+  {
+    "matrice_id": "f005d8d6-fec4-44ec-ad4e-1e3feac930d6",
+    "dci_affichee": "Darbépoétine alfa",
+    "princeps": "Aranesp",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "15dace8a-f7b8-4d7e-b388-8eb9a860fee1",
+    "dci_affichee": "Désirudine",
+    "princeps": "Revasc",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Arrêt de commercialisation"
+  },
+  {
+    "matrice_id": "7967614d-17db-4996-ae5c-44184c883f73",
+    "dci_affichee": "Digoxine",
+    "princeps": "Lanoxin",
+    "sources": "BDPM; VIDAL",
+    "note": "hint_bdm = réf. générique Nativelle, pas marque d'origine"
+  },
+  {
+    "matrice_id": "410b703a-131b-4074-9b38-40d43e41b282",
+    "dci_affichee": "Diltiazem",
+    "princeps": "Tildiem",
+    "sources": "BDM hint; noms_actuels; VIDAL",
+    "note": "Bi Tildiem ; Mono Tildiem = variantes galéniques"
+  },
+  {
+    "matrice_id": "1a63c261-a0a3-4928-ae20-3a31a99de262",
+    "dci_affichee": "Diosmine",
+    "princeps": "Diovenor",
+    "sources": "BDPM; hint_bdm",
+    "note": "Daflon = diosmine + hespéridine (asso)"
+  },
+  {
+    "matrice_id": "24debc6d-c894-41f7-bef7-d262de393aee",
+    "dci_affichee": "Dipyridamole",
+    "princeps": "Persantine",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "cfa2225f-6403-4f61-8b1e-2fad485e2454",
+    "dci_affichee": "Disopyramide",
+    "princeps": "Rythmodan",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "9db76ac4-bfd6-4057-82f9-404efc891c01",
+    "dci_affichee": "Doxazosine",
+    "princeps": "Cardura",
+    "sources": "BDPM; VIDAL",
+    "note": "Hors marché FR ; Zoxan LP = autre princeps LP"
+  },
+  {
+    "matrice_id": "310b4ade-e272-43e4-9eba-a98717417853",
+    "dci_affichee": "Enalapril",
+    "princeps": "Renitec",
+    "sources": "BDM hint; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "0acc3e8c-c078-42ba-bf9b-65d271c6cca1",
+    "dci_affichee": "Enalapril + Hydrochlorothiazide",
+    "princeps": "Co-Renitec",
+    "sources": "BDM hint; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "43b571eb-f9bd-4290-87e9-89a747d0d10c",
+    "dci_affichee": "Enalapril + Lercanidipine",
+    "princeps": "Zanextra ; Lercapress",
+    "sources": "BDM hint; noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "b6b1bcf8-63af-4882-8b5b-0078b271e1e6",
+    "dci_affichee": "Énoxaparine sodique",
+    "princeps": "Lovenox",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "3e959294-a112-4b57-8cdc-ff7479bbe8a1",
+    "dci_affichee": "Éplérénone",
+    "princeps": "Inspra",
+    "sources": "BDM hint; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "a3954933-3a62-45df-93a6-4d196a7f1c42",
+    "dci_affichee": "Epoétine alfa",
+    "princeps": "Eprex",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Binocrit ; Retacrit = biosimilaires"
+  },
+  {
+    "matrice_id": "70364dd8-1f46-41cc-97ea-fd018d73470a",
+    "dci_affichee": "Epoétine bêta",
+    "princeps": "Néorécormon",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Mircera = méthoxy PEG-époétine bêta (spécialité distincte)"
+  },
+  {
+    "matrice_id": "9a9eb95a-70fd-4871-ae36-c7f69200895c",
+    "dci_affichee": "Éprosartan",
+    "princeps": "Teveten",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "e7d5bef1-33c4-4698-af95-4d4a61b3495f",
+    "dci_affichee": "Esmolol",
+    "princeps": "Brevibloc",
+    "sources": "BDM hint; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "acb28a4c-6c2d-48a7-8390-2a3df62c6f74",
+    "dci_affichee": "Félodipine",
+    "princeps": "Flodil ; Plendil",
+    "sources": "BDM hint; noms_actuels; VIDAL",
+    "note": "Même laboratoire d'origine (Astra)"
+  },
+  {
+    "matrice_id": "bb41ff4f-e19a-46dc-ab17-6f0ec5c3eaef",
+    "dci_affichee": "Félodipine + Métoprolol",
+    "princeps": "Logimax",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "127f367d-29f2-44ce-8a9e-a74e82234a4f",
+    "dci_affichee": "Flécaïnide",
+    "princeps": "Flécaïne",
+    "sources": "BDM hint; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "114d3db2-b65c-4360-9a8c-a0a4bd7e749a",
+    "dci_affichee": "Fluindione",
+    "princeps": "Préviscan",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  }
+]

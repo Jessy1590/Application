@@ -1,0 +1,278 @@
+[
+  {
+    "matrice_id": "099e2e05-fa38-42a8-b7dc-db2b93418a32",
+    "dci_affichee": "Lercanidipine",
+    "dci": "Lercanidipine",
+    "noms_actuels": "Lercan ; Zanidip",
+    "n_comp": 0,
+    "composants_norm": [
+      "lercanidipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Lercan ; Zanidip"
+  },
+  {
+    "matrice_id": "0b83ffa6-92d5-44cb-8993-bd1613438868",
+    "dci_affichee": "Lévobunolol",
+    "dci": "Lévobunolol",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "levobunolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "580b6957-f458-4e12-953a-460eb570c6eb",
+    "dci_affichee": "Lisinopril",
+    "dci": "Lisinopril",
+    "noms_actuels": "Prinivil ; Zestril",
+    "n_comp": 0,
+    "composants_norm": [
+      "lisinopril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Zestril"
+  },
+  {
+    "matrice_id": "54c0aadb-db71-41c9-bc07-ff7315efad8e",
+    "dci_affichee": "Lisinopril + Hydrochlorothiazide",
+    "dci": "Lisinopril + hydrochlorothiazide",
+    "noms_actuels": "Zestoretic ; Prinzide",
+    "n_comp": 2,
+    "composants_norm": [
+      "lisinopril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Zestoretic"
+  },
+  {
+    "matrice_id": "88a0f4b5-e292-49ca-8097-2be5396912a2",
+    "dci_affichee": "Losartan",
+    "dci": "Losartan",
+    "noms_actuels": "Cozaar",
+    "n_comp": 0,
+    "composants_norm": [
+      "losartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Cozaar"
+  },
+  {
+    "matrice_id": "8b707b55-fb59-4d36-8cd6-64573680aedc",
+    "dci_affichee": "Losartan + Hydrochlorothiazide",
+    "dci": "Losartan + hydrochlorothiazide",
+    "noms_actuels": "Fortzaar ; Hyzaar",
+    "n_comp": 2,
+    "composants_norm": [
+      "losartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Fortzaar ; Hyzaar"
+  },
+  {
+    "matrice_id": "c27f94c4-c3e1-4c8e-9232-ef4ebd9c63cb",
+    "dci_affichee": "Manidipine",
+    "dci": "Manidipine",
+    "noms_actuels": "Iperten",
+    "n_comp": 0,
+    "composants_norm": [
+      "manidipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Iperten"
+  },
+  {
+    "matrice_id": "19c29083-fe7e-44dd-b9e1-0a3890f41b99",
+    "dci_affichee": "Méthyldopa",
+    "dci": "Méthyldopa",
+    "noms_actuels": "Aldomet",
+    "n_comp": 0,
+    "composants_norm": [
+      "methyldopa"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "760ace50-9ae0-4758-9744-c9bdcdebcf96",
+    "dci_affichee": "Métoprolol",
+    "dci": "Métoprolol",
+    "noms_actuels": "Lopressor ; Seloken",
+    "n_comp": 0,
+    "composants_norm": [
+      "metoprolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Lopressor ; Seloken"
+  },
+  {
+    "matrice_id": "a6aad096-0a5d-4841-a2e4-77dc1ffbad7a",
+    "dci_affichee": "Métoprolol + chlortalidone",
+    "dci": "Métoprolol + chlortalidone",
+    "noms_actuels": "Lopressor ; Seloken",
+    "n_comp": 1,
+    "composants_norm": [
+      "metoprolol"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "ccd2b75c-6e02-4ce4-a07c-010d8eb14684",
+    "dci_affichee": "Minoxidil",
+    "dci": "Minoxidil",
+    "noms_actuels": "Alopexy",
+    "n_comp": 0,
+    "composants_norm": [
+      "minoxidil"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Alostil"
+  },
+  {
+    "matrice_id": "898e91e6-ba38-458d-bbf2-894c5cb0ad5d",
+    "dci_affichee": "Molsidomine",
+    "dci": "Molsidomine",
+    "noms_actuels": "Corvasal",
+    "n_comp": 0,
+    "composants_norm": [
+      "molsidomine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Corvasal"
+  },
+  {
+    "matrice_id": "98a68148-9507-4d9f-a21a-7eb58f37214a",
+    "dci_affichee": "Moxonidine",
+    "dci": "Moxonidine",
+    "noms_actuels": "Physiotens",
+    "n_comp": 0,
+    "composants_norm": [
+      "moxonidine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Physiotens"
+  },
+  {
+    "matrice_id": "397c4c0a-6516-4e1d-a879-d8b61802f60a",
+    "dci_affichee": "Nadolol",
+    "dci": "Nadolol",
+    "noms_actuels": "Corgard",
+    "n_comp": 0,
+    "composants_norm": [
+      "nadolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "a99726d0-32dc-4695-ad80-b66e7cda21f7",
+    "dci_affichee": "Nadroparine",
+    "dci": "Nadroparine",
+    "noms_actuels": "Fraxiparine",
+    "n_comp": 0,
+    "composants_norm": [
+      "nadroparine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "89d61300-8511-4ef8-95af-649d6d349009",
+    "dci_affichee": "Naftazone",
+    "dci": "Naftazone",
+    "noms_actuels": "Etioven",
+    "n_comp": 0,
+    "composants_norm": [
+      "naftazone"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "8ad14bd9-cad4-41e6-a9de-b685c9f507a4",
+    "dci_affichee": "Naftidrofuryl",
+    "dci": "Naftidrofuryl",
+    "noms_actuels": "Praxilène",
+    "n_comp": 0,
+    "composants_norm": [
+      "naftidrofuryl"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "0263afdb-45f9-40a9-8b4a-5857326a81b8",
+    "dci_affichee": "Nébivolol",
+    "dci": "Nébivolol",
+    "noms_actuels": "Témérit",
+    "n_comp": 0,
+    "composants_norm": [
+      "nebivolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Nebilox ; Temerit"
+  },
+  {
+    "matrice_id": "43e31250-8f71-4538-be5f-ba4aa4d47d9c",
+    "dci_affichee": "Nébivolol + Hydrochlorothiazide",
+    "dci": "Nébivolol + hydrochlorothiazide",
+    "noms_actuels": "Témérit ; Nébilox",
+    "n_comp": 2,
+    "composants_norm": [
+      "nebivolol",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Conebilox ; Temeritduo"
+  },
+  {
+    "matrice_id": "bebd0d69-a7cb-418c-ae95-3c3eab1ca018",
+    "dci_affichee": "Nicardipine",
+    "dci": "Nicardipine",
+    "noms_actuels": "Loxen",
+    "n_comp": 0,
+    "composants_norm": [
+      "nicardipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Loxen"
+  },
+  {
+    "matrice_id": "41bcc13c-6607-4130-b4fd-96510b9e85dd",
+    "dci_affichee": "Nicorandil",
+    "dci": "Nicorandil",
+    "noms_actuels": "Ikorel ; Adancor",
+    "n_comp": 0,
+    "composants_norm": [
+      "nicorandil"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Ikorel"
+  }
+]

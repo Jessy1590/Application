@@ -1,0 +1,149 @@
+[
+  {
+    "matrice_id": "6f8158c7-8836-4a76-a636-9800c119443b",
+    "dci_affichee": "Rétéplase",
+    "princeps": "Rapilysin",
+    "sources": "EMA; BDPM; noms_actuels",
+    "note": "Hors marché UE (retrait AMM 2024)"
+  },
+  {
+    "matrice_id": "fdf35b56-518d-4d95-88f9-fa6e620f348b",
+    "dci_affichee": "Rilménidine",
+    "princeps": "Hyperium",
+    "sources": "hint_bdm; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "7df6b28a-35f6-47a0-aacb-d73d5482e275",
+    "dci_affichee": "Rivaroxaban",
+    "princeps": "Xarelto",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "474ef71c-3530-45fe-82d4-22be995087c4",
+    "dci_affichee": "Ruscoside",
+    "princeps": "Cirkan",
+    "sources": "ANSM; noms_actuels",
+    "note": "Marque référence veinotonique ; spécialité historic Cirkan à la prednacinolone (hors marché)"
+  },
+  {
+    "matrice_id": "0415e982-3813-4b5c-8534-e93933343ce8",
+    "dci_affichee": "Sacubitril + valsartan",
+    "princeps": "Entresto",
+    "sources": "noms_actuels; EMA",
+    "note": ""
+  },
+  {
+    "matrice_id": "d122d669-2f7c-48ed-a517-aa6e4bd765b8",
+    "dci_affichee": "Sels ferreux",
+    "princeps": "Tardyféron ; Fumafer",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Galéniques fer sans princeps unique ; références pédagogiques FR"
+  },
+  {
+    "matrice_id": "6062f202-2407-493f-aa22-c26fc374877e",
+    "dci_affichee": "Sels ferreux + Acide folique",
+    "princeps": "Tardyféron B9",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "3d7303ca-9fe0-4fae-b138-9cdead53f4e7",
+    "dci_affichee": "Sotalol",
+    "princeps": "Sotalex",
+    "sources": "hint_bdm; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "8dc7d201-d3a1-4a16-a116-37ab4f0b1fa6",
+    "dci_affichee": "Spironolactone",
+    "princeps": "Aldactone",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "c0fd1199-5e18-4edb-b686-4cdfa41330c8",
+    "dci_affichee": "Spironolactone + altizide",
+    "princeps": "Aldactazine",
+    "sources": "hint_bdm; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "04463bf2-ee7e-4e61-a864-9383bd77524b",
+    "dci_affichee": "Streptokinase",
+    "princeps": "Streptase",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Hors marché / plus utilisé en pratique courante"
+  },
+  {
+    "matrice_id": "757b4a92-cb0e-477d-8cb5-b29f6b45a357",
+    "dci_affichee": "Succinate ferreux",
+    "princeps": "Inofer",
+    "sources": "noms_actuels; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "c0819c61-c589-48d1-b925-a2a2cbc8b2ce",
+    "dci_affichee": "Telmisartan",
+    "princeps": "Micardis ; Pritor",
+    "sources": "hint_bdm; VIDAL",
+    "note": "Dénominations parallèles BI"
+  },
+  {
+    "matrice_id": "ff6b5838-7b06-4ce5-9ace-1eb8282a3322",
+    "dci_affichee": "Telmisartan + Amlodipine",
+    "princeps": "Twynsta",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "b09d063b-8417-4f21-bd8a-6e6b15a84110",
+    "dci_affichee": "Telmisartan + Hydrochlorothiazide",
+    "princeps": "Micardisplus ; Pritorplus",
+    "sources": "hint_bdm; BDPM",
+    "note": "Micardiplus dans noms_actuels = Micardisplus"
+  },
+  {
+    "matrice_id": "3721e13c-4675-47e0-a8c7-d486485bbcf1",
+    "dci_affichee": "Ténectéplase",
+    "princeps": "Métalyse",
+    "sources": "noms_actuels; EMA",
+    "note": ""
+  },
+  {
+    "matrice_id": "19ffe4e3-9fe0-4d09-abb2-7cb09812abef",
+    "dci_affichee": "Tertatolol",
+    "princeps": "Artex",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "70ef80e5-311f-42b5-b378-cce48aee94e8",
+    "dci_affichee": "Ticagrélor",
+    "princeps": "Brilique",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "455bdc41-a667-408b-8462-0e34cf63626a",
+    "dci_affichee": "Timolol",
+    "princeps": "Timoptol",
+    "sources": "hint_bdm; VIDAL",
+    "note": "Princeps collyre ; Geltim dans noms_actuels"
+  },
+  {
+    "matrice_id": "9e6b62af-aa91-4c8d-8a3d-fffc24e004e2",
+    "dci_affichee": "Timolol + Amiloride + Hydrochlorothiazide",
+    "princeps": "Moducren",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "4846db93-d734-4877-b759-c84de88e8936",
+    "dci_affichee": "Tinzaparine",
+    "princeps": "Innohep",
+    "sources": "noms_actuels; BDPM",
+    "note": ""
+  }
+]

@@ -1,0 +1,280 @@
+[
+  {
+    "matrice_id": "edd2562f-ec95-4b2a-b246-06aaca1940d4",
+    "dci_affichee": "Acébutolol",
+    "dci": "Acébutolol",
+    "noms_actuels": "Sectral",
+    "n_comp": 0,
+    "composants_norm": [
+      "acebutolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Sectral"
+  },
+  {
+    "matrice_id": "62d878e5-ff88-4add-af89-3403a38b5852",
+    "dci_affichee": "Acénocoumarol",
+    "dci": "Acénocoumarol",
+    "noms_actuels": "Mini-Sintrom ; Sintrom",
+    "n_comp": 0,
+    "composants_norm": [
+      "acenocoumarol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "de52a954-d5c1-434a-ab55-df2d6af685d3",
+    "dci_affichee": "Acide acétylsalicylique",
+    "dci": "Acide acétylsalicylique",
+    "noms_actuels": "Asared ; Kardegic ; Aspirine protect ; Resitune ; Aspegic",
+    "n_comp": 0,
+    "composants_norm": [
+      "acide acetylsalicylique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Exacyl ; Speciafoldine"
+  },
+  {
+    "matrice_id": "4eb5c426-a3a7-4e72-9d5a-2ad4e3393c1c",
+    "dci_affichee": "Acide ascorbique",
+    "dci": "Acide ascorbique",
+    "noms_actuels": "Laroscorbine ; Vitamine C Upsa",
+    "n_comp": 0,
+    "composants_norm": [
+      "acide ascorbique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Exacyl ; Speciafoldine"
+  },
+  {
+    "matrice_id": "a19b0c1d-7c86-4b55-b27f-c134be7828db",
+    "dci_affichee": "Acide ascorbique + Sels ferreux",
+    "dci": "Acide ascorbique + sulfate ferreux",
+    "noms_actuels": "Timoferol ; Fero-grad",
+    "n_comp": 2,
+    "composants_norm": [
+      "acide ascorbique",
+      "sels ferreux"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "480be154-0bca-433c-a97d-4e9b23e73729",
+    "dci_affichee": "Acide folique",
+    "dci": "Acide folique",
+    "noms_actuels": "Spéciafoldine ; Acide folique ccd",
+    "n_comp": 0,
+    "composants_norm": [
+      "acide folique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Exacyl ; Speciafoldine"
+  },
+  {
+    "matrice_id": "0e7c6737-d10b-42c1-bbda-5e0c35cf2a68",
+    "dci_affichee": "Acide tranéxamique",
+    "dci": "Acide tranéxamique",
+    "noms_actuels": "Exacyl",
+    "n_comp": 0,
+    "composants_norm": [
+      "acide tranexamique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Exacyl ; Speciafoldine"
+  },
+  {
+    "matrice_id": "003e55e0-3272-4551-bafe-24132325d981",
+    "dci_affichee": "Adrénaline",
+    "dci": "Adrénaline",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "adrenaline"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Epipen"
+  },
+  {
+    "matrice_id": "66367471-246b-4d4f-8b62-c0fb04ebb644",
+    "dci_affichee": "Altéplase",
+    "dci": "Altéplase",
+    "noms_actuels": "Actilyse",
+    "n_comp": 0,
+    "composants_norm": [
+      "alteplase"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "1bfb21a1-4799-40d5-8699-c7d1d687e7e9",
+    "dci_affichee": "Amiloride",
+    "dci": "Amiloride",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "amiloride"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "2db88479-3f2f-4a9c-8a81-805c057278a1",
+    "dci_affichee": "Amiloride + Furosémide",
+    "dci": "Amiloride + furosémide",
+    "noms_actuels": "Logirène ; Frumil",
+    "n_comp": 2,
+    "composants_norm": [
+      "amiloride",
+      "furosemide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "1c74e4af-0fb6-4693-9df6-899ef1006dc6",
+    "dci_affichee": "Amiloride + Hydrochlorothiazide",
+    "dci": "Amiloride + hydrochlorothiazide",
+    "noms_actuels": "Moduretic",
+    "n_comp": 2,
+    "composants_norm": [
+      "amiloride",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "658e58fc-f6af-4869-ba8a-ad9aeb30ce30",
+    "dci_affichee": "Amiodarone",
+    "dci": "Amiodarone",
+    "noms_actuels": "Cordarone",
+    "n_comp": 0,
+    "composants_norm": [
+      "amiodarone"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Cordarone"
+  },
+  {
+    "matrice_id": "dac2886e-327c-4a66-b940-cf89b133ff41",
+    "dci_affichee": "Amlodipine",
+    "dci": "Amlodipine",
+    "noms_actuels": "Amlor",
+    "n_comp": 0,
+    "composants_norm": [
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Amlor"
+  },
+  {
+    "matrice_id": "46a6d3fa-a641-4744-b33b-738e18d28fd2",
+    "dci_affichee": "Amlodipine + Indapamide",
+    "dci": "Amlodipine + indapamide",
+    "noms_actuels": "Natrixam",
+    "n_comp": 2,
+    "composants_norm": [
+      "amlodipine",
+      "indapamide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "a09d1e36-6b34-47fe-b011-af197df3428e",
+    "dci_affichee": "Apixaban",
+    "dci": "Apixaban",
+    "noms_actuels": "Eliquis",
+    "n_comp": 0,
+    "composants_norm": [
+      "apixaban"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Eliquis"
+  },
+  {
+    "matrice_id": "46833694-51db-43fa-a833-3c764caef2a3",
+    "dci_affichee": "Aténolol",
+    "dci": "Aténolol",
+    "noms_actuels": "Tenormine",
+    "n_comp": 0,
+    "composants_norm": [
+      "atenolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Tenormine"
+  },
+  {
+    "matrice_id": "c9c50626-455d-4837-a3c8-fcba7be16aad",
+    "dci_affichee": "Aténolol + chlortalidone",
+    "dci": "Aténolol + chlortalidone",
+    "noms_actuels": "Tenoretic",
+    "n_comp": 1,
+    "composants_norm": [
+      "atenolol"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "de4b7b05-e1fe-4889-b1b7-4fbb692f66e5",
+    "dci_affichee": "Aténolol + Nifédipine",
+    "dci": "Aténolol + nifédipine",
+    "noms_actuels": "Tenormine",
+    "n_comp": 2,
+    "composants_norm": [
+      "atenolol",
+      "nifedipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "05a1ca48-bc52-4fa8-9aad-afb7b8cd8106",
+    "dci_affichee": "Atorvastatine",
+    "dci": "Atorvastatine",
+    "noms_actuels": "Tahor",
+    "n_comp": 0,
+    "composants_norm": [
+      "atorvastatine"
+    ],
+    "en_lecon": false,
+    "is_asso": false,
+    "hint_bdm": "Tahor"
+  },
+  {
+    "matrice_id": "8fbbbf14-f1da-4a09-9762-95855266711f",
+    "dci_affichee": "Bénazépril",
+    "dci": "Bénazépril",
+    "noms_actuels": "Briem ; Cibacene",
+    "n_comp": 0,
+    "composants_norm": [
+      "benazepril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Cibacene"
+  }
+]

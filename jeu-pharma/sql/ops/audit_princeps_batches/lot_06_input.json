@@ -1,0 +1,282 @@
+[
+  {
+    "matrice_id": "2bba5d4e-9682-47e3-adfa-266f753deac4",
+    "dci_affichee": "Nifédipine",
+    "dci": "Nifédipine",
+    "noms_actuels": "Adalate ; Chronadalate",
+    "n_comp": 0,
+    "composants_norm": [
+      "nifedipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "9e238b6c-8467-4c16-84f7-360acbecbbf3",
+    "dci_affichee": "Nitrendipine",
+    "dci": "Nitrendipine",
+    "noms_actuels": "Baypress",
+    "n_comp": 0,
+    "composants_norm": [
+      "nitrendipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "d6ddd5b1-b784-4d00-9bc1-1b9daf738ab1",
+    "dci_affichee": "Olmésartan",
+    "dci": "Olmésartan",
+    "noms_actuels": "Alteis ; Olmetec",
+    "n_comp": 0,
+    "composants_norm": [
+      "olmesartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "06ebcbd7-3411-43a2-abb5-6740db9ee511",
+    "dci_affichee": "Olmésartan + Amlodipine",
+    "dci": "Olmésartan + amlodipine",
+    "noms_actuels": "Sevikar",
+    "n_comp": 2,
+    "composants_norm": [
+      "olmesartan",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "243efc01-b85c-4276-a117-170eea200c06",
+    "dci_affichee": "Olmésartan + Hydrochlorothiazide",
+    "dci": "Olmésartan + hydrochlorothiazide",
+    "noms_actuels": "Coolmetec",
+    "n_comp": 2,
+    "composants_norm": [
+      "olmesartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Coolmetec"
+  },
+  {
+    "matrice_id": "54b0220a-c292-4fc8-b891-d36aabf546da",
+    "dci_affichee": "Perindopril",
+    "dci": "Perindopril",
+    "noms_actuels": "Coversyl",
+    "n_comp": 0,
+    "composants_norm": [
+      "perindopril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Cogyr ; Coversyl"
+  },
+  {
+    "matrice_id": "e27330ff-c5f5-45da-8835-acac70f04b93",
+    "dci_affichee": "Perindopril + Amlodipine",
+    "dci": "Périndopril + amlodipine",
+    "noms_actuels": "Coveram",
+    "n_comp": 2,
+    "composants_norm": [
+      "perindopril",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Coveram"
+  },
+  {
+    "matrice_id": "0601693e-d406-44c6-8038-027458845fe0",
+    "dci_affichee": "Perindopril + Indapamide",
+    "dci": "Périndopril + indapamide",
+    "noms_actuels": "Preterax ; Bipreterax",
+    "n_comp": 2,
+    "composants_norm": [
+      "perindopril",
+      "indapamide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Arlunis ; Bipreterax ; Preterax"
+  },
+  {
+    "matrice_id": "ef6e3d14-7269-4504-a46e-a0bf48a5da2e",
+    "dci_affichee": "Peroxyde d'hydrogène",
+    "dci": "Peroxyde d'hydrogène",
+    "noms_actuels": "Dentex ; Eau oxygénée à 10 volumes",
+    "n_comp": 0,
+    "composants_norm": [
+      "peroxyde d'hydrogene"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "dd122b17-d910-408c-9360-d4980572f48b",
+    "dci_affichee": "Pindolol",
+    "dci": "Pindolol",
+    "noms_actuels": "Visken",
+    "n_comp": 0,
+    "composants_norm": [
+      "pindolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "055bac99-9634-4009-97ba-029fa2268a65",
+    "dci_affichee": "Pirétanide",
+    "dci": "Pirétanide",
+    "noms_actuels": "Arelix",
+    "n_comp": 0,
+    "composants_norm": [
+      "piretanide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "5bb5dda1-4f9d-420b-8564-55bbb412aa45",
+    "dci_affichee": "Piribedil",
+    "dci": "Piribedil",
+    "noms_actuels": "Trivastal",
+    "n_comp": 0,
+    "composants_norm": [
+      "piribedil"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "ffcb96cb-ff06-4a93-a0ab-893c4c7f3738",
+    "dci_affichee": "Prasugrel",
+    "dci": "Prasugrel",
+    "noms_actuels": "Efient",
+    "n_comp": 0,
+    "composants_norm": [
+      "prasugrel"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Efient"
+  },
+  {
+    "matrice_id": "2d879144-790c-43c8-aeef-72d9bc3993fe",
+    "dci_affichee": "Prazosine",
+    "dci": "Prazosine",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "prazosine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "f82535b5-77aa-422c-bb62-859871caf1ba",
+    "dci_affichee": "Propafénone",
+    "dci": "Propafénone",
+    "noms_actuels": "Rythmol",
+    "n_comp": 0,
+    "composants_norm": [
+      "propafenone"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Rythmol"
+  },
+  {
+    "matrice_id": "3b61e15e-6440-4705-869a-c2e2bde539c6",
+    "dci_affichee": "Propranolol",
+    "dci": "Propranolol",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "propranolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Karnodyl"
+  },
+  {
+    "matrice_id": "e70d0d87-469a-458e-b8b9-6b3db4ab6de6",
+    "dci_affichee": "Quinapril",
+    "dci": "Quinapril",
+    "noms_actuels": "Acuitel",
+    "n_comp": 0,
+    "composants_norm": [
+      "quinapril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Acuitel"
+  },
+  {
+    "matrice_id": "5b7210cc-f828-429e-8eee-eac4122e3e08",
+    "dci_affichee": "Quinapril + Hydrochlorothiazide",
+    "dci": "Quinapril + hydrochlorothiazide",
+    "noms_actuels": "Acuitel",
+    "n_comp": 2,
+    "composants_norm": [
+      "quinapril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Acuilix"
+  },
+  {
+    "matrice_id": "ba7873d4-c9c4-4cc8-b554-bc67858abdd2",
+    "dci_affichee": "Ramipril",
+    "dci": "Ramipril",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "ramipril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Triatec"
+  },
+  {
+    "matrice_id": "0e0c9cd8-b224-4ec0-ab92-1e42eaa79434",
+    "dci_affichee": "Ramipril + Amlodipine",
+    "dci": "Ramipril + amlodipine",
+    "noms_actuels": "Cotriatec",
+    "n_comp": 2,
+    "composants_norm": [
+      "ramipril",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "306e3d9a-7105-4776-ae9a-4e9107b9cf7f",
+    "dci_affichee": "Ramipril + Hydrochlorothiazide",
+    "dci": "Ramipril + hydrochlorothiazide",
+    "noms_actuels": "Triatec",
+    "n_comp": 2,
+    "composants_norm": [
+      "ramipril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Cotriatec"
+  }
+]

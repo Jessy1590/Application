@@ -1,0 +1,149 @@
+[
+  {
+    "matrice_id": "664ec5d6-4dc9-4739-9e90-450a2ef05cf2",
+    "dci_affichee": "Fondaparinux",
+    "princeps": "Arixtra",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "0528bb96-0abc-4a19-8abc-94adf3d5fe22",
+    "dci_affichee": "Fosinopril",
+    "princeps": "Fozitec",
+    "sources": "BDPM; VIDAL",
+    "note": "Fostensy = générique dans noms_actuels"
+  },
+  {
+    "matrice_id": "bff4fc50-9f56-41dd-be79-ff0236ff7347",
+    "dci_affichee": "Fosinopril + Hydrochlorothiazide",
+    "princeps": "Foziretic",
+    "sources": "BDPM; VIDAL",
+    "note": "Fosicomb = marque étrangère (noms_actuels)"
+  },
+  {
+    "matrice_id": "6cb74c3d-2517-4949-ac43-7ebdcd5a30b9",
+    "dci_affichee": "Fraction flavonoïque",
+    "princeps": "Daflon",
+    "sources": "BDPM; ANSM",
+    "note": "Fraction flavonoïque = dénomination substance, pas marque"
+  },
+  {
+    "matrice_id": "09105fdb-e045-441b-81d4-f5df4ccab0f8",
+    "dci_affichee": "Furosémide",
+    "princeps": "Lasilix",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": "Lasilix Faible / Lasilix Special = gammes princeps (sans dosage dans le libellé pédago)"
+  },
+  {
+    "matrice_id": "36c4713b-faa7-4187-a5de-c60ef8e82c4a",
+    "dci_affichee": "Ginkgo biloba",
+    "princeps": "Tanakan",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "25e0ff36-7a93-4732-a6a6-df534971db4b",
+    "dci_affichee": "Héparinate de calcium",
+    "princeps": "Calciparine",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "d090e3fa-91c3-4f3b-9bea-507a03582b7e",
+    "dci_affichee": "Héparinate de sodium",
+    "princeps": "Héparine Choay",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "95e448f1-5909-499d-8d1d-e38715962acb",
+    "dci_affichee": "Hydrochlorothiazide",
+    "princeps": "Esidrex",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "926ffb57-18e1-49e1-99ee-25134635ca09",
+    "dci_affichee": "Hydroquinidine",
+    "princeps": "Serecor",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Hors marché"
+  },
+  {
+    "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+    "dci_affichee": "Idarucizumab",
+    "princeps": "Praxbind",
+    "sources": "noms_actuels; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "dce8ea52-2ab2-4085-b934-321cc2a14eb9",
+    "dci_affichee": "Immunoglobulines anti-D",
+    "princeps": "Rhophylac",
+    "sources": "noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "3ef56285-37e6-4dd5-a981-84aeadb01588",
+    "dci_affichee": "Indapamide",
+    "princeps": "Fludex",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "e9d7391c-c444-4fd9-b596-d45c7242233d",
+    "dci_affichee": "Irbésartan",
+    "princeps": "Aprovel",
+    "sources": "hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "4f79d030-eaa9-46f9-a92c-9421467414ee",
+    "dci_affichee": "Irbésartan + Amlodipine",
+    "princeps": "Aprexevo",
+    "sources": "BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "55e5729b-0ca6-451c-aa6e-139420a86625",
+    "dci_affichee": "Irbésartan + Hydrochlorothiazide",
+    "princeps": "Coaprovel",
+    "sources": "hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "20956c96-a8ae-4180-a821-a0d53718ceba",
+    "dci_affichee": "Isosorbide dinitrate",
+    "princeps": "Isocard ; Risordan",
+    "sources": "hint_bdm; noms_actuels; BDPM",
+    "note": "Plusieurs princeps selon forme galénique"
+  },
+  {
+    "matrice_id": "cd754cf3-3eb7-4ba3-8879-23f3ec8439f8",
+    "dci_affichee": "Isradipine",
+    "princeps": "Icaz LP",
+    "sources": "BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "5c971e09-303d-4111-9606-b413fe9aba99",
+    "dci_affichee": "Ivabradine",
+    "princeps": "Procoralan",
+    "sources": "hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "2a699f07-e4f6-4c92-bbba-bdcc036ac650",
+    "dci_affichee": "Labétalol",
+    "princeps": "Trandate",
+    "sources": "hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "7fd0485c-b7cb-445d-ac0f-3984eddb245e",
+    "dci_affichee": "Lépirudine",
+    "princeps": "Refludan",
+    "sources": "noms_actuels; VIDAL",
+    "note": "Hors marché"
+  }
+]

@@ -1,0 +1,280 @@
+[
+  {
+    "matrice_id": "54501772-19a2-4b29-b041-ea2ca04bb1d1",
+    "dci_affichee": "Bénazépril + Hydrochlorothiazide",
+    "dci": "Bénazépril + hydrochlorothiazide",
+    "noms_actuels": "Cibadrex",
+    "n_comp": 2,
+    "composants_norm": [
+      "benazepril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Cibadrex"
+  },
+  {
+    "matrice_id": "d519f500-8672-49d4-a5a1-292f6ea6aa1d",
+    "dci_affichee": "Bétaxolol",
+    "dci": "Bétaxolol",
+    "noms_actuels": "Kerlone",
+    "n_comp": 0,
+    "composants_norm": [
+      "betaxolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Kerlone"
+  },
+  {
+    "matrice_id": "e7e28f00-089d-4994-b9aa-8b20b02e955d",
+    "dci_affichee": "Bisoprolol",
+    "dci": "Bisoprolol",
+    "noms_actuels": "Cardensiel ; Detensiel ; Bisoce",
+    "n_comp": 0,
+    "composants_norm": [
+      "bisoprolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Cardensiel ; Detensiel"
+  },
+  {
+    "matrice_id": "285c20ec-04ed-465c-9f24-ef6a68a6b574",
+    "dci_affichee": "Bisoprolol + Hydrochlorothiazide",
+    "dci": "Bisoprolol + hydrochlorothiazide",
+    "noms_actuels": "Lodoz ; Wytens",
+    "n_comp": 2,
+    "composants_norm": [
+      "bisoprolol",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Lodoz"
+  },
+  {
+    "matrice_id": "27fe5db6-d959-4eb3-a567-cfb34ba612fe",
+    "dci_affichee": "Bumétanide",
+    "dci": "Bumétanide",
+    "noms_actuels": "Burinex",
+    "n_comp": 0,
+    "composants_norm": [
+      "bumetanide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "896e80c2-39b4-44bd-aa72-789d9773ba32",
+    "dci_affichee": "Candésartan",
+    "dci": "Candésartan",
+    "noms_actuels": "Atacand",
+    "n_comp": 0,
+    "composants_norm": [
+      "candesartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Atacand ; Kenzen"
+  },
+  {
+    "matrice_id": "8f314a54-7984-426a-8f26-a1dc622ee99c",
+    "dci_affichee": "Candésartan + Hydrochlorothiazide",
+    "dci": "Candésartan + hydrochlorothiazide",
+    "noms_actuels": "Atacand",
+    "n_comp": 2,
+    "composants_norm": [
+      "candesartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Cokenzen ; Hytacand"
+  },
+  {
+    "matrice_id": "24606e62-43c9-430d-9420-c17cfd41fcf3",
+    "dci_affichee": "Captopril",
+    "dci": "Captopril",
+    "noms_actuels": "Lopril",
+    "n_comp": 0,
+    "composants_norm": [
+      "captopril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "191cba4a-00b2-4564-acab-abd94e5eed51",
+    "dci_affichee": "Captopril + Hydrochlorothiazide",
+    "dci": "Captopril + hydrochlorothiazide",
+    "noms_actuels": "Captea",
+    "n_comp": 2,
+    "composants_norm": [
+      "captopril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "db3c13cc-bfcd-43e5-9f90-5ada18b84c0e",
+    "dci_affichee": "Cartéolol",
+    "dci": "Cartéolol",
+    "noms_actuels": "Carteol",
+    "n_comp": 0,
+    "composants_norm": [
+      "carteolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "65339e1e-79cc-4c4f-be69-3df1e5e41c12",
+    "dci_affichee": "Carvédilol",
+    "dci": "Carvédilol",
+    "noms_actuels": "Kredex",
+    "n_comp": 0,
+    "composants_norm": [
+      "carvedilol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Kredex"
+  },
+  {
+    "matrice_id": "09758954-3da6-43da-aae1-799e53501e7f",
+    "dci_affichee": "Céliprolol",
+    "dci": "Céliprolol",
+    "noms_actuels": "Celectol",
+    "n_comp": 0,
+    "composants_norm": [
+      "celiprolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Celectol"
+  },
+  {
+    "matrice_id": "696cc5a4-3119-4a09-be8d-c5096e21a0e6",
+    "dci_affichee": "Ciclétanine",
+    "dci": "Ciclétanine",
+    "noms_actuels": "Tétensive",
+    "n_comp": 0,
+    "composants_norm": [
+      "cicletanine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "28aff740-2c70-48cf-ba83-5302da3022a1",
+    "dci_affichee": "Clonidine",
+    "dci": "Clonidine",
+    "noms_actuels": "Catapressan",
+    "n_comp": 0,
+    "composants_norm": [
+      "clonidine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "da85c070-cf70-4440-bf0b-9db4bb1995e6",
+    "dci_affichee": "Clopidogrel",
+    "dci": "Clopidogrel",
+    "noms_actuels": "Plavix",
+    "n_comp": 0,
+    "composants_norm": [
+      "clopidogrel"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Plavix"
+  },
+  {
+    "matrice_id": "04061350-4766-4925-9f69-09681a21de92",
+    "dci_affichee": "Clopidogrel + Acide acétylsalicylique",
+    "dci": "Clopidogrel + aspirine",
+    "noms_actuels": "Duoplavin",
+    "n_comp": 2,
+    "composants_norm": [
+      "clopidogrel",
+      "acide acetylsalicylique"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Duoplavin"
+  },
+  {
+    "matrice_id": "5ca481e2-898f-40c4-bf18-e18ce85cadb0",
+    "dci_affichee": "Cyanocobalamine",
+    "dci": "Cyanocobalamine",
+    "noms_actuels": "Vitamine B12 Gerda",
+    "n_comp": 0,
+    "composants_norm": [
+      "cyanocobalamine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "0325dfb5-8d9f-47c7-a98a-8c8b8dbeb3b9",
+    "dci_affichee": "Dabigatran étexilate",
+    "dci": "Dabigatran étexilate",
+    "noms_actuels": "Pradaxa",
+    "n_comp": 0,
+    "composants_norm": [
+      "dabigatran etexilate"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Pradaxa"
+  },
+  {
+    "matrice_id": "d09cdb8f-338a-4dc8-92cc-e56a0f3b6b8f",
+    "dci_affichee": "Daltéparine",
+    "dci": "Daltéparine",
+    "noms_actuels": "Fragmine",
+    "n_comp": 0,
+    "composants_norm": [
+      "dalteparine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "9e96ac43-027a-45b2-b919-48e76d4583b3",
+    "dci_affichee": "Danaparoïde",
+    "dci": "Danaparoïde",
+    "noms_actuels": "Orgaran",
+    "n_comp": 0,
+    "composants_norm": [
+      "danaparoide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "c2ae6d77-b733-4f1e-9bf2-567055e7e9b8",
+    "dci_affichee": "Dapagliflozine",
+    "dci": "Dapagliflozine",
+    "noms_actuels": "Forxiga",
+    "n_comp": 0,
+    "composants_norm": [
+      "dapagliflozine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Forxiga"
+  }
+]

@@ -1,0 +1,280 @@
+[
+  {
+    "matrice_id": "6f8158c7-8836-4a76-a636-9800c119443b",
+    "dci_affichee": "Rétéplase",
+    "dci": "Rétéplase",
+    "noms_actuels": "Rapilysin",
+    "n_comp": 0,
+    "composants_norm": [
+      "reteplase"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "fdf35b56-518d-4d95-88f9-fa6e620f348b",
+    "dci_affichee": "Rilménidine",
+    "dci": "Rilménidine",
+    "noms_actuels": "Hyperium",
+    "n_comp": 0,
+    "composants_norm": [
+      "rilmenidine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Hyperium"
+  },
+  {
+    "matrice_id": "7df6b28a-35f6-47a0-aacb-d73d5482e275",
+    "dci_affichee": "Rivaroxaban",
+    "dci": "Rivaroxaban",
+    "noms_actuels": "Xarelto",
+    "n_comp": 0,
+    "composants_norm": [
+      "rivaroxaban"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Xarelto"
+  },
+  {
+    "matrice_id": "474ef71c-3530-45fe-82d4-22be995087c4",
+    "dci_affichee": "Ruscoside",
+    "dci": "Ruscoside",
+    "noms_actuels": "Cirkan",
+    "n_comp": 0,
+    "composants_norm": [
+      "ruscoside"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "0415e982-3813-4b5c-8534-e93933343ce8",
+    "dci_affichee": "Sacubitril + valsartan",
+    "dci": "Sacubitril + valsartan",
+    "noms_actuels": "Entresto",
+    "n_comp": 1,
+    "composants_norm": [
+      "valsartan"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "d122d669-2f7c-48ed-a517-aa6e4bd765b8",
+    "dci_affichee": "Sels ferreux",
+    "dci": "Sels ferreux",
+    "noms_actuels": "Fumafer ; Ascofer ; Tardyféron ; Ferrostrane",
+    "n_comp": 0,
+    "composants_norm": [
+      "sels ferreux"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "6062f202-2407-493f-aa22-c26fc374877e",
+    "dci_affichee": "Sels ferreux + Acide folique",
+    "dci": "Sels ferreux + acide folique",
+    "noms_actuels": "Tardyféron B9",
+    "n_comp": 2,
+    "composants_norm": [
+      "sels ferreux",
+      "acide folique"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "3d7303ca-9fe0-4fae-b138-9cdead53f4e7",
+    "dci_affichee": "Sotalol",
+    "dci": "Sotalol",
+    "noms_actuels": "Sotalex",
+    "n_comp": 0,
+    "composants_norm": [
+      "sotalol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Sotalex"
+  },
+  {
+    "matrice_id": "8dc7d201-d3a1-4a16-a116-37ab4f0b1fa6",
+    "dci_affichee": "Spironolactone",
+    "dci": "Spironolactone",
+    "noms_actuels": "Aldactone",
+    "n_comp": 0,
+    "composants_norm": [
+      "spironolactone"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Aldactone"
+  },
+  {
+    "matrice_id": "c0fd1199-5e18-4edb-b686-4cdfa41330c8",
+    "dci_affichee": "Spironolactone + altizide",
+    "dci": "Spironolactone + altizide",
+    "noms_actuels": "Aldactazine",
+    "n_comp": 1,
+    "composants_norm": [
+      "spironolactone"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Aldactazine"
+  },
+  {
+    "matrice_id": "04463bf2-ee7e-4e61-a864-9383bd77524b",
+    "dci_affichee": "Streptokinase",
+    "dci": "Streptokinase",
+    "noms_actuels": "Streptase",
+    "n_comp": 0,
+    "composants_norm": [
+      "streptokinase"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "757b4a92-cb0e-477d-8cb5-b29f6b45a357",
+    "dci_affichee": "Succinate ferreux",
+    "dci": "Succinate ferreux",
+    "noms_actuels": "Inofer",
+    "n_comp": 0,
+    "composants_norm": [
+      "succinate ferreux"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "c0819c61-c589-48d1-b925-a2a2cbc8b2ce",
+    "dci_affichee": "Telmisartan",
+    "dci": "Telmisartan",
+    "noms_actuels": "Micardis ; Pritor",
+    "n_comp": 0,
+    "composants_norm": [
+      "telmisartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Micardis ; Pritor"
+  },
+  {
+    "matrice_id": "ff6b5838-7b06-4ce5-9ace-1eb8282a3322",
+    "dci_affichee": "Telmisartan + Amlodipine",
+    "dci": "Telmisartan + amlodipine",
+    "noms_actuels": "Twynsta",
+    "n_comp": 2,
+    "composants_norm": [
+      "telmisartan",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Twynsta"
+  },
+  {
+    "matrice_id": "b09d063b-8417-4f21-bd8a-6e6b15a84110",
+    "dci_affichee": "Telmisartan + Hydrochlorothiazide",
+    "dci": "Telmisartan + hydrochlorothiazide",
+    "noms_actuels": "Micardiplus",
+    "n_comp": 2,
+    "composants_norm": [
+      "telmisartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Micardisplus ; Pritorplus"
+  },
+  {
+    "matrice_id": "3721e13c-4675-47e0-a8c7-d486485bbcf1",
+    "dci_affichee": "Ténectéplase",
+    "dci": "Ténectéplase",
+    "noms_actuels": "Métalyse",
+    "n_comp": 0,
+    "composants_norm": [
+      "tenecteplase"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "19ffe4e3-9fe0-4d09-abb2-7cb09812abef",
+    "dci_affichee": "Tertatolol",
+    "dci": "Tertatolol",
+    "noms_actuels": "Artex",
+    "n_comp": 0,
+    "composants_norm": [
+      "tertatolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "70ef80e5-311f-42b5-b378-cce48aee94e8",
+    "dci_affichee": "Ticagrélor",
+    "dci": "Ticagrélor",
+    "noms_actuels": "Brilique",
+    "n_comp": 0,
+    "composants_norm": [
+      "ticagrelor"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Brilique"
+  },
+  {
+    "matrice_id": "455bdc41-a667-408b-8462-0e34cf63626a",
+    "dci_affichee": "Timolol",
+    "dci": "Timolol",
+    "noms_actuels": "Timoptol ; Geltim",
+    "n_comp": 0,
+    "composants_norm": [
+      "timolol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Timoptol"
+  },
+  {
+    "matrice_id": "9e6b62af-aa91-4c8d-8a3d-fffc24e004e2",
+    "dci_affichee": "Timolol + Amiloride + Hydrochlorothiazide",
+    "dci": "Timolol + amiloride + hydrochlorothiazide",
+    "noms_actuels": "Moducren",
+    "n_comp": 3,
+    "composants_norm": [
+      "timolol",
+      "amiloride",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "4846db93-d734-4877-b759-c84de88e8936",
+    "dci_affichee": "Tinzaparine",
+    "dci": "Tinzaparine",
+    "noms_actuels": "Innohep",
+    "n_comp": 0,
+    "composants_norm": [
+      "tinzaparine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  }
+]

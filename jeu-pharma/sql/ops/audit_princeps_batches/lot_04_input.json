@@ -1,0 +1,278 @@
+[
+  {
+    "matrice_id": "664ec5d6-4dc9-4739-9e90-450a2ef05cf2",
+    "dci_affichee": "Fondaparinux",
+    "dci": "Fondaparinux",
+    "noms_actuels": "Arixtra",
+    "n_comp": 0,
+    "composants_norm": [
+      "fondaparinux"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Arixtra"
+  },
+  {
+    "matrice_id": "0528bb96-0abc-4a19-8abc-94adf3d5fe22",
+    "dci_affichee": "Fosinopril",
+    "dci": "Fosinopril",
+    "noms_actuels": "Fostensy",
+    "n_comp": 0,
+    "composants_norm": [
+      "fosinopril"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "bff4fc50-9f56-41dd-be79-ff0236ff7347",
+    "dci_affichee": "Fosinopril + Hydrochlorothiazide",
+    "dci": "Fosinopril + hydrochlorothiazide",
+    "noms_actuels": "Fosicomb",
+    "n_comp": 2,
+    "composants_norm": [
+      "fosinopril",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "6cb74c3d-2517-4949-ac43-7ebdcd5a30b9",
+    "dci_affichee": "Fraction flavonoïque",
+    "dci": "Fraction flavonoïque",
+    "noms_actuels": "Daflon ; Fraction flavonoïque",
+    "n_comp": 0,
+    "composants_norm": [
+      "fraction flavonoique"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "09105fdb-e045-441b-81d4-f5df4ccab0f8",
+    "dci_affichee": "Furosémide",
+    "dci": "Furosémide",
+    "noms_actuels": "Lasilix",
+    "n_comp": 0,
+    "composants_norm": [
+      "furosemide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Lasilix ; Lasilix Faible ; Lasilix Special"
+  },
+  {
+    "matrice_id": "36c4713b-faa7-4187-a5de-c60ef8e82c4a",
+    "dci_affichee": "Ginkgo biloba",
+    "dci": "Ginkgo biloba",
+    "noms_actuels": "Tanakan",
+    "n_comp": 0,
+    "composants_norm": [
+      "ginkgo biloba"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "25e0ff36-7a93-4732-a6a6-df534971db4b",
+    "dci_affichee": "Héparinate de calcium",
+    "dci": "Héparinate de calcium",
+    "noms_actuels": "Calciparine",
+    "n_comp": 0,
+    "composants_norm": [
+      "heparinate de calcium"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "d090e3fa-91c3-4f3b-9bea-507a03582b7e",
+    "dci_affichee": "Héparinate de sodium",
+    "dci": "Héparinate de sodium",
+    "noms_actuels": "Héparine Choay",
+    "n_comp": 0,
+    "composants_norm": [
+      "heparinate de sodium"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "95e448f1-5909-499d-8d1d-e38715962acb",
+    "dci_affichee": "Hydrochlorothiazide",
+    "dci": "Hydrochlorothiazide",
+    "noms_actuels": "Esidrex",
+    "n_comp": 0,
+    "composants_norm": [
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Esidrex"
+  },
+  {
+    "matrice_id": "926ffb57-18e1-49e1-99ee-25134635ca09",
+    "dci_affichee": "Hydroquinidine",
+    "dci": "Hydroquinidine",
+    "noms_actuels": "Serecor",
+    "n_comp": 0,
+    "composants_norm": [
+      "hydroquinidine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "a446fae6-94e0-4179-94b8-ecc7cbe0d9f7",
+    "dci_affichee": "Idarucizumab",
+    "dci": "Idarucizumab",
+    "noms_actuels": "Praxbind",
+    "n_comp": 0,
+    "composants_norm": [
+      "idarucizumab"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "dce8ea52-2ab2-4085-b934-321cc2a14eb9",
+    "dci_affichee": "Immunoglobulines anti-D",
+    "dci": "Immunoglobulines anti-D",
+    "noms_actuels": "Rhophylac",
+    "n_comp": 0,
+    "composants_norm": [
+      "immunoglobulines anti-d"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "3ef56285-37e6-4dd5-a981-84aeadb01588",
+    "dci_affichee": "Indapamide",
+    "dci": "Indapamide",
+    "noms_actuels": "Fludex",
+    "n_comp": 0,
+    "composants_norm": [
+      "indapamide"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Fludex"
+  },
+  {
+    "matrice_id": "e9d7391c-c444-4fd9-b596-d45c7242233d",
+    "dci_affichee": "Irbésartan",
+    "dci": "Irbésartan",
+    "noms_actuels": "Aprovel",
+    "n_comp": 0,
+    "composants_norm": [
+      "irbesartan"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Aprovel"
+  },
+  {
+    "matrice_id": "4f79d030-eaa9-46f9-a92c-9421467414ee",
+    "dci_affichee": "Irbésartan + Amlodipine",
+    "dci": "Irbésartan + amlodipine",
+    "noms_actuels": "",
+    "n_comp": 2,
+    "composants_norm": [
+      "irbesartan",
+      "amlodipine"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "55e5729b-0ca6-451c-aa6e-139420a86625",
+    "dci_affichee": "Irbésartan + Hydrochlorothiazide",
+    "dci": "Irbésartan + hydrochlorothiazide",
+    "noms_actuels": "Coaprovel",
+    "n_comp": 2,
+    "composants_norm": [
+      "irbesartan",
+      "hydrochlorothiazide"
+    ],
+    "en_lecon": true,
+    "is_asso": true,
+    "hint_bdm": "Coaprovel"
+  },
+  {
+    "matrice_id": "20956c96-a8ae-4180-a821-a0d53718ceba",
+    "dci_affichee": "Isosorbide dinitrate",
+    "dci": "Isosorbide dinitrate",
+    "noms_actuels": "Isocard",
+    "n_comp": 0,
+    "composants_norm": [
+      "isosorbide dinitrate"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Risordan"
+  },
+  {
+    "matrice_id": "cd754cf3-3eb7-4ba3-8879-23f3ec8439f8",
+    "dci_affichee": "Isradipine",
+    "dci": "Isradipine",
+    "noms_actuels": "",
+    "n_comp": 0,
+    "composants_norm": [
+      "isradipine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  },
+  {
+    "matrice_id": "5c971e09-303d-4111-9606-b413fe9aba99",
+    "dci_affichee": "Ivabradine",
+    "dci": "Ivabradine",
+    "noms_actuels": "Procoralan",
+    "n_comp": 0,
+    "composants_norm": [
+      "ivabradine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Procoralan"
+  },
+  {
+    "matrice_id": "2a699f07-e4f6-4c92-bbba-bdcc036ac650",
+    "dci_affichee": "Labétalol",
+    "dci": "Labétalol",
+    "noms_actuels": "Trandate",
+    "n_comp": 0,
+    "composants_norm": [
+      "labetalol"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": "Trandate"
+  },
+  {
+    "matrice_id": "7fd0485c-b7cb-445d-ac0f-3984eddb245e",
+    "dci_affichee": "Lépirudine",
+    "dci": "Lépirudine",
+    "noms_actuels": "Refludan",
+    "n_comp": 0,
+    "composants_norm": [
+      "lepirudine"
+    ],
+    "en_lecon": true,
+    "is_asso": false,
+    "hint_bdm": ""
+  }
+]

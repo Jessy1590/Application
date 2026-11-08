@@ -1,0 +1,149 @@
+[
+  {
+    "matrice_id": "099e2e05-fa38-42a8-b7dc-db2b93418a32",
+    "dci_affichee": "Lercanidipine",
+    "princeps": "Zanidip",
+    "sources": "BDPM; VIDAL",
+    "note": "hint_bdm : Lercan = générique, pas princeps"
+  },
+  {
+    "matrice_id": "0b83ffa6-92d5-44cb-8993-bd1613438868",
+    "dci_affichee": "Lévobunolol",
+    "princeps": "Betagan",
+    "sources": "BDPM; VIDAL; ANSM",
+    "note": "Collyre ; arrêt de commercialisation 2025"
+  },
+  {
+    "matrice_id": "580b6957-f458-4e12-953a-460eb570c6eb",
+    "dci_affichee": "Lisinopril",
+    "princeps": "Zestril",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": "Prinivil = marque US dans noms_actuels"
+  },
+  {
+    "matrice_id": "54c0aadb-db71-41c9-bc07-ff7315efad8e",
+    "dci_affichee": "Lisinopril + Hydrochlorothiazide",
+    "princeps": "Prinzide ; Zestoretic",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": "Asso fixe ; Prinzide plus commercialisé"
+  },
+  {
+    "matrice_id": "88a0f4b5-e292-49ca-8097-2be5396912a2",
+    "dci_affichee": "Losartan",
+    "princeps": "Cozaar",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "8b707b55-fb59-4d36-8cd6-64573680aedc",
+    "dci_affichee": "Losartan + Hydrochlorothiazide",
+    "princeps": "Hyzaar ; Fortzaar",
+    "sources": "hint_bdm; BDPM",
+    "note": "Deux princeps selon dosage dans les groupes génériques"
+  },
+  {
+    "matrice_id": "c27f94c4-c3e1-4c8e-9232-ef4ebd9c63cb",
+    "dci_affichee": "Manidipine",
+    "princeps": "Iperten",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "19c29083-fe7e-44dd-b9e1-0a3890f41b99",
+    "dci_affichee": "Méthyldopa",
+    "princeps": "Aldomet",
+    "sources": "noms_actuels; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "760ace50-9ae0-4758-9744-c9bdcdebcf96",
+    "dci_affichee": "Métoprolol",
+    "princeps": "Lopressor ; Seloken",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": "Tartrate (Lopressor) et succinate (Seloken)"
+  },
+  {
+    "matrice_id": "a6aad096-0a5d-4841-a2e4-77dc1ffbad7a",
+    "dci_affichee": "Métoprolol + chlortalidone",
+    "princeps": "Logroton",
+    "sources": "BDPM; VIDAL; ANSM",
+    "note": "Asso ; noms_actuels mono erronés ; arrêt commercialisation 2017"
+  },
+  {
+    "matrice_id": "ccd2b75c-6e02-4ce4-a07c-010d8eb14684",
+    "dci_affichee": "Minoxidil",
+    "princeps": "Lonoten",
+    "sources": "BDPM; VIDAL",
+    "note": "hint_bdm Alostil hors sujet ; Alopexy = topique alopécie"
+  },
+  {
+    "matrice_id": "898e91e6-ba38-458d-bbf2-894c5cb0ad5d",
+    "dci_affichee": "Molsidomine",
+    "princeps": "Corvasal",
+    "sources": "hint_bdm; BDPM",
+    "note": ""
+  },
+  {
+    "matrice_id": "98a68148-9507-4d9f-a21a-7eb58f37214a",
+    "dci_affichee": "Moxonidine",
+    "princeps": "Physiotens",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "397c4c0a-6516-4e1d-a879-d8b61802f60a",
+    "dci_affichee": "Nadolol",
+    "princeps": "Corgard",
+    "sources": "noms_actuels; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "a99726d0-32dc-4695-ad80-b66e7cda21f7",
+    "dci_affichee": "Nadroparine",
+    "princeps": "Fraxiparine",
+    "sources": "noms_actuels; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "89d61300-8511-4ef8-95af-649d6d349009",
+    "dci_affichee": "Naftazone",
+    "princeps": "Etioven",
+    "sources": "noms_actuels; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "8ad14bd9-cad4-41e6-a9de-b685c9f507a4",
+    "dci_affichee": "Naftidrofuryl",
+    "princeps": "Praxilène",
+    "sources": "noms_actuels; BDPM; VIDAL",
+    "note": "Arrêt de commercialisation 2020"
+  },
+  {
+    "matrice_id": "0263afdb-45f9-40a9-8b4a-5857326a81b8",
+    "dci_affichee": "Nébivolol",
+    "princeps": "Temerit ; Nebilox",
+    "sources": "hint_bdm; BDPM",
+    "note": "Deux références princeps dans le même groupe générique"
+  },
+  {
+    "matrice_id": "43e31250-8f71-4538-be5f-ba4aa4d47d9c",
+    "dci_affichee": "Nébivolol + Hydrochlorothiazide",
+    "princeps": "Temerit Duo",
+    "sources": "hint_bdm; BDPM; ANSM",
+    "note": "Asso ; Conebilox = générique, pas dans princeps"
+  },
+  {
+    "matrice_id": "bebd0d69-a7cb-418c-ae95-3c3eab1ca018",
+    "dci_affichee": "Nicardipine",
+    "princeps": "Loxen",
+    "sources": "hint_bdm; BDPM; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "41bcc13c-6607-4130-b4fd-96510b9e85dd",
+    "dci_affichee": "Nicorandil",
+    "princeps": "Adancor ; Ikorel",
+    "sources": "hint_bdm; noms_actuels; BDPM",
+    "note": "Adancor arrêt commercialisation 2019"
+  }
+]

@@ -1,0 +1,121 @@
+[
+  {
+    "matrice_id": "0689c0ed-3f24-4135-bc96-f5ee26f02579",
+    "dci_affichee": "Trandolapril",
+    "princeps": "Odrik",
+    "sources": "BDPM; hint_bdm; VIDAL",
+    "note": "noms_actuels Tarka = association vérapamil + trandolapril"
+  },
+  {
+    "matrice_id": "06137bc1-d68d-4fa6-8c1b-94237e77adfa",
+    "dci_affichee": "Triamtérène",
+    "princeps": "—",
+    "sources": "BDPM; VIDAL",
+    "note": "Pas de monothérapie à AMM en France ; Prestole dans noms_actuels = association HCT"
+  },
+  {
+    "matrice_id": "4d3accd4-e824-4c36-a643-fc9486969c94",
+    "dci_affichee": "Triamtérène + Hydrochlorothiazide",
+    "princeps": "Prestole",
+    "sources": "BDPM; VIDAL; noms_actuels",
+    "note": "Isobar = triamtérène + méthyclothiazide, autre asso"
+  },
+  {
+    "matrice_id": "694ce30c-89bd-47be-9434-acfc2fffa602",
+    "dci_affichee": "Triamtérène + méthyclothiazide",
+    "princeps": "Isobar",
+    "sources": "BDPM; ANSM; noms_actuels",
+    "note": "Hors marché depuis 2020"
+  },
+  {
+    "matrice_id": "93d94906-21f1-40d3-af72-639d5946b5bc",
+    "dci_affichee": "Trimétazidine",
+    "princeps": "Vastarel",
+    "sources": "BDPM; hint_bdm; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "2aa2b0b5-c35d-4b00-882e-1c59d6a06a24",
+    "dci_affichee": "Trinitrine",
+    "princeps": "Natispray ; Discotrine ; Nitriderm ; Epinitril ; Diafusor",
+    "sources": "BDPM; VIDAL; noms_actuels",
+    "note": "Plusieurs galéniques princeps ; Diafusor abrogé"
+  },
+  {
+    "matrice_id": "266fde9e-bc6f-4e01-93e2-bf8bc6661ec9",
+    "dci_affichee": "Troxérutine",
+    "princeps": "Rheoflux ; Veinamitol",
+    "sources": "BDPM; hint_bdm; VIDAL",
+    "note": "Rheoflux arrêt commercialisation 2026"
+  },
+  {
+    "matrice_id": "30c3a4de-9fa3-4862-b349-cc6d0a832f84",
+    "dci_affichee": "Urapidil",
+    "princeps": "Eupressyl ; Mediatensyl",
+    "sources": "BDPM; hint_bdm; VIDAL",
+    "note": "Deux princeps de référence du groupe générique"
+  },
+  {
+    "matrice_id": "8fe3ffdf-edf4-4213-8c85-d1ea3cc0a9b3",
+    "dci_affichee": "Urokinase",
+    "princeps": "Actosolv",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "0130eef2-c8af-4d30-9370-5e61b8215d0d",
+    "dci_affichee": "Valsartan",
+    "princeps": "Tareg",
+    "sources": "BDPM; VIDAL; hint_bdm",
+    "note": "hint_bdm Entresto = sacubitril/valsartan ; Nisis co-princeps du même groupe"
+  },
+  {
+    "matrice_id": "935ca585-1df3-449a-8b3f-d1e9cd85d132",
+    "dci_affichee": "Valsartan + Amlodipine",
+    "princeps": "Exforge",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": "Exforge Hct = triple asso, hors sujet"
+  },
+  {
+    "matrice_id": "2799c3c2-f885-49ff-be34-4f9e094cf010",
+    "dci_affichee": "Valsartan + Hydrochlorothiazide",
+    "princeps": "Cotareg",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": "hint_bdm Exforge Hct et Nisisco : Nisisco co-princeps possible"
+  },
+  {
+    "matrice_id": "49d55f27-4be4-43a2-a422-a15f3aa64df5",
+    "dci_affichee": "Vérapamil",
+    "princeps": "Isoptine",
+    "sources": "BDPM; hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "30bab9da-8cb5-45c1-88a3-af223b21eace",
+    "dci_affichee": "Vérapamil + Trandolapril",
+    "princeps": "Tarka",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "4a0382c1-76f8-4e60-8c8c-ea50a644f869",
+    "dci_affichee": "Warfarine",
+    "princeps": "Coumadine",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": ""
+  },
+  {
+    "matrice_id": "d317ddfe-06da-415a-961e-4cb33603ee4f",
+    "dci_affichee": "Zofénopril",
+    "princeps": "Zofenil",
+    "sources": "BDPM; hint_bdm; noms_actuels",
+    "note": ""
+  },
+  {
+    "matrice_id": "1643b814-7c63-4b5f-977d-d5f44d323052",
+    "dci_affichee": "Zofénopril + Hydrochlorothiazide",
+    "princeps": "Zofenilduo",
+    "sources": "BDPM; noms_actuels; VIDAL",
+    "note": ""
+  }
+]
