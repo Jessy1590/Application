@@ -62,16 +62,27 @@ Object.assign(BH, {
         if (!this.isActiveInMonth(exp, mKey)) return;
         if (!this.isExpenseActive(exp)) return;
         const row = this.expenseSnapshotRow(exp);
-        const old = prev[exp.id];
+        const old = prev[exp.id] || this.misplacedCardAdvanceBarème(exp, accId, mKey);
         if (old && this.barèmeFrozen(exp, mKey)) row.amount = Number(old.amount) || 0;
         snap[exp.id] = row;
       });
       Object.keys(prev).forEach(id => {
         if (snap[id]) return;
         const old = prev[id];
-        if (old && this.barèmeFrozen(old, mKey)) snap[id] = old;
+        if (!old || !this.barèmeFrozen(old, mKey)) return;
+        const live = (this.state.expenses || []).find(e => String(e.id) === String(id));
+        if (live && live.account_id !== accId && this.isMyCardAdvance && this.isMyCardAdvance(live)) return;
+        snap[id] = old;
       });
       return snap;
+    },
+
+    // Modification durable d'une avance carte : le barème a pu être figé sur le compte payeur.
+    misplacedCardAdvanceBarème(exp, accId, mKey) {
+      if (!exp || !this.isMyCardAdvance || !this.isMyCardAdvance(exp) || exp.account_id !== accId) return null;
+      const mainId = this.state.profile?.main_account_id;
+      if (!mainId || mainId === accId) return null;
+      return this.state.theoreticalMonths?.[mainId + '_' + mKey]?.[exp.id] || null;
     },
 
     incomeSnapshotRow(inc) {
@@ -135,6 +146,7 @@ Object.assign(BH, {
       this._theoSnapSyncing = true;
       try {
         const mKey = this.monthKey(new Date());
+        this._cardAdvanceBarèmeRepair = this.relocateMisplacedCardAdvanceBarèmes(mKey);
         for (const acc of (this.state.accounts || [])) {
           const key = acc.id + '_' + mKey;
           const nextExp = this.buildTheoreticalSnapshot(acc.id, mKey);
@@ -142,7 +154,8 @@ Object.assign(BH, {
           const nextInc = this.buildTheoreticalIncomesSnapshot(acc.id, mKey);
           const prevInc = this.state.theoreticalIncomesMonths?.[key] || {};
           const patch = {};
-          if (this.theoreticalSnapFingerprint(prevExp) !== this.theoreticalSnapFingerprint(nextExp)) {
+          const repaired = !!(this._cardAdvanceBarèmeRepair && this._cardAdvanceBarèmeRepair.has(acc.id));
+          if (repaired || this.theoreticalSnapFingerprint(prevExp) !== this.theoreticalSnapFingerprint(nextExp)) {
             patch.theoretical_expenses = nextExp;
           }
           if (this.theoreticalIncomesSnapFingerprint(prevInc) !== this.theoreticalIncomesSnapFingerprint(nextInc)) {
@@ -154,8 +167,27 @@ Object.assign(BH, {
           }, 'snapshot budget théorique');
         }
       } finally {
+        this._cardAdvanceBarèmeRepair = null;
         this._theoSnapSyncing = false;
       }
+    },
+
+    // Recopie le barème figé par erreur sur le compte payeur vers le compte de la dépense.
+    relocateMisplacedCardAdvanceBarèmes(mKey) {
+      const repaired = new Set();
+      const mainId = this.state.profile?.main_account_id;
+      if (!mainId || !this.isMyCardAdvance) return repaired;
+      const paySnap = this.state.theoreticalMonths?.[mainId + '_' + mKey] || {};
+      (this.state.expenses || []).forEach(exp => {
+        if (!this.isMyCardAdvance(exp) || !paySnap[exp.id] || !this.barèmeFrozen(exp, mKey)) return;
+        const homeKey = exp.account_id + '_' + mKey;
+        if (!this.state.theoreticalMonths) this.state.theoreticalMonths = {};
+        const home = this.state.theoreticalMonths[homeKey] || {};
+        if (home[exp.id]) return;
+        this.state.theoreticalMonths[homeKey] = { ...home, [exp.id]: paySnap[exp.id] };
+        repaired.add(exp.account_id);
+      });
+      return repaired;
     },
 
     async logExpenseChange({ expenseId, accountId, changeType, oldAmount, newAmount, oldPayload, newPayload, monthKey }) {
@@ -531,15 +563,17 @@ Object.assign(BH, {
             const { error: e1 } = await supabaseApp.from(table).update({ amount: newAmount }).eq('id', expId);
             if (e1) throw e1;
             const durKey = this.diffAmount.mKey || this.todayViewKey();
-            if (kind === 'expense' && oldExp) this.holdFrozenBarème(accId, durKey, expId, oldExp, 'expense');
+            const budgetAccId = oldExp ? oldExp.account_id : accId;
+            if (kind === 'expense' && oldExp) this.holdFrozenBarème(budgetAccId, durKey, expId, oldExp, 'expense');
             if (kind === 'income') {
               const oldInc = this.state.incomes.find(i => i.id === expId);
               if (oldInc) this.holdFrozenBarème(accId, durKey, expId, oldInc, 'income');
             }
             if (kind === 'expense' && oldExp) {
+              this.diffAmount.budgetAccId = budgetAccId;
               await this.logExpenseChange({
                 expenseId: expId,
-                accountId: accId,
+                accountId: budgetAccId,
                 changeType: 'update_amount',
                 oldAmount,
                 newAmount,
@@ -565,7 +599,11 @@ Object.assign(BH, {
           await this.setPaid('expense', expId, accId, mKey, newAmount);
           if (isApport && typeof this.noteOwnApportReceived === 'function') await this.noteOwnApportReceived(expId, mKey, newAmount);
           if (mode === 'perm' && !isApport) {
-            await this.upsertMonthRecord(accId, mKey, { theoretical_expenses: this.buildTheoreticalSnapshot(accId, mKey) });
+            const budgetAccId = this.diffAmount.budgetAccId || accId;
+            await this.upsertMonthRecord(budgetAccId, mKey, { theoretical_expenses: this.buildTheoreticalSnapshot(budgetAccId, mKey) });
+            if (budgetAccId !== accId) {
+              await this.upsertMonthRecord(accId, mKey, { theoretical_expenses: this.buildTheoreticalSnapshot(accId, mKey) });
+            }
           }
           toast(mode === 'perm'
             ? (isApport ? "Cible d'apport mise à jour et validée" : "Montant mis à jour durablement et validé")

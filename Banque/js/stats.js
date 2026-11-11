@@ -408,14 +408,8 @@ Object.assign(BH, {
     effectiveExpenseAmount(exp, mKey) {
        if (!exp) return 0;
        if (exp.is_wallet) return this.walletOwnSpent(exp.account_id, exp.id, mKey);
-       const paid = this.state.months[exp.account_id + '_' + mKey]?.[exp.id];
-       if (paid) return Number(paid.amount || 0);
-       if (this.isMyCardAdvance(exp)) {
-          const mainId = this.state.profile?.main_account_id;
-          const onMain = this.state.months[mainId + '_' + mKey]?.[exp.id];
-          if (onMain) return Number(onMain.amount || 0);
-       }
-       return 0;
+       const paid = this.expensePaidRec(exp, mKey);
+       return paid ? Number(paid.amount || 0) : 0;
     },
 
     // Montant d'une dépense pour les stats (théorique = budget / snapshot ; effectif = validé / txs portefeuille)

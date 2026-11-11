@@ -586,6 +586,11 @@ Object.assign(BH, {
             const rec = paidMap[ap.id];
             if (rec) paidSum += Number(rec.amount) || 0;
           });
+          (this.state.expenses || []).forEach(e => {
+            if (!this.isMyCardAdvance(e) || !this.isExpenseActive(e)) return;
+            const rec = paidMap[e.id];
+            if (rec) paidSum += Number(rec.amount) || 0;
+          });
         }
         // Apports de CE compte vers des portefeuilles d'autres comptes
         const walletApportsOutMonth = this.outboundWalletApports(acc.id, mKey);
@@ -669,7 +674,7 @@ Object.assign(BH, {
         exps.forEach(e => {
           if (!this.isExpenseActive(e)) return;
           if (e.is_wallet) upcoming += Math.max(0, Number(e.amount) - this.walletOwnSpent(acc.id, e.id, mKey));
-          else if (!paidMap[e.id]) upcoming += Number(e.amount) || 0;
+          else if (!this.expensePaidRec(e, mKey)) upcoming += Number(e.amount) || 0;
         });
         const theoIn = isMain ? tInc : (totalAllocated + tInc);
         const theoOut = isMain
@@ -1035,6 +1040,16 @@ Object.assign(BH, {
         rows += this.detailLine(this.esc(e.description || 'Exceptionnel') + ' · exceptionnel', amt);
       });
       if (accId === this.state.profile?.main_account_id) {
+        (this.state.expenses || []).forEach(e => {
+          if (!this.isMyCardAdvance(e) || !this.isExpenseActive(e)) return;
+          const rec = paidMap[e.id];
+          if (!rec) return;
+          const amt = Number(rec.amount) || 0;
+          total += amt;
+          const origin = (this.state.accounts || []).find(a => a.id === e.account_id);
+          const where = origin ? (' · carte ' + this.esc(origin.name)) : ' · carte';
+          rows += this.detailLine(this.esc(e.description || 'Dépense') + where, amt);
+        });
         this.listOutboundApportDues({ mKey }).forEach(ap => {
           const rec = paidMap[ap.id];
           if (!rec) return;
@@ -1158,7 +1173,6 @@ Object.assign(BH, {
     showUpcoming(accId) {
       const mKey = this.comptesMKey();
       const acc = (this.state.accounts || []).find(a => a.id === accId);
-      const paidMap = this.state.months[accId + '_' + mKey] || {};
       const exps = (this.state.expenses || []).filter(e => e.account_id === accId);
       let total = 0, rows = '';
       exps.forEach(e => {
@@ -1169,7 +1183,7 @@ Object.assign(BH, {
             total += left;
             rows += this.detailLine('👛 ' + this.esc(e.description || 'Portefeuille') + ' · pas encore sorti', left);
           }
-        } else if (!paidMap[e.id]) {
+        } else if (!this.expensePaidRec(e, mKey)) {
           const amt = Number(e.amount) || 0;
           total += amt;
           rows += this.detailLine(this.esc(e.description || 'Dépense') + (e.day ? (' · le ' + e.day) : '') + ' · pas encore validé', amt);

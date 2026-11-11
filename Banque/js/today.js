@@ -352,6 +352,16 @@ Object.assign(BH, {
       return !!(exp && mainId && this.user && exp.payer_id === this.user.id
         && exp.account_id !== mainId && !exp.is_wallet && !exp.is_apport);
     },
+    // Validation d'une avance carte : le débit est sur le compte principal.
+    // On le reconnaît aussi s'il a été noté sur le compte d'origine.
+    expensePaidRec(exp, mKey) {
+      if (!exp || !mKey) return null;
+      const onOrigin = this.state.months?.[exp.account_id + '_' + mKey]?.[exp.id] || null;
+      if (!this.isMyCardAdvance(exp)) return onOrigin;
+      const mainId = this.state.profile?.main_account_id;
+      const onMain = mainId ? (this.state.months?.[mainId + '_' + mKey]?.[exp.id] || null) : null;
+      return onMain || onOrigin;
+    },
     cardAdvanceTotal(targetAccId, mKey) {
       return (this.state.expenses || []).reduce((sum, exp) => {
         if (exp.account_id !== targetAccId || !this.isMyCardAdvance(exp)) return sum;
